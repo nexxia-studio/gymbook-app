@@ -50,7 +50,7 @@ export function MobileDayList({ weekDays, getSlotsByDay, onSlotClick, loading }:
               onClick={() => setActiveDay(i)}
               className={`flex shrink-0 flex-col items-center rounded-lg px-3 py-2 transition-all ${
                 active
-                  ? 'bg-dark text-accent'
+                  ? 'bg-[#111111] text-[#C8F000] dark:bg-[#C8F000] dark:text-[#111111]'
                   : today
                     ? 'bg-accent/10 text-dark'
                     : 'text-muted hover:text-dark'

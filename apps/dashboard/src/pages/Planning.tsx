@@ -124,7 +124,7 @@ export default function Planning() {
       {/* Mobile FAB */}
       <button
         type="button"
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-dark text-accent shadow-lg transition-transform hover:scale-105 sm:hidden"
+        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#111111] text-[#C8F000] shadow-lg transition-transform hover:scale-105 dark:bg-[#C8F000] dark:text-[#111111] sm:hidden"
       >
         <Plus className="h-6 w-6" />
       </button>
