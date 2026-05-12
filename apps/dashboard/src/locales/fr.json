@@ -125,6 +125,67 @@
     "title": "{{page}}",
     "subtitle": "Cette section arrive bientôt."
   },
+  "planning": {
+    "title": "Planning",
+    "today": "Aujourd'hui",
+    "new_slot": "Nouveau créneau",
+    "week_of": "{{start}} — {{end}}",
+    "filter_all_coaches": "Tous les coaches",
+    "filter_all_activities": "Toutes les activités",
+    "filter_all_statuses": "Tous les statuts",
+    "filter_scheduled": "Planifiés",
+    "filter_completed": "Terminés",
+    "filter_cancelled": "Annulés",
+    "empty": "Aucun créneau cette semaine",
+    "empty_day": "Aucun créneau ce jour",
+    "slot_detail": "Détail du créneau",
+    "date": "Date",
+    "time": "Horaire",
+    "coach": "Coach",
+    "capacity": "Capacité",
+    "members_enrolled": "Membres inscrits",
+    "no_members": "Aucun membre inscrit",
+    "edit_slot": "Modifier",
+    "cancel_slot": "Annuler le créneau",
+    "close": "Fermer",
+    "status": {
+      "scheduled": "Planifié",
+      "completed": "Terminé",
+      "cancelled": "Annulé"
+    },
+    "days_short": {
+      "mon": "LUN",
+      "tue": "MAR",
+      "wed": "MER",
+      "thu": "JEU",
+      "fri": "VEN",
+      "sat": "SAM",
+      "sun": "DIM"
+    },
+    "days_long": {
+      "mon": "Lundi",
+      "tue": "Mardi",
+      "wed": "Mercredi",
+      "thu": "Jeudi",
+      "fri": "Vendredi",
+      "sat": "Samedi",
+      "sun": "Dimanche"
+    },
+    "months": {
+      "0": "janvier",
+      "1": "février",
+      "2": "mars",
+      "3": "avril",
+      "4": "mai",
+      "5": "juin",
+      "6": "juillet",
+      "7": "août",
+      "8": "septembre",
+      "9": "octobre",
+      "10": "novembre",
+      "11": "décembre"
+    }
+  },
   "gym": {
     "name": "Nom de la salle",
     "address": "Adresse",
