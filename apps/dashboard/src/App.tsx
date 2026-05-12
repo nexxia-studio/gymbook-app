@@ -2,6 +2,7 @@ import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { ToastContainer } from '@/components/ui/Toast'
 
 const Login = lazy(() => import('@/pages/Login'))
 const Signup = lazy(() => import('@/pages/Signup'))
@@ -100,6 +101,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      <ToastContainer />
     </BrowserRouter>
   )
 }

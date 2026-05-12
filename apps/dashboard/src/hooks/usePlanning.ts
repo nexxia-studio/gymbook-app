@@ -163,6 +163,26 @@ function buildWeekSlots(monday: Date): TimeSlot[] {
   return slots
 }
 
+export interface CreateSlotInput {
+  activityId: string
+  coachId: string
+  date: string
+  startTime: string
+  duration: number
+  capacity: number
+  level: string
+  notes: string
+  repeat: boolean
+  repeatWeeks: number
+}
+
+let nextSlotId = 1000
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
 export function usePlanning() {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
@@ -170,6 +190,8 @@ export function usePlanning() {
   const [filterActivity, setFilterActivity] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [extraSlots, setExtraSlots] = useState<TimeSlot[]>([])
+  const [version, setVersion] = useState(0)
 
   const weekEnd = useMemo(() => {
     const d = new Date(weekStart)
@@ -177,13 +199,17 @@ export function usePlanning() {
     return d
   }, [weekStart])
 
-  const allSlots = useMemo(() => {
+  const baseSlots = useMemo(() => {
     setLoading(true)
     const s = buildWeekSlots(weekStart)
-    // Simulate async
     setTimeout(() => setLoading(false), 400)
     return s
   }, [weekStart])
+
+  const allSlots = useMemo(() => {
+    void version // trigger recalc on CRUD
+    return [...baseSlots, ...extraSlots]
+  }, [baseSlots, extraSlots, version])
 
   const filteredSlots = useMemo(() => {
     return allSlots.filter((s) => {
@@ -220,6 +246,94 @@ export function usePlanning() {
     }
   }
 
+  function checkOverlap(coachId: string, date: string, startTime: string, duration: number, excludeId?: string): boolean {
+    const newStart = timeToMinutes(startTime)
+    const newEnd = newStart + duration
+    return allSlots.some((s) => {
+      if (s.id === excludeId) return false
+      if (s.coach.id !== coachId || s.date !== date || s.status === 'cancelled') return false
+      const sStart = timeToMinutes(s.startTime)
+      const sEnd = timeToMinutes(s.endTime)
+      return newStart < sEnd && newEnd > sStart
+    })
+  }
+
+  function createSlot(input: CreateSlotInput): number {
+    const activity = ACTIVITIES.find((a) => a.id === input.activityId)!
+    const coach = COACHES.find((c) => c.id === input.coachId)!
+    const count = input.repeat ? input.repeatWeeks : 1
+    const newSlots: TimeSlot[] = []
+
+    for (let i = 0; i < count; i++) {
+      const d = new Date(input.date)
+      d.setDate(d.getDate() + i * 7)
+      const dateStr = formatDate(d)
+
+      newSlots.push({
+        id: `slot-${nextSlotId++}`,
+        date: dateStr,
+        startTime: input.startTime,
+        endTime: addMinutes(input.startTime, input.duration),
+        activity,
+        coach,
+        booked: 0,
+        capacity: input.capacity,
+        status: 'scheduled',
+        members: [],
+      })
+    }
+
+    setExtraSlots((prev) => [...prev, ...newSlots])
+    setVersion((v) => v + 1)
+    return count
+  }
+
+  function updateSlot(id: string, input: CreateSlotInput) {
+    const activity = ACTIVITIES.find((a) => a.id === input.activityId)!
+    const coach = COACHES.find((c) => c.id === input.coachId)!
+
+    // Update in extra slots
+    setExtraSlots((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              activity,
+              coach,
+              date: input.date,
+              startTime: input.startTime,
+              endTime: addMinutes(input.startTime, input.duration),
+              capacity: input.capacity,
+            }
+          : s,
+      ),
+    )
+    setVersion((v) => v + 1)
+  }
+
+  function cancelSlot(id: string) {
+    // Mark as cancelled in extra slots or base slots
+    setExtraSlots((prev) => {
+      const found = prev.find((s) => s.id === id)
+      if (found) {
+        return prev.map((s) => (s.id === id ? { ...s, status: 'cancelled' as const } : s))
+      }
+      // If it's a base slot, copy it as cancelled to extras
+      const base = baseSlots.find((s) => s.id === id)
+      if (base) {
+        return [...prev, { ...base, status: 'cancelled' as const }]
+      }
+      return prev
+    })
+    setVersion((v) => v + 1)
+  }
+
+  function removeSlot(id: string) {
+    // Permanently remove from extras
+    setExtraSlots((prev) => prev.filter((s) => s.id !== id))
+    setVersion((v) => v + 1)
+  }
+
   return {
     weekStart,
     weekEnd,
@@ -238,5 +352,10 @@ export function usePlanning() {
     setFilterStatus,
     coaches: COACHES,
     activities: ACTIVITIES,
+    createSlot,
+    updateSlot,
+    cancelSlot,
+    removeSlot,
+    checkOverlap,
   }
 }

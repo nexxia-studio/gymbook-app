@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Ban } from 'lucide-react'
+import { X, Pencil, Trash2, XCircle } from 'lucide-react'
 import type { TimeSlot } from '@/types/planning'
 import { Button } from '@/components/ui/Button'
 
 interface SlotDrawerProps {
   slot: TimeSlot | null
   onClose: () => void
+  onEdit: (slot: TimeSlot) => void
+  onCancel: (slot: TimeSlot) => void
+  onDelete: (slot: TimeSlot) => void
 }
 
 const statusColors: Record<string, string> = {
@@ -15,10 +18,9 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-red-50 text-red-500',
 }
 
-export function SlotDrawer({ slot, onClose }: SlotDrawerProps) {
+export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDrawerProps) {
   const { t } = useTranslation()
 
-  // Close on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -28,6 +30,8 @@ export function SlotDrawer({ slot, onClose }: SlotDrawerProps) {
       return () => document.removeEventListener('keydown', handleKey)
     }
   }, [slot, onClose])
+
+  const canDelete = slot ? slot.booked === 0 : false
 
   return (
     <>
@@ -93,11 +97,9 @@ export function SlotDrawer({ slot, onClose }: SlotDrawerProps) {
                 </div>
                 <div>
                   <p className="font-body text-xs text-muted">{t('planning.capacity')}</p>
-                  <div className="flex items-center gap-2">
-                    <p className="font-body text-sm font-medium text-dark">
-                      {slot.booked} / {slot.capacity}
-                    </p>
-                  </div>
+                  <p className="font-body text-sm font-medium text-dark">
+                    {slot.booked} / {slot.capacity}
+                  </p>
                 </div>
               </div>
 
@@ -135,16 +137,45 @@ export function SlotDrawer({ slot, onClose }: SlotDrawerProps) {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 border-t border-border p-5">
-              <Button variant="secondary" className="flex-1">
-                <Pencil className="h-4 w-4" />
-                {t('planning.edit_slot')}
-              </Button>
-              <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600">
-                <Ban className="h-4 w-4" />
-                {t('planning.cancel_slot')}
-              </Button>
-            </div>
+            {slot.status !== 'cancelled' && (
+              <div className="flex flex-col gap-2 border-t border-border p-5">
+                <div className="flex gap-3">
+                  <Button variant="secondary" className="flex-1" onClick={() => onEdit(slot)}>
+                    <Pencil className="h-4 w-4" />
+                    {t('planning.edit_slot')}
+                  </Button>
+                </div>
+                <div className="flex gap-3">
+                  {/* Cancel button — always visible */}
+                  <Button
+                    variant="ghost"
+                    className="flex-1 text-orange-500 hover:bg-orange-50 hover:text-orange-600"
+                    onClick={() => onCancel(slot)}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    {t('planning.cancel_slot')}
+                  </Button>
+
+                  {/* Delete button — only if 0 members */}
+                  <div className="group relative flex-1">
+                    <Button
+                      variant="ghost"
+                      className="w-full text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                      disabled={!canDelete}
+                      onClick={() => onDelete(slot)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {t('slots.permanently_delete')}
+                    </Button>
+                    {!canDelete && (
+                      <div className="invisible absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-lg bg-dark px-3 py-2 font-body text-xs text-white shadow-lg group-hover:visible">
+                        {t('slots.permanently_delete_disabled', { count: slot.booked })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </aside>
