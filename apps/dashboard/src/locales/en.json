@@ -111,7 +111,8 @@
     "slot_status": {
       "scheduled": "Scheduled",
       "completed": "Completed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "in_progress": "In progress"
     },
     "booked_of": "{{booked}} / {{capacity}}",
     "joined": "Joined {{date}}"
@@ -151,7 +152,8 @@
     "status": {
       "scheduled": "Scheduled",
       "completed": "Completed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "in_progress": "In progress"
     },
     "days_short": {
       "mon": "MON",

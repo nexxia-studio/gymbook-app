@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Pencil, Trash2, XCircle } from 'lucide-react'
-import type { TimeSlot } from '@/types/planning'
+import type { TimeSlot, DisplayStatus } from '@/types/planning'
+import { getDisplayStatus } from '@/types/planning'
 import { Button } from '@/components/ui/Button'
 
 interface SlotDrawerProps {
@@ -12,10 +13,11 @@ interface SlotDrawerProps {
   onDelete: (slot: TimeSlot) => void
 }
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<DisplayStatus, string> = {
   scheduled: 'bg-accent/15 text-accent-dim',
   completed: 'bg-dark/5 text-muted',
   cancelled: 'bg-red-50 text-red-500',
+  in_progress: 'bg-green-500/15 text-green-600',
 }
 
 export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDrawerProps) {
@@ -73,9 +75,17 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                   <h3 className="font-display text-2xl font-black uppercase tracking-tight text-dark">
                     {slot.activity.name}
                   </h3>
-                  <span className={`inline-block rounded-lg px-2 py-0.5 text-xs font-semibold ${statusColors[slot.status]}`}>
-                    {t(`planning.status.${slot.status}`)}
-                  </span>
+                  {(() => {
+                    const ds = getDisplayStatus(slot)
+                    return (
+                      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold ${statusColors[ds]}`}>
+                        {ds === 'in_progress' && (
+                          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+                        )}
+                        {t(`planning.status.${ds}`)}
+                      </span>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -137,7 +147,7 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
             </div>
 
             {/* Actions */}
-            {slot.status !== 'cancelled' && (
+            {getDisplayStatus(slot) !== 'cancelled' && (
               <div className="flex flex-col gap-2 border-t border-border p-5">
                 <div className="flex gap-3">
                   <Button variant="secondary" className="flex-1" onClick={() => onEdit(slot)}>

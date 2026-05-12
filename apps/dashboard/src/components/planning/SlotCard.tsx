@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TimeSlot } from '@/types/planning'
+import type { TimeSlot, DisplayStatus } from '@/types/planning'
+import { getDisplayStatus } from '@/types/planning'
 
 interface SlotCardProps {
   slot: TimeSlot
@@ -9,14 +10,29 @@ interface SlotCardProps {
   style?: CSSProperties
 }
 
-const statusBadge: Record<string, string> = {
+const statusBadge: Record<DisplayStatus, string> = {
   cancelled: 'bg-red-500/90 text-white',
   completed: 'bg-black/40 text-white',
+  in_progress: 'bg-green-500 text-white',
+  scheduled: '',
 }
 
 export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProps) {
   const { t } = useTranslation()
   const fillPercent = Math.round((slot.booked / slot.capacity) * 100)
+  const displayStatus = getDisplayStatus(slot)
+  const isLive = displayStatus === 'in_progress'
+
+  // Debug: log status computation for today's slots
+  if (slot.date === new Date().toISOString().slice(0, 10)) {
+    console.log(`[SlotCard] ${slot.activity.name} ${slot.startTime}-${slot.endTime}`, {
+      date: slot.date,
+      endMs: new Date(slot.date.replace(/-/g, '/') + ' ' + slot.endTime).getTime(),
+      now: Date.now(),
+      displayStatus,
+      compact,
+    })
+  }
 
   return (
     <button
@@ -26,6 +42,7 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
         ...style,
         backgroundColor: `${slot.activity.color}20`,
         borderLeft: `3px solid ${slot.activity.color}`,
+        ...(isLive ? { outline: '2px solid #22C55E', outlineOffset: '-2px' } : {}),
       }}
       className={`group box-border h-full w-full cursor-pointer overflow-hidden rounded-xl text-left transition-shadow duration-150 hover:shadow-md ${
         compact ? 'p-1.5' : 'p-2'
@@ -43,9 +60,12 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
           )}
         </div>
-        {slot.status !== 'scheduled' && !compact && (
-          <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold ${statusBadge[slot.status]}`}>
-            {t(`planning.status.${slot.status}`)}
+        {displayStatus !== 'scheduled' && (
+          <span className={`inline-flex shrink-0 items-center gap-1 rounded px-1 py-0.5 font-semibold ${statusBadge[displayStatus]} ${compact ? 'text-[7px]' : 'text-[9px]'}`}>
+            {isLive && (
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            )}
+            {t(`planning.status.${displayStatus}`)}
           </span>
         )}
       </div>

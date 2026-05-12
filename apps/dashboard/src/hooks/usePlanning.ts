@@ -69,8 +69,8 @@ interface SlotTemplate {
 const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
   // Monday
   [
-    { time: '07:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 14, status: 'completed' },
-    { time: '09:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 8, status: 'completed' },
+    { time: '07:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 14, status: 'scheduled' },
+    { time: '09:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 8, status: 'scheduled' },
     { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 3, status: 'scheduled' },
     { time: '17:30', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 12, status: 'scheduled' },
     { time: '18:30', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 9, status: 'scheduled' },
@@ -79,8 +79,8 @@ const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
   ],
   // Tuesday
   [
-    { time: '07:00', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 11, status: 'completed' },
-    { time: '08:00', activityIdx: 7, coachIdx: 1, capacity: 8, booked: 6, status: 'completed' },
+    { time: '07:00', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 11, status: 'scheduled' },
+    { time: '08:00', activityIdx: 7, coachIdx: 1, capacity: 8, booked: 6, status: 'scheduled' },
     { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 4, status: 'scheduled' },
     { time: '17:30', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 13, status: 'scheduled' },
     { time: '18:30', activityIdx: 6, coachIdx: 3, capacity: 10, booked: 5, status: 'scheduled' },
@@ -88,8 +88,8 @@ const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
   ],
   // Wednesday
   [
-    { time: '07:00', activityIdx: 1, coachIdx: 2, capacity: 16, booked: 9, status: 'completed' },
-    { time: '09:00', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 12, status: 'completed' },
+    { time: '07:00', activityIdx: 1, coachIdx: 2, capacity: 16, booked: 9, status: 'scheduled' },
+    { time: '09:00', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 12, status: 'scheduled' },
     { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 2, status: 'cancelled' },
     { time: '17:30', activityIdx: 2, coachIdx: 4, capacity: 15, booked: 15, status: 'scheduled' },
     { time: '18:30', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 11, status: 'scheduled' },
@@ -98,8 +98,8 @@ const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
   ],
   // Thursday
   [
-    { time: '07:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 7, status: 'completed' },
-    { time: '08:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 3, status: 'completed' },
+    { time: '07:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 7, status: 'scheduled' },
+    { time: '08:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 3, status: 'scheduled' },
     { time: '12:00', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 10, status: 'scheduled' },
     { time: '17:30', activityIdx: 1, coachIdx: 2, capacity: 16, booked: 14, status: 'scheduled' },
     { time: '18:30', activityIdx: 7, coachIdx: 1, capacity: 8, booked: 8, status: 'scheduled' },
@@ -107,8 +107,8 @@ const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
   ],
   // Friday
   [
-    { time: '07:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 10, status: 'completed' },
-    { time: '09:00', activityIdx: 6, coachIdx: 3, capacity: 10, booked: 4, status: 'completed' },
+    { time: '07:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 10, status: 'scheduled' },
+    { time: '09:00', activityIdx: 6, coachIdx: 3, capacity: 10, booked: 4, status: 'scheduled' },
     { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 4, status: 'scheduled' },
     { time: '17:30', activityIdx: 2, coachIdx: 4, capacity: 15, booked: 13, status: 'scheduled' },
     { time: '18:30', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 9, status: 'scheduled' },

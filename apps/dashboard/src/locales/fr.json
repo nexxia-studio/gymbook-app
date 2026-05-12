@@ -111,7 +111,8 @@
     "slot_status": {
       "scheduled": "Planifié",
       "completed": "Terminé",
-      "cancelled": "Annulé"
+      "cancelled": "Annulé",
+      "in_progress": "En cours"
     },
     "booked_of": "{{booked}} / {{capacity}}",
     "joined": "Inscrit le {{date}}"
@@ -151,7 +152,8 @@
     "status": {
       "scheduled": "Planifié",
       "completed": "Terminé",
-      "cancelled": "Annulé"
+      "cancelled": "Annulé",
+      "in_progress": "En cours"
     },
     "days_short": {
       "mon": "LUN",
