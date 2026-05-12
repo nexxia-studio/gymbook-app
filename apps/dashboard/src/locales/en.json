@@ -35,5 +35,11 @@
     "address": "Address",
     "phone": "Phone",
     "email": "Email"
+  },
+  "supabase": {
+    "connected": "Connected to Supabase",
+    "connected_as": "Gym: {{name}}",
+    "error": "Connection error",
+    "rls_blocked": "RLS active (not authenticated)"
   }
 }

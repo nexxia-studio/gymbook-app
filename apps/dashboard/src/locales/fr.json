@@ -35,5 +35,11 @@
     "address": "Adresse",
     "phone": "Téléphone",
     "email": "Email"
+  },
+  "supabase": {
+    "connected": "Connect\u00e9 \u00e0 Supabase",
+    "connected_as": "Salle : {{name}}",
+    "error": "Erreur de connexion",
+    "rls_blocked": "RLS actif (non authentifi\u00e9)"
   }
 }

@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { Dumbbell } from 'lucide-react'
+import { Dumbbell, CheckCircle, XCircle, ShieldAlert } from 'lucide-react'
+import { useGym } from '@/hooks/useSupabase'
 
 const SUPPORTED_LANGS = ['fr', 'en'] as const
 
 function App() {
   const { t, i18n } = useTranslation()
+  const { data: gym, isLoading, error } = useGym()
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -35,6 +37,31 @@ function App() {
           {t('dashboard.subtitle')}
         </p>
         <div className="mx-auto mt-6 h-1 w-24 rounded-full bg-accent" />
+
+        <div className="mt-8">
+          {isLoading && (
+            <p className="text-dark/40">{t('common.loading')}</p>
+          )}
+          {error && (
+            <div className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-red-600">
+              <XCircle className="h-5 w-5" />
+              <span>{t('supabase.error')}</span>
+            </div>
+          )}
+          {!isLoading && !error && gym && (
+            <div className="inline-flex items-center gap-2 rounded-lg bg-accent/10 px-4 py-2 text-dark">
+              <CheckCircle className="h-5 w-5 text-accent-dim" />
+              <span>{t('supabase.connected')}</span>
+              <span className="font-semibold">&mdash; {t('supabase.connected_as', { name: gym.name })}</span>
+            </div>
+          )}
+          {!isLoading && !error && !gym && (
+            <div className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-2 text-amber-700">
+              <ShieldAlert className="h-5 w-5" />
+              <span>{t('supabase.rls_blocked')}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
