@@ -11,7 +11,11 @@
     "error": "Une erreur est survenue",
     "success": "Opération réussie",
     "or": "ou",
-    "required": "Ce champ est requis"
+    "required": "Ce champ est requis",
+    "search_placeholder": "Rechercher...",
+    "notifications": "Notifications",
+    "profile": "Profil",
+    "under_construction": "En construction"
   },
   "auth": {
     "login": "Se connecter",
@@ -77,14 +81,49 @@
     "tagline": "Gérez votre salle simplement",
     "quote": "La solution tout-en-un pour les gérants de salles de sport"
   },
-  "dashboard": {
-    "title": "Tableau de bord",
-    "subtitle": "Sprint 1 — en construction",
+  "nav": {
+    "dashboard": "Tableau de bord",
     "planning": "Planning",
     "members": "Membres",
     "plans": "Formules",
     "revenue": "Revenus",
     "settings": "Paramètres"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "subtitle": "Sprint 1 — en construction",
+    "greeting": "Bonjour, {{name}}",
+    "planning": "Planning",
+    "members": "Membres",
+    "plans": "Formules",
+    "revenue": "Revenus",
+    "settings": "Paramètres",
+    "kpi": {
+      "active_members": "Membres actifs",
+      "today_sessions": "Séances aujourd'hui",
+      "fill_rate": "Taux de remplissage",
+      "month_revenue": "Revenus du mois"
+    },
+    "today_planning": "Planning du jour",
+    "upcoming_sessions": "Séances à venir",
+    "recent_members": "Membres récents",
+    "weekly_stats": "Réservations cette semaine",
+    "slot_status": {
+      "scheduled": "Planifié",
+      "completed": "Terminé",
+      "cancelled": "Annulé"
+    },
+    "booked_of": "{{booked}} / {{capacity}}",
+    "joined": "Inscrit le {{date}}"
+  },
+  "theme": {
+    "light": "Mode clair",
+    "dark": "Mode sombre",
+    "system": "Système"
+  },
+  "placeholder": {
+    "title": "{{page}}",
+    "subtitle": "Cette section arrive bientôt."
   },
   "gym": {
     "name": "Nom de la salle",

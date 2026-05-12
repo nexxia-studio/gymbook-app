@@ -1,44 +1,105 @@
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dumbbell, LogOut } from 'lucide-react'
+import {
+  Users,
+  Calendar,
+  TrendingUp,
+  CreditCard,
+} from 'lucide-react'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/Button'
+import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { useAnimatedCounter } from '@/hooks/useAnimatedCounter'
+import { KpiCard } from '@/components/dashboard/KpiCard'
+import { TodayPlanning } from '@/components/dashboard/TodayPlanning'
+import { UpcomingSessions } from '@/components/dashboard/UpcomingSessions'
+import { RecentMembers } from '@/components/dashboard/RecentMembers'
+import { WeeklyChart } from '@/components/dashboard/WeeklyChart'
+
+const mockStats = {
+  activeMembers: 47,
+  todaySessions: 6,
+  fillRate: 73,
+  monthRevenue: 3840,
+}
 
 export default function Dashboard() {
   const { t } = useTranslation()
-  const { signOut, user } = useAuthStore()
-  const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
+  const firstName = user?.user_metadata?.first_name ?? ''
 
-  async function handleSignOut() {
-    await signOut()
-    navigate('/login')
-  }
+  // Simulate loading
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 800)
+    return () => clearTimeout(timer)
+  }, [])
+
+  const stats = useMemo(() => (loading ? null : mockStats), [loading])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <div className="mb-6 flex items-center justify-center gap-3">
-          <Dumbbell className="h-10 w-10 text-accent" />
-          <h1 className="font-display text-5xl font-black uppercase tracking-tight text-dark">
-            {t('dashboard.title')}
-          </h1>
-        </div>
-        <p className="text-lg text-dark/60">
-          {t('dashboard.subtitle')}
-        </p>
-        {user && (
-          <p className="mt-2 font-body text-sm text-dark/40">
-            {user.email}
-          </p>
+    <DashboardLayout>
+      {/* Greeting */}
+      <h1 className="mb-6 font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+        {t('dashboard.greeting', { name: firstName })}
+      </h1>
+
+      {/* KPI Row */}
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {loading ? (
+          <>
+            <Skeleton variant="kpi" />
+            <Skeleton variant="kpi" />
+            <Skeleton variant="kpi" />
+            <Skeleton variant="kpi" />
+          </>
+        ) : (
+          <>
+            <KpiCard
+              icon={Users}
+              label={t('dashboard.kpi.active_members')}
+              value={stats!.activeMembers}
+            />
+            <KpiCard
+              icon={Calendar}
+              label={t('dashboard.kpi.today_sessions')}
+              value={stats!.todaySessions}
+            />
+            <KpiCard
+              icon={TrendingUp}
+              label={t('dashboard.kpi.fill_rate')}
+              value={stats!.fillRate}
+              suffix="%"
+            />
+            <KpiCard
+              icon={CreditCard}
+              label={t('dashboard.kpi.month_revenue')}
+              value={stats!.monthRevenue}
+              prefix="\u20ac"
+            />
+          </>
         )}
-        <div className="mx-auto mt-6 h-1 w-24 rounded-full bg-accent" />
-        <div className="mt-8">
-          <Button variant="secondary" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4" />
-            {t('auth.logout')}
-          </Button>
+      </div>
+
+      {/* Row 2 — Planning + Upcoming */}
+      <div className="mb-6 grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <TodayPlanning loading={loading} />
+        </div>
+        <div className="lg:col-span-4">
+          <UpcomingSessions loading={loading} />
         </div>
       </div>
-    </div>
+
+      {/* Row 3 — Recent members + Weekly chart */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <RecentMembers loading={loading} />
+        </div>
+        <div className="lg:col-span-7">
+          <WeeklyChart loading={loading} />
+        </div>
+      </div>
+    </DashboardLayout>
   )
 }

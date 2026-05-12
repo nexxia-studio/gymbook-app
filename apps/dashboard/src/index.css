@@ -1,9 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #F5F4F0;
-  --color-card: #FFFFFF;
-  --color-dark: #111111;
+  --color-background: var(--bg-primary);
+  --color-card: var(--bg-card);
+  --color-dark: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-secondary: var(--text-secondary);
+  --color-border: var(--border-color);
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
   --color-accent: #C8F000;
   --color-accent-dim: #9DB800;
 
@@ -11,11 +16,53 @@
   --font-body: "DM Sans", sans-serif;
 }
 
+:root {
+  --bg-primary: #F5F4F0;
+  --bg-card: #FFFFFF;
+  --text-primary: #111111;
+  --text-secondary: #6B6861;
+  --text-muted: #9A9890;
+  --border-color: #E8E6E0;
+  --sidebar-bg: #111111;
+  --sidebar-text: #FFFFFF;
+}
+
+.dark {
+  --bg-primary: #0F0F0F;
+  --bg-card: #1A1A1A;
+  --text-primary: #F5F4F0;
+  --text-secondary: #9A9890;
+  --text-muted: #6B6861;
+  --border-color: #2A2A2A;
+  --sidebar-bg: #0A0A0A;
+  --sidebar-text: #F5F4F0;
+}
+
 body {
   font-family: var(--font-body);
-  background-color: var(--color-background);
-  color: var(--color-dark);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Skeleton pulse */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+.animate-skeleton {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+/* Notification badge pulse */
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.animate-badge {
+  animation: badge-pulse 2s ease-in-out infinite;
 }

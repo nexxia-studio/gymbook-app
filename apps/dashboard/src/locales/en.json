@@ -11,7 +11,11 @@
     "error": "An error occurred",
     "success": "Operation successful",
     "or": "or",
-    "required": "This field is required"
+    "required": "This field is required",
+    "search_placeholder": "Search...",
+    "notifications": "Notifications",
+    "profile": "Profile",
+    "under_construction": "Under construction"
   },
   "auth": {
     "login": "Log in",
@@ -77,14 +81,49 @@
     "tagline": "Manage your gym simply",
     "quote": "The all-in-one solution for gym managers"
   },
-  "dashboard": {
-    "title": "Dashboard",
-    "subtitle": "Sprint 1 — under construction",
+  "nav": {
+    "dashboard": "Dashboard",
     "planning": "Planning",
     "members": "Members",
     "plans": "Plans",
     "revenue": "Revenue",
     "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Sprint 1 — under construction",
+    "greeting": "Hello, {{name}}",
+    "planning": "Planning",
+    "members": "Members",
+    "plans": "Plans",
+    "revenue": "Revenue",
+    "settings": "Settings",
+    "kpi": {
+      "active_members": "Active members",
+      "today_sessions": "Today's sessions",
+      "fill_rate": "Fill rate",
+      "month_revenue": "Monthly revenue"
+    },
+    "today_planning": "Today's schedule",
+    "upcoming_sessions": "Upcoming sessions",
+    "recent_members": "Recent members",
+    "weekly_stats": "Bookings this week",
+    "slot_status": {
+      "scheduled": "Scheduled",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "booked_of": "{{booked}} / {{capacity}}",
+    "joined": "Joined {{date}}"
+  },
+  "theme": {
+    "light": "Light mode",
+    "dark": "Dark mode",
+    "system": "System"
+  },
+  "placeholder": {
+    "title": "{{page}}",
+    "subtitle": "This section is coming soon."
   },
   "gym": {
     "name": "Gym name",
