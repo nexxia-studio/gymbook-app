@@ -1,1 +1,39 @@
-{}
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "back": "Back",
+    "confirm": "Confirm",
+    "error": "An error occurred",
+    "success": "Operation successful"
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "signup": "Create an account",
+    "email": "Email",
+    "password": "Password",
+    "forgot_password": "Forgot your password?",
+    "no_account": "Don't have an account yet?",
+    "already_account": "Already have an account?"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Sprint 1 — under construction",
+    "planning": "Planning",
+    "members": "Members",
+    "plans": "Plans",
+    "revenue": "Revenue",
+    "settings": "Settings"
+  },
+  "gym": {
+    "name": "Gym name",
+    "address": "Address",
+    "phone": "Phone",
+    "email": "Email"
+  }
+}

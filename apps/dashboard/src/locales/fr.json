@@ -1,1 +1,39 @@
-{}
+{
+  "common": {
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "back": "Retour",
+    "confirm": "Confirmer",
+    "error": "Une erreur est survenue",
+    "success": "Opération réussie"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "signup": "Créer un compte",
+    "email": "Email",
+    "password": "Mot de passe",
+    "forgot_password": "Mot de passe oublié ?",
+    "no_account": "Pas encore de compte ?",
+    "already_account": "Déjà un compte ?"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "subtitle": "Sprint 1 — en construction",
+    "planning": "Planning",
+    "members": "Membres",
+    "plans": "Formules",
+    "revenue": "Revenus",
+    "settings": "Paramètres"
+  },
+  "gym": {
+    "name": "Nom de la salle",
+    "address": "Adresse",
+    "phone": "Téléphone",
+    "email": "Email"
+  }
+}
