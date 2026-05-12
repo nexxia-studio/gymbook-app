@@ -14,7 +14,7 @@ function getStoredTheme(): Theme | null {
 }
 
 function getEffectiveTheme(): Theme {
-  return getStoredTheme() ?? getSystemTheme()
+  return getStoredTheme() ?? 'light'
 }
 
 function applyTheme(theme: Theme) {
@@ -50,18 +50,8 @@ export function useTheme() {
     setTheme(getEffectiveTheme() === 'dark' ? 'light' : 'dark')
   }, [setTheme])
 
-  // Listen to system preference changes
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => {
-      if (!getStoredTheme()) {
-        applyTheme(getSystemTheme())
-        emitChange()
-      }
-    }
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
+  // No system preference listener — default is always light.
+  // User must toggle manually; their choice is persisted in localStorage.
 
   return { theme, setTheme, toggleTheme, isDark: theme === 'dark' } as const
 }

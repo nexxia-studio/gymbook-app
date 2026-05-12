@@ -86,7 +86,7 @@ export function Sidebar() {
               className={({ isActive }) =>
                 `group flex items-center gap-3 rounded-lg px-3 py-2.5 font-body text-sm transition-all duration-150 ${
                   isActive
-                    ? 'bg-accent font-semibold text-dark'
+                    ? 'bg-accent font-semibold text-[#111111]'
                     : 'text-muted hover:translate-x-0.5 hover:text-sidebar-text'
                 }`
               }
