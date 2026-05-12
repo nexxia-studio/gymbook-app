@@ -9,17 +9,73 @@
     "back": "Retour",
     "confirm": "Confirmer",
     "error": "Une erreur est survenue",
-    "success": "Opération réussie"
+    "success": "Opération réussie",
+    "or": "ou",
+    "required": "Ce champ est requis"
   },
   "auth": {
     "login": "Se connecter",
+    "login_title": "Connexion",
+    "login_subtitle": "Accédez à votre espace gérant",
     "logout": "Se déconnecter",
     "signup": "Créer un compte",
+    "signup_title": "Créer votre compte",
+    "signup_subtitle": "Rejoignez GymBook en quelques minutes",
     "email": "Email",
+    "email_placeholder": "votre@email.com",
     "password": "Mot de passe",
+    "password_placeholder": "Votre mot de passe",
+    "password_confirm": "Confirmer le mot de passe",
+    "password_confirm_placeholder": "Retapez votre mot de passe",
+    "first_name": "Prénom",
+    "first_name_placeholder": "Jean",
+    "last_name": "Nom",
+    "last_name_placeholder": "Dupont",
+    "phone": "Téléphone",
+    "phone_placeholder": "+32 470 00 00 00",
+    "phone_optional": "Optionnel",
     "forgot_password": "Mot de passe oublié ?",
+    "forgot_password_title": "Réinitialiser votre mot de passe",
+    "forgot_password_subtitle": "Entrez votre email, nous vous enverrons un lien de réinitialisation.",
+    "forgot_password_submit": "Envoyer le lien",
+    "forgot_password_success": "Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.",
+    "back_to_login": "Retour à la connexion",
     "no_account": "Pas encore de compte ?",
-    "already_account": "Déjà un compte ?"
+    "already_account": "Déjà un compte ?",
+    "check_email": "Vérifiez votre email",
+    "check_email_subtitle": "Nous vous avons envoyé un lien de confirmation à {{email}}.",
+    "terms_accept": "J'accepte les",
+    "terms_link": "Conditions Générales d'Utilisation",
+    "privacy_accept": "J'accepte la",
+    "privacy_link": "Politique de Confidentialité",
+    "marketing_accept": "J'accepte de recevoir des communications marketing",
+    "terms_required": "Vous devez accepter les CGU",
+    "privacy_required": "Vous devez accepter la Politique de Confidentialité",
+    "password_strength": {
+      "weak": "Faible",
+      "medium": "Moyen",
+      "strong": "Fort",
+      "requirements": "Min. 12 caractères, 1 majuscule, 1 chiffre, 1 caractère spécial"
+    },
+    "validation": {
+      "email_invalid": "Format d'email invalide",
+      "password_min": "Minimum 12 caractères",
+      "password_uppercase": "Au moins 1 majuscule",
+      "password_number": "Au moins 1 chiffre",
+      "password_special": "Au moins 1 caractère spécial",
+      "password_mismatch": "Les mots de passe ne correspondent pas",
+      "first_name_required": "Le prénom est requis",
+      "last_name_required": "Le nom est requis"
+    },
+    "errors": {
+      "invalid_credentials": "Email ou mot de passe incorrect",
+      "email_not_confirmed": "Veuillez confirmer votre email",
+      "user_already_registered": "Un compte existe déjà avec cet email",
+      "too_many_requests": "Trop de tentatives, veuillez réessayer plus tard",
+      "generic": "Une erreur est survenue, veuillez réessayer"
+    },
+    "tagline": "Gérez votre salle simplement",
+    "quote": "La solution tout-en-un pour les gérants de salles de sport"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -37,9 +93,9 @@
     "email": "Email"
   },
   "supabase": {
-    "connected": "Connect\u00e9 \u00e0 Supabase",
+    "connected": "Connecté à Supabase",
     "connected_as": "Salle : {{name}}",
     "error": "Erreur de connexion",
-    "rls_blocked": "RLS actif (non authentifi\u00e9)"
+    "rls_blocked": "RLS actif (non authentifié)"
   }
 }
