@@ -165,6 +165,47 @@
   },
   "profile": {
     "title": "Mon profil",
-    "logout": "Se déconnecter"
+    "member_since": "Membre depuis {{date}}",
+    "badge_gym": "Dopamine Performance Club",
+    "progression": "Progression",
+    "reward": "1 seance offerte debloquee !",
+    "gamification": {
+      "account_created": "Compte cree",
+      "has_avatar": "Photo de profil",
+      "has_phone": "Telephone renseigne",
+      "has_birthdate": "Date de naissance",
+      "has_address": "Adresse complete",
+      "has_emergency": "Contact d'urgence",
+      "has_payment": "Methode de paiement",
+      "marketing": "Consentement marketing"
+    },
+    "stats": {
+      "sessions": "Seances",
+      "noshows": "No-shows",
+      "weeks": "Semaines"
+    },
+    "section_subscription": "Abonnement",
+    "my_subscription": "Mon abonnement",
+    "subscription_detail": "Illimite 6 mois · jusqu'au 13 nov 2026",
+    "subscription_active": "Actif",
+    "payment_history": "Historique des paiements",
+    "section_preferences": "Preferences",
+    "notifications": "Notifications",
+    "notifications_detail": "Push activees",
+    "language": "Langue",
+    "language_detail": "Francais",
+    "section_account": "Compte",
+    "edit_profile": "Modifier mon profil",
+    "security": "Securite",
+    "security_detail": "Mot de passe, 2FA",
+    "section_privacy": "Confidentialite",
+    "privacy_policy": "Politique de confidentialite",
+    "terms": "CGU",
+    "export_data": "Exporter mes donnees",
+    "delete_account": "Supprimer mon compte",
+    "logout": "Se deconnecter",
+    "logout_title": "Se deconnecter ?",
+    "logout_confirm": "Confirmer",
+    "logout_cancel": "Annuler"
   }
 }

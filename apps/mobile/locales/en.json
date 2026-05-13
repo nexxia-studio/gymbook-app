@@ -165,6 +165,47 @@
   },
   "profile": {
     "title": "My profile",
-    "logout": "Log out"
+    "member_since": "Member since {{date}}",
+    "badge_gym": "Dopamine Performance Club",
+    "progression": "Progression",
+    "reward": "1 free session unlocked!",
+    "gamification": {
+      "account_created": "Account created",
+      "has_avatar": "Profile photo",
+      "has_phone": "Phone number",
+      "has_birthdate": "Date of birth",
+      "has_address": "Full address",
+      "has_emergency": "Emergency contact",
+      "has_payment": "Payment method",
+      "marketing": "Marketing consent"
+    },
+    "stats": {
+      "sessions": "Sessions",
+      "noshows": "No-shows",
+      "weeks": "Weeks"
+    },
+    "section_subscription": "Subscription",
+    "my_subscription": "My subscription",
+    "subscription_detail": "Unlimited 6 months · until Nov 13 2026",
+    "subscription_active": "Active",
+    "payment_history": "Payment history",
+    "section_preferences": "Preferences",
+    "notifications": "Notifications",
+    "notifications_detail": "Push enabled",
+    "language": "Language",
+    "language_detail": "English",
+    "section_account": "Account",
+    "edit_profile": "Edit my profile",
+    "security": "Security",
+    "security_detail": "Password, 2FA",
+    "section_privacy": "Privacy",
+    "privacy_policy": "Privacy policy",
+    "terms": "Terms and Conditions",
+    "export_data": "Export my data",
+    "delete_account": "Delete my account",
+    "logout": "Log out",
+    "logout_title": "Log out?",
+    "logout_confirm": "Confirm",
+    "logout_cancel": "Cancel"
   }
 }
