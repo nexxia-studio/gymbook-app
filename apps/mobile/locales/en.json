@@ -102,7 +102,14 @@
   },
   "schedule": {
     "title": "Schedule",
-    "no_slots": "No slots available"
+    "subtitle": "Dopamine Performance Club",
+    "all_classes": "All classes",
+    "this_week": "This week",
+    "next_week": "Next week",
+    "no_slots": "No slots available",
+    "no_results": "No classes found",
+    "no_results_hint": "Try adjusting your filters",
+    "reset_filters": "Reset filters"
   },
   "booking": {
     "title": "My bookings",

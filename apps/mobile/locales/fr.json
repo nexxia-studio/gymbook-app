@@ -102,7 +102,14 @@
   },
   "schedule": {
     "title": "Planning",
-    "no_slots": "Aucun créneau disponible"
+    "subtitle": "Dopamine Performance Club",
+    "all_classes": "Tous les cours",
+    "this_week": "Cette semaine",
+    "next_week": "Semaine prochaine",
+    "no_slots": "Aucun créneau disponible",
+    "no_results": "Aucun cours trouvé",
+    "no_results_hint": "Essayez de modifier vos filtres",
+    "reset_filters": "Réinitialiser les filtres"
   },
   "booking": {
     "title": "Mes réservations",
