@@ -88,26 +88,7 @@ function getSlotColumns(slots: TimeSlot[]): ColumnedSlot[] {
     item.totalColumns = Math.max(...overlapping.map((o) => o.column)) + 1
   }
 
-  // Debug log for first day
-  if (result.length > 0) {
-    const key = `logged-${result[0].slot.date}`
-    if (!(window as Record<string, boolean>)[key]) {
-      (window as Record<string, boolean>)[key] = true
-      console.log(`[WeekGrid] ${result[0].slot.date}:`)
-      for (const r of result) {
-        const topPx = minToPx(r.startMin - GRID_START_MIN)
-        const heightPx = Math.max(minToPx(r.endMin - r.startMin), MIN_SLOT_HEIGHT)
-        const widthPct = 100 / r.totalColumns
-        const leftPct = r.column * widthPct
-        console.log(
-          `  ${r.slot.activity.name} ${r.slot.startTime}-${r.slot.endTime}` +
-          ` | top=${topPx} h=${heightPx}` +
-          ` | col=${r.column}/${r.totalColumns}` +
-          ` | left=${leftPct.toFixed(1)}% w=${widthPct.toFixed(1)}%`,
-        )
-      }
-    }
-  }
+
 
   return result
 }

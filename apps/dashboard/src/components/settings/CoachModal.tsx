@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Upload, Trash2 } from 'lucide-react'
+import { X, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import type { CoachItem, CoachFormData } from '@/types/coach'
 

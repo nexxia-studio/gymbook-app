@@ -110,10 +110,11 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
   }, [open])
 
   // Auto-fill duration + capacity from activity
-  const selectedActivity = useMemo(
+  const _selectedActivity = useMemo(
     () => activities.find((a) => a.id === form.activityId),
     [activities, form.activityId],
   )
+  void _selectedActivity
 
   function handleActivityChange(id: string) {
     const act = activities.find((a) => a.id === id)
