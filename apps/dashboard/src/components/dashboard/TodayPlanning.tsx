@@ -12,12 +12,10 @@ interface Slot {
 }
 
 const mockTodaySlots: Slot[] = [
-  { time: '07:00', durationMin: 60, activity: 'CrossFit', coach: 'Nicolas', booked: 12, capacity: 16 },
-  { time: '09:30', durationMin: 50, activity: 'Pilates', coach: 'Léna', booked: 8, capacity: 12 },
-  { time: '12:00', durationMin: 30, activity: 'EMS', coach: 'François', booked: 3, capacity: 4 },
-  { time: '17:30', durationMin: 45, activity: 'HIIT Circuit', coach: 'Nicolas', booked: 11, capacity: 15 },
-  { time: '19:00', durationMin: 60, activity: 'Yoga', coach: 'Victoria', booked: 7, capacity: 14 },
-  { time: '20:00', durationMin: 60, activity: 'CrossFit', coach: 'François', booked: 9, capacity: 16 },
+  { time: '07:30', durationMin: 120, activity: 'Open Gym', coach: 'Nicolas', booked: 4, capacity: 6 },
+  { time: '12:15', durationMin: 60, activity: 'HIIT / Hyrox', coach: 'François', booked: 8, capacity: 12 },
+  { time: '18:00', durationMin: 60, activity: 'HIIT / Hyrox', coach: 'Nicolas', booked: 11, capacity: 12 },
+  { time: '19:00', durationMin: 120, activity: 'Open Gym', coach: 'François', booked: 5, capacity: 6 },
 ]
 
 const statusColors: Record<DisplayStatus, string> = {

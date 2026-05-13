@@ -1,0 +1,109 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "back": "Retour",
+    "error": "Une erreur est survenue",
+    "or": "ou",
+    "coming_soon": "Bientot disponible"
+  },
+  "welcome": {
+    "tagline": "Move More. Feel Better.",
+    "address": "Route du Condroz, Neupré",
+    "login": "Se connecter",
+    "signup": "Créer un compte",
+    "skip": "Continuer sans compte"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "login_title": "Connexion",
+    "signup": "Créer un compte",
+    "signup_title": "Inscription",
+    "email": "Email",
+    "email_placeholder": "votre@email.com",
+    "password": "Mot de passe",
+    "password_placeholder": "Votre mot de passe",
+    "password_confirm": "Confirmer le mot de passe",
+    "password_confirm_placeholder": "Retapez votre mot de passe",
+    "first_name": "Prénom",
+    "first_name_placeholder": "Jean",
+    "last_name": "Nom",
+    "last_name_placeholder": "Dupont",
+    "phone": "Téléphone",
+    "phone_placeholder": "+32 470 00 00 00",
+    "phone_optional": "Optionnel",
+    "forgot_password": "Mot de passe oublié ?",
+    "forgot_password_title": "Mot de passe oublié",
+    "forgot_password_subtitle": "Entrez votre email pour recevoir un lien de réinitialisation.",
+    "forgot_password_submit": "Envoyer le lien",
+    "forgot_password_success": "Si un compte existe avec cet email, vous recevrez un lien.",
+    "back_to_login": "Retour à la connexion",
+    "no_account": "Pas encore de compte ?",
+    "already_account": "Déjà un compte ?",
+    "verify_email_title": "Vérifiez votre email",
+    "verify_email_message": "Un lien de confirmation a été envoyé à {{email}}.",
+    "resend_email": "Renvoyer l'email",
+    "resend_cooldown": "Renvoyer dans {{seconds}}s",
+    "terms_accept": "J'accepte les",
+    "terms_link": "Conditions Générales",
+    "privacy_accept": "J'accepte la",
+    "privacy_link": "Politique de Confidentialité",
+    "marketing_accept": "Recevoir les actualités Dopamine",
+    "terms_required": "Veuillez accepter les CGU",
+    "privacy_required": "Veuillez accepter la Politique de Confidentialité",
+    "password_strength": {
+      "weak": "Faible",
+      "medium": "Moyen",
+      "strong": "Fort"
+    },
+    "validation": {
+      "email_invalid": "Format d'email invalide",
+      "password_min": "Minimum 12 caractères",
+      "password_uppercase": "1 majuscule requise",
+      "password_number": "1 chiffre requis",
+      "password_special": "1 caractère spécial requis",
+      "password_mismatch": "Les mots de passe ne correspondent pas",
+      "first_name_required": "Prénom requis",
+      "last_name_required": "Nom requis"
+    },
+    "errors": {
+      "invalid_credentials": "Email ou mot de passe incorrect",
+      "email_not_confirmed": "Veuillez confirmer votre email",
+      "user_already_registered": "Un compte existe déjà avec cet email",
+      "generic": "Une erreur est survenue, réessayez"
+    }
+  },
+  "tabs": {
+    "home": "Accueil",
+    "schedule": "Planning",
+    "studio": "Studio",
+    "bookings": "Réservations",
+    "profile": "Profil"
+  },
+  "home": {
+    "greeting": "Salut, {{name}}",
+    "subtitle": "Sprint 2 — App membres",
+    "today": "Aujourd'hui",
+    "tomorrow": "Demain"
+  },
+  "schedule": {
+    "title": "Planning",
+    "no_slots": "Aucun créneau disponible"
+  },
+  "booking": {
+    "title": "Mes réservations",
+    "no_bookings": "Aucune réservation",
+    "book": "Réserver",
+    "cancel": "Annuler"
+  },
+  "studio": {
+    "title": "Studio",
+    "plans": "Formules",
+    "info": "Informations"
+  },
+  "profile": {
+    "title": "Mon profil",
+    "logout": "Se déconnecter"
+  }
+}

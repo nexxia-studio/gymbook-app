@@ -1,16 +1,22 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../lib/supabase'
+
+const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+
+function mapError(msg: string): string {
+  if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
+  if (msg.includes('Email not confirmed')) return 'auth.errors.email_not_confirmed'
+  if (msg.includes('User already registered')) return 'auth.errors.user_already_registered'
+  return 'auth.errors.generic'
+}
 
 interface AuthState {
   user: User | null
   session: Session | null
   gym_id: string | null
-  role: string | null
   isLoading: boolean
   error: string | null
-  setUser: (user: User | null, session: Session | null) => void
-  setGymContext: (gym_id: string, role: string) => void
   signIn: (email: string, password: string) => Promise<void>
   signUp: (
     email: string,
@@ -18,45 +24,29 @@ interface AuthState {
     firstName: string,
     lastName: string,
     phone?: string,
-    consents?: { terms: boolean; privacy: boolean; marketing: boolean }
-  ) => Promise<{ needsConfirmation: boolean }>
+    consents?: { terms: boolean; privacy: boolean; marketing: boolean },
+  ) => Promise<{ needsConfirmation: boolean; email: string }>
   signOut: () => Promise<void>
-  clearError: () => void
   initialize: () => Promise<void>
-}
-
-function mapSupabaseError(message: string): string {
-  if (message.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
-  if (message.includes('Email not confirmed')) return 'auth.errors.email_not_confirmed'
-  if (message.includes('User already registered')) return 'auth.errors.user_already_registered'
-  if (message.includes('rate limit') || message.includes('too many')) return 'auth.errors.too_many_requests'
-  return 'auth.errors.generic'
+  clearError: () => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   session: null,
   gym_id: null,
-  role: null,
   isLoading: false,
   error: null,
-
-  setUser: (user, session) => set({ user, session }),
-  setGymContext: (gym_id, role) => set({ gym_id, role }),
   clearError: () => set({ error: null }),
 
   signIn: async (email, password) => {
     set({ isLoading: true, error: null })
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      set({ isLoading: false, error: mapSupabaseError(error.message) })
+      set({ isLoading: false, error: mapError(error.message) })
       throw error
     }
-    set({
-      user: data.user,
-      session: data.session,
-      isLoading: false,
-    })
+    set({ user: data.user, session: data.session, gym_id: DOPAMINE_GYM_ID, isLoading: false })
   },
 
   signUp: async (email, password, firstName, lastName, phone, consents) => {
@@ -69,8 +59,8 @@ export const useAuthStore = create<AuthState>((set) => ({
           first_name: firstName,
           last_name: lastName,
           phone: phone ?? null,
-          role: 'gym_admin',
-          gym_id: null,
+          role: 'member',
+          gym_id: DOPAMINE_GYM_ID,
           preferred_language: 'fr',
           privacy_policy_accepted: String(consents?.privacy ?? false),
           terms_accepted: String(consents?.terms ?? false),
@@ -79,40 +69,35 @@ export const useAuthStore = create<AuthState>((set) => ({
       },
     })
     if (error) {
-      set({ isLoading: false, error: mapSupabaseError(error.message) })
+      set({ isLoading: false, error: mapError(error.message) })
       throw error
     }
 
     const needsConfirmation = !data.session
     if (data.session) {
-      set({ user: data.user, session: data.session, isLoading: false })
+      set({ user: data.user, session: data.session, gym_id: DOPAMINE_GYM_ID, isLoading: false })
     } else {
       set({ isLoading: false })
     }
-    return { needsConfirmation }
+    return { needsConfirmation, email }
   },
 
   signOut: async () => {
-    set({ isLoading: true })
     await supabase.auth.signOut()
-    set({
-      user: null,
-      session: null,
-      gym_id: null,
-      role: null,
-      isLoading: false,
-      error: null,
-    })
+    set({ user: null, session: null, gym_id: null, error: null })
   },
 
   initialize: async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session) {
-      set({ user: data.session.user, session: data.session })
+      set({ user: data.session.user, session: data.session, gym_id: DOPAMINE_GYM_ID })
     }
-
     supabase.auth.onAuthStateChange((_event, session) => {
-      set({ user: session?.user ?? null, session })
+      set({
+        user: session?.user ?? null,
+        session,
+        gym_id: session ? DOPAMINE_GYM_ID : null,
+      })
     })
   },
 }))

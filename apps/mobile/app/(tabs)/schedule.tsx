@@ -1,0 +1,24 @@
+import { View, Text } from 'react-native'
+import { useTranslation } from 'react-i18next'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Wrench } from 'lucide-react-native'
+
+export default function Schedule() {
+  const { t } = useTranslation()
+
+  return (
+    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+      <View className="flex-1 items-center justify-center px-6">
+        <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-move-accent/10">
+          <Wrench size={28} color="#9DB800" />
+        </View>
+        <Text className="font-barlow text-2xl uppercase text-move-dark">
+          {t('schedule.title')}
+        </Text>
+        <Text className="mt-2 font-dmsans text-sm text-move-text-muted">
+          {t('common.coming_soon')}
+        </Text>
+      </View>
+    </SafeAreaView>
+  )
+}

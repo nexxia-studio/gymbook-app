@@ -3,9 +3,9 @@ import { Clock } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
 
 const mockUpcoming = [
-  { time: '12:00', activity: 'EMS', coach: 'François', booked: 3, capacity: 4 },
-  { time: '17:30', activity: 'HIIT Circuit', coach: 'Nicolas', booked: 11, capacity: 15 },
-  { time: '19:00', activity: 'Yoga', coach: 'Victoria', booked: 7, capacity: 14 },
+  { time: '12:15', activity: 'HIIT / Hyrox', coach: 'François', booked: 8, capacity: 12 },
+  { time: '18:00', activity: 'HIIT / Hyrox', coach: 'Nicolas', booked: 11, capacity: 12 },
+  { time: '19:00', activity: 'Open Gym', coach: 'François', booked: 5, capacity: 6 },
 ]
 
 export function UpcomingSessions({ loading }: { loading: boolean }) {

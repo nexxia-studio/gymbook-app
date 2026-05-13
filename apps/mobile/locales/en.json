@@ -1,0 +1,109 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "error": "An error occurred",
+    "or": "or",
+    "coming_soon": "Coming soon"
+  },
+  "welcome": {
+    "tagline": "Move More. Feel Better.",
+    "address": "Route du Condroz, Neupré",
+    "login": "Log in",
+    "signup": "Create an account",
+    "skip": "Continue without account"
+  },
+  "auth": {
+    "login": "Log in",
+    "login_title": "Log in",
+    "signup": "Create an account",
+    "signup_title": "Sign up",
+    "email": "Email",
+    "email_placeholder": "your@email.com",
+    "password": "Password",
+    "password_placeholder": "Your password",
+    "password_confirm": "Confirm password",
+    "password_confirm_placeholder": "Retype your password",
+    "first_name": "First name",
+    "first_name_placeholder": "John",
+    "last_name": "Last name",
+    "last_name_placeholder": "Doe",
+    "phone": "Phone",
+    "phone_placeholder": "+32 470 00 00 00",
+    "phone_optional": "Optional",
+    "forgot_password": "Forgot your password?",
+    "forgot_password_title": "Forgot password",
+    "forgot_password_subtitle": "Enter your email to receive a reset link.",
+    "forgot_password_submit": "Send reset link",
+    "forgot_password_success": "If an account exists with this email, you will receive a link.",
+    "back_to_login": "Back to login",
+    "no_account": "Don't have an account?",
+    "already_account": "Already have an account?",
+    "verify_email_title": "Check your email",
+    "verify_email_message": "A confirmation link has been sent to {{email}}.",
+    "resend_email": "Resend email",
+    "resend_cooldown": "Resend in {{seconds}}s",
+    "terms_accept": "I accept the",
+    "terms_link": "Terms and Conditions",
+    "privacy_accept": "I accept the",
+    "privacy_link": "Privacy Policy",
+    "marketing_accept": "Receive Dopamine updates",
+    "terms_required": "Please accept the Terms and Conditions",
+    "privacy_required": "Please accept the Privacy Policy",
+    "password_strength": {
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong"
+    },
+    "validation": {
+      "email_invalid": "Invalid email format",
+      "password_min": "Minimum 12 characters",
+      "password_uppercase": "1 uppercase required",
+      "password_number": "1 number required",
+      "password_special": "1 special character required",
+      "password_mismatch": "Passwords do not match",
+      "first_name_required": "First name required",
+      "last_name_required": "Last name required"
+    },
+    "errors": {
+      "invalid_credentials": "Invalid email or password",
+      "email_not_confirmed": "Please confirm your email",
+      "user_already_registered": "An account already exists with this email",
+      "generic": "An error occurred, please try again"
+    }
+  },
+  "tabs": {
+    "home": "Home",
+    "schedule": "Schedule",
+    "studio": "Studio",
+    "bookings": "Bookings",
+    "profile": "Profile"
+  },
+  "home": {
+    "greeting": "Hey, {{name}}",
+    "subtitle": "Sprint 2 — Member app",
+    "today": "Today",
+    "tomorrow": "Tomorrow"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "no_slots": "No slots available"
+  },
+  "booking": {
+    "title": "My bookings",
+    "no_bookings": "No bookings",
+    "book": "Book",
+    "cancel": "Cancel"
+  },
+  "studio": {
+    "title": "Studio",
+    "plans": "Plans",
+    "info": "Information"
+  },
+  "profile": {
+    "title": "My profile",
+    "logout": "Log out"
+  }
+}
