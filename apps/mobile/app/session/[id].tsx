@@ -107,7 +107,7 @@ export default function SessionDetail() {
   const handleBook = useCallback(async () => {
     setLoading(true)
     await new Promise((r) => setTimeout(r, 800))
-    addBooking({ id: slotId, activity, date, time, coach })
+    addBooking({ id: slotId, activity, date, time, endTime, coach })
     setBookedCount((c) => c + 1)
     setLoading(false)
     setBookingModalVisible(true)
