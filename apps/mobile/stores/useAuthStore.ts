@@ -2,6 +2,15 @@ import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
+const MOVE95_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+
+function mapError(msg: string): string {
+  if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
+  if (msg.includes('Email not confirmed')) return 'auth.errors.email_not_confirmed'
+  if (msg.includes('User already registered')) return 'auth.errors.user_already_registered'
+  return 'auth.errors.generic'
+}
+
 interface AuthState {
   user: User | null
   session: Session | null
@@ -9,7 +18,14 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ needsConfirmation: boolean }>
+  signUp: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    phone?: string,
+    consents?: { terms: boolean; privacy: boolean; marketing: boolean },
+  ) => Promise<{ needsConfirmation: boolean; email: string }>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
   clearError: () => void
@@ -27,30 +43,50 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null })
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      set({ isLoading: false, error: error.message })
+      set({ isLoading: false, error: mapError(error.message) })
       throw error
     }
-    set({ user: data.user, session: data.session, isLoading: false })
+    set({ user: data.user, session: data.session, gym_id: MOVE95_GYM_ID, isLoading: false })
   },
 
-  signUp: async (email, password, firstName, lastName) => {
+  signUp: async (email, password, firstName, lastName, phone, consents) => {
     set({ isLoading: true, error: null })
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { first_name: firstName, last_name: lastName } },
+      options: { data: { first_name: firstName, last_name: lastName, phone: phone ?? null } },
     })
     if (error) {
-      set({ isLoading: false, error: error.message })
+      set({ isLoading: false, error: mapError(error.message) })
       throw error
     }
+
+    if (data.user) {
+      const now = new Date().toISOString()
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone ?? null,
+        role: 'member',
+        gym_id: MOVE95_GYM_ID,
+        terms_accepted_at: consents?.terms ? now : null,
+        privacy_policy_accepted_at: consents?.privacy ? now : null,
+        marketing_consent: consents?.marketing ?? false,
+        marketing_consent_at: consents?.marketing ? now : null,
+        data_processing_consent: consents?.privacy ?? false,
+        data_processing_consent_at: consents?.privacy ? now : null,
+      })
+    }
+
     const needsConfirmation = !data.session
     if (data.session) {
-      set({ user: data.user, session: data.session, isLoading: false })
+      set({ user: data.user, session: data.session, gym_id: MOVE95_GYM_ID, isLoading: false })
     } else {
       set({ isLoading: false })
     }
-    return { needsConfirmation }
+    return { needsConfirmation, email }
   },
 
   signOut: async () => {
@@ -61,10 +97,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session) {
-      set({ user: data.session.user, session: data.session })
+      set({ user: data.session.user, session: data.session, gym_id: MOVE95_GYM_ID })
     }
     supabase.auth.onAuthStateChange((_event, session) => {
-      set({ user: session?.user ?? null, session })
+      set({
+        user: session?.user ?? null,
+        session,
+        gym_id: session ? MOVE95_GYM_ID : null,
+      })
     })
   },
 }))
