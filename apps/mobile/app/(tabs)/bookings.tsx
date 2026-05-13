@@ -1,24 +1,192 @@
-import { View, Text } from 'react-native'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Wrench } from 'lucide-react-native'
+import { CalendarX, Heart, Clock } from 'lucide-react-native'
+import { BookingTabs, type BookingTab } from '../../components/bookings/BookingTabs'
+import { UpcomingCard } from '../../components/bookings/UpcomingCard'
+import { FavoriteCard } from '../../components/bookings/FavoriteCard'
+import { HistoryCard } from '../../components/bookings/HistoryCard'
+import { LimitBanner } from '../../components/bookings/LimitBanner'
+import { CancelModal } from '../../components/session/CancelModal'
+import { useBookingStore } from '../../stores/useBookingStore'
+
+function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, mo - 1, d)
+  return `${days[dt.getDay()]} ${d} ${months[dt.getMonth()]}`
+}
 
 export default function Bookings() {
   const { t } = useTranslation()
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
+  const [cancelSlotId, setCancelSlotId] = useState<string | null>(null)
+
+  const { bookings, pastBookings, favorites, cancelBooking, removeFavorite, removePastFavorites } = useBookingStore()
+
+  const days = t('home.days', { returnObjects: true }) as string[]
+  const months = t('home.months', { returnObjects: true }) as string[]
+
+  // Cleanup expired favorites on mount
+  useEffect(() => {
+    removePastFavorites()
+  }, [removePastFavorites])
+
+  const handleCancel = useCallback(() => {
+    if (cancelSlotId) {
+      cancelBooking(cancelSlotId)
+      setCancelSlotId(null)
+    }
+  }, [cancelSlotId, cancelBooking])
+
+  // Check late cancellation
+  const isLate = useMemo(() => {
+    if (!cancelSlotId) return false
+    const booking = bookings.find((b) => b.slotId === cancelSlotId)
+    if (!booking) return false
+    const [y, mo, d] = booking.date.split('-').map(Number)
+    const [h, m] = booking.time.split(':').map(Number)
+    const start = new Date(y, mo - 1, d, h, m)
+    return start.getTime() - Date.now() < 2 * 60 * 60 * 1000
+  }, [cancelSlotId, bookings])
+
+  // Parse favorite IDs into displayable data
+  const favoritesData = useMemo(() => {
+    return favorites.map((id) => {
+      // ID format: "2026-05-13-07:30-Open Gym"
+      const parts = id.split('-')
+      const date = `${parts[0]}-${parts[1]}-${parts[2]}`
+      const time = parts[3] ?? ''
+      const activity = parts.slice(4).join(' ') || 'Open Gym'
+      return { id, date, time, activity, coach: 'Nicolas' }
+    })
+  }, [favorites])
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
-      <View className="flex-1 items-center justify-center px-6">
-        <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-move-accent/10">
-          <Wrench size={28} color="#9DB800" />
-        </View>
-        <Text className="font-barlow text-2xl uppercase text-move-dark">
-          {t('booking.title')}
+      {/* Header */}
+      <View className="bg-move-dark px-5 pb-4 pt-3">
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+          {t('bookings.title').toUpperCase()}
         </Text>
-        <Text className="mt-2 font-dmsans text-sm text-move-text-muted">
-          {t('common.coming_soon')}
+        <Text className="font-dmsans text-[13px] text-white/40">
+          {t('bookings.subtitle')}
         </Text>
       </View>
+
+      {/* Tabs */}
+      <BookingTabs active={activeTab} onSelect={setActiveTab} />
+
+      {/* Content */}
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+        {/* === UPCOMING === */}
+        {activeTab === 'upcoming' && (
+          <>
+            {bookings.length >= 2 && <LimitBanner />}
+
+            {bookings.length === 0 ? (
+              <View className="items-center py-20">
+                <CalendarX size={40} color="#9A9890" />
+                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                  {t('bookings.empty_upcoming')}
+                </Text>
+                <Text className="mt-1 font-dmsans text-xs text-move-text-muted">
+                  {t('bookings.empty_upcoming_hint')}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.navigate('/(tabs)/schedule')}
+                  activeOpacity={0.8}
+                  className="mt-4 rounded-xl bg-move-dark px-5 py-2.5"
+                >
+                  <Text className="font-dmsans-bold text-xs text-move-accent">
+                    {t('bookings.empty_upcoming_cta')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              bookings.map((booking) => (
+                <UpcomingCard
+                  key={booking.id}
+                  booking={booking}
+                  dayLabel={formatDayLabel(booking.date, days, months)}
+                  onCancel={() => setCancelSlotId(booking.slotId)}
+                />
+              ))
+            )}
+          </>
+        )}
+
+        {/* === FAVORITES === */}
+        {activeTab === 'favorites' && (
+          <>
+            {favoritesData.length === 0 ? (
+              <View className="items-center py-20">
+                <Heart size={40} color="#9A9890" />
+                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                  {t('bookings.empty_favorites')}
+                </Text>
+                <Text className="mt-1 text-center font-dmsans text-xs text-move-text-muted">
+                  {t('bookings.empty_favorites_hint')}
+                </Text>
+              </View>
+            ) : (
+              favoritesData.map((fav) => (
+                <FavoriteCard
+                  key={fav.id}
+                  slotId={fav.id}
+                  activity={fav.activity}
+                  date={fav.date}
+                  time={fav.time}
+                  coach={fav.coach}
+                  dayLabel={formatDayLabel(fav.date, days, months)}
+                  onRemove={() => removeFavorite(fav.id)}
+                  onBook={() => {
+                    router.push({
+                      pathname: '/session/[id]',
+                      params: { id: fav.id, activity: fav.activity, date: fav.date, time: fav.time, coach: fav.coach, duration: fav.activity === 'Open Gym' ? '120' : '60', capacity: fav.activity === 'Open Gym' ? '6' : '12', booked: '3', endTime: '' },
+                    })
+                  }}
+                />
+              ))
+            )}
+          </>
+        )}
+
+        {/* === HISTORY === */}
+        {activeTab === 'history' && (
+          <>
+            {pastBookings.length === 0 ? (
+              <View className="items-center py-20">
+                <Clock size={40} color="#9A9890" />
+                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                  {t('bookings.empty_history')}
+                </Text>
+                <Text className="mt-1 font-dmsans text-xs text-move-text-muted">
+                  {t('bookings.empty_history_hint')}
+                </Text>
+              </View>
+            ) : (
+              pastBookings.map((booking) => (
+                <HistoryCard
+                  key={booking.id}
+                  booking={booking}
+                  dayLabel={formatDayLabel(booking.date, days, months)}
+                />
+              ))
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {/* Cancel modal */}
+      <CancelModal
+        visible={!!cancelSlotId}
+        isLate={isLate}
+        onConfirm={handleCancel}
+        onClose={() => setCancelSlotId(null)}
+      />
     </SafeAreaView>
   )
 }
