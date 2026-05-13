@@ -6,15 +6,12 @@ import { useAuthStore } from '../../stores/useAuthStore'
 export default function Home() {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.user)
-  const firstName = user?.user_metadata?.first_name ?? 'Move95'
+  const firstName = user?.user_metadata?.first_name ?? 'Dopamine'
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
       <View className="flex-1 items-center justify-center px-6">
-        <View className="flex-row">
-          <Text className="font-barlow text-5xl text-move-dark">MOVE</Text>
-          <Text className="font-barlow text-5xl text-move-accent">95</Text>
-        </View>
+        <Text className="font-barlow text-5xl text-move-dark">DOPAMINE</Text>
         <Text className="mt-3 font-dmsans text-base text-move-text-secondary">
           {t('home.greeting', { name: firstName })}
         </Text>

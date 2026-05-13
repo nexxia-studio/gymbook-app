@@ -10,5 +10,7 @@ export const COLORS = {
 } as const
 
 export const GYM_ID = 'a0000000-0000-0000-0000-000000000001'
-export const GYM_NAME = 'Move95'
-export const GYM_SLUG = 'move95'
+export const GYM_NAME = 'Dopamine Performance Club'
+export const GYM_SLUG = 'dopamine'
+export const BUNDLE_ID = 'be.dopamineclub.app'
+export const WEBSITE = 'https://dopamineclub.be'

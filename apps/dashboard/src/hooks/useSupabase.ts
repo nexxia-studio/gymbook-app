@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database'
 
-const MOVE95_ID = 'a0000000-0000-0000-0000-000000000001'
+const DOPAMINE_ID = 'a0000000-0000-0000-0000-000000000001'
 
 type Gym = Tables<'nexxia_gyms'>
 
-export function useGym(gymId: string = MOVE95_ID) {
+export function useGym(gymId: string = DOPAMINE_ID) {
   return useQuery<Gym | null>({
     queryKey: ['gym', gymId],
     queryFn: async () => {

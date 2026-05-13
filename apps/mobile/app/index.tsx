@@ -43,11 +43,11 @@ export default function Welcome() {
     <View className="flex-1 bg-move-dark">
       {/* Logo area */}
       <Animated.View style={logoStyle} className="flex-1 items-center justify-center">
-        <View className="flex-row">
-          <Text className="font-barlow text-5xl text-white">MOVE</Text>
-          <Text className="font-barlow text-5xl text-move-accent">95</Text>
-        </View>
-        <Text className="mt-3 font-dmsans text-base text-white/70">
+        <Text className="font-barlow text-5xl text-white">DOPAMINE</Text>
+        <Text className="mt-1 font-dmsans-medium text-sm tracking-widest text-white/40">
+          PERFORMANCE CLUB
+        </Text>
+        <Text className="mt-4 font-dmsans text-base text-white/70">
           {t('welcome.tagline')}
         </Text>
         <Text className="mt-1 font-dmsans text-xs text-white/30">

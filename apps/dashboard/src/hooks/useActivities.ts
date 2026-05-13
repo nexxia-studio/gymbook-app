@@ -2,14 +2,8 @@ import { useState, useCallback } from 'react'
 import type { ActivityItem, ActivityFormData } from '@/types/activity'
 
 const INITIAL_ACTIVITIES: ActivityItem[] = [
-  { id: 'a1', name: 'EMS', slug: 'ems', description: 'Electrostimulation musculaire', durationMin: 30, defaultCapacity: 4, level: 'all', icon: 'Zap', color: '#FF6B6B', requiresMedicalCheck: true, active: true },
-  { id: 'a2', name: 'CrossFit', slug: 'crossfit', description: 'Entraînement fonctionnel haute intensité', durationMin: 60, defaultCapacity: 16, level: 'all', icon: 'Dumbbell', color: '#4ECDC4', requiresMedicalCheck: false, active: true },
-  { id: 'a3', name: 'HIIT Circuit', slug: 'hiit-circuit', description: 'Entraînement par intervalles', durationMin: 45, defaultCapacity: 15, level: 'intermediate', icon: 'Flame', color: '#FF8E53', requiresMedicalCheck: false, active: true },
-  { id: 'a4', name: 'Open Gym', slug: 'open-gym', description: 'Accès libre à la salle', durationMin: 60, defaultCapacity: 20, level: 'all', icon: 'Activity', color: '#6C5CE7', requiresMedicalCheck: false, active: true },
-  { id: 'a5', name: 'Pilates', slug: 'pilates', description: 'Renforcement musculaire en douceur', durationMin: 50, defaultCapacity: 12, level: 'all', icon: 'PersonStanding', color: '#A8E6CF', requiresMedicalCheck: false, active: true },
-  { id: 'a6', name: 'Yoga', slug: 'yoga', description: 'Yoga Vinyasa et Hatha', durationMin: 60, defaultCapacity: 14, level: 'all', icon: 'Leaf', color: '#B8B8FF', requiresMedicalCheck: false, active: true },
-  { id: 'a7', name: 'Prénatal', slug: 'prenatal', description: 'Activité adaptée aux femmes enceintes', durationMin: 45, defaultCapacity: 10, level: 'beginner', icon: 'Baby', color: '#FFB7C5', requiresMedicalCheck: true, active: true },
-  { id: 'a8', name: 'Drainage', slug: 'drainage', description: 'Drainage lymphatique actif', durationMin: 40, defaultCapacity: 8, level: 'all', icon: 'Waves', color: '#81ECEC', requiresMedicalCheck: false, active: true },
+  { id: 'a1', name: 'Open Gym', slug: 'open-gym', description: 'Accès libre aux équipements Hyrox et musculation. Coaching disponible.', durationMin: 120, defaultCapacity: 6, level: 'all', icon: 'Dumbbell', color: '#4ECDC4', requiresMedicalCheck: false, active: true },
+  { id: 'a2', name: 'HIIT / Hyrox', slug: 'hiit-hyrox', description: 'Entraînement haute intensité inspiré des compétitions Hyrox.', durationMin: 60, defaultCapacity: 12, level: 'all', icon: 'Flame', color: '#FF8E53', requiresMedicalCheck: false, active: true },
 ]
 
 let nextId = 100

@@ -4,13 +4,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Toolti
 import { Skeleton } from '@/components/ui/Skeleton'
 
 const mockWeekly = [
-  { day: 'Lun', bookings: 18 },
-  { day: 'Mar', bookings: 24 },
-  { day: 'Mer', bookings: 15 },
-  { day: 'Jeu', bookings: 28 },
-  { day: 'Ven', bookings: 22 },
-  { day: 'Sam', bookings: 12 },
-  { day: 'Dim', bookings: 6 },
+  { day: 'Lun', bookings: 14 },
+  { day: 'Mar', bookings: 16 },
+  { day: 'Mer', bookings: 12 },
+  { day: 'Jeu', bookings: 18 },
+  { day: 'Ven', bookings: 15 },
+  { day: 'Sam', bookings: 10 },
+  { day: 'Dim', bookings: 0 },
 ]
 
 export function WeeklyChart({ loading }: { loading: boolean }) {

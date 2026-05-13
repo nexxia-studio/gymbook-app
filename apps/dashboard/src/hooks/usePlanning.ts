@@ -1,24 +1,15 @@
 import { useState, useMemo, useCallback } from 'react'
 import type { TimeSlot, Activity, Coach, SlotStatus } from '@/types/planning'
 
-// --- Move95 activities ---
+// --- Dopamine Performance Club activities ---
 const ACTIVITIES: Activity[] = [
-  { id: 'ems', name: 'EMS', color: '#FF6B6B', durationMin: 30 },
-  { id: 'crossfit', name: 'CrossFit', color: '#4ECDC4', durationMin: 60 },
-  { id: 'hiit', name: 'HIIT Circuit', color: '#FF8E53', durationMin: 45 },
-  { id: 'opengym', name: 'Open Gym', color: '#6C5CE7', durationMin: 60 },
-  { id: 'pilates', name: 'Pilates', color: '#A8E6CF', durationMin: 50 },
-  { id: 'yoga', name: 'Yoga', color: '#B8B8FF', durationMin: 60 },
-  { id: 'prenatal', name: 'Prénatal', color: '#FFB7C5', durationMin: 45 },
-  { id: 'drainage', name: 'Drainage', color: '#81ECEC', durationMin: 40 },
+  { id: 'opengym', name: 'Open Gym', color: '#4ECDC4', durationMin: 120 },
+  { id: 'hiit', name: 'HIIT / Hyrox', color: '#FF8E53', durationMin: 60 },
 ]
 
 const COACHES: Coach[] = [
   { id: 'c1', name: 'Nicolas' },
-  { id: 'c2', name: 'Léna' },
-  { id: 'c3', name: 'François' },
-  { id: 'c4', name: 'Victoria' },
-  { id: 'c5', name: 'Maxime' },
+  { id: 'c2', name: 'François' },
 ]
 
 const MOCK_MEMBERS = [
@@ -66,69 +57,53 @@ interface SlotTemplate {
   status: SlotStatus
 }
 
+// Real Dopamine schedule: 0=Open Gym (2h, cap 6), 1=HIIT/Hyrox (1h, cap 12)
+// Coaches: 0=Nicolas, 1=François — alternating
 const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
   // Monday
   [
-    { time: '07:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 14, status: 'scheduled' },
-    { time: '09:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 8, status: 'scheduled' },
-    { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 3, status: 'scheduled' },
-    { time: '17:30', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 12, status: 'scheduled' },
-    { time: '18:30', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 9, status: 'scheduled' },
-    { time: '19:30', activityIdx: 1, coachIdx: 2, capacity: 16, booked: 16, status: 'scheduled' },
-    { time: '20:30', activityIdx: 3, coachIdx: 4, capacity: 20, booked: 7, status: 'scheduled' },
+    { time: '07:30', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 4, status: 'scheduled' },
+    { time: '12:15', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 8, status: 'scheduled' },
+    { time: '18:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 11, status: 'scheduled' },
+    { time: '19:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 5, status: 'scheduled' },
   ],
   // Tuesday
   [
-    { time: '07:00', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 11, status: 'scheduled' },
-    { time: '08:00', activityIdx: 7, coachIdx: 1, capacity: 8, booked: 6, status: 'scheduled' },
-    { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 4, status: 'scheduled' },
-    { time: '17:30', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 13, status: 'scheduled' },
-    { time: '18:30', activityIdx: 6, coachIdx: 3, capacity: 10, booked: 5, status: 'scheduled' },
-    { time: '19:30', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 10, status: 'scheduled' },
+    { time: '07:30', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 7, status: 'scheduled' },
+    { time: '12:15', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 3, status: 'scheduled' },
+    { time: '18:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 6, status: 'scheduled' },
+    { time: '19:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 10, status: 'scheduled' },
   ],
   // Wednesday
   [
-    { time: '07:00', activityIdx: 1, coachIdx: 2, capacity: 16, booked: 9, status: 'scheduled' },
-    { time: '09:00', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 12, status: 'scheduled' },
-    { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 2, status: 'cancelled' },
-    { time: '17:30', activityIdx: 2, coachIdx: 4, capacity: 15, booked: 15, status: 'scheduled' },
-    { time: '18:30', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 11, status: 'scheduled' },
-    { time: '19:30', activityIdx: 3, coachIdx: 2, capacity: 20, booked: 8, status: 'scheduled' },
-    { time: '20:30', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 6, status: 'scheduled' },
+    { time: '07:30', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 2, status: 'scheduled' },
+    { time: '12:15', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 9, status: 'scheduled' },
+    { time: '18:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 12, status: 'scheduled' },
+    { time: '19:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 4, status: 'scheduled' },
   ],
   // Thursday
   [
-    { time: '07:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 7, status: 'scheduled' },
-    { time: '08:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 3, status: 'scheduled' },
-    { time: '12:00', activityIdx: 2, coachIdx: 0, capacity: 15, booked: 10, status: 'scheduled' },
-    { time: '17:30', activityIdx: 1, coachIdx: 2, capacity: 16, booked: 14, status: 'scheduled' },
-    { time: '18:30', activityIdx: 7, coachIdx: 1, capacity: 8, booked: 8, status: 'scheduled' },
-    { time: '19:30', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 11, status: 'scheduled' },
+    { time: '07:30', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 5, status: 'scheduled' },
+    { time: '12:15', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 4, status: 'scheduled' },
+    { time: '18:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 6, status: 'scheduled' },
+    { time: '19:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 11, status: 'scheduled' },
   ],
   // Friday
   [
-    { time: '07:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 10, status: 'scheduled' },
-    { time: '09:00', activityIdx: 6, coachIdx: 3, capacity: 10, booked: 4, status: 'scheduled' },
-    { time: '12:00', activityIdx: 0, coachIdx: 2, capacity: 4, booked: 4, status: 'scheduled' },
-    { time: '17:30', activityIdx: 2, coachIdx: 4, capacity: 15, booked: 13, status: 'scheduled' },
-    { time: '18:30', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 9, status: 'scheduled' },
-    { time: '19:30', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 15, status: 'scheduled' },
-    { time: '20:30', activityIdx: 3, coachIdx: 4, capacity: 20, booked: 5, status: 'scheduled' },
+    { time: '07:30', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 3, status: 'scheduled' },
+    { time: '12:15', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 7, status: 'scheduled' },
+    { time: '18:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 10, status: 'scheduled' },
+    { time: '19:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 5, status: 'scheduled' },
   ],
 ]
 
 const SATURDAY_TEMPLATES: SlotTemplate[] = [
-  { time: '08:00', activityIdx: 1, coachIdx: 0, capacity: 16, booked: 12, status: 'scheduled' },
-  { time: '09:30', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 10, status: 'scheduled' },
-  { time: '10:30', activityIdx: 2, coachIdx: 4, capacity: 15, booked: 8, status: 'scheduled' },
-  { time: '11:30', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 6, status: 'scheduled' },
+  { time: '09:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 9, status: 'scheduled' },
+  { time: '10:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 4, status: 'scheduled' },
+  { time: '11:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 6, status: 'scheduled' },
 ]
 
-const SUNDAY_TEMPLATES: SlotTemplate[] = [
-  { time: '09:00', activityIdx: 5, coachIdx: 3, capacity: 14, booked: 7, status: 'scheduled' },
-  { time: '10:00', activityIdx: 3, coachIdx: 4, capacity: 20, booked: 4, status: 'scheduled' },
-  { time: '11:00', activityIdx: 4, coachIdx: 1, capacity: 12, booked: 5, status: 'scheduled' },
-]
+const SUNDAY_TEMPLATES: SlotTemplate[] = []
 
 function buildWeekSlots(monday: Date): TimeSlot[] {
   const slots: TimeSlot[] = []

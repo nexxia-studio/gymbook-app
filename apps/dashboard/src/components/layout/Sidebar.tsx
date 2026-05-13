@@ -69,7 +69,7 @@ export function Sidebar() {
 
         {/* Gym name */}
         <div className="px-5 pb-4">
-          <span className="font-body text-xs text-muted">Move95</span>
+          <span className="font-body text-xs text-muted">Dopamine Performance Club</span>
         </div>
 
         <div className="mx-5 border-t border-white/10" />

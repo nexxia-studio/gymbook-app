@@ -61,11 +61,8 @@ function CenterButton({ active, onPress }: { active: boolean; onPress: () => voi
             },
           ]}
         >
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 13, color: ACCENT, lineHeight: 14 }}>
-            MOVE
-          </Text>
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 12, color: ACCENT, lineHeight: 13, marginTop: -1 }}>
-            95
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', lineHeight: 26 }}>
+            D
           </Text>
         </Animated.View>
       </TouchableOpacity>

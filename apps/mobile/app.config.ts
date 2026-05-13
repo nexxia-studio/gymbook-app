@@ -1,7 +1,7 @@
 export default {
   expo: {
-    name: 'Move95',
-    slug: 'move95',
+    name: 'Dopamine',
+    slug: 'dopamine',
     version: '1.0.0',
     orientation: 'portrait' as const,
     icon: './assets/icon.png',
@@ -14,14 +14,14 @@ export default {
     },
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'be.move95.app',
+      bundleIdentifier: 'be.dopamineclub.app',
     },
     android: {
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#F5F4F0',
       },
-      package: 'be.move95.app',
+      package: 'be.dopamineclub.app',
       edgeToEdgeEnabled: true,
     },
     web: {
@@ -46,6 +46,6 @@ export default {
     experiments: {
       typedRoutes: true,
     },
-    scheme: 'move95',
+    scheme: 'dopamine',
   },
 }

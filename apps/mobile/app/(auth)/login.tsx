@@ -39,10 +39,7 @@ export default function Login() {
 
       {/* Dark header */}
       <View className="bg-move-dark px-6 pb-16 pt-14">
-        <View className="flex-row">
-          <Text className="font-barlow text-lg text-white">MOVE</Text>
-          <Text className="font-barlow text-lg text-move-accent">95</Text>
-        </View>
+        <Text className="font-barlow text-lg text-white">DOPAMINE</Text>
         <Text className="mt-4 font-barlow text-3xl uppercase text-white">
           {t('auth.login_title')}
         </Text>

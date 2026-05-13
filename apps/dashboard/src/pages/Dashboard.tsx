@@ -17,10 +17,10 @@ import { RecentMembers } from '@/components/dashboard/RecentMembers'
 import { WeeklyChart } from '@/components/dashboard/WeeklyChart'
 
 const mockStats = {
-  activeMembers: 47,
-  todaySessions: 6,
-  fillRate: 73,
-  monthRevenue: 3840,
+  activeMembers: 24,
+  todaySessions: 4,
+  fillRate: 78,
+  monthRevenue: 2160,
 }
 
 export default function Dashboard() {
