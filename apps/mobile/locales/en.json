@@ -85,7 +85,20 @@
     "greeting": "Hey, {{name}}",
     "subtitle": "Sprint 2 — Member app",
     "today": "Today",
-    "tomorrow": "Tomorrow"
+    "tomorrow": "Tomorrow",
+    "in_2_days": "In 2 days",
+    "book": "Book",
+    "full": "Full",
+    "waitlist": "Waitlist",
+    "spots_left": "{{count}} spots",
+    "spots_one": "1 spot",
+    "empty_title": "No classes this day",
+    "empty_closed": "Dopamine is closed on Sundays",
+    "empty_none": "No slots scheduled",
+    "duration_min": "{{duration}} min",
+    "pull_refresh": "Pull to refresh",
+    "months": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+    "days": ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
   },
   "schedule": {
     "title": "Schedule",

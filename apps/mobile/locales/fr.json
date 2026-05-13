@@ -85,7 +85,20 @@
     "greeting": "Salut, {{name}}",
     "subtitle": "Sprint 2 — App membres",
     "today": "Aujourd'hui",
-    "tomorrow": "Demain"
+    "tomorrow": "Demain",
+    "in_2_days": "Dans 2 jours",
+    "book": "Réserver",
+    "full": "Complet",
+    "waitlist": "Liste d'attente",
+    "spots_left": "{{count}} places",
+    "spots_one": "1 place",
+    "empty_title": "Aucun cours ce jour",
+    "empty_closed": "Dopamine est fermé le dimanche",
+    "empty_none": "Pas de créneaux prévus",
+    "duration_min": "{{duration}} min",
+    "pull_refresh": "Tirer pour rafraîchir",
+    "months": ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"],
+    "days": ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"]
   },
   "schedule": {
     "title": "Planning",
