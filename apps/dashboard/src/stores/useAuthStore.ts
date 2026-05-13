@@ -69,31 +69,18 @@ export const useAuthStore = create<AuthState>((set) => ({
           first_name: firstName,
           last_name: lastName,
           phone: phone ?? null,
+          role: 'gym_admin',
+          gym_id: null,
+          preferred_language: 'fr',
+          privacy_policy_accepted: String(consents?.privacy ?? false),
+          terms_accepted: String(consents?.terms ?? false),
+          marketing_consent: String(consents?.marketing ?? false),
         },
       },
     })
     if (error) {
       set({ isLoading: false, error: mapSupabaseError(error.message) })
       throw error
-    }
-
-    // Create profile if user was created (not just confirmation pending)
-    if (data.user) {
-      const now = new Date().toISOString()
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone ?? null,
-        role: 'gym_admin',
-        terms_accepted_at: consents?.terms ? now : null,
-        privacy_policy_accepted_at: consents?.privacy ? now : null,
-        marketing_consent: consents?.marketing ?? false,
-        marketing_consent_at: consents?.marketing ? now : null,
-        data_processing_consent: consents?.privacy ?? false,
-        data_processing_consent_at: consents?.privacy ? now : null,
-      })
     }
 
     const needsConfirmation = !data.session
