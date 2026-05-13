@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { View, Text, ScrollView, RefreshControl } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Bell } from 'lucide-react-native'
 import { DayTabs } from '../../components/home/DayTabs'
@@ -10,6 +11,7 @@ import { useHomeSchedule } from '../../hooks/useHomeSchedule'
 
 export default function Home() {
   const { t } = useTranslation()
+  const router = useRouter()
   const { days, scheduleByDay, isFavorite, toggleFavorite, refresh } = useHomeSchedule()
   const [activeDay, setActiveDay] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -94,7 +96,20 @@ export default function Home() {
                     isFavorite={isFavorite(slot.id)}
                     onToggleFavorite={() => toggleFavorite(slot.id)}
                     onBook={() => {
-                      // TODO: booking flow
+                      router.push({
+                        pathname: '/session/[id]',
+                        params: {
+                          id: slot.id,
+                          activity: slot.activity,
+                          date: slot.date,
+                          time: slot.time,
+                          endTime: slot.endTime,
+                          coach: slot.coach,
+                          duration: String(slot.duration),
+                          capacity: String(slot.capacity),
+                          booked: String(slot.booked),
+                        },
+                      })
                     }}
                   />
                 ))

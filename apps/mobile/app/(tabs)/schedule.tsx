@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { View, Text, SectionList } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSchedule, type DaySection, type ScheduleSlot } from '../../hooks/useSchedule'
 import { useBookingStore } from '../../stores/useBookingStore'
@@ -12,6 +13,7 @@ import { Skeleton } from '../../components/schedule/Skeleton'
 
 export default function Schedule() {
   const { t } = useTranslation()
+  const router = useRouter()
   const {
     groupedByDay, isLoading,
     activityFilter, setActivityFilter,
@@ -36,7 +38,20 @@ export default function Schedule() {
         isFavorite={favorites.includes(item.id)}
         onToggleFavorite={() => toggleFav(item.id)}
         onPress={() => {
-          // TODO: navigate to session detail
+          router.push({
+            pathname: '/session/[id]',
+            params: {
+              id: item.id,
+              activity: item.activity,
+              date: item.date,
+              time: item.time,
+              endTime: item.endTime,
+              coach: item.coach,
+              duration: String(item.duration),
+              capacity: String(item.capacity),
+              booked: String(item.booked),
+            },
+          })
         }}
       />
     ),

@@ -111,10 +111,34 @@
     "no_results_hint": "Essayez de modifier vos filtres",
     "reset_filters": "Réinitialiser les filtres"
   },
+  "session": {
+    "about": "A propos",
+    "other_slots": "Autres creneaux",
+    "this_week": "Cette semaine",
+    "location": "Localisation",
+    "enroll": "M'inscrire",
+    "waitlist": "Liste d'attente",
+    "cancel": "Annuler",
+    "enrolled": "Inscrit",
+    "spots": "{{booked}} / {{capacity}} places",
+    "desc_open_gym": "Acces libre aux equipements pendant 2h. Nicolas ou Francois sera present pour vous guider. Ideal pour travailler a votre rythme.",
+    "desc_hiit": "Seance haute intensite de 60 minutes. Preparation Hyrox et entrainement fonctionnel. Tous niveaux, adapte par votre coach.",
+    "see_more": "Voir plus",
+    "see_less": "Voir moins",
+    "booking_confirmed": "Reservation confirmee !",
+    "booking_details": "{{activity}} · {{date}} · {{time}}",
+    "view_bookings": "Voir mes reservations",
+    "back": "Retour",
+    "cancel_title": "Annuler votre reservation ?",
+    "cancel_late_warning": "Annulation tardive — sera compte comme no-show",
+    "cancel_confirm": "Confirmer l'annulation",
+    "cancel_keep": "Garder ma reservation",
+    "address": "Route du Condroz, Neupre 4120"
+  },
   "booking": {
-    "title": "Mes réservations",
-    "no_bookings": "Aucune réservation",
-    "book": "Réserver",
+    "title": "Mes reservations",
+    "no_bookings": "Aucune reservation",
+    "book": "Reserver",
     "cancel": "Annuler"
   },
   "studio": {
