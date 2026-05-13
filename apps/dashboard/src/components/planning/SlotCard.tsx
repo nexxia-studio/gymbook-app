@@ -23,16 +23,7 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
   const displayStatus = getDisplayStatus(slot)
   const isLive = displayStatus === 'in_progress'
 
-  // Debug: log status computation for today's slots
-  if (slot.date === new Date().toISOString().slice(0, 10)) {
-    console.log(`[SlotCard] ${slot.activity.name} ${slot.startTime}-${slot.endTime}`, {
-      date: slot.date,
-      endMs: new Date(slot.date.replace(/-/g, '/') + ' ' + slot.endTime).getTime(),
-      now: Date.now(),
-      displayStatus,
-      compact,
-    })
-  }
+
 
   return (
     <button
