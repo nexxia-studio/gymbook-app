@@ -1,0 +1,9 @@
+{
+  "name": "gymbook-app",
+  "private": true,
+  "scripts": {
+    "build": "cd apps/dashboard && npm install && npm run build",
+    "dev": "cd apps/dashboard && npm run dev",
+    "test:rls": "cd apps/dashboard && npm run test:rls"
+  }
+}
