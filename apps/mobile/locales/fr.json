@@ -1,0 +1,50 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "back": "Retour",
+    "error": "Une erreur est survenue"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "signup": "Créer un compte",
+    "email": "Email",
+    "password": "Mot de passe",
+    "forgot_password": "Mot de passe oublié ?",
+    "no_account": "Pas encore de compte ?",
+    "already_account": "Déjà un compte ?"
+  },
+  "tabs": {
+    "home": "Accueil",
+    "schedule": "Planning",
+    "studio": "Studio",
+    "bookings": "Réservations",
+    "profile": "Profil"
+  },
+  "home": {
+    "greeting": "Salut, {{name}}",
+    "subtitle": "Sprint 2 — App membres",
+    "today": "Aujourd'hui",
+    "tomorrow": "Demain"
+  },
+  "schedule": {
+    "title": "Planning",
+    "no_slots": "Aucun créneau disponible"
+  },
+  "booking": {
+    "title": "Mes réservations",
+    "no_bookings": "Aucune réservation",
+    "book": "Réserver",
+    "cancel": "Annuler"
+  },
+  "studio": {
+    "title": "Studio",
+    "plans": "Formules",
+    "info": "Informations"
+  },
+  "profile": {
+    "title": "Mon profil",
+    "logout": "Se déconnecter"
+  }
+}

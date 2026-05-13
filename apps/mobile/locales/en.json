@@ -1,0 +1,50 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "error": "An error occurred"
+  },
+  "auth": {
+    "login": "Log in",
+    "signup": "Create an account",
+    "email": "Email",
+    "password": "Password",
+    "forgot_password": "Forgot your password?",
+    "no_account": "Don't have an account yet?",
+    "already_account": "Already have an account?"
+  },
+  "tabs": {
+    "home": "Home",
+    "schedule": "Schedule",
+    "studio": "Studio",
+    "bookings": "Bookings",
+    "profile": "Profile"
+  },
+  "home": {
+    "greeting": "Hey, {{name}}",
+    "subtitle": "Sprint 2 — Member app",
+    "today": "Today",
+    "tomorrow": "Tomorrow"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "no_slots": "No slots available"
+  },
+  "booking": {
+    "title": "My bookings",
+    "no_bookings": "No bookings",
+    "book": "Book",
+    "cancel": "Cancel"
+  },
+  "studio": {
+    "title": "Studio",
+    "plans": "Plans",
+    "info": "Information"
+  },
+  "profile": {
+    "title": "My profile",
+    "logout": "Log out"
+  }
+}
