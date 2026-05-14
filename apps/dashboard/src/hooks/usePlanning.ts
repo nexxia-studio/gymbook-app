@@ -1,33 +1,7 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/useAuthStore'
 import type { TimeSlot, Activity, Coach, SlotStatus } from '@/types/planning'
-
-// --- Dopamine Performance Club activities ---
-const ACTIVITIES: Activity[] = [
-  { id: 'opengym', name: 'Open Gym', color: '#4ECDC4', durationMin: 120 },
-  { id: 'hiit', name: 'HIIT / Hyrox', color: '#FF8E53', durationMin: 60 },
-]
-
-const COACHES: Coach[] = [
-  { id: 'c1', name: 'Nicolas' },
-  { id: 'c2', name: 'François' },
-]
-
-const MOCK_MEMBERS = [
-  { id: 'm1', name: 'Sophie Janssens' },
-  { id: 'm2', name: 'Lucas Dupont' },
-  { id: 'm3', name: 'Emma Claes' },
-  { id: 'm4', name: 'Thomas Peeters' },
-  { id: 'm5', name: 'Léa Maes' },
-  { id: 'm6', name: 'Arthur Willems' },
-  { id: 'm7', name: 'Chloé Lambert' },
-  { id: 'm8', name: 'Nathan Dubois' },
-]
-
-function addMinutes(time: string, mins: number): string {
-  const [h, m] = time.split(':').map(Number)
-  const total = h * 60 + m + mins
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
-}
 
 function getMonday(d: Date): Date {
   const date = new Date(d)
@@ -42,100 +16,52 @@ function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function pickMembers(count: number) {
-  const shuffled = [...MOCK_MEMBERS].sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, count)
+function toHHMM(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// --- Slot templates per day type ---
-interface SlotTemplate {
-  time: string
-  activityIdx: number
-  coachIdx: number
+function toDateStr(iso: string): string {
+  const d = new Date(iso)
+  return formatDate(d)
+}
+
+interface DbSlot {
+  id: string
+  starts_at: string
+  ends_at: string
   capacity: number
-  booked: number
-  status: SlotStatus
+  bookings_count: number | null
+  status: string | null
+  notes: string | null
+  activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null } | null
+  coaches: { id: string; name: string } | null
+  bookings: Array<{ id: string; member_id: string; status: string | null }> | null
 }
 
-// Real Dopamine schedule: 0=Open Gym (2h, cap 6), 1=HIIT/Hyrox (1h, cap 12)
-// Coaches: 0=Nicolas, 1=François — alternating
-const WEEKDAY_TEMPLATES: SlotTemplate[][] = [
-  // Monday
-  [
-    { time: '07:30', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 4, status: 'scheduled' },
-    { time: '12:15', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 8, status: 'scheduled' },
-    { time: '18:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 11, status: 'scheduled' },
-    { time: '19:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 5, status: 'scheduled' },
-  ],
-  // Tuesday
-  [
-    { time: '07:30', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 7, status: 'scheduled' },
-    { time: '12:15', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 3, status: 'scheduled' },
-    { time: '18:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 6, status: 'scheduled' },
-    { time: '19:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 10, status: 'scheduled' },
-  ],
-  // Wednesday
-  [
-    { time: '07:30', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 2, status: 'scheduled' },
-    { time: '12:15', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 9, status: 'scheduled' },
-    { time: '18:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 12, status: 'scheduled' },
-    { time: '19:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 4, status: 'scheduled' },
-  ],
-  // Thursday
-  [
-    { time: '07:30', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 5, status: 'scheduled' },
-    { time: '12:15', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 4, status: 'scheduled' },
-    { time: '18:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 6, status: 'scheduled' },
-    { time: '19:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 11, status: 'scheduled' },
-  ],
-  // Friday
-  [
-    { time: '07:30', activityIdx: 0, coachIdx: 0, capacity: 6, booked: 3, status: 'scheduled' },
-    { time: '12:15', activityIdx: 1, coachIdx: 1, capacity: 12, booked: 7, status: 'scheduled' },
-    { time: '18:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 10, status: 'scheduled' },
-    { time: '19:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 5, status: 'scheduled' },
-  ],
-]
-
-const SATURDAY_TEMPLATES: SlotTemplate[] = [
-  { time: '09:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 9, status: 'scheduled' },
-  { time: '10:00', activityIdx: 0, coachIdx: 1, capacity: 6, booked: 4, status: 'scheduled' },
-  { time: '11:00', activityIdx: 1, coachIdx: 0, capacity: 12, booked: 6, status: 'scheduled' },
-]
-
-const SUNDAY_TEMPLATES: SlotTemplate[] = []
-
-function buildWeekSlots(monday: Date): TimeSlot[] {
-  const slots: TimeSlot[] = []
-  let id = 0
-
-  function addDay(dayOffset: number, templates: SlotTemplate[]) {
-    const d = new Date(monday)
-    d.setDate(d.getDate() + dayOffset)
-    const dateStr = formatDate(d)
-
-    for (const tpl of templates) {
-      const activity = ACTIVITIES[tpl.activityIdx]
-      slots.push({
-        id: `slot-${id++}`,
-        date: dateStr,
-        startTime: tpl.time,
-        endTime: addMinutes(tpl.time, activity.durationMin),
-        activity,
-        coach: COACHES[tpl.coachIdx],
-        booked: tpl.booked,
-        capacity: tpl.capacity,
-        status: tpl.status,
-        members: pickMembers(tpl.booked),
-      })
-    }
+function mapSlot(row: DbSlot): TimeSlot {
+  return {
+    id: row.id,
+    date: toDateStr(row.starts_at),
+    startTime: toHHMM(row.starts_at),
+    endTime: toHHMM(row.ends_at),
+    activity: {
+      id: row.activities?.id ?? '',
+      name: row.activities?.name ?? '',
+      color: row.activities?.color ?? '#4ECDC4',
+      durationMin: row.activities?.duration_min ?? 60,
+    },
+    coach: {
+      id: row.coaches?.id ?? '',
+      name: row.coaches?.name ?? '',
+    },
+    booked: row.bookings_count ?? row.bookings?.filter((b) => b.status === 'confirmed').length ?? 0,
+    capacity: row.capacity,
+    status: (row.status as SlotStatus) ?? 'scheduled',
+    members: (row.bookings ?? [])
+      .filter((b) => b.status === 'confirmed')
+      .map((b) => ({ id: b.member_id, name: b.member_id.slice(0, 8) })),
   }
-
-  for (let i = 0; i < 5; i++) addDay(i, WEEKDAY_TEMPLATES[i])
-  addDay(5, SATURDAY_TEMPLATES)
-  addDay(6, SUNDAY_TEMPLATES)
-
-  return slots
 }
 
 export interface CreateSlotInput {
@@ -151,11 +77,10 @@ export interface CreateSlotInput {
   repeatWeeks: number
 }
 
-let nextSlotId = 1000
-
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
+function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = h * 60 + m + mins
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
 export function usePlanning() {
@@ -165,35 +90,82 @@ export function usePlanning() {
   const [filterActivity, setFilterActivity] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [extraSlots, setExtraSlots] = useState<TimeSlot[]>([])
-  const [version, setVersion] = useState(0)
+  const [slots, setSlots] = useState<TimeSlot[]>([])
+  const [activitiesList, setActivitiesList] = useState<Activity[]>([])
+  const [coachesList, setCoachesList] = useState<Coach[]>([])
+
+  const gymId = useAuthStore((s) => s.gym_id)
 
   const weekEnd = useMemo(() => {
     const d = new Date(weekStart)
     d.setDate(d.getDate() + 6)
+    d.setHours(23, 59, 59, 999)
     return d
   }, [weekStart])
 
-  const baseSlots = useMemo(() => {
+  // Fetch slots for the week
+  const fetchSlots = useCallback(async () => {
+    if (!gymId) return
     setLoading(true)
-    const s = buildWeekSlots(weekStart)
-    setTimeout(() => setLoading(false), 400)
-    return s
-  }, [weekStart])
+    try {
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select(`
+          id, starts_at, ends_at, capacity, bookings_count, status, notes,
+          activities(id, name, color, duration_min, icon),
+          coaches(id, name),
+          bookings(id, member_id, status)
+        `)
+        .eq('gym_id', gymId)
+        .gte('starts_at', weekStart.toISOString())
+        .lte('starts_at', weekEnd.toISOString())
+        .neq('status', 'deleted')
+        .order('starts_at')
 
-  const allSlots = useMemo(() => {
-    void version // trigger recalc on CRUD
-    return [...baseSlots, ...extraSlots]
-  }, [baseSlots, extraSlots, version])
+      if (error) throw error
+      setSlots((data as unknown as DbSlot[] ?? []).map(mapSlot))
+    } catch (e) {
+      console.error('Failed to fetch slots', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [gymId, weekStart, weekEnd])
+
+  // Fetch activities + coaches for filters and modals
+  const fetchMeta = useCallback(async () => {
+    if (!gymId) return
+    const [actRes, coachRes] = await Promise.all([
+      supabase.from('activities').select('id, name, color, duration_min').eq('gym_id', gymId).order('sort_order'),
+      supabase.from('coaches').select('id, name').eq('gym_id', gymId).order('sort_order'),
+    ])
+    setActivitiesList((actRes.data ?? []).map((a) => ({
+      id: a.id, name: a.name, color: a.color ?? '#4ECDC4', durationMin: a.duration_min,
+    })))
+    setCoachesList((coachRes.data ?? []).map((c) => ({ id: c.id, name: c.name })))
+  }, [gymId])
+
+  useEffect(() => { fetchSlots() }, [fetchSlots])
+  useEffect(() => { fetchMeta() }, [fetchMeta])
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!gymId) return
+    const channel = supabase
+      .channel('planning-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${gymId}` }, () => fetchSlots())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, () => fetchSlots())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [gymId, fetchSlots])
 
   const filteredSlots = useMemo(() => {
-    return allSlots.filter((s) => {
+    return slots.filter((s) => {
       if (filterCoach && s.coach.id !== filterCoach) return false
       if (filterActivity && s.activity.id !== filterActivity) return false
       if (filterStatus && s.status !== filterStatus) return false
       return true
     })
-  }, [allSlots, filterCoach, filterActivity, filterStatus])
+  }, [slots, filterCoach, filterActivity, filterStatus])
 
   const getSlotsByDay = useCallback(
     (dateStr: string) => filteredSlots.filter((s) => s.date === dateStr),
@@ -222,91 +194,72 @@ export function usePlanning() {
   }
 
   function checkOverlap(coachId: string, date: string, startTime: string, duration: number, excludeId?: string): boolean {
-    const newStart = timeToMinutes(startTime)
+    const newStart = timeToMin(startTime)
     const newEnd = newStart + duration
-    return allSlots.some((s) => {
+    return slots.some((s) => {
       if (s.id === excludeId) return false
       if (s.coach.id !== coachId || s.date !== date || s.status === 'cancelled') return false
-      const sStart = timeToMinutes(s.startTime)
-      const sEnd = timeToMinutes(s.endTime)
+      const sStart = timeToMin(s.startTime)
+      const sEnd = timeToMin(s.endTime)
       return newStart < sEnd && newEnd > sStart
     })
   }
 
-  function createSlot(input: CreateSlotInput): number {
-    const activity = ACTIVITIES.find((a) => a.id === input.activityId)!
-    const coach = COACHES.find((c) => c.id === input.coachId)!
+  async function createSlot(input: CreateSlotInput): Promise<number> {
+    if (!gymId) return 0
     const count = input.repeat ? input.repeatWeeks : 1
-    const newSlots: TimeSlot[] = []
+    const inserts = []
 
     for (let i = 0; i < count; i++) {
       const d = new Date(input.date)
       d.setDate(d.getDate() + i * 7)
       const dateStr = formatDate(d)
+      const startsAt = `${dateStr}T${input.startTime}:00`
+      const endsAt = `${dateStr}T${addMinutes(input.startTime, input.duration)}:00`
 
-      newSlots.push({
-        id: `slot-${nextSlotId++}`,
-        date: dateStr,
-        startTime: input.startTime,
-        endTime: addMinutes(input.startTime, input.duration),
-        activity,
-        coach,
-        booked: 0,
+      inserts.push({
+        gym_id: gymId,
+        activity_id: input.activityId,
+        coach_id: input.coachId,
+        starts_at: startsAt,
+        ends_at: endsAt,
         capacity: input.capacity,
+        level: input.level,
+        notes: input.notes || null,
         status: 'scheduled',
-        members: [],
       })
     }
 
-    setExtraSlots((prev) => [...prev, ...newSlots])
-    setVersion((v) => v + 1)
+    await supabase.from('time_slots').insert(inserts)
+    fetchSlots()
     return count
   }
 
-  function updateSlot(id: string, input: CreateSlotInput) {
-    const activity = ACTIVITIES.find((a) => a.id === input.activityId)!
-    const coach = COACHES.find((c) => c.id === input.coachId)!
+  async function updateSlot(id: string, input: CreateSlotInput) {
+    const dateStr = input.date
+    const startsAt = `${dateStr}T${input.startTime}:00`
+    const endsAt = `${dateStr}T${addMinutes(input.startTime, input.duration)}:00`
 
-    // Update in extra slots
-    setExtraSlots((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              activity,
-              coach,
-              date: input.date,
-              startTime: input.startTime,
-              endTime: addMinutes(input.startTime, input.duration),
-              capacity: input.capacity,
-            }
-          : s,
-      ),
-    )
-    setVersion((v) => v + 1)
+    await supabase.from('time_slots').update({
+      activity_id: input.activityId,
+      coach_id: input.coachId,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      capacity: input.capacity,
+      level: input.level,
+      notes: input.notes || null,
+    }).eq('id', id)
+    fetchSlots()
   }
 
-  function cancelSlot(id: string) {
-    // Mark as cancelled in extra slots or base slots
-    setExtraSlots((prev) => {
-      const found = prev.find((s) => s.id === id)
-      if (found) {
-        return prev.map((s) => (s.id === id ? { ...s, status: 'cancelled' as const } : s))
-      }
-      // If it's a base slot, copy it as cancelled to extras
-      const base = baseSlots.find((s) => s.id === id)
-      if (base) {
-        return [...prev, { ...base, status: 'cancelled' as const }]
-      }
-      return prev
-    })
-    setVersion((v) => v + 1)
+  async function cancelSlot(id: string) {
+    await supabase.from('time_slots').update({ status: 'cancelled' }).eq('id', id)
+    fetchSlots()
   }
 
-  function removeSlot(id: string) {
-    // Permanently remove from extras
-    setExtraSlots((prev) => prev.filter((s) => s.id !== id))
-    setVersion((v) => v + 1)
+  async function removeSlot(id: string) {
+    await supabase.from('time_slots').delete().eq('id', id)
+    fetchSlots()
   }
 
   return {
@@ -325,12 +278,17 @@ export function usePlanning() {
     setFilterActivity,
     filterStatus,
     setFilterStatus,
-    coaches: COACHES,
-    activities: ACTIVITIES,
+    coaches: coachesList,
+    activities: activitiesList,
     createSlot,
     updateSlot,
     cancelSlot,
     removeSlot,
     checkOverlap,
   }
+}
+
+function timeToMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
 }
