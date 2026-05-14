@@ -23,6 +23,7 @@ interface BookingState {
   isLoading: boolean
   createBooking: (slotId: string) => Promise<{ status: string; position?: number }>
   cancelBooking: (slotId: string) => Promise<{ noshow?: { level: string; hours?: number } } | void>
+  confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean }>
   fetchBookings: (userId: string) => Promise<void>
   isBooked: (slotId: string) => boolean
   addFavorite: (slotId: string) => void
@@ -88,6 +89,24 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }))
 
     return { noshow: noshowResult }
+  },
+
+  confirmWaitlist: async (bookingId: string) => {
+    set({ isLoading: true })
+    try {
+      const { data, error } = await supabase.functions.invoke('confirm-waitlist', {
+        body: { booking_id: bookingId },
+      })
+      if (error) throw new Error(error.message ?? 'Confirm failed')
+
+      // Refresh bookings
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) get().fetchBookings(user.id)
+
+      return { confirmed: data?.confirmed ?? false }
+    } finally {
+      set({ isLoading: false })
+    }
   },
 
   fetchBookings: async (userId: string) => {

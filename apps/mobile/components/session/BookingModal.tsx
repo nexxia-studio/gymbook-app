@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, Modal } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle } from 'lucide-react-native'
+import { CheckCircle, Clock } from 'lucide-react-native'
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming, withDelay } from 'react-native-reanimated'
 import { useEffect } from 'react'
 
@@ -9,13 +9,15 @@ interface BookingModalProps {
   activity: string
   date: string
   time: string
+  waitlistPosition?: number | null
   onViewBookings: () => void
   onClose: () => void
 }
 
-export function BookingModal({ visible, activity, date, time, onViewBookings, onClose }: BookingModalProps) {
+export function BookingModal({ visible, activity, date, time, waitlistPosition, onViewBookings, onClose }: BookingModalProps) {
   const { t } = useTranslation()
   const scale = useSharedValue(0)
+  const isWaitlist = waitlistPosition != null && waitlistPosition > 0
 
   useEffect(() => {
     if (visible) {
@@ -38,16 +40,30 @@ export function BookingModal({ visible, activity, date, time, onViewBookings, on
         <View className="rounded-t-3xl bg-move-card px-6 pb-10 pt-8">
           <View className="items-center">
             <Animated.View style={iconStyle}>
-              <CheckCircle size={56} color="#22C55E" />
+              {isWaitlist ? (
+                <Clock size={56} color="#F97316" />
+              ) : (
+                <CheckCircle size={56} color="#22C55E" />
+              )}
             </Animated.View>
 
             <Text className="mt-4 font-barlow text-2xl uppercase text-move-dark">
-              {t('session.booking_confirmed')}
+              {isWaitlist
+                ? t('session.waitlist_joined')
+                : t('session.booking_confirmed')}
             </Text>
 
-            <Text className="mt-2 font-dmsans text-sm text-move-text-secondary">
-              {t('session.booking_details', { activity, date, time })}
+            <Text className="mt-2 text-center font-dmsans text-sm text-move-text-secondary">
+              {isWaitlist
+                ? t('session.waitlist_message', { position: waitlistPosition })
+                : t('session.booking_details', { activity, date, time })}
             </Text>
+
+            {isWaitlist && (
+              <Text className="mt-2 text-center font-dmsans text-xs text-move-text-muted">
+                {t('session.waitlist_hint')}
+              </Text>
+            )}
           </View>
 
           <View className="mt-8 gap-3">

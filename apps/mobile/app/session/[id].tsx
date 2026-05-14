@@ -104,11 +104,17 @@ export default function SessionDetail() {
     return result
   }, [activity, days])
 
+  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
+
   const handleBook = useCallback(async () => {
     setLoading(true)
     try {
-      await createBooking(slotId)
-      setBookedCount((c) => c + 1)
+      const result = await createBooking(slotId)
+      if (result.status === 'waitlisted') {
+        setWaitlistPosition(result.position ?? 1)
+      } else {
+        setBookedCount((c) => c + 1)
+      }
       setBookingModalVisible(true)
     } catch {
       // Error handled in store
@@ -239,11 +245,16 @@ export default function SessionDetail() {
         activity={activity}
         date={dayLabel}
         time={time}
+        waitlistPosition={waitlistPosition}
         onViewBookings={() => {
           setBookingModalVisible(false)
+          setWaitlistPosition(null)
           router.replace('/(tabs)/bookings')
         }}
-        onClose={() => setBookingModalVisible(false)}
+        onClose={() => {
+          setBookingModalVisible(false)
+          setWaitlistPosition(null)
+        }}
       />
 
       {/* Cancel confirmation modal */}
