@@ -191,6 +191,7 @@ export type Database = {
           status: string | null
           subscription_id: string | null
           updated_at: string | null
+          waitlist_notified_at: string | null
           waitlist_position: number | null
         }
         Insert: {
@@ -209,6 +210,7 @@ export type Database = {
           status?: string | null
           subscription_id?: string | null
           updated_at?: string | null
+          waitlist_notified_at?: string | null
           waitlist_position?: number | null
         }
         Update: {
@@ -227,6 +229,7 @@ export type Database = {
           status?: string | null
           subscription_id?: string | null
           updated_at?: string | null
+          waitlist_notified_at?: string | null
           waitlist_position?: number | null
         }
         Relationships: [
@@ -1482,6 +1485,7 @@ export type Database = {
         Row: {
           active: boolean | null
           created_at: string | null
+          escalated_suspension_hours: number | null
           gym_id: string
           id: string
           late_cancel_hours: number | null
@@ -1496,6 +1500,7 @@ export type Database = {
         Insert: {
           active?: boolean | null
           created_at?: string | null
+          escalated_suspension_hours?: number | null
           gym_id: string
           id?: string
           late_cancel_hours?: number | null
@@ -1510,6 +1515,7 @@ export type Database = {
         Update: {
           active?: boolean | null
           created_at?: string | null
+          escalated_suspension_hours?: number | null
           gym_id?: string
           id?: string
           late_cancel_hours?: number | null
@@ -1712,6 +1718,7 @@ export type Database = {
           privacy_policy_accepted_at: string | null
           privacy_policy_version: string | null
           profile_completion: number | null
+          push_token: string | null
           reward_unlocked: boolean | null
           role: string
           suspended_until: string | null
@@ -1751,6 +1758,7 @@ export type Database = {
           privacy_policy_accepted_at?: string | null
           privacy_policy_version?: string | null
           profile_completion?: number | null
+          push_token?: string | null
           reward_unlocked?: boolean | null
           role: string
           suspended_until?: string | null
@@ -1790,6 +1798,7 @@ export type Database = {
           privacy_policy_accepted_at?: string | null
           privacy_policy_version?: string | null
           profile_completion?: number | null
+          push_token?: string | null
           reward_unlocked?: boolean | null
           role?: string
           suspended_until?: string | null
@@ -2046,6 +2055,10 @@ export type Database = {
       }
       cleanup_expired_favorites: { Args: never; Returns: undefined }
       cleanup_oauth_states: { Args: never; Returns: undefined }
+      decrement_slot_booking_count: {
+        Args: { p_slot_id: string }
+        Returns: undefined
+      }
       decrypt_medical: {
         Args: { ciphertext: string; secret_id: string }
         Returns: string
@@ -2054,14 +2067,23 @@ export type Database = {
         Args: { plaintext: string; secret_id: string }
         Returns: string
       }
+      expire_waitlist_confirmations: { Args: never; Returns: undefined }
       get_my_gym_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
       gym_has_feature: {
         Args: { p_feature: string; p_gym_id: string }
         Returns: boolean
       }
+      increment_slot_booking_count: {
+        Args: { p_slot_id: string }
+        Returns: undefined
+      }
       is_gym_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      promote_next_in_waitlist: {
+        Args: { p_slot_id: string }
+        Returns: undefined
+      }
       request_account_deletion: { Args: { p_user_id: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

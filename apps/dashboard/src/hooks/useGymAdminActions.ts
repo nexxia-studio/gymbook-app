@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
+import type { Json } from '@/types/database'
 
 export function useGymAdminActions() {
   const gymId = useAuthStore((s) => s.gym_id)
@@ -9,7 +10,7 @@ export function useGymAdminActions() {
   const logAction = useCallback(async (
     actionType: string,
     targetId: string,
-    metadata?: Record<string, unknown>,
+    metadata?: Json,
   ) => {
     if (!gymId || !userId) return
     await supabase.from('gym_admin_actions').insert({
