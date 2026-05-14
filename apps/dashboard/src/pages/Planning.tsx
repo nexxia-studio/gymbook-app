@@ -36,8 +36,8 @@ export default function Planning() {
   const [confirmSlot, setConfirmSlot] = useState<TimeSlot | null>(null)
   const [confirmMode, setConfirmMode] = useState<SlotDeleteMode>('cancel')
 
-  function handleCreate(data: SlotFormData) {
-    const count = planning.createSlot(data)
+  async function handleCreate(data: SlotFormData) {
+    const count = await planning.createSlot(data)
     setCreateModalOpen(false)
     addToast(
       count > 1
