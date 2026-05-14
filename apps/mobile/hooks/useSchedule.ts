@@ -1,4 +1,7 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+
+const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
 
 export interface ScheduleSlot {
   id: string
@@ -6,7 +9,7 @@ export interface ScheduleSlot {
   dayOfWeek: number
   time: string
   endTime: string
-  activity: 'Open Gym' | 'HIIT / Hyrox'
+  activity: string
   coach: string
   duration: number
   capacity: number
@@ -20,36 +23,12 @@ export interface DaySection {
   data: ScheduleSlot[]
 }
 
-interface Template {
-  time: string
-  activity: 'Open Gym' | 'HIIT / Hyrox'
-  duration: number
-  capacity: number
-  color: string
+function toHHMM(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-const WEEKDAY: Template[] = [
-  { time: '07:30', activity: 'Open Gym', duration: 120, capacity: 6, color: '#4ECDC4' },
-  { time: '12:15', activity: 'HIIT / Hyrox', duration: 60, capacity: 12, color: '#FF8E53' },
-  { time: '18:00', activity: 'Open Gym', duration: 120, capacity: 6, color: '#4ECDC4' },
-  { time: '19:00', activity: 'HIIT / Hyrox', duration: 60, capacity: 12, color: '#FF8E53' },
-]
-
-const SATURDAY: Template[] = [
-  { time: '09:00', activity: 'HIIT / Hyrox', duration: 60, capacity: 12, color: '#FF8E53' },
-  { time: '10:00', activity: 'Open Gym', duration: 120, capacity: 6, color: '#4ECDC4' },
-  { time: '11:00', activity: 'HIIT / Hyrox', duration: 60, capacity: 12, color: '#FF8E53' },
-]
-
-const COACHES = ['Nicolas', 'François']
-
-function addMin(time: string, mins: number): string {
-  const [h, m] = time.split(':').map(Number)
-  const t = h * 60 + m + mins
-  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
-}
-
-function fmtDate(d: Date): string {
+function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
@@ -61,66 +40,69 @@ function getMonday(d: Date): Date {
   return r
 }
 
-function buildSlots(): ScheduleSlot[] {
-  const slots: ScheduleSlot[] = []
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  for (let offset = 0; offset < 14; offset++) {
-    const d = new Date(today)
-    d.setDate(d.getDate() + offset)
-    const dow = d.getDay()
-    if (dow === 0) continue // Sunday closed
-
-    const templates = dow === 6 ? SATURDAY : WEEKDAY
-    const dateStr = fmtDate(d)
-
-    templates.forEach((tpl, i) => {
-      const booked = Math.min(
-        tpl.capacity,
-        Math.floor(Math.random() * (tpl.capacity + 2)),
-      )
-      slots.push({
-        id: `${dateStr}-${tpl.time}-${tpl.activity}`,
-        date: dateStr,
-        dayOfWeek: dow,
-        time: tpl.time,
-        endTime: addMin(tpl.time, tpl.duration),
-        activity: tpl.activity,
-        coach: COACHES[(i + dow) % COACHES.length],
-        duration: tpl.duration,
-        capacity: tpl.capacity,
-        booked: Math.max(0, booked),
-        color: tpl.color,
-      })
-    })
-  }
-  return slots
-}
-
 export function useSchedule() {
+  const [allSlots, setAllSlots] = useState<ScheduleSlot[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [activityFilter, setActivityFilter] = useState<string | null>(null)
   const [weekFilter, setWeekFilter] = useState<'current' | 'next' | null>(null)
   const [coachFilter, setCoachFilter] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
 
-  const allSlots = useMemo(() => {
+  const fetchSlots = useCallback(async () => {
     setIsLoading(true)
-    const s = buildSlots()
-    setTimeout(() => setIsLoading(false), 300)
-    return s
+    try {
+      const start = new Date()
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 14)
+
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select(`
+          id, starts_at, ends_at, capacity, bookings_count,
+          activities(name, color, duration_min),
+          coaches(name)
+        `)
+        .eq('gym_id', DOPAMINE_GYM_ID)
+        .gte('starts_at', start.toISOString())
+        .lt('starts_at', end.toISOString())
+        .neq('status', 'cancelled')
+        .order('starts_at')
+
+      if (error) throw error
+
+      setAllSlots((data ?? []).map((row: Record<string, unknown>) => {
+        const act = row.activities as Record<string, unknown> | null
+        const coach = row.coaches as Record<string, unknown> | null
+        const startsAt = row.starts_at as string
+        const d = new Date(startsAt)
+        return {
+          id: row.id as string,
+          date: toDateStr(d),
+          dayOfWeek: d.getDay(),
+          time: toHHMM(startsAt),
+          endTime: toHHMM(row.ends_at as string),
+          activity: (act?.name as string) ?? 'Open Gym',
+          coach: (coach?.name as string) ?? '',
+          duration: (act?.duration_min as number) ?? 60,
+          capacity: row.capacity as number,
+          booked: (row.bookings_count as number) ?? 0,
+          color: (act?.color as string) ?? '#4ECDC4',
+        }
+      }))
+    } catch (e) {
+      console.error('Failed to fetch schedule', e)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
+
+  useEffect(() => { fetchSlots() }, [fetchSlots])
 
   const filteredSlots = useMemo(() => {
     let result = allSlots
 
-    if (activityFilter) {
-      result = result.filter((s) => s.activity === activityFilter)
-    }
-
-    if (coachFilter) {
-      result = result.filter((s) => s.coach === coachFilter)
-    }
+    if (activityFilter) result = result.filter((s) => s.activity === activityFilter)
+    if (coachFilter) result = result.filter((s) => s.coach === coachFilter)
 
     if (weekFilter) {
       const today = new Date()
@@ -136,8 +118,8 @@ export function useSchedule() {
         end.setDate(end.getDate() + 13)
       }
 
-      const startStr = fmtDate(start)
-      const endStr = fmtDate(end)
+      const startStr = toDateStr(start)
+      const endStr = toDateStr(end)
       result = result.filter((s) => s.date >= startStr && s.date <= endStr)
     }
 
@@ -165,19 +147,17 @@ export function useSchedule() {
 
   const hasActiveFilters = activityFilter !== null || weekFilter !== null || coachFilter !== null
 
+  // Extract unique coaches from fetched data
+  const coaches = useMemo(() => {
+    const names = new Set(allSlots.map((s) => s.coach))
+    return Array.from(names).filter(Boolean)
+  }, [allSlots])
+
   return {
-    allSlots,
-    filteredSlots,
-    groupedByDay,
-    isLoading,
-    activityFilter,
-    setActivityFilter,
-    weekFilter,
-    setWeekFilter,
-    coachFilter,
-    setCoachFilter,
-    resetFilters,
-    hasActiveFilters,
-    coaches: COACHES,
+    allSlots, filteredSlots, groupedByDay, isLoading,
+    activityFilter, setActivityFilter,
+    weekFilter, setWeekFilter,
+    coachFilter, setCoachFilter,
+    resetFilters, hasActiveFilters, coaches,
   }
 }

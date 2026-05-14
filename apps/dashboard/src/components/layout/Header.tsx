@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Menu, Search, Bell, Moon, Sun } from 'lucide-react'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useTheme } from '@/hooks/useTheme'
 import { useLocation } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 
 const ROUTE_LABELS: Record<string, string> = {
   '/dashboard': 'nav.dashboard',
@@ -24,6 +26,15 @@ export function Header() {
   const firstName = user?.user_metadata?.first_name ?? ''
   const lastName = user?.user_metadata?.last_name ?? ''
   const pageLabel = ROUTE_LABELS[location.pathname]
+
+  // Realtime live indicator
+  const [isLive, setIsLive] = useState(false)
+  useEffect(() => {
+    const channel = supabase.channel('heartbeat').subscribe((status) => {
+      setIsLive(status === 'SUBSCRIBED')
+    })
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border bg-card px-4 lg:px-6">
@@ -58,6 +69,14 @@ export function Header() {
           className="w-48 bg-transparent font-body text-sm text-dark outline-none placeholder:text-muted"
         />
       </div>
+
+      {/* Live indicator */}
+      {isLive && (
+        <div className="hidden items-center gap-1.5 md:flex">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+          <span className="font-body text-xs font-medium text-green-500">LIVE</span>
+        </div>
+      )}
 
       {/* Theme toggle */}
       <button

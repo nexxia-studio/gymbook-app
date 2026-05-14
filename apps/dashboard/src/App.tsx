@@ -10,6 +10,7 @@ const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Planning = lazy(() => import('@/pages/Planning'))
 const Settings = lazy(() => import('@/pages/Settings'))
+const Members = lazy(() => import('@/pages/Members'))
 const PlaceholderPage = lazy(() => import('@/pages/PlaceholderPage'))
 
 function Loading() {
@@ -59,7 +60,7 @@ function AppRoutes() {
           path="/members"
           element={
             <ProtectedRoute>
-              <PlaceholderPage pageKey="members" />
+              <Members />
             </ProtectedRoute>
           }
         />

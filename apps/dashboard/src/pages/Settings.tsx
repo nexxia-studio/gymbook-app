@@ -79,12 +79,12 @@ export default function Settings() {
     setEditActivity(null)
     addToast(t('activities.toast_updated'))
   }
-  function handleActToggle(id: string) {
-    const isNowActive = toggleActivity(id)
+  async function handleActToggle(id: string) {
+    const isNowActive = await toggleActivity(id)
     addToast(t(isNowActive ? 'activities.toast_activated' : 'activities.toast_deactivated'))
   }
-  function handleActDuplicate(id: string) {
-    const dup = duplicateActivity(id)
+  async function handleActDuplicate(id: string) {
+    const dup = await duplicateActivity(id)
     if (dup) addToast(t('activities.toast_duplicated'))
   }
   function handleActDelete() {
@@ -106,8 +106,8 @@ export default function Settings() {
     setEditCoach(null)
     addToast(t('coaches.toast_updated'))
   }
-  function handleCoachToggle(id: string) {
-    const isNowActive = toggleCoach(id)
+  async function handleCoachToggle(id: string) {
+    const isNowActive = await toggleCoach(id)
     addToast(t(isNowActive ? 'coaches.toast_activated' : 'coaches.toast_deactivated'))
   }
   function handleCoachDelete() {
