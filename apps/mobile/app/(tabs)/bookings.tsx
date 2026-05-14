@@ -34,9 +34,9 @@ export default function Bookings() {
     removePastFavorites()
   }, [removePastFavorites])
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback(async () => {
     if (cancelSlotId) {
-      cancelBooking(cancelSlotId)
+      await cancelBooking(cancelSlotId)
       setCancelSlotId(null)
     }
   }, [cancelSlotId, cancelBooking])

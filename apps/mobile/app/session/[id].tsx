@@ -28,7 +28,7 @@ export default function SessionDetail() {
     booked: string
   }>()
 
-  const { addBooking, cancelBooking, isBooked, favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { createBooking, cancelBooking, isBooked, favorites, addFavorite, removeFavorite } = useBookingStore()
 
   const slotId = params.id ?? ''
   const activity = params.activity ?? 'Open Gym'
@@ -106,15 +106,19 @@ export default function SessionDetail() {
 
   const handleBook = useCallback(async () => {
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 800))
-    addBooking({ id: slotId, activity, date, time, endTime, coach })
-    setBookedCount((c) => c + 1)
-    setLoading(false)
-    setBookingModalVisible(true)
-  }, [slotId, activity, date, time, coach, addBooking])
+    try {
+      await createBooking(slotId)
+      setBookedCount((c) => c + 1)
+      setBookingModalVisible(true)
+    } catch {
+      // Error handled in store
+    } finally {
+      setLoading(false)
+    }
+  }, [slotId, createBooking])
 
-  const handleCancel = useCallback(() => {
-    cancelBooking(slotId)
+  const handleCancel = useCallback(async () => {
+    await cancelBooking(slotId)
     setBookedCount((c) => Math.max(0, c - 1))
     setCancelModalVisible(false)
   }, [slotId, cancelBooking])
