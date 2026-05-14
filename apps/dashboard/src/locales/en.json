@@ -245,6 +245,28 @@
     },
     "suggested_times": "Suggested times"
   },
+  "members": {
+    "title": "Members",
+    "count": "{{total}} members",
+    "count_active": "{{active}} active",
+    "search_placeholder": "Search a member...",
+    "filter_all": "All",
+    "filter_active": "Active",
+    "filter_suspended": "Suspended",
+    "col_member": "Member",
+    "col_status": "Status",
+    "col_noshows": "No-shows",
+    "col_since": "Joined",
+    "col_actions": "Actions",
+    "active": "Active",
+    "suspended": "Suspended",
+    "lift_suspension": "Lift suspension",
+    "send_push": "Send notification",
+    "empty": "No members",
+    "toast_suspension_lifted": "Suspension lifted",
+    "toast_push_sent": "Notification sent",
+    "push_default_message": "Message from Dopamine Performance Club"
+  },
   "settings": {
     "title": "Settings",
     "tabs": {

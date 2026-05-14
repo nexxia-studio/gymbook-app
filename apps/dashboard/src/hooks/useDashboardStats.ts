@@ -67,5 +67,16 @@ export function useDashboardStats() {
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
+  // Realtime: refresh KPIs on booking changes
+  useEffect(() => {
+    if (!gymId) return
+    const channel = supabase
+      .channel(`kpis-${gymId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, () => fetchStats())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `gym_id=eq.${gymId}` }, () => fetchStats())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [gymId, fetchStats])
+
   return { stats, loading, refetch: fetchStats }
 }
