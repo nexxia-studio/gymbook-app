@@ -122,6 +122,10 @@
     "dark": "Dark mode",
     "system": "System"
   },
+  "pending": {
+    "title": "Pending activation",
+    "message": "Your account is being activated. The Nexxia team will contact you within 24h to set up your space."
+  },
   "placeholder": {
     "title": "{{page}}",
     "subtitle": "This section is coming soon."

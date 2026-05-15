@@ -122,6 +122,10 @@
     "dark": "Mode sombre",
     "system": "Système"
   },
+  "pending": {
+    "title": "En attente d'activation",
+    "message": "Votre compte est en cours d'activation. L'equipe Nexxia vous contactera sous 24h pour configurer votre espace."
+  },
   "placeholder": {
     "title": "{{page}}",
     "subtitle": "Cette section arrive bientôt."

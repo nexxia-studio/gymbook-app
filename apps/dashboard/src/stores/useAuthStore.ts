@@ -52,9 +52,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: false, error: mapSupabaseError(error.message) })
       throw error
     }
+    // Fetch profile to get gym_id
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('gym_id, role')
+      .eq('id', data.user.id)
+      .single()
     set({
       user: data.user,
       session: data.session,
+      gym_id: profile?.gym_id ?? null,
+      role: profile?.role ?? null,
       isLoading: false,
     })
   },
@@ -108,7 +116,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session) {
-      set({ user: data.session.user, session: data.session })
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('gym_id, role')
+        .eq('id', data.session.user.id)
+        .single()
+      set({
+        user: data.session.user,
+        session: data.session,
+        gym_id: profile?.gym_id ?? null,
+        role: profile?.role ?? null,
+      })
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {

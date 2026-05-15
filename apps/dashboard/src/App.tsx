@@ -11,6 +11,7 @@ const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Planning = lazy(() => import('@/pages/Planning'))
 const Settings = lazy(() => import('@/pages/Settings'))
 const Members = lazy(() => import('@/pages/Members'))
+const PendingActivation = lazy(() => import('@/pages/PendingActivation'))
 const PlaceholderPage = lazy(() => import('@/pages/PlaceholderPage'))
 
 function Loading() {
@@ -40,6 +41,7 @@ function AppRoutes() {
           element={session ? <Navigate to="/dashboard" replace /> : <Signup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/pending" element={session ? <PendingActivation /> : <Navigate to="/login" replace />} />
         <Route
           path="/dashboard"
           element={
