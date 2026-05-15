@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toZonedTime } from 'date-fns-tz'
+import { useGymTimezone } from '@/hooks/useGymTimezone'
 import type { TimeSlot } from '@/types/planning'
 import { SlotCard } from './SlotCard'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -23,9 +25,10 @@ function formatDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function isToday(d: Date): boolean {
-  const now = new Date()
-  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+function isToday(d: Date, tz: string): boolean {
+  const now = toZonedTime(new Date(), tz)
+  const zd = toZonedTime(d, tz)
+  return zd.getDate() === now.getDate() && zd.getMonth() === now.getMonth() && zd.getFullYear() === now.getFullYear()
 }
 
 function timeToMinutes(time: string): number {
@@ -93,27 +96,28 @@ function getSlotColumns(slots: TimeSlot[]): ColumnedSlot[] {
   return result
 }
 
-// --- Current time hook ---
-function useCurrentMinutes(): number {
+// --- Current time hook (gym timezone) ---
+function useCurrentMinutes(tz: string): number {
   const [mins, setMins] = useState(() => {
-    const now = new Date()
+    const now = toZonedTime(new Date(), tz)
     return now.getHours() * 60 + now.getMinutes()
   })
 
   useEffect(() => {
     const id = setInterval(() => {
-      const now = new Date()
+      const now = toZonedTime(new Date(), tz)
       setMins(now.getHours() * 60 + now.getMinutes())
     }, 60_000)
     return () => clearInterval(id)
-  }, [])
+  }, [tz])
 
   return mins
 }
 
 export function WeekGrid({ weekDays, getSlotsByDay, onSlotClick, loading }: WeekGridProps) {
   const { t } = useTranslation()
-  const currentMinutes = useCurrentMinutes()
+  const tz = useGymTimezone()
+  const currentMinutes = useCurrentMinutes(tz)
 
   const slotsByDay = useMemo(() => {
     return weekDays.map((d) => ({
@@ -129,7 +133,7 @@ export function WeekGrid({ weekDays, getSlotsByDay, onSlotClick, loading }: Week
       <div className="sticky top-0 z-10 grid grid-cols-[56px_repeat(7,1fr)] border-b border-border bg-card">
         <div className="border-r border-border" />
         {slotsByDay.map(({ date }, i) => {
-          const today = isToday(date)
+          const today = isToday(date, tz)
           return (
             <div
               key={i}
@@ -170,7 +174,7 @@ export function WeekGrid({ weekDays, getSlotsByDay, onSlotClick, loading }: Week
 
         {/* Day columns */}
         {slotsByDay.map(({ dateStr, date, slots }, dayIdx) => {
-          const today = isToday(date)
+          const today = isToday(date, tz)
           const columnedSlots = getSlotColumns(slots)
           const showTimeLine =
             today && currentMinutes >= GRID_START_MIN && currentMinutes <= GRID_START_MIN + 16 * 60

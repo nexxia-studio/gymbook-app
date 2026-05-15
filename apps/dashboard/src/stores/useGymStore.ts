@@ -4,6 +4,7 @@ interface Gym {
   id: string
   name: string
   slug: string
+  timezone: string
 }
 
 interface GymState {

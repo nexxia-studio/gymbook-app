@@ -13,6 +13,8 @@
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@supabase/supabase-js": "^2.105.4",
     "babel-preset-expo": "~54.0.10",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
