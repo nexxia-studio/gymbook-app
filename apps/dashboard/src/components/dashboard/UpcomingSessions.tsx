@@ -1,15 +1,74 @@
+import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Clock } from 'lucide-react'
+import { toZonedTime } from 'date-fns-tz'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { Skeleton } from '@/components/ui/Skeleton'
 
-const mockUpcoming = [
-  { time: '12:15', activity: 'HIIT / Hyrox', coach: 'François', booked: 8, capacity: 12 },
-  { time: '18:00', activity: 'HIIT / Hyrox', coach: 'Nicolas', booked: 11, capacity: 12 },
-  { time: '19:00', activity: 'Open Gym', coach: 'François', booked: 5, capacity: 6 },
-]
+interface UpcomingSlot {
+  id: string
+  time: string
+  activity: string
+  coach: string
+  booked: number
+  capacity: number
+}
 
-export function UpcomingSessions({ loading }: { loading: boolean }) {
+function toHHMM(iso: string, tz: string): string {
+  const z = toZonedTime(new Date(iso), tz)
+  return `${String(z.getHours()).padStart(2, '0')}:${String(z.getMinutes()).padStart(2, '0')}`
+}
+
+export function UpcomingSessions() {
   const { t } = useTranslation()
+  const gymId = useAuthStore((s) => s.gym_id)
+  const tz = useGymTimezone()
+  const [slots, setSlots] = useState<UpcomingSlot[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const fetchSlots = useCallback(async () => {
+    if (!gymId) return
+    setIsLoading(true)
+
+    const { data, error } = await supabase
+      .from('time_slots')
+      .select(`
+        id, starts_at, capacity, bookings_count,
+        activities(name),
+        coaches(name)
+      `)
+      .eq('gym_id', gymId)
+      .gt('starts_at', new Date().toISOString())
+      .neq('status', 'deleted')
+      .neq('status', 'cancelled')
+      .order('starts_at')
+      .limit(3)
+
+    if (!error && data) {
+      setSlots(data.map((row) => ({
+        id: row.id,
+        time: toHHMM(row.starts_at, tz),
+        activity: (row.activities as { name: string } | null)?.name ?? '',
+        coach: (row.coaches as { name: string } | null)?.name ?? '',
+        booked: row.bookings_count ?? 0,
+        capacity: row.capacity,
+      })))
+    }
+    setIsLoading(false)
+  }, [gymId, tz])
+
+  useEffect(() => { fetchSlots() }, [fetchSlots])
+
+  useEffect(() => {
+    if (!gymId) return
+    const channel = supabase
+      .channel('upcoming-sessions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, () => fetchSlots())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [gymId, fetchSlots])
 
   return (
     <div className="rounded-2xl bg-card p-5">
@@ -18,14 +77,18 @@ export function UpcomingSessions({ loading }: { loading: boolean }) {
       </h2>
 
       <div className="flex flex-col gap-3">
-        {loading ? (
+        {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} variant="table-row" />
           ))
+        ) : slots.length === 0 ? (
+          <p className="py-6 text-center font-body text-sm text-muted">
+            {t('planning.empty')}
+          </p>
         ) : (
-          mockUpcoming.map((slot) => (
+          slots.map((slot) => (
             <div
-              key={`${slot.time}-${slot.activity}`}
+              key={slot.id}
               className="flex items-center gap-3 rounded-xl border border-border p-3"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">

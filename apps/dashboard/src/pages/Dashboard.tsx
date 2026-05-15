@@ -47,10 +47,10 @@ export default function Dashboard() {
 
       <div className="mb-6 grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-8">
-          <TodayPlanning loading={loading} />
+          <TodayPlanning />
         </div>
         <div className="lg:col-span-4">
-          <UpcomingSessions loading={loading} />
+          <UpcomingSessions />
         </div>
       </div>
 
