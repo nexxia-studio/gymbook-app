@@ -1,29 +1,31 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useGymTimezone } from '@/hooks/useGymTimezone'
 import type { TimeSlot, Activity, Coach, SlotStatus } from '@/types/planning'
 
-function getMonday(d: Date): Date {
-  const date = new Date(d)
-  const day = date.getDay()
+function getMonday(d: Date, tz: string): Date {
+  const zoned = toZonedTime(d, tz)
+  const day = zoned.getDay()
   const diff = day === 0 ? -6 : 1 - day
-  date.setDate(date.getDate() + diff)
-  date.setHours(0, 0, 0, 0)
-  return date
+  zoned.setDate(zoned.getDate() + diff)
+  zoned.setHours(0, 0, 0, 0)
+  return fromZonedTime(zoned, tz)
 }
 
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function formatDateTz(d: Date, tz: string): string {
+  const z = toZonedTime(d, tz)
+  return `${z.getFullYear()}-${String(z.getMonth() + 1).padStart(2, '0')}-${String(z.getDate()).padStart(2, '0')}`
 }
 
-function toHHMM(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+function toHHMM(iso: string, tz: string): string {
+  const z = toZonedTime(new Date(iso), tz)
+  return `${String(z.getHours()).padStart(2, '0')}:${String(z.getMinutes()).padStart(2, '0')}`
 }
 
-function toDateStr(iso: string): string {
-  const d = new Date(iso)
-  return formatDate(d)
+function toDateStr(iso: string, tz: string): string {
+  return formatDateTz(new Date(iso), tz)
 }
 
 interface DbSlot {
@@ -39,12 +41,12 @@ interface DbSlot {
   bookings: Array<{ id: string; member_id: string; status: string | null }> | null
 }
 
-function mapSlot(row: DbSlot): TimeSlot {
+function mapSlot(row: DbSlot, tz: string): TimeSlot {
   return {
     id: row.id,
-    date: toDateStr(row.starts_at),
-    startTime: toHHMM(row.starts_at),
-    endTime: toHHMM(row.ends_at),
+    date: toDateStr(row.starts_at, tz),
+    startTime: toHHMM(row.starts_at, tz),
+    endTime: toHHMM(row.ends_at, tz),
     activity: {
       id: row.activities?.id ?? '',
       name: row.activities?.name ?? '',
@@ -84,7 +86,8 @@ function addMinutes(time: string, mins: number): string {
 }
 
 export function usePlanning() {
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
+  const tz = useGymTimezone()
+  const [weekStart, setWeekStart] = useState(() => getMonday(new Date(), tz))
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [filterCoach, setFilterCoach] = useState<string | null>(null)
   const [filterActivity, setFilterActivity] = useState<string | null>(null)
@@ -123,7 +126,7 @@ export function usePlanning() {
         .order('starts_at')
 
       if (error) throw error
-      setSlots((data as unknown as DbSlot[] ?? []).map(mapSlot))
+      setSlots((data as unknown as DbSlot[] ?? []).map((row) => mapSlot(row, tz)))
     } catch (e) {
       console.error('Failed to fetch slots', e)
     } finally {
@@ -183,7 +186,7 @@ export function usePlanning() {
   function navigate(dir: 'prev' | 'next' | 'today') {
     setSelectedSlot(null)
     if (dir === 'today') {
-      setWeekStart(getMonday(new Date()))
+      setWeekStart(getMonday(new Date(), tz))
     } else {
       setWeekStart((prev) => {
         const d = new Date(prev)
@@ -211,18 +214,20 @@ export function usePlanning() {
     const inserts = []
 
     for (let i = 0; i < count; i++) {
-      const d = new Date(input.date)
-      d.setDate(d.getDate() + i * 7)
-      const dateStr = formatDate(d)
-      const startsAt = `${dateStr}T${input.startTime}:00`
-      const endsAt = `${dateStr}T${addMinutes(input.startTime, input.duration)}:00`
+      // Parse user input as local Brussels time, convert to UTC for storage
+      const [y, mo, da] = input.date.split('-').map(Number)
+      const baseDate = new Date(y, mo - 1, da)
+      baseDate.setDate(baseDate.getDate() + i * 7)
+      const dateStr = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`
+      const startsAtUtc = fromZonedTime(new Date(`${dateStr}T${input.startTime}:00`), tz)
+      const endsAtUtc = fromZonedTime(new Date(`${dateStr}T${addMinutes(input.startTime, input.duration)}:00`), tz)
 
       inserts.push({
         gym_id: gymId,
         activity_id: input.activityId,
         coach_id: input.coachId,
-        starts_at: startsAt,
-        ends_at: endsAt,
+        starts_at: startsAtUtc.toISOString(),
+        ends_at: endsAtUtc.toISOString(),
         capacity: input.capacity,
         level: input.level,
         notes: input.notes || null,
@@ -236,15 +241,14 @@ export function usePlanning() {
   }
 
   async function updateSlot(id: string, input: CreateSlotInput) {
-    const dateStr = input.date
-    const startsAt = `${dateStr}T${input.startTime}:00`
-    const endsAt = `${dateStr}T${addMinutes(input.startTime, input.duration)}:00`
+    const startsAtUtc = fromZonedTime(new Date(`${input.date}T${input.startTime}:00`), tz)
+    const endsAtUtc = fromZonedTime(new Date(`${input.date}T${addMinutes(input.startTime, input.duration)}:00`), tz)
 
     await supabase.from('time_slots').update({
       activity_id: input.activityId,
       coach_id: input.coachId,
-      starts_at: startsAt,
-      ends_at: endsAt,
+      starts_at: startsAtUtc.toISOString(),
+      ends_at: endsAtUtc.toISOString(),
       capacity: input.capacity,
       level: input.level,
       notes: input.notes || null,
