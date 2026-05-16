@@ -95,7 +95,7 @@ export default function Home() {
                     slot={slot}
                     isFavorite={isFavorite(slot.id)}
                     onToggleFavorite={() => toggleFavorite(slot.id)}
-                    onBook={() => {
+                    onPress={() => {
                       router.push({
                         pathname: '/session/[id]',
                         params: {

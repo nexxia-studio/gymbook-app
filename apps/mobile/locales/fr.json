@@ -111,6 +111,14 @@
     "no_results_hint": "Essayez de modifier vos filtres",
     "reset_filters": "Réinitialiser les filtres"
   },
+  "planning": {
+    "status": {
+      "scheduled": "Planifie",
+      "completed": "Termine",
+      "cancelled": "Annule",
+      "in_progress": "En cours"
+    }
+  },
   "session": {
     "about": "A propos",
     "other_slots": "Autres creneaux",

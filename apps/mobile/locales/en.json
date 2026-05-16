@@ -111,6 +111,14 @@
     "no_results_hint": "Try adjusting your filters",
     "reset_filters": "Reset filters"
   },
+  "planning": {
+    "status": {
+      "scheduled": "Scheduled",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "in_progress": "In progress"
+    }
+  },
   "session": {
     "about": "About",
     "other_slots": "Other slots",
