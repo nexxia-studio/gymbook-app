@@ -1,6 +1,7 @@
 export interface Coach {
   id: string
   name: string
+  active?: boolean
 }
 
 export interface Activity {
@@ -8,6 +9,7 @@ export interface Activity {
   name: string
   color: string
   durationMin: number
+  active?: boolean
 }
 
 export type SlotStatus = 'scheduled' | 'completed' | 'cancelled'

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Wrench } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { ActivityCard } from '@/components/settings/ActivityCard'
 import { ActivityModal } from '@/components/settings/ActivityModal'
 import { ActivityDeleteModal } from '@/components/settings/ActivityDeleteModal'
@@ -37,7 +38,7 @@ export default function Settings() {
   // Activities
   const {
     activities, activeCount: actActiveCount, createActivity, updateActivity,
-    toggleActivity, duplicateActivity, deleteActivity, slugify,
+    toggleActivity, getActivityFutureSlots, duplicateActivity, deleteActivity, slugify,
   } = useActivities()
 
   const [activeTab, setActiveTab] = useState<Tab>('activities')
@@ -48,12 +49,19 @@ export default function Settings() {
   // Coaches
   const {
     coaches, activeCount: coachActiveCount,
-    createCoach, updateCoach, toggleCoach, deleteCoach,
+    createCoach, updateCoach, toggleCoach, getCoachFutureSlots, deleteCoach,
   } = useCoaches()
 
   const [coachCreateOpen, setCoachCreateOpen] = useState(false)
   const [editCoach, setEditCoach] = useState<CoachItem | null>(null)
   const [deleteCoachTarget, setDeleteCoachTarget] = useState<CoachItem | null>(null)
+
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState({
+    open: false, title: '', message: '',
+    onConfirm: () => {}, onCancel: () => {},
+    confirmLabel: 'Confirmer', confirmColor: 'orange' as 'red' | 'orange' | 'green',
+  })
 
   // Activity colors map for coach pills
   const activityColors = useMemo(() => {
@@ -80,6 +88,28 @@ export default function Settings() {
     addToast(t('activities.toast_updated'))
   }
   async function handleActToggle(id: string) {
+    const activity = activities.find((a) => a.id === id)
+    if (!activity) return
+
+    if (activity.active) {
+      const futureCount = await getActivityFutureSlots(id)
+      if (futureCount > 0) {
+        setConfirmModal({
+          open: true,
+          title: t('activities.toggle_confirm_title'),
+          message: t('activities.toggle_confirm_message', { count: futureCount }),
+          confirmLabel: t('activities.toggle_confirm_button'),
+          confirmColor: 'orange',
+          onConfirm: async () => {
+            await toggleActivity(id)
+            setConfirmModal((p) => ({ ...p, open: false }))
+            addToast(t('activities.toast_deactivated'))
+          },
+          onCancel: () => setConfirmModal((p) => ({ ...p, open: false })),
+        })
+        return
+      }
+    }
     const isNowActive = await toggleActivity(id)
     addToast(t(isNowActive ? 'activities.toast_activated' : 'activities.toast_deactivated'))
   }
@@ -107,6 +137,28 @@ export default function Settings() {
     addToast(t('coaches.toast_updated'))
   }
   async function handleCoachToggle(id: string) {
+    const coach = coaches.find((c) => c.id === id)
+    if (!coach) return
+
+    if (coach.active) {
+      const futureCount = await getCoachFutureSlots(id)
+      if (futureCount > 0) {
+        setConfirmModal({
+          open: true,
+          title: t('coaches.toggle_confirm_title'),
+          message: t('coaches.toggle_confirm_message', { name: coach.firstName, count: futureCount }),
+          confirmLabel: t('coaches.toggle_confirm_button'),
+          confirmColor: 'orange',
+          onConfirm: async () => {
+            await toggleCoach(id)
+            setConfirmModal((p) => ({ ...p, open: false }))
+            addToast(t('coaches.toast_deactivated'))
+          },
+          onCancel: () => setConfirmModal((p) => ({ ...p, open: false })),
+        })
+        return
+      }
+    }
     const isNowActive = await toggleCoach(id)
     addToast(t(isNowActive ? 'coaches.toast_activated' : 'coaches.toast_deactivated'))
   }
@@ -241,6 +293,9 @@ export default function Settings() {
         {/* ========= PLACEHOLDER TABS ========= */}
         {(activeTab === 'gym' || activeTab === 'plans') && <PlaceholderTab />}
       </div>
+
+      {/* Confirm modal for toggles */}
+      <ConfirmModal {...confirmModal} />
     </DashboardLayout>
   )
 }

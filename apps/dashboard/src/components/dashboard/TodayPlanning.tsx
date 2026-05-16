@@ -154,7 +154,11 @@ export function TodayPlanning() {
                   </span>
                 </div>
 
-                {displayStatus !== 'scheduled' && (
+                {displayStatus === 'scheduled' ? (
+                  <span className="shrink-0 rounded-lg bg-accent px-2.5 py-1 font-body text-xs font-medium text-[#111111]">
+                    {t('dashboard.slot_status.scheduled')}
+                  </span>
+                ) : (
                   <span className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-body text-xs font-medium ${statusColors[displayStatus]}`}>
                     {isLive && <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />}
                     {t(`dashboard.slot_status.${displayStatus}`)}
