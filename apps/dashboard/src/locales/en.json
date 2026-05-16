@@ -157,7 +157,9 @@
       "scheduled": "Scheduled",
       "completed": "Completed",
       "cancelled": "Cancelled",
-      "in_progress": "In progress"
+      "in_progress": "In progress",
+      "suspended": "Suspended",
+      "coach_unavailable": "Coach unavailable"
     },
     "days_short": {
       "mon": "MON",
@@ -319,6 +321,9 @@
     "toast_deleted": "Activity deleted",
     "toast_activated": "Activity activated",
     "toast_deactivated": "Activity deactivated",
+    "toggle_confirm_title": "Deactivate this activity?",
+    "toggle_confirm_message": "This activity has {{count}} future slot(s). They will be marked as suspended but not deleted.",
+    "toggle_confirm_button": "Deactivate anyway",
     "validation": {
       "name_required": "Name is required",
       "slug_required": "Slug is required",
@@ -362,6 +367,9 @@
     "toast_deleted": "Coach deleted",
     "toast_activated": "Coach activated",
     "toast_deactivated": "Coach deactivated",
+    "toggle_confirm_title": "Deactivate this coach?",
+    "toggle_confirm_message": "{{name}} has {{count}} future session(s). They will be marked 'Coach unavailable'.",
+    "toggle_confirm_button": "Deactivate anyway",
     "validation": {
       "first_name_required": "First name is required"
     }

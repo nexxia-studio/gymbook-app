@@ -36,8 +36,8 @@ interface DbSlot {
   bookings_count: number | null
   status: string | null
   notes: string | null
-  activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null } | null
-  coaches: { id: string; name: string } | null
+  activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null; active: boolean | null } | null
+  coaches: { id: string; name: string; active: boolean | null } | null
   bookings: Array<{ id: string; member_id: string; status: string | null }> | null
 }
 
@@ -52,10 +52,12 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
       name: row.activities?.name ?? '',
       color: row.activities?.color ?? '#4ECDC4',
       durationMin: row.activities?.duration_min ?? 60,
+      active: row.activities?.active ?? true,
     },
     coach: {
       id: row.coaches?.id ?? '',
       name: row.coaches?.name ?? '',
+      active: row.coaches?.active ?? true,
     },
     booked: row.bookings_count ?? row.bookings?.filter((b) => b.status === 'confirmed').length ?? 0,
     capacity: row.capacity,
@@ -115,8 +117,8 @@ export function usePlanning() {
         .from('time_slots')
         .select(`
           id, starts_at, ends_at, capacity, bookings_count, status, notes,
-          activities(id, name, color, duration_min, icon),
-          coaches(id, name),
+          activities(id, name, color, duration_min, icon, active),
+          coaches(id, name, active),
           bookings(id, member_id, status)
         `)
         .eq('gym_id', gymId)
