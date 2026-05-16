@@ -62,7 +62,7 @@ export default function Profile() {
   const handleSignOut = useCallback(async () => {
     setSignOutVisible(false)
     await signOut()
-    router.replace('/')
+    router.replace('/(auth)/login' as never)
   }, [signOut, router])
 
   return (
