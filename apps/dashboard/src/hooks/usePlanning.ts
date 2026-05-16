@@ -3,7 +3,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import type { TimeSlot, Activity, Coach, SlotStatus } from '@/types/planning'
+import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus } from '@/types/planning'
 
 function getMonday(d: Date, tz: string): Date {
   const zoned = toZonedTime(d, tz)
@@ -165,7 +165,10 @@ export function usePlanning() {
     return slots.filter((s) => {
       if (filterCoach && s.coach.id !== filterCoach) return false
       if (filterActivity && s.activity.id !== filterActivity) return false
-      if (filterStatus && s.status !== filterStatus) return false
+      if (filterStatus) {
+        const display = getDisplayStatus(s)
+        if (display !== filterStatus) return false
+      }
       return true
     })
   }, [slots, filterCoach, filterActivity, filterStatus])

@@ -89,6 +89,16 @@ export function useActivities() {
     fetchActivities()
   }, [fetchActivities])
 
+  const getActivityFutureSlots = useCallback(async (id: string): Promise<number> => {
+    const { count } = await supabase
+      .from('time_slots')
+      .select('*', { count: 'exact', head: true })
+      .eq('activity_id', id)
+      .gt('starts_at', new Date().toISOString())
+      .neq('status', 'cancelled')
+    return count ?? 0
+  }, [])
+
   const toggleActivity = useCallback(async (id: string) => {
     const activity = activities.find((a) => a.id === id)
     if (!activity) return false
@@ -125,7 +135,7 @@ export function useActivities() {
 
   return {
     activities, activeCount, isLoading, error,
-    createActivity, updateActivity, toggleActivity,
+    createActivity, updateActivity, toggleActivity, getActivityFutureSlots,
     duplicateActivity, deleteActivity, slugify, refetch: fetchActivities,
   }
 }

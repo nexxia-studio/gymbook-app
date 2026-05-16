@@ -80,7 +80,7 @@ function MemberRow({ member, onLiftSuspension, onSendPush }: {
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-border bg-card py-1 shadow-lg">
+              <div className="absolute bottom-full right-0 z-20 mb-1 w-52 rounded-xl border border-border bg-card py-1 shadow-lg">
                 {isSuspended && (
                   <button
                     onClick={() => { setMenuOpen(false); onLiftSuspension() }}

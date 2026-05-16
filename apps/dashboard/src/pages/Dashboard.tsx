@@ -40,17 +40,17 @@ export default function Dashboard() {
             <KpiCard icon={Users} label={t('dashboard.kpi.active_members')} value={stats.activeMembers} />
             <KpiCard icon={Calendar} label={t('dashboard.kpi.today_sessions')} value={stats.todaySessions} />
             <KpiCard icon={TrendingUp} label={t('dashboard.kpi.fill_rate')} value={stats.fillRate} suffix="%" />
-            <KpiCard icon={CreditCard} label={t('dashboard.kpi.month_revenue')} value={stats.monthRevenue} prefix={"\u20ac"} />
+            <KpiCard icon={CreditCard} label={t('dashboard.kpi.month_revenue')} value={stats.monthRevenue ?? 0} prefix={stats.hasMollie ? "\u20ac" : ""} suffix={stats.hasMollie ? "" : " —"} />
           </>
         )}
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-8">
-          <TodayPlanning loading={loading} />
+          <TodayPlanning />
         </div>
         <div className="lg:col-span-4">
-          <UpcomingSessions loading={loading} />
+          <UpcomingSessions />
         </div>
       </div>
 
