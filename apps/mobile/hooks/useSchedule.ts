@@ -132,11 +132,10 @@ export function useSchedule() {
       if (!map.has(slot.date)) map.set(slot.date, [])
       map.get(slot.date)!.push(slot)
     }
-    return Array.from(map.entries()).map(([dateStr, data]) => ({
-      date: new Date(dateStr.replace(/-/g, '/')),
-      dateStr,
-      data,
-    }))
+    return Array.from(map.entries()).map(([dateStr, data]) => {
+      const [y, mo, d] = dateStr.split('-').map(Number)
+      return { date: new Date(y, mo - 1, d), dateStr, data }
+    })
   }, [filteredSlots])
 
   const resetFilters = useCallback(() => {
@@ -158,6 +157,6 @@ export function useSchedule() {
     activityFilter, setActivityFilter,
     weekFilter, setWeekFilter,
     coachFilter, setCoachFilter,
-    resetFilters, hasActiveFilters, coaches,
+    resetFilters, hasActiveFilters, coaches, refetch: fetchSlots,
   }
 }

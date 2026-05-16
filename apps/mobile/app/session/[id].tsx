@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,8 @@ import { WeekSlots } from '../../components/session/WeekSlots'
 import { BookingModal } from '../../components/session/BookingModal'
 import { CancelModal } from '../../components/session/CancelModal'
 import { useBookingStore } from '../../stores/useBookingStore'
+import { supabase } from '../../lib/supabase'
+import { getDisplayStatus } from '../../utils/slotStatus'
 
 export default function SessionDetail() {
   const { t } = useTranslation()
@@ -31,19 +33,68 @@ export default function SessionDetail() {
   const { createBooking, cancelBooking, isBooked, favorites, addFavorite, removeFavorite } = useBookingStore()
 
   const slotId = params.id ?? ''
-  const activity = params.activity ?? 'Open Gym'
-  const date = params.date ?? ''
-  const time = params.time ?? ''
-  const endTime = params.endTime ?? ''
-  const coach = params.coach ?? ''
-  const duration = Number(params.duration) || 60
-  const capacity = Number(params.capacity) || 6
-  const initialBooked = Number(params.booked) || 0
 
-  const [bookedCount, setBookedCount] = useState(initialBooked)
+  // Slot data — fetched from Supabase, params used as initial fallback only
+  const [slotData, setSlotData] = useState({
+    activity: params.activity ?? 'Open Gym',
+    date: params.date ?? '',
+    time: params.time ?? '',
+    endTime: params.endTime ?? '',
+    coach: params.coach ?? '',
+    duration: Number(params.duration) || 60,
+    capacity: Number(params.capacity) || 6,
+    booked: Number(params.booked) || 0,
+  })
+
+  const { activity, date, time, endTime, coach, duration, capacity } = slotData
+
+  const [bookedCount, setBookedCount] = useState(slotData.booked)
   const [loading, setLoading] = useState(false)
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [cancelModalVisible, setCancelModalVisible] = useState(false)
+
+  // Fetch fresh slot data from Supabase when id changes
+  useEffect(() => {
+    if (!slotId) return
+    setBookingModalVisible(false)
+    setCancelModalVisible(false)
+
+    async function loadSlot() {
+      const { data } = await supabase
+        .from('time_slots')
+        .select(`
+          id, starts_at, ends_at, capacity, bookings_count, status,
+          activities(name, duration_min),
+          coaches(name)
+        `)
+        .eq('id', slotId)
+        .single()
+
+      if (data) {
+        const s = new Date(data.starts_at)
+        const e = new Date(data.ends_at)
+        const act = data.activities as unknown as { name: string; duration_min: number } | null
+        const coa = data.coaches as unknown as { name: string } | null
+        const actName = act?.name ?? activity
+        const coachName = coa?.name ?? coach
+        const dur = act?.duration_min ?? duration
+
+        setSlotData({
+          activity: actName,
+          date: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`,
+          time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
+          endTime: `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`,
+          coach: coachName,
+          duration: dur,
+          capacity: data.capacity,
+          booked: data.bookings_count ?? 0,
+        })
+        setBookedCount(data.bookings_count ?? 0)
+      }
+    }
+    loadSlot()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotId])
 
   const booked = isBooked(slotId)
   const isFull = bookedCount >= capacity
@@ -68,41 +119,66 @@ export default function SessionDetail() {
     return `${days[dt.getDay()]} ${d} ${months[dt.getMonth()]}`
   }, [date, days, months])
 
-  // Week slots for same activity
-  const weekSlots = useMemo(() => {
-    const result: Array<{ id: string; date: string; time: string; dayLabel: string; available: boolean }> = []
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+  // Fetch other slots for same activity (real Supabase)
+  const [weekSlots, setWeekSlots] = useState<Array<{ id: string; date: string; time: string; dayLabel: string; available: boolean }>>([])
 
-    const TIMES = activity === 'Open Gym'
-      ? ['07:30', '18:00']
-      : ['12:15', '19:00']
+  useEffect(() => {
+    async function fetchOtherSlots() {
+      if (!slotId) return
+      const now = new Date()
+      const in14Days = new Date(now)
+      in14Days.setDate(in14Days.getDate() + 14)
 
-    for (let offset = 0; offset < 7; offset++) {
-      const d = new Date(today)
-      d.setDate(d.getDate() + offset)
-      const dow = d.getDay()
-      if (dow === 0) continue
+      const { data } = await supabase
+        .from('time_slots')
+        .select('id, starts_at, ends_at, capacity, bookings_count, status')
+        .eq('gym_id', 'a0000000-0000-0000-0000-000000000001')
+        .neq('id', slotId)
+        .neq('status', 'cancelled')
+        .gte('starts_at', now.toISOString())
+        .lte('starts_at', in14Days.toISOString())
+        .order('starts_at')
 
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      const dayName = days[dow] ?? ''
+      if (!data) return
 
-      const timesForDay = dow === 6
-        ? (activity === 'Open Gym' ? ['10:00'] : ['09:00', '11:00'])
-        : TIMES
-
-      for (const t of timesForDay) {
-        result.push({
-          id: `${dateStr}-${t}-${activity}`,
-          date: dateStr,
-          time: t,
-          dayLabel: `${dayName} ${d.getDate()}`,
-          available: Math.random() > 0.2,
+      // Filter same activity by name match (since we don't have activity_id in params)
+      // and only keep scheduled slots
+      const filtered = data
+        .filter((row) => {
+          const slotDate = new Date(row.starts_at)
+          const slotEndDate = new Date(row.ends_at)
+          // Same duration → same activity (Open Gym 120min vs HIIT 60min)
+          const dur = Math.round((slotEndDate.getTime() - slotDate.getTime()) / 60000)
+          return dur === duration
         })
-      }
+        .filter((row) => {
+          const s = new Date(row.starts_at)
+          const e = new Date(row.ends_at)
+          const status = getDisplayStatus({
+            date: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`,
+            time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
+            endTime: `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`,
+          })
+          return status === 'scheduled'
+        })
+        .slice(0, 6)
+
+      setWeekSlots(filtered.map((row) => {
+        const s = new Date(row.starts_at)
+        const dayName = days[s.getDay()] ?? ''
+        const monthName = months[s.getMonth()] ?? ''
+        const available = (row.bookings_count ?? 0) < row.capacity
+        return {
+          id: row.id,
+          date: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`,
+          time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
+          dayLabel: `${dayName} ${s.getDate()} ${monthName}`,
+          available,
+        }
+      }))
     }
-    return result
-  }, [activity, days])
+    fetchOtherSlots()
+  }, [slotId, duration, days, months])
 
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
 
@@ -185,9 +261,23 @@ export default function SessionDetail() {
         <WeekSlots
           slots={weekSlots}
           selectedId={slotId}
-          onSelect={(id) => {
-            // In a real app, navigate to the new slot
-            router.setParams({ id })
+          onSelect={(selectedSlotId) => {
+            const selected = weekSlots.find((s) => s.id === selectedSlotId)
+            if (!selected) return
+            router.replace({
+              pathname: '/session/[id]',
+              params: {
+                id: selectedSlotId,
+                activity,
+                date: selected.date,
+                time: selected.time,
+                endTime: '',
+                coach,
+                duration: String(duration),
+                capacity: String(capacity),
+                booked: '0',
+              },
+            } as never)
           }}
         />
 

@@ -7,10 +7,17 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ date }: SectionHeaderProps) {
   const { t } = useTranslation()
+
+  if (!date || isNaN(date.getTime())) {
+    return null
+  }
+
   const days = t('home.days', { returnObjects: true }) as string[]
   const months = t('home.months', { returnObjects: true }) as string[]
 
-  const label = `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`.toUpperCase()
+  const dayName = days[date.getDay()] ?? ''
+  const monthName = months[date.getMonth()] ?? ''
+  const label = `${dayName} ${date.getDate()} ${monthName}`.toUpperCase()
 
   return (
     <View className="bg-move-bg px-1 pb-2 pt-4">

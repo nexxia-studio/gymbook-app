@@ -97,9 +97,20 @@ export function useHomeSchedule() {
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
-  const scheduleByDay = days.map((d) => {
+  const scheduleByDay = days.map((d, i) => {
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    return { date: d, slots: slots.filter((s) => s.date === dateStr) }
+    let daySlots = slots.filter((s) => s.date === dateStr)
+    // For today (index 0), hide past slots
+    if (i === 0) {
+      const now = new Date()
+      daySlots = daySlots.filter((s) => {
+        const [h, m] = s.endTime.split(':').map(Number)
+        const end = new Date(d)
+        end.setHours(h, m, 0, 0)
+        return end > now
+      })
+    }
+    return { date: d, slots: daySlots }
   })
 
   const isFavorite = useCallback(

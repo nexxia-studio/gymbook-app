@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { View, Text, SectionList } from 'react-native'
+import { useCallback, useState } from 'react'
+import { View, Text, SectionList, RefreshControl } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -19,9 +19,16 @@ export default function Schedule() {
     activityFilter, setActivityFilter,
     weekFilter, setWeekFilter,
     coachFilter, setCoachFilter,
-    resetFilters, hasActiveFilters, coaches,
+    resetFilters, hasActiveFilters, coaches, refetch,
   } = useSchedule()
   const { favorites, addFavorite, removeFavorite } = useBookingStore()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refetch()
+    setRefreshing(false)
+  }, [refetch])
 
   const toggleFav = useCallback(
     (id: string) => {
@@ -104,6 +111,9 @@ export default function Schedule() {
           windowSize={5}
           maxToRenderPerBatch={10}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
+          }
         />
       )}
     </SafeAreaView>
