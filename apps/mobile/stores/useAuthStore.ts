@@ -83,8 +83,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
-    await supabase.auth.signOut()
-    set({ user: null, session: null, gym_id: null, error: null })
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // Continue even if signOut fails
+    }
+    set({ user: null, session: null, gym_id: null, error: null, isLoading: false })
+    // Navigation handled by the caller (Profile screen)
   },
 
   initialize: async () => {

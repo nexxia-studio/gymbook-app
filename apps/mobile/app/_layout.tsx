@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
-import { Slot } from 'expo-router'
+import { Slot, useRouter, useSegments } from 'expo-router'
 import { useFonts, BarlowCondensed_900Black } from '@expo-google-fonts/barlow-condensed'
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans'
 import * as SplashScreen from 'expo-splash-screen'
@@ -91,6 +91,22 @@ export default function RootLayout() {
 
   // Push notifications (mobile only)
   usePushNotifications(userId)
+
+  // Redirect to login on sign out
+  const session = useAuthStore((s) => s.session)
+  const router = useRouter()
+  const segments = useSegments()
+  const wasAuthenticated = useRef(false)
+
+  useEffect(() => {
+    if (session) {
+      wasAuthenticated.current = true
+    } else if (wasAuthenticated.current) {
+      // Was logged in, now logged out → redirect to login
+      wasAuthenticated.current = false
+      router.replace('/(auth)/login' as never)
+    }
+  }, [session, segments, router])
 
   useEffect(() => {
     if (fontsLoaded) {
