@@ -6,7 +6,8 @@ export interface DashboardStats {
   activeMembers: number
   todaySessions: number
   fillRate: number
-  monthRevenue: number
+  monthRevenue: number | null
+  hasMollie: boolean
 }
 
 export function useDashboardStats() {
@@ -48,18 +49,26 @@ export function useDashboardStats() {
       const todaySessions = sessionsRes.count ?? 0
       const monthBookings = bookingsRes.count ?? 0
 
-      // Estimate fill rate from bookings vs capacity
+      // Check Mollie connection
+      const { data: mollieConn } = await supabase
+        .from('gym_mollie_connections')
+        .select('id')
+        .eq('gym_id', gymId)
+        .limit(1)
+      const hasMollie = (mollieConn?.length ?? 0) > 0
+
       const fillRate = todaySessions > 0 ? Math.min(Math.round((monthBookings / (todaySessions * 30)) * 100), 100) : 0
 
       setStats({
         activeMembers,
         todaySessions,
         fillRate: fillRate || 0,
-        monthRevenue: monthBookings * 15, // rough estimate
+        monthRevenue: hasMollie ? monthBookings * 15 : null,
+        hasMollie,
       })
     } catch (e) {
       console.error('Failed to fetch dashboard stats', e)
-      setStats({ activeMembers: 0, todaySessions: 0, fillRate: 0, monthRevenue: 0 })
+      setStats({ activeMembers: 0, todaySessions: 0, fillRate: 0, monthRevenue: null, hasMollie: false })
     } finally {
       setLoading(false)
     }

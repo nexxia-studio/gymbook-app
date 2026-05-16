@@ -69,6 +69,16 @@ export function useCoaches() {
     fetchCoaches()
   }, [fetchCoaches])
 
+  const getCoachFutureSlots = useCallback(async (id: string): Promise<number> => {
+    const { count } = await supabase
+      .from('time_slots')
+      .select('*', { count: 'exact', head: true })
+      .eq('coach_id', id)
+      .gt('starts_at', new Date().toISOString())
+      .neq('status', 'cancelled')
+    return count ?? 0
+  }, [])
+
   const toggleCoach = useCallback(async (id: string) => {
     const coach = coaches.find((c) => c.id === id)
     if (!coach) return false
@@ -85,6 +95,6 @@ export function useCoaches() {
 
   return {
     coaches, activeCount, isLoading,
-    createCoach, updateCoach, toggleCoach, deleteCoach,
+    createCoach, updateCoach, toggleCoach, getCoachFutureSlots, deleteCoach,
   }
 }
