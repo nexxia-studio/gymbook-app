@@ -11,6 +11,7 @@ import { WeekSlots } from '../../components/session/WeekSlots'
 import { BookingModal } from '../../components/session/BookingModal'
 import { CancelModal } from '../../components/session/CancelModal'
 import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
+import { SuspensionModal } from '../../components/session/SuspensionModal'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { getDisplayStatus } from '../../utils/slotStatus'
@@ -55,6 +56,7 @@ export default function SessionDetail() {
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [cancelModalVisible, setCancelModalVisible] = useState(false)
   const [maxBookingsVisible, setMaxBookingsVisible] = useState(false)
+  const [suspensionModal, setSuspensionModal] = useState<{ visible: boolean; until: string | null }>({ visible: false, until: null })
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
 
   // Fetch fresh slot data from Supabase when id changes
@@ -220,6 +222,8 @@ export default function SessionDetail() {
       console.error('[Booking] Error:', msg)
       if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
         setMaxBookingsVisible(true)
+      } else if (msg.includes('SUSPENDED') || msg.includes('suspendu')) {
+        setSuspensionModal({ visible: true, until: null })
       }
     } finally {
       setLoading(false)
@@ -350,8 +354,8 @@ export default function SessionDetail() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              onPress={isFull ? undefined : handleBook}
-              disabled={isFull || loading}
+              onPress={handleBook}
+              disabled={loading}
               activeOpacity={0.8}
               className={`rounded-xl px-6 py-3.5 ${isFull ? 'bg-orange-500' : 'bg-move-dark'}`}
             >
@@ -400,6 +404,12 @@ export default function SessionDetail() {
           router.replace('/(tabs)/bookings' as never)
         }}
         onClose={() => setMaxBookingsVisible(false)}
+      />
+
+      <SuspensionModal
+        visible={suspensionModal.visible}
+        suspendedUntil={suspensionModal.until}
+        onClose={() => setSuspensionModal({ visible: false, until: null })}
       />
     </View>
   )
