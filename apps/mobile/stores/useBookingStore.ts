@@ -21,7 +21,7 @@ interface BookingState {
   pastBookings: Booking[]
   favorites: string[]
   isLoading: boolean
-  createBooking: (slotId: string) => Promise<{ status: string; position?: number }>
+  createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null }>
   cancelBooking: (slotId: string) => Promise<{ noshow?: { level: string; hours?: number } } | void>
   confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean }>
   fetchBookings: (userId: string) => Promise<void>
@@ -54,22 +54,38 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       console.log('[Store] Response data:', JSON.stringify(data))
       console.log('[Store] Response error:', JSON.stringify(error))
 
-      // Edge Function returns errors as JSON with code field
+      // Handle HTTP errors from Edge Function
       if (error) {
-        // Try to parse the error body for business logic codes
-        const msg = error.message ?? ''
-        if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
-          throw new Error('MAX_BOOKINGS_REACHED')
+        // supabase-js puts the response body in error.context for FunctionsHttpError
+        let errorBody: Record<string, unknown> | null = null
+        try {
+          if ((error as { context?: Response }).context) {
+            errorBody = await (error as { context: Response }).context.json()
+            console.log('[Store] Error body:', JSON.stringify(errorBody))
+          }
+        } catch { /* body already consumed or not JSON */ }
+
+        const code = (errorBody?.code as string) ?? error.message ?? ''
+
+        if (code.includes('SUSPENDED') || code.includes('suspendu')) {
+          return { status: 'error' as const, code: 'SUSPENDED', suspended_until: (errorBody?.suspended_until as string) ?? null, position: undefined }
         }
-        if (msg.includes('SUSPENDED') || msg.includes('suspendu')) {
-          throw new Error('SUSPENDED')
+        if (code.includes('MAX_BOOKINGS')) {
+          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', position: undefined }
         }
-        throw new Error(msg || 'Booking failed')
+        return { status: 'error' as const, code: 'ERROR', position: undefined }
       }
 
-      // Check if data itself contains an error response (4xx returned as 200 by invoke)
-      if (data?.error) {
-        throw new Error(data.code ?? data.message ?? 'Booking failed')
+      // Check if data contains business error (4xx returned as 200 edge case)
+      if (data?.error || data?.code) {
+        const code = (data.code as string) ?? ''
+        if (code === 'SUSPENDED') {
+          return { status: 'error' as const, code: 'SUSPENDED', suspended_until: data.suspended_until as string, position: undefined }
+        }
+        if (code === 'MAX_BOOKINGS_REACHED') {
+          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', position: undefined }
+        }
+        return { status: 'error' as const, code, position: undefined }
       }
 
       // Success — refresh bookings

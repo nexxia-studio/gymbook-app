@@ -205,29 +205,34 @@ export default function SessionDetail() {
   const handleBook = useCallback(async () => {
     console.log('[Booking] handleBook called, slotId:', slotId)
     setLoading(true)
-    try {
-      console.log('[Booking] Calling createBooking...')
-      const result = await createBooking(slotId)
-      console.log('[Booking] Result:', JSON.stringify(result))
-      if (result.status === 'waitlisted') {
-        setWaitlistPosition(result.position ?? 1)
-        setBookingState('waitlisted')
-      } else {
-        setBookedCount((c) => c + 1)
-        setBookingState('confirmed')
-      }
-      setBookingModalVisible(true)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[Booking] Error:', msg)
-      if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
-        setMaxBookingsVisible(true)
-      } else if (msg.includes('SUSPENDED') || msg.includes('suspendu')) {
-        setSuspensionModal({ visible: true, until: null })
-      }
-    } finally {
-      setLoading(false)
+    console.log('[Booking] Calling createBooking...')
+    const result = await createBooking(slotId)
+    console.log('[Booking] Result:', JSON.stringify(result))
+    setLoading(false)
+
+    if (!result) return
+
+    if (result.code === 'SUSPENDED') {
+      setSuspensionModal({ visible: true, until: result.suspended_until ?? null })
+      return
     }
+    if (result.code === 'MAX_BOOKINGS_REACHED') {
+      setMaxBookingsVisible(true)
+      return
+    }
+    if (result.status === 'error') return // generic error, logged in store
+
+    if (result.status === 'waitlisted') {
+      setWaitlistPosition(result.position ?? 1)
+      setBookingState('waitlisted')
+      setBookingModalVisible(true)
+      return
+    }
+
+    // Confirmed
+    setBookedCount((c) => c + 1)
+    setBookingState('confirmed')
+    setBookingModalVisible(true)
   }, [slotId, createBooking])
 
   const handleCancel = useCallback(async () => {
