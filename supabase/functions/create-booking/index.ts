@@ -179,8 +179,6 @@ Deno.serve(async (req) => {
         .single()
       booking = res.data; insertErr = res.error
     }
-      .select()
-      .single()
 
     if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
 

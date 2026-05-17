@@ -137,66 +137,73 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
   fetchBookings: async (userId: string) => {
     try {
-      // Future bookings
-      const { data: upcoming } = await supabase
+      // Step 1: fetch bookings (no join — avoids RLS issues on time_slots)
+      const { data: rawBookings, error: bErr } = await supabase
         .from('bookings')
-        .select(`
-          id, slot_id, status, booked_at,
-          time_slots!inner(starts_at, ends_at, activities(name, color), coaches(name))
-        `)
+        .select('id, slot_id, status, booked_at, waitlist_position')
         .eq('member_id', userId)
-        .in('status', ['confirmed', 'waitlisted'])
-        .gte('time_slots.starts_at', new Date().toISOString())
         .order('booked_at', { ascending: false })
 
-      const bookings: Booking[] = (upcoming ?? []).map((row: Record<string, unknown>) => {
-        const ts = row.time_slots as Record<string, unknown>
+      console.log('[Bookings] Raw:', rawBookings?.length, 'error:', bErr?.message)
+
+      if (!rawBookings || rawBookings.length === 0) {
+        set({ bookings: [], pastBookings: [] })
+        return
+      }
+
+      // Step 2: fetch corresponding slots separately
+      const slotIds = [...new Set(rawBookings.map((b) => b.slot_id))]
+      const { data: rawSlots } = await supabase
+        .from('time_slots')
+        .select('id, starts_at, ends_at, capacity, bookings_count, activities(name, color), coaches(name)')
+        .in('id', slotIds)
+
+      console.log('[Bookings] Slots fetched:', rawSlots?.length)
+
+      // Step 3: combine and split
+      const now = new Date()
+      const slotMap = new Map<string, Record<string, unknown>>()
+      for (const s of (rawSlots ?? []) as Array<Record<string, unknown>>) {
+        slotMap.set(s.id as string, s)
+      }
+
+      function mapRow(row: { id: string; slot_id: string; status: string; booked_at: string | null }): Booking {
+        const ts = slotMap.get(row.slot_id)
         const act = ts?.activities as Record<string, unknown> | null
         const coach = ts?.coaches as Record<string, unknown> | null
         return {
-          id: row.id as string,
-          slotId: row.slot_id as string,
+          id: row.id,
+          slotId: row.slot_id,
           activity: (act?.name as string) ?? '',
           activityColor: (act?.color as string) ?? '#4ECDC4',
-          date: toDateStr(ts?.starts_at as string),
-          time: toHHMM(ts?.starts_at as string),
-          endTime: toHHMM(ts?.ends_at as string),
+          date: ts?.starts_at ? toDateStr(ts.starts_at as string) : '',
+          time: ts?.starts_at ? toHHMM(ts.starts_at as string) : '',
+          endTime: ts?.ends_at ? toHHMM(ts.ends_at as string) : '',
           coach: (coach?.name as string) ?? '',
           status: row.status as BookingStatus,
-          bookedAt: row.booked_at as string,
+          bookedAt: row.booked_at ?? '',
         }
-      })
+      }
 
-      // Past bookings
-      const { data: past } = await supabase
-        .from('bookings')
-        .select(`
-          id, slot_id, status, booked_at,
-          time_slots!inner(starts_at, ends_at, activities(name, color), coaches(name))
-        `)
-        .eq('member_id', userId)
-        .lt('time_slots.starts_at', new Date().toISOString())
-        .order('booked_at', { ascending: false })
-        .limit(20)
+      const bookings = rawBookings
+        .filter((b) => {
+          if (b.status !== 'confirmed' && b.status !== 'waitlisted') return false
+          const ts = slotMap.get(b.slot_id)
+          if (!ts?.starts_at) return false
+          return new Date(ts.starts_at as string) > now
+        })
+        .map(mapRow)
 
-      const pastBookings: Booking[] = (past ?? []).map((row: Record<string, unknown>) => {
-        const ts = row.time_slots as Record<string, unknown>
-        const act = ts?.activities as Record<string, unknown> | null
-        const coach = ts?.coaches as Record<string, unknown> | null
-        return {
-          id: row.id as string,
-          slotId: row.slot_id as string,
-          activity: (act?.name as string) ?? '',
-          activityColor: (act?.color as string) ?? '#4ECDC4',
-          date: toDateStr(ts?.starts_at as string),
-          time: toHHMM(ts?.starts_at as string),
-          endTime: toHHMM(ts?.ends_at as string),
-          coach: (coach?.name as string) ?? '',
-          status: row.status as BookingStatus,
-          bookedAt: row.booked_at as string,
-        }
-      })
+      const pastBookings = rawBookings
+        .filter((b) => {
+          const ts = slotMap.get(b.slot_id)
+          if (!ts?.starts_at) return false
+          return new Date(ts.starts_at as string) <= now
+        })
+        .slice(0, 20)
+        .map(mapRow)
 
+      console.log('[Bookings] Upcoming:', bookings.length, 'Past:', pastBookings.length)
       set({ bookings, pastBookings })
     } catch (e) {
       console.error('Failed to fetch bookings', e)

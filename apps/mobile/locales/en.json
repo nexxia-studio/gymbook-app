@@ -92,6 +92,7 @@
     "waitlist": "Waitlist",
     "spots_left": "{{count}} spots",
     "spots_one": "1 spot",
+    "booked": "\u2713 Booked",
     "empty_title": "No classes this day",
     "empty_closed": "Dopamine is closed on Sundays",
     "empty_none": "No slots scheduled",
