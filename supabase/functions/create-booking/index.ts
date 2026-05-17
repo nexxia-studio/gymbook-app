@@ -184,10 +184,10 @@ Deno.serve(async (req) => {
       if (resendKey && profile.email) {
         const startDate = new Date(slot.starts_at)
         const dateStr = startDate.toLocaleDateString('fr-BE', {
-          weekday: 'long', day: 'numeric', month: 'long',
+          timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
         })
         const timeStr = startDate.toLocaleTimeString('fr-BE', {
-          hour: '2-digit', minute: '2-digit',
+          timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
         })
 
         await fetch('https://api.resend.com/emails', {
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${resendKey}`,
           },
           body: JSON.stringify({
-            from: 'Dopamine <noreply@dopamineclub.be>',
+            from: 'Dopamine <noreply@nexxia.net>',
             to: profile.email,
             subject: `Réservation confirmée — ${activityName}`,
             html: `

@@ -49,11 +49,15 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   isLoading: false,
 
   createBooking: async (slotId: string) => {
+    console.log('[Store] createBooking invoked, slotId:', slotId)
     set({ isLoading: true })
     try {
+      console.log('[Store] Calling supabase.functions.invoke("create-booking")')
       const { data, error } = await supabase.functions.invoke('create-booking', {
         body: { slot_id: slotId },
       })
+      console.log('[Store] Response data:', JSON.stringify(data))
+      console.log('[Store] Response error:', JSON.stringify(error))
 
       // Edge Function returns errors as JSON with code field
       if (error) {

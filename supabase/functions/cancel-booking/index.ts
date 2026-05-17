@@ -32,7 +32,7 @@ async function sendEmail(resendKey: string, to: string, subject: string, html: s
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-      body: JSON.stringify({ from: 'Dopamine <noreply@dopamineclub.be>', to, subject, html }),
+      body: JSON.stringify({ from: 'Dopamine <noreply@nexxia.net>', to, subject, html }),
     })
   } catch {
     // Non-blocking
@@ -101,8 +101,8 @@ Deno.serve(async (req) => {
 
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
     const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
-    const dateStr = slotStart.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })
-    const timeStr = slotStart.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })
+    const dateStr = slotStart.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
+    const timeStr = slotStart.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
     // Get profile for emails
     const { data: profile } = await admin
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
           await sendEmail(resendKey, profile.email,
             'Compte suspendu 48h — Dopamine',
             emailHtml('Compte suspendu',
-              `<p style="color:#6B6861;">Suite à 2 annulations tardives, votre compte est suspendu jusqu'au <strong>${suspendedUntil.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</strong>.</p><p style="color:#6B6861;">Vous ne pourrez pas effectuer de réservation pendant cette période.</p>`))
+              `<p style="color:#6B6861;">Suite à 2 annulations tardives, votre compte est suspendu jusqu'au <strong>${suspendedUntil.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</strong>.</p><p style="color:#6B6861;">Vous ne pourrez pas effectuer de réservation pendant cette période.</p>`))
         }
       } else {
         // 2 weeks suspension
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
           await sendEmail(resendKey, profile.email,
             'Compte suspendu 2 semaines — Dopamine',
             emailHtml('Compte suspendu',
-              `<p style="color:#6B6861;">Suite à plusieurs annulations tardives, votre compte est suspendu jusqu'au <strong>${suspendedUntil.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })}</strong>.</p>`))
+              `<p style="color:#6B6861;">Suite à plusieurs annulations tardives, votre compte est suspendu jusqu'au <strong>${suspendedUntil.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })}</strong>.</p>`))
         }
       }
     }
