@@ -32,15 +32,10 @@ interface BookingState {
   removePastFavorites: () => void
 }
 
-function toHHMM(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
+import { formatTime, formatDateStr } from '../utils/timezone'
 
-function toDateStr(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+const toHHMM = formatTime
+const toDateStr = formatDateStr
 
 export const useBookingStore = create<BookingState>((set, get) => ({
   bookings: [],
@@ -113,6 +108,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         ...s.pastBookings,
       ],
     }))
+
+    // Refresh profile to update noshow_count if late cancellation
+    if (noshowResult) {
+      const { useAuthStore } = await import('./useAuthStore')
+      useAuthStore.getState().refreshProfile()
+    }
 
     return { noshow: noshowResult }
   },

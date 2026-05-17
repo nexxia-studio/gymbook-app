@@ -196,27 +196,40 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (nextInLine) {
+      // Only notify — do NOT confirm automatically. Member has 30 min to confirm.
       await admin.from('bookings').update({
-        status: 'confirmed',
-        waitlist_position: null,
-        promoted_from_waitlist_at: now.toISOString(),
+        waitlist_notified_at: now.toISOString(),
       }).eq('id', nextInLine.id)
 
-      await admin.rpc('increment_slot_booking_count', { p_slot_id: booking.slot_id })
-
-      // Email promoted member
+      // Email + push notification
       const { data: promotedProfile } = await admin
         .from('profiles')
-        .select('email, first_name')
+        .select('email, first_name, push_token')
         .eq('id', nextInLine.member_id)
         .single()
 
       if (resendKey && promotedProfile?.email) {
         await sendEmail(resendKey, promotedProfile.email,
-          `Une place s'est libérée — ${activityName}`,
+          `Place disponible — ${activityName}`,
           emailHtml('Place disponible !',
-            `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#6B6861;">Votre réservation est maintenant <strong>confirmée</strong> !</p>`,
-            'Voir ma réservation', 'dopamine://bookings'))
+            `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez 30 minutes pour confirmer.</p>`,
+            'Confirmer ma place', 'dopamine://bookings'))
+      }
+
+      // Push notification
+      if (promotedProfile?.push_token) {
+        try {
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              tokens: [promotedProfile.push_token],
+              title: 'Place disponible !',
+              body: `Vous avez 30 min pour confirmer — ${activityName}`,
+              data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
+            }),
+          })
+        } catch { /* non-blocking */ }
       }
     }
 

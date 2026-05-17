@@ -23,13 +23,10 @@ export interface DaySection {
   data: ScheduleSlot[]
 }
 
-function toHHMM(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
+import { formatTime, formatDateStr as formatDateStrTz, toLocalTime } from '../utils/timezone'
 
 function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return formatDateStrTz(d)
 }
 
 function getMonday(d: Date): Date {
@@ -74,13 +71,13 @@ export function useSchedule() {
         const act = row.activities as Record<string, unknown> | null
         const coach = row.coaches as Record<string, unknown> | null
         const startsAt = row.starts_at as string
-        const d = new Date(startsAt)
+        const localD = toLocalTime(startsAt)
         return {
           id: row.id as string,
-          date: toDateStr(d),
-          dayOfWeek: d.getDay(),
-          time: toHHMM(startsAt),
-          endTime: toHHMM(row.ends_at as string),
+          date: toDateStr(localD),
+          dayOfWeek: localD.getDay(),
+          time: formatTime(startsAt),
+          endTime: formatTime(row.ends_at as string),
           activity: (act?.name as string) ?? 'Open Gym',
           coach: (coach?.name as string) ?? '',
           duration: (act?.duration_min as number) ?? 60,

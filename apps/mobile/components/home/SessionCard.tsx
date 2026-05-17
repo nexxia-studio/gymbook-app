@@ -101,10 +101,16 @@ export function SessionCard({ slot, isFavorite, isBooked, onToggleFavorite, onPr
               {t('home.booked')}
             </Text>
           </View>
+        ) : isFull ? (
+          <View className="rounded-lg bg-orange-500 px-4 py-2.5">
+            <Text className="font-dmsans-bold text-xs text-white">
+              {t('session.waitlist')}
+            </Text>
+          </View>
         ) : (
-          <View className={`rounded-lg px-4 py-2.5 ${isFull ? 'bg-move-border' : 'bg-move-dark'}`}>
-            <Text className={`font-dmsans-bold text-xs ${isFull ? 'text-move-text-muted' : 'text-move-accent'}`}>
-              {isFull ? t('home.full') : t('home.book')}
+          <View className="rounded-lg bg-move-dark px-4 py-2.5">
+            <Text className="font-dmsans-bold text-xs text-move-accent">
+              {t('home.book')}
             </Text>
           </View>
         )}
