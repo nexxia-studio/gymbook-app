@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CalendarX, Heart, Clock } from 'lucide-react-native'
 import { BookingTabs, type BookingTab } from '../../components/bookings/BookingTabs'
@@ -24,15 +24,24 @@ export default function Bookings() {
   const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
   const [cancelSlotId, setCancelSlotId] = useState<string | null>(null)
 
-  const { bookings, pastBookings, favorites, cancelBooking, removeFavorite, removePastFavorites } = useBookingStore()
+  const { bookings, pastBookings, favorites, cancelBooking, removeFavorite, removePastFavorites, fetchBookings } = useBookingStore()
 
   const days = t('home.days', { returnObjects: true }) as string[]
   const months = t('home.months', { returnObjects: true }) as string[]
 
-  // Cleanup expired favorites on mount
-  useEffect(() => {
-    removePastFavorites()
-  }, [removePastFavorites])
+  // Fetch bookings on mount and on tab focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[BookingsScreen] focused — fetching bookings')
+      async function load() {
+        const { supabase } = await import('../../lib/supabase')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) fetchBookings(user.id)
+      }
+      load()
+      removePastFavorites()
+    }, [fetchBookings, removePastFavorites])
+  )
 
   const handleCancel = useCallback(async () => {
     if (cancelSlotId) {
@@ -53,7 +62,7 @@ export default function Bookings() {
   }, [cancelSlotId, bookings])
 
   // Parse favorite IDs into displayable data
-  const favoritesData = useMemo(() => {
+  const favoritesData = useMemo((): Array<{ id: string; date: string; time: string; activity: string; coach: string }> => {
     return favorites.map((id) => {
       // ID format: "2026-05-13-07:30-Open Gym"
       const parts = id.split('-')
