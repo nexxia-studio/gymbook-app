@@ -92,6 +92,7 @@
     "waitlist": "Liste d'attente",
     "spots_left": "{{count}} places",
     "spots_one": "1 place",
+    "booked": "\u2713 R\u00e9serv\u00e9",
     "empty_title": "Aucun cours ce jour",
     "empty_closed": "Dopamine est fermé le dimanche",
     "empty_none": "Pas de créneaux prévus",

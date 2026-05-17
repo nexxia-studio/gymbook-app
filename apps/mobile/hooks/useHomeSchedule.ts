@@ -35,6 +35,7 @@ function diffMin(start: string, end: string): number {
 export function useHomeSchedule() {
   const [slots, setSlots] = useState<HomeSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [bookedSlotIds, setBookedSlotIds] = useState<Set<string>>(new Set())
   const { favorites, addFavorite, removeFavorite } = useBookingStore()
 
   const days = (() => {
@@ -97,6 +98,21 @@ export function useHomeSchedule() {
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
+  // Fetch member's confirmed bookings
+  useEffect(() => {
+    async function fetchBooked() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('bookings')
+        .select('slot_id')
+        .eq('member_id', user.id)
+        .in('status', ['confirmed', 'waitlisted'])
+      setBookedSlotIds(new Set((data ?? []).map((b) => b.slot_id)))
+    }
+    fetchBooked()
+  }, [slots]) // re-check when slots change
+
   const scheduleByDay = days.map((d, i) => {
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     let daySlots = slots.filter((s) => s.date === dateStr)
@@ -126,5 +142,7 @@ export function useHomeSchedule() {
     [favorites, addFavorite, removeFavorite],
   )
 
-  return { days, scheduleByDay, isFavorite, toggleFavorite, refresh: fetchSlots, isLoading }
+  const isSlotBooked = useCallback((slotId: string) => bookedSlotIds.has(slotId), [bookedSlotIds])
+
+  return { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, refresh: fetchSlots, isLoading }
 }

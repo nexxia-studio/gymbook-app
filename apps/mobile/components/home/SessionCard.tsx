@@ -9,6 +9,7 @@ import { LinearGradient } from '../../components/home/Gradient'
 interface SessionCardProps {
   slot: HomeSlot
   isFavorite: boolean
+  isBooked: boolean
   onToggleFavorite: () => void
   onPress: () => void
 }
@@ -23,7 +24,7 @@ const INITIALS: Record<string, string> = {
   'HIIT / Hyrox': 'HX',
 }
 
-export function SessionCard({ slot, isFavorite, onToggleFavorite, onPress }: SessionCardProps) {
+export function SessionCard({ slot, isFavorite, isBooked, onToggleFavorite, onPress }: SessionCardProps) {
   const { t } = useTranslation()
   const isFull = slot.booked >= slot.capacity
   const Icon = slot.activity === 'Open Gym' ? Dumbbell : Flame
@@ -94,11 +95,19 @@ export function SessionCard({ slot, isFavorite, onToggleFavorite, onPress }: Ses
           <CapacityBadge booked={slot.booked} capacity={slot.capacity} />
         </View>
 
-        <View className={`rounded-lg px-4 py-2.5 ${isFull ? 'bg-move-border' : 'bg-move-dark'}`}>
-          <Text className={`font-dmsans-bold text-xs ${isFull ? 'text-move-text-muted' : 'text-move-accent'}`}>
-            {isFull ? t('home.full') : t('home.book')}
-          </Text>
-        </View>
+        {isBooked ? (
+          <View className="rounded-lg bg-green-100 px-4 py-2.5">
+            <Text className="font-dmsans-bold text-xs text-green-600">
+              {t('home.booked')}
+            </Text>
+          </View>
+        ) : (
+          <View className={`rounded-lg px-4 py-2.5 ${isFull ? 'bg-move-border' : 'bg-move-dark'}`}>
+            <Text className={`font-dmsans-bold text-xs ${isFull ? 'text-move-text-muted' : 'text-move-accent'}`}>
+              {isFull ? t('home.full') : t('home.book')}
+            </Text>
+          </View>
+        )}
       </View>
     </Pressable>
   )

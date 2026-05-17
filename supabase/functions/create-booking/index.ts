@@ -83,28 +83,25 @@ Deno.serve(async (req) => {
     if (new Date(slot.starts_at) < new Date()) return errorResponse(400, 'Créneau déjà passé', 'SLOT_PAST')
     if (slot.gym_id !== profile.gym_id) return errorResponse(403, 'Accès refusé', 'WRONG_GYM')
 
-    // 5. Check if already booked
-    const { data: existing } = await supabaseAdmin
+    // 5. Check if already booked (any status)
+    const { data: existingRows } = await supabaseAdmin
       .from('bookings')
       .select('id, status')
       .eq('member_id', user.id)
       .eq('slot_id', slotId)
-      .in('status', ['confirmed', 'waitlisted'])
       .limit(1)
 
-    if (existing && existing.length > 0) {
+    const existingBooking = existingRows?.[0] ?? null
+
+    if (existingBooking?.status === 'confirmed') {
       return errorResponse(400, 'Déjà inscrit à ce créneau', 'ALREADY_BOOKED')
     }
+    if (existingBooking?.status === 'waitlisted') {
+      return errorResponse(400, 'Déjà en liste d\'attente', 'ALREADY_WAITLISTED')
+    }
+    // If cancelled → we'll reuse this row below
 
-    // 6. Check max 2 active bookings
-    const { count: activeCount } = await supabaseAdmin
-      .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('member_id', user.id)
-      .eq('status', 'confirmed')
-      .gte('slot_id', slotId) // just to scope the query, real check below
-
-    // More precise: count future confirmed bookings
+    // 6. Check max 2 future confirmed bookings
     const { count: futureCount } = await supabaseAdmin
       .from('bookings')
       .select('id, time_slots!inner(starts_at)', { count: 'exact', head: true })
@@ -139,36 +136,49 @@ Deno.serve(async (req) => {
 
       const position = (waitlistCount ?? 0) + 1
 
-      const { data: booking, error: insertErr } = await supabaseAdmin
-        .from('bookings')
-        .insert({
-          member_id: user.id,
-          slot_id: slotId,
-          gym_id: slot.gym_id,
-          status: 'waitlisted',
-          waitlist_position: position,
-          idempotency_key: idempotencyKey,
-        })
-        .select()
-        .single()
+      let booking
+      let insertErr
+      if (existingBooking?.status === 'cancelled') {
+        const res = await supabaseAdmin
+          .from('bookings')
+          .update({ status: 'waitlisted', waitlist_position: position, cancelled_at: null, cancel_reason: null, is_late_cancel: false })
+          .eq('id', existingBooking.id)
+          .select()
+          .single()
+        booking = res.data; insertErr = res.error
+      } else {
+        const res = await supabaseAdmin
+          .from('bookings')
+          .insert({ member_id: user.id, slot_id: slotId, gym_id: slot.gym_id, status: 'waitlisted', waitlist_position: position, idempotency_key: idempotencyKey })
+          .select()
+          .single()
+        booking = res.data; insertErr = res.error
+      }
 
       if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
 
       return jsonResponse({ booking, status: 'waitlisted', position })
     }
 
-    // 8. Create confirmed booking
-    const { data: booking, error: insertErr } = await supabaseAdmin
-      .from('bookings')
-      .insert({
-        member_id: user.id,
-        slot_id: slotId,
-        gym_id: slot.gym_id,
-        status: 'confirmed',
-        idempotency_key: idempotencyKey,
-      })
-      .select()
-      .single()
+    // 8. Create confirmed booking (or reuse cancelled row)
+    let booking
+    let insertErr
+    if (existingBooking?.status === 'cancelled') {
+      const res = await supabaseAdmin
+        .from('bookings')
+        .update({ status: 'confirmed', cancelled_at: null, cancel_reason: null, is_late_cancel: false, booked_at: new Date().toISOString() })
+        .eq('id', existingBooking.id)
+        .select()
+        .single()
+      booking = res.data; insertErr = res.error
+    } else {
+      const res = await supabaseAdmin
+        .from('bookings')
+        .insert({ member_id: user.id, slot_id: slotId, gym_id: slot.gym_id, status: 'confirmed', idempotency_key: idempotencyKey })
+        .select()
+        .single()
+      booking = res.data; insertErr = res.error
+    }
 
     if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
 
