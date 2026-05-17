@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   Settings, CreditCard, Receipt, Bell, Globe,
@@ -13,21 +13,7 @@ import { StatsRow } from '../../components/profile/StatsRow'
 import { ProfileSection } from '../../components/profile/ProfileSection'
 import { ProfileListItem } from '../../components/profile/ProfileListItem'
 import { SignOutModal } from '../../components/profile/SignOutModal'
-import { useAuthStore } from '../../stores/useAuthStore'
-
-// Mock profile
-const MOCK_PROFILE = {
-  firstName: 'Antoine',
-  lastName: 'M.',
-  phone: '+32 470 XX XX XX',
-  dateOfBirth: '1992-03-15',
-  addressLine: null as string | null,
-  emergencyContactName: null as string | null,
-  marketingConsent: true,
-  avatarUrl: null as string | null,
-  memberSince: 'mai 2026',
-  hasActiveSubscription: true,
-}
+import { useAuthStore, type MemberProfile } from '../../stores/useAuthStore'
 
 interface GamificationItem {
   key: string
@@ -36,16 +22,16 @@ interface GamificationItem {
   completed: boolean
 }
 
-function buildGamification(p: typeof MOCK_PROFILE): { items: GamificationItem[]; percentage: number } {
+function buildGamification(p: MemberProfile | null): { items: GamificationItem[]; percentage: number } {
   const items: GamificationItem[] = [
     { key: 'account', labelKey: 'account_created', points: 10, completed: true },
-    { key: 'avatar', labelKey: 'has_avatar', points: 15, completed: !!p.avatarUrl },
-    { key: 'phone', labelKey: 'has_phone', points: 10, completed: !!p.phone },
-    { key: 'birth', labelKey: 'has_birthdate', points: 10, completed: !!p.dateOfBirth },
-    { key: 'address', labelKey: 'has_address', points: 10, completed: !!p.addressLine },
-    { key: 'emergency', labelKey: 'has_emergency', points: 15, completed: !!p.emergencyContactName },
-    { key: 'payment', labelKey: 'has_payment', points: 20, completed: p.hasActiveSubscription },
-    { key: 'marketing', labelKey: 'marketing', points: 10, completed: p.marketingConsent },
+    { key: 'avatar', labelKey: 'has_avatar', points: 15, completed: !!p?.avatarUrl },
+    { key: 'phone', labelKey: 'has_phone', points: 10, completed: !!p?.phone },
+    { key: 'birth', labelKey: 'has_birthdate', points: 10, completed: !!p?.dateOfBirth },
+    { key: 'address', labelKey: 'has_address', points: 10, completed: !!p?.addressLine },
+    { key: 'emergency', labelKey: 'has_emergency', points: 15, completed: !!p?.emergencyContactName },
+    { key: 'payment', labelKey: 'has_payment', points: 20, completed: true },
+    { key: 'marketing', labelKey: 'marketing', points: 10, completed: p?.marketingConsent ?? false },
   ]
   const earned = items.reduce((s, i) => s + (i.completed ? i.points : 0), 0)
   return { items, percentage: earned }
@@ -55,9 +41,24 @@ export default function Profile() {
   const { t } = useTranslation()
   const router = useRouter()
   const signOut = useAuthStore((s) => s.signOut)
+  const profile = useAuthStore((s) => s.profile)
+  const refreshProfile = useAuthStore((s) => s.refreshProfile)
   const [signOutVisible, setSignOutVisible] = useState(false)
 
-  const { items, percentage } = useMemo(() => buildGamification(MOCK_PROFILE), [])
+  // Refresh profile on tab focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile()
+    }, [refreshProfile])
+  )
+
+  const { items, percentage } = useMemo(() => buildGamification(profile), [profile])
+
+  const firstName = profile?.firstName ?? ''
+  const lastName = profile?.lastName ?? ''
+  const memberSince = profile?.memberSince
+    ? new Date(profile.memberSince).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' })
+    : ''
 
   const handleSignOut = useCallback(async () => {
     setSignOutVisible(false)
@@ -80,16 +81,16 @@ export default function Profile() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Profile card */}
         <ProfileHeader
-          firstName={MOCK_PROFILE.firstName}
-          lastName={MOCK_PROFILE.lastName}
-          memberSince={MOCK_PROFILE.memberSince}
+          firstName={firstName}
+          lastName={lastName}
+          memberSince={memberSince}
         />
 
         {/* Gamification */}
         <GamificationCard items={items} percentage={percentage} />
 
         {/* Stats */}
-        <StatsRow sessions={12} noshows={0} weeks={3} />
+        <StatsRow sessions={12} noshows={profile?.noshowCount ?? 0} weeks={3} />
 
         {/* Subscription */}
         <ProfileSection title={t('profile.section_subscription')}>

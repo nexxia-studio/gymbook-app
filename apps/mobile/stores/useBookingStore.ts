@@ -109,6 +109,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       ],
     }))
 
+    // Refresh profile to update noshow_count if late cancellation
+    if (noshowResult) {
+      const { useAuthStore } = await import('./useAuthStore')
+      useAuthStore.getState().refreshProfile()
+    }
+
     return { noshow: noshowResult }
   },
 
