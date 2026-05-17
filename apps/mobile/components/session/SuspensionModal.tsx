@@ -17,9 +17,12 @@ export function SuspensionModal({ visible, suspendedUntil, onClose }: Suspension
     ? Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60)))
     : 0
 
-  const formattedDate = deadline
-    ? `${deadline.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })} à ${deadline.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`
-    : ''
+  const message = deadline
+    ? t('session.suspended_message', {
+        date: `${deadline.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })} \u00e0 ${deadline.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`,
+        hours: hoursLeft,
+      })
+    : t('session.suspended_message_generic')
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -33,7 +36,7 @@ export function SuspensionModal({ visible, suspendedUntil, onClose }: Suspension
             </Text>
 
             <Text className="mt-3 text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
-              {t('session.suspended_message', { date: formattedDate, hours: hoursLeft })}
+              {message}
             </Text>
           </View>
 
@@ -44,7 +47,7 @@ export function SuspensionModal({ visible, suspendedUntil, onClose }: Suspension
               className="items-center rounded-2xl bg-move-dark py-4"
             >
               <Text className="font-dmsans-bold text-sm text-move-accent">
-                {t('planning.close')}
+                {t('common.back')}
               </Text>
             </TouchableOpacity>
 

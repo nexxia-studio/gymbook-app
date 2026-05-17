@@ -68,7 +68,12 @@ Deno.serve(async (req) => {
       .limit(1)
 
     if (penalties && penalties.length > 0) {
-      return errorResponse(403, 'Compte suspendu pour no-show', 'SUSPENDED')
+      return jsonResponse({
+        error: true,
+        code: 'SUSPENDED',
+        message: 'Compte suspendu pour no-show',
+        suspended_until: penalties[0].expires_at,
+      }, 403)
     }
 
     // 4. Get time slot
