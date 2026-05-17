@@ -49,18 +49,39 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   isLoading: false,
 
   createBooking: async (slotId: string) => {
+    console.log('[Store] createBooking invoked, slotId:', slotId)
     set({ isLoading: true })
     try {
+      console.log('[Store] Calling supabase.functions.invoke("create-booking")')
       const { data, error } = await supabase.functions.invoke('create-booking', {
         body: { slot_id: slotId },
       })
-      if (error) throw new Error(error.message ?? 'Booking failed')
+      console.log('[Store] Response data:', JSON.stringify(data))
+      console.log('[Store] Response error:', JSON.stringify(error))
 
-      // Refresh bookings after success
+      // Edge Function returns errors as JSON with code field
+      if (error) {
+        // Try to parse the error body for business logic codes
+        const msg = error.message ?? ''
+        if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
+          throw new Error('MAX_BOOKINGS_REACHED')
+        }
+        if (msg.includes('SUSPENDED') || msg.includes('suspendu')) {
+          throw new Error('SUSPENDED')
+        }
+        throw new Error(msg || 'Booking failed')
+      }
+
+      // Check if data itself contains an error response (4xx returned as 200 by invoke)
+      if (data?.error) {
+        throw new Error(data.code ?? data.message ?? 'Booking failed')
+      }
+
+      // Success — refresh bookings
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
-      return { status: data.status, position: data.position }
+      return { status: data.status as string, position: data.position as number | undefined }
     } finally {
       set({ isLoading: false })
     }
@@ -74,9 +95,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       body: { booking_id: booking.id },
     })
 
-    if (error) throw new Error(error.message ?? 'Cancel failed')
+    if (error) {
+      throw new Error(error.message ?? 'Cancel failed')
+    }
 
-    // Store the noshow result for UI feedback
+    if (data?.error) {
+      throw new Error(data.code ?? data.message ?? 'Cancel failed')
+    }
+
     const noshowResult = data?.noshow
 
     // Move to past bookings locally

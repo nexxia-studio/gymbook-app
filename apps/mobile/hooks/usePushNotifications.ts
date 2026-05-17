@@ -6,38 +6,45 @@ import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 
-// Configure foreground notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-})
+// Detect Expo Go (push not supported there since SDK 53)
+const isExpoGo = Constants.appOwnership === 'expo'
+
+// Configure foreground notifications (safe even in Expo Go)
+if (!isExpoGo) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  })
+}
 
 async function registerForPushNotifications(): Promise<string | null> {
   if (Platform.OS === 'web') return null
   if (!Device.isDevice) return null
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync()
-  let finalStatus = existingStatus
-
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync()
-    finalStatus = status
-  }
-
-  if (finalStatus !== 'granted') return null
+  if (isExpoGo) return null
 
   try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
+    }
+
+    if (finalStatus !== 'granted') return null
+
     const projectId = Constants.expoConfig?.extra?.eas?.projectId
     const tokenData = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined,
     )
     return tokenData.data
-  } catch {
+  } catch (e) {
+    console.log('[Push] Registration failed (non-blocking):', e)
     return null
   }
 }
@@ -48,26 +55,36 @@ export function usePushNotifications(userId: string | null) {
 
   // Register and store token
   useEffect(() => {
-    if (!userId) return
+    if (!userId || isExpoGo) return
 
     registerForPushNotifications().then(async (token) => {
       if (token) {
-        await supabase
-          .from('profiles')
-          .update({ push_token: token })
-          .eq('id', userId)
+        try {
+          await supabase
+            .from('profiles')
+            .update({ push_token: token })
+            .eq('id', userId)
+        } catch {
+          // Non-blocking
+        }
       }
     })
   }, [userId])
 
-  // Handle notification tap (deep link)
+  // Handle notification tap (deep link) — skip in Expo Go
   useEffect(() => {
-    responseSubscription.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response.notification.request.content.data as Record<string, string>
-        handleNotificationTap(data)
-      },
-    )
+    if (isExpoGo) return
+
+    try {
+      responseSubscription.current = Notifications.addNotificationResponseReceivedListener(
+        (response) => {
+          const data = response.notification.request.content.data as Record<string, string>
+          handleNotificationTap(data)
+        },
+      )
+    } catch {
+      // Non-blocking
+    }
 
     return () => {
       if (responseSubscription.current) {

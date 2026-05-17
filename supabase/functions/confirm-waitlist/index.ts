@@ -108,14 +108,14 @@ Deno.serve(async (req) => {
 
     if (resendKey && profile?.email) {
       const startDate = new Date(slot.starts_at)
-      const dateStr = startDate.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })
-      const timeStr = startDate.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })
+      const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
+      const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
-          from: 'Dopamine <noreply@dopamineclub.be>',
+          from: 'Dopamine <noreply@nexxia.net>',
           to: profile.email,
           subject: `Place confirmée — ${activityName}`,
           html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place confirmée !</h2><p style="color:#6B6861;">Vous êtes inscrit à <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px;">Voir ma réservation</a></div></div></div>`,

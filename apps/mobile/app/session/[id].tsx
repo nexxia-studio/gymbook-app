@@ -10,6 +10,7 @@ import { SessionDescription } from '../../components/session/SessionDescription'
 import { WeekSlots } from '../../components/session/WeekSlots'
 import { BookingModal } from '../../components/session/BookingModal'
 import { CancelModal } from '../../components/session/CancelModal'
+import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { getDisplayStatus } from '../../utils/slotStatus'
@@ -30,7 +31,7 @@ export default function SessionDetail() {
     booked: string
   }>()
 
-  const { createBooking, cancelBooking, isBooked, favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { createBooking, cancelBooking, favorites, addFavorite, removeFavorite } = useBookingStore()
 
   const slotId = params.id ?? ''
 
@@ -52,6 +53,8 @@ export default function SessionDetail() {
   const [loading, setLoading] = useState(false)
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [cancelModalVisible, setCancelModalVisible] = useState(false)
+  const [maxBookingsVisible, setMaxBookingsVisible] = useState(false)
+  const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
 
   // Fetch fresh slot data from Supabase when id changes
   useEffect(() => {
@@ -92,11 +95,29 @@ export default function SessionDetail() {
         setBookedCount(data.bookings_count ?? 0)
       }
     }
+
+    async function checkExistingBooking() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setBookingState('available'); return }
+
+      const { data: existing } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('slot_id', slotId)
+        .eq('member_id', user.id)
+        .in('status', ['confirmed', 'waitlisted'])
+        .maybeSingle()
+
+      if (existing?.status === 'confirmed') setBookingState('confirmed')
+      else if (existing?.status === 'waitlisted') setBookingState('waitlisted')
+      else setBookingState('available')
+    }
+
     loadSlot()
+    checkExistingBooking()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotId])
 
-  const booked = isBooked(slotId)
   const isFull = bookedCount >= capacity
   const isFav = favorites.includes(slotId)
 
@@ -183,17 +204,26 @@ export default function SessionDetail() {
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
 
   const handleBook = useCallback(async () => {
+    console.log('[Booking] handleBook called, slotId:', slotId)
     setLoading(true)
     try {
+      console.log('[Booking] Calling createBooking...')
       const result = await createBooking(slotId)
+      console.log('[Booking] Result:', JSON.stringify(result))
       if (result.status === 'waitlisted') {
         setWaitlistPosition(result.position ?? 1)
+        setBookingState('waitlisted')
       } else {
         setBookedCount((c) => c + 1)
+        setBookingState('confirmed')
       }
       setBookingModalVisible(true)
-    } catch {
-      // Error handled in store
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[Booking] Error:', msg)
+      if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
+        setMaxBookingsVisible(true)
+      }
     } finally {
       setLoading(false)
     }
@@ -202,6 +232,7 @@ export default function SessionDetail() {
   const handleCancel = useCallback(async () => {
     await cancelBooking(slotId)
     setBookedCount((c) => Math.max(0, c - 1))
+    setBookingState('available')
     setCancelModalVisible(false)
   }, [slotId, cancelBooking])
 
@@ -300,7 +331,7 @@ export default function SessionDetail() {
             </Text>
           </View>
 
-          {booked ? (
+          {bookingState === 'confirmed' ? (
             <TouchableOpacity
               onPress={() => setCancelModalVisible(true)}
               activeOpacity={0.8}
@@ -308,6 +339,16 @@ export default function SessionDetail() {
             >
               <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#EF4444' }}>
                 {t('session.cancel').toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ) : bookingState === 'waitlisted' ? (
+            <TouchableOpacity
+              onPress={() => setCancelModalVisible(true)}
+              activeOpacity={0.8}
+              className="rounded-xl border-2 border-orange-500 px-6 py-3.5"
+            >
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#F97316' }}>
+                {t('session.quit_waitlist').toUpperCase()}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -353,6 +394,15 @@ export default function SessionDetail() {
         isLate={isLateCancellation}
         onConfirm={handleCancel}
         onClose={() => setCancelModalVisible(false)}
+      />
+
+      <MaxBookingsModal
+        visible={maxBookingsVisible}
+        onViewBookings={() => {
+          setMaxBookingsVisible(false)
+          router.replace('/(tabs)/bookings' as never)
+        }}
+        onClose={() => setMaxBookingsVisible(false)}
       />
     </View>
   )
