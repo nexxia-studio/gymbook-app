@@ -10,6 +10,7 @@ import { SessionDescription } from '../../components/session/SessionDescription'
 import { WeekSlots } from '../../components/session/WeekSlots'
 import { BookingModal } from '../../components/session/BookingModal'
 import { CancelModal } from '../../components/session/CancelModal'
+import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { getDisplayStatus } from '../../utils/slotStatus'
@@ -52,6 +53,7 @@ export default function SessionDetail() {
   const [loading, setLoading] = useState(false)
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [cancelModalVisible, setCancelModalVisible] = useState(false)
+  const [maxBookingsVisible, setMaxBookingsVisible] = useState(false)
 
   // Fetch fresh slot data from Supabase when id changes
   useEffect(() => {
@@ -192,8 +194,11 @@ export default function SessionDetail() {
         setBookedCount((c) => c + 1)
       }
       setBookingModalVisible(true)
-    } catch {
-      // Error handled in store
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
+        setMaxBookingsVisible(true)
+      }
     } finally {
       setLoading(false)
     }
@@ -353,6 +358,15 @@ export default function SessionDetail() {
         isLate={isLateCancellation}
         onConfirm={handleCancel}
         onClose={() => setCancelModalVisible(false)}
+      />
+
+      <MaxBookingsModal
+        visible={maxBookingsVisible}
+        onViewBookings={() => {
+          setMaxBookingsVisible(false)
+          router.replace('/(tabs)/bookings' as never)
+        }}
+        onClose={() => setMaxBookingsVisible(false)}
       />
     </View>
   )
