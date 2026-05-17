@@ -18,15 +18,7 @@ export interface HomeSlot {
   imageQuery: string
 }
 
-function toHHMM(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function toDateStr(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+import { formatTime, formatDateStr, toLocalTime } from '../utils/timezone'
 
 function diffMin(start: string, end: string): number {
   return Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000)
@@ -77,9 +69,9 @@ export function useHomeSchedule() {
         const actName = (act?.name as string) ?? 'Open Gym'
         return {
           id: row.id as string,
-          date: toDateStr(row.starts_at as string),
-          time: toHHMM(row.starts_at as string),
-          endTime: toHHMM(row.ends_at as string),
+          date: formatDateStr(row.starts_at as string),
+          time: formatTime(row.starts_at as string),
+          endTime: formatTime(row.ends_at as string),
           activity: actName,
           activityColor: (act?.color as string) ?? '#4ECDC4',
           coach: (coach?.name as string) ?? '',
@@ -116,14 +108,14 @@ export function useHomeSchedule() {
   const scheduleByDay = days.map((d, i) => {
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     let daySlots = slots.filter((s) => s.date === dateStr)
-    // For today (index 0), hide past slots
+    // For today (index 0), hide past slots (using Brussels time)
     if (i === 0) {
-      const now = new Date()
+      const nowLocal = toLocalTime(new Date())
       daySlots = daySlots.filter((s) => {
         const [h, m] = s.endTime.split(':').map(Number)
-        const end = new Date(d)
+        const end = new Date(nowLocal)
         end.setHours(h, m, 0, 0)
-        return end > now
+        return end > nowLocal
       })
     }
     return { date: d, slots: daySlots }

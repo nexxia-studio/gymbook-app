@@ -14,6 +14,7 @@ import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { getDisplayStatus } from '../../utils/slotStatus'
+import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 
 export default function SessionDetail() {
   const { t } = useTranslation()
@@ -74,8 +75,6 @@ export default function SessionDetail() {
         .single()
 
       if (data) {
-        const s = new Date(data.starts_at)
-        const e = new Date(data.ends_at)
         const act = data.activities as unknown as { name: string; duration_min: number } | null
         const coa = data.coaches as unknown as { name: string } | null
         const actName = act?.name ?? activity
@@ -84,9 +83,9 @@ export default function SessionDetail() {
 
         setSlotData({
           activity: actName,
-          date: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`,
-          time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
-          endTime: `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`,
+          date: formatDateStr(data.starts_at),
+          time: formatTime(data.starts_at),
+          endTime: formatTime(data.ends_at),
           coach: coachName,
           duration: dur,
           capacity: data.capacity,
@@ -173,27 +172,25 @@ export default function SessionDetail() {
           return dur === duration
         })
         .filter((row) => {
-          const s = new Date(row.starts_at)
-          const e = new Date(row.ends_at)
           const status = getDisplayStatus({
-            date: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`,
-            time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
-            endTime: `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`,
+            date: formatDateStr(row.starts_at),
+            time: formatTime(row.starts_at),
+            endTime: formatTime(row.ends_at),
           })
           return status === 'scheduled'
         })
         .slice(0, 6)
 
       setWeekSlots(filtered.map((row) => {
-        const s = new Date(row.starts_at)
-        const dayName = days[s.getDay()] ?? ''
-        const monthName = months[s.getMonth()] ?? ''
+        const localS = toLocalTime(row.starts_at)
+        const dayName = days[localS.getDay()] ?? ''
+        const monthName = months[localS.getMonth()] ?? ''
         const available = (row.bookings_count ?? 0) < row.capacity
         return {
           id: row.id,
-          date: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`,
-          time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
-          dayLabel: `${dayName} ${s.getDate()} ${monthName}`,
+          date: formatDateStr(row.starts_at),
+          time: formatTime(row.starts_at),
+          dayLabel: `${dayName} ${localS.getDate()} ${monthName}`,
           available,
         }
       }))
