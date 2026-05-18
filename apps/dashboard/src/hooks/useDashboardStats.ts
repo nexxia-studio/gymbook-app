@@ -76,15 +76,31 @@ export function useDashboardStats() {
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
-  // Realtime: refresh KPIs on booking changes
+  // Realtime: refresh KPIs on booking/profile changes + 30s polling fallback
   useEffect(() => {
     if (!gymId) return
     const channel = supabase
       .channel(`kpis-${gymId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, () => fetchStats())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `gym_id=eq.${gymId}` }, () => fetchStats())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, (payload) => {
+        console.log('[Realtime Dashboard] KPI bookings:', payload.eventType)
+        fetchStats()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `gym_id=eq.${gymId}` }, (payload) => {
+        console.log('[Realtime Dashboard] KPI profiles:', payload.eventType)
+        fetchStats()
+      })
+      .subscribe((status) => {
+        console.log('[Realtime Dashboard] KPIs subscription:', status)
+      })
+
+    const pollingInterval = setInterval(() => {
+      fetchStats()
+    }, 30000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(pollingInterval)
+    }
   }, [gymId, fetchStats])
 
   return { stats, loading, refetch: fetchStats }
