@@ -207,9 +207,20 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (nextInLine) {
-      // Only notify — do NOT confirm automatically. Member has 30 min to confirm.
+      // Fetch gym-configured confirmation window
+      const { data: gym } = await admin
+        .from('nexxia_gyms')
+        .select('waitlist_confirmation_minutes')
+        .eq('id', slot.gym_id)
+        .single()
+
+      const delayMinutes = gym?.waitlist_confirmation_minutes ?? 30
+      const deadline = new Date(now.getTime() + delayMinutes * 60 * 1000)
+
+      // Only notify — do NOT confirm automatically. Member has delayMinutes to confirm.
       await admin.from('bookings').update({
         waitlist_notified_at: now.toISOString(),
+        waitlist_confirmation_deadline: deadline.toISOString(),
       }).eq('id', nextInLine.id)
 
       // Email + push notification
@@ -220,11 +231,11 @@ Deno.serve(async (req) => {
         .single()
 
       if (resendKey && promotedProfile?.email) {
-        const confirmUrl = `dopamine://session/${booking.slot_id}?confirm=${nextInLine.id}`
+        const confirmUrl = `dopamine://bookings`
         await sendEmail(resendKey, promotedProfile.email,
           `Place disponible — ${activityName}`,
           emailHtml('Place disponible !',
-            `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez 30 minutes pour confirmer.</p>`,
+            `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${delayMinutes} minutes pour confirmer.</p>`,
             'Confirmer ma place', confirmUrl))
       }
 
@@ -237,7 +248,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               tokens: [promotedProfile.push_token],
               title: 'Place disponible !',
-              body: `Vous avez 30 min pour confirmer — ${activityName}`,
+              body: `Vous avez ${delayMinutes} min pour confirmer — ${activityName}`,
               data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
             }),
           })

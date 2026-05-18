@@ -14,6 +14,8 @@ export interface Booking {
   coach: string
   status: BookingStatus
   bookedAt: string
+  waitlistNotifiedAt: string | null
+  waitlistConfirmationDeadline: string | null
 }
 
 interface BookingState {
@@ -170,7 +172,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       // Step 1: fetch bookings (no join — avoids RLS issues on time_slots)
       const { data: rawBookings, error: bErr } = await supabase
         .from('bookings')
-        .select('id, slot_id, status, booked_at, waitlist_position')
+        .select('id, slot_id, status, booked_at, waitlist_position, waitlist_notified_at, waitlist_confirmation_deadline')
         .eq('member_id', userId)
         .order('booked_at', { ascending: false })
 
@@ -197,7 +199,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         slotMap.set(s.id as string, s)
       }
 
-      function mapRow(row: { id: string; slot_id: string; status: string; booked_at: string | null }): Booking {
+      function mapRow(row: { id: string; slot_id: string; status: string; booked_at: string | null; waitlist_notified_at?: string | null; waitlist_confirmation_deadline?: string | null }): Booking {
         const ts = slotMap.get(row.slot_id)
         const act = ts?.activities as Record<string, unknown> | null
         const coach = ts?.coaches as Record<string, unknown> | null
@@ -212,6 +214,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           coach: (coach?.name as string) ?? '',
           status: row.status as BookingStatus,
           bookedAt: row.booked_at ?? '',
+          waitlistNotifiedAt: row.waitlist_notified_at ?? null,
+          waitlistConfirmationDeadline: row.waitlist_confirmation_deadline ?? null,
         }
       }
 

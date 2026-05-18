@@ -280,6 +280,15 @@
       "coaches": "Coaches",
       "gym": "Salle",
       "plans": "Formules"
+    },
+    "gym": {
+      "booking_rules_title": "Règles de réservation",
+      "waitlist_delay_label": "Délai de confirmation waitlist",
+      "waitlist_delay_unit": "minutes",
+      "waitlist_delay_helper": "Temps accordé à un membre pour confirmer sa place après notification (10–120 min)",
+      "waitlist_delay_range_error": "Doit être compris entre 10 et 120 minutes",
+      "save": "Enregistrer",
+      "saved": "Paramètres enregistrés"
     }
   },
   "activities": {

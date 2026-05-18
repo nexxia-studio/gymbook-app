@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -24,7 +24,7 @@ export default function Bookings() {
   const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
   const [cancelSlotId, setCancelSlotId] = useState<string | null>(null)
 
-  const { bookings, pastBookings, favorites, cancelBooking, removeFavorite, removePastFavorites, fetchBookings } = useBookingStore()
+  const { bookings, pastBookings, favorites, cancelBooking, confirmWaitlist, removeFavorite, removePastFavorites, fetchBookings } = useBookingStore()
 
   const days = t('home.days', { returnObjects: true }) as string[]
   const months = t('home.months', { returnObjects: true }) as string[]
@@ -49,6 +49,14 @@ export default function Bookings() {
       setCancelSlotId(null)
     }
   }, [cancelSlotId, cancelBooking])
+
+  const handleConfirmWaitlist = useCallback(async (bookingId: string) => {
+    const result = await confirmWaitlist(bookingId)
+    if (result.confirmed) return
+    if (result.code === 'WAITLIST_EXPIRED') {
+      Alert.alert(t('session.waitlist_expired_title'), t('session.waitlist_expired_message'))
+    }
+  }, [confirmWaitlist, t])
 
   // Check late cancellation
   const isLate = useMemo(() => {
@@ -121,6 +129,7 @@ export default function Bookings() {
                   booking={booking}
                   dayLabel={formatDayLabel(booking.date, days, months)}
                   onCancel={() => setCancelSlotId(booking.slotId)}
+                  onConfirmWaitlist={() => handleConfirmWaitlist(booking.id)}
                 />
               ))
             )}
