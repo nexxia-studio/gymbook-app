@@ -27,7 +27,8 @@ function diffMin(start: string, end: string): number {
 export function useHomeSchedule() {
   const [slots, setSlots] = useState<HomeSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [bookedSlotIds, setBookedSlotIds] = useState<Set<string>>(new Set())
+  const [confirmedSlotIds, setConfirmedSlotIds] = useState<Set<string>>(new Set())
+  const [waitlistedSlotIds, setWaitlistedSlotIds] = useState<Set<string>>(new Set())
   const { favorites, addFavorite, removeFavorite } = useBookingStore()
 
   const days = (() => {
@@ -90,17 +91,24 @@ export function useHomeSchedule() {
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
-  // Fetch member's confirmed bookings
+  // Fetch member's active bookings (confirmed + waitlisted) as separate sets
   useEffect(() => {
     async function fetchBooked() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase
         .from('bookings')
-        .select('slot_id')
+        .select('slot_id, status')
         .eq('member_id', user.id)
         .in('status', ['confirmed', 'waitlisted'])
-      setBookedSlotIds(new Set((data ?? []).map((b) => b.slot_id)))
+      const confirmed = new Set<string>()
+      const waitlisted = new Set<string>()
+      for (const b of data ?? []) {
+        if (b.status === 'confirmed') confirmed.add(b.slot_id)
+        else if (b.status === 'waitlisted') waitlisted.add(b.slot_id)
+      }
+      setConfirmedSlotIds(confirmed)
+      setWaitlistedSlotIds(waitlisted)
     }
     fetchBooked()
   }, [slots]) // re-check when slots change
@@ -134,7 +142,8 @@ export function useHomeSchedule() {
     [favorites, addFavorite, removeFavorite],
   )
 
-  const isSlotBooked = useCallback((slotId: string) => bookedSlotIds.has(slotId), [bookedSlotIds])
+  const isSlotBooked = useCallback((slotId: string) => confirmedSlotIds.has(slotId), [confirmedSlotIds])
+  const isSlotWaitlisted = useCallback((slotId: string) => waitlistedSlotIds.has(slotId), [waitlistedSlotIds])
 
-  return { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, refresh: fetchSlots, isLoading }
+  return { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, isSlotWaitlisted, refresh: fetchSlots, isLoading }
 }

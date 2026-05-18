@@ -10,9 +10,9 @@ interface DayTabsProps {
 function formatDayPill(date: Date, offset: number, t: (key: string) => string, months: string[]): string {
   const day = date.getDate()
   const month = months[date.getMonth()] ?? ''
-  if (offset === 0) return `${t('home.today')} \u00B7 ${day} ${month}`
-  if (offset === 1) return `${t('home.tomorrow')} \u00B7 ${day} ${month}`
-  return `${t('home.in_2_days')} \u00B7 ${day} ${month}`
+  if (offset === 0) return `${t('home.today')} · ${day} ${month}`
+  if (offset === 1) return `${t('home.tomorrow')} · ${day} ${month}`
+  return `${t('home.in_2_days')} · ${day} ${month}`
 }
 
 export function DayTabs({ days, activeIndex, onSelect }: DayTabsProps) {

@@ -220,11 +220,12 @@ Deno.serve(async (req) => {
         .single()
 
       if (resendKey && promotedProfile?.email) {
+        const confirmUrl = `dopamine://session/${booking.slot_id}?confirm=${nextInLine.id}`
         await sendEmail(resendKey, promotedProfile.email,
           `Place disponible — ${activityName}`,
           emailHtml('Place disponible !',
             `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez 30 minutes pour confirmer.</p>`,
-            'Confirmer ma place', 'dopamine://bookings'))
+            'Confirmer ma place', confirmUrl))
       }
 
       // Push notification

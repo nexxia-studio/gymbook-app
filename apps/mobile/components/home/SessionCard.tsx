@@ -10,6 +10,7 @@ interface SessionCardProps {
   slot: HomeSlot
   isFavorite: boolean
   isBooked: boolean
+  isWaitlisted: boolean
   onToggleFavorite: () => void
   onPress: () => void
 }
@@ -24,7 +25,7 @@ const INITIALS: Record<string, string> = {
   'HIIT / Hyrox': 'HX',
 }
 
-export function SessionCard({ slot, isFavorite, isBooked, onToggleFavorite, onPress }: SessionCardProps) {
+export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggleFavorite, onPress }: SessionCardProps) {
   const { t } = useTranslation()
   const isFull = slot.booked >= slot.capacity
   const Icon = slot.activity === 'Open Gym' ? Dumbbell : Flame
@@ -99,6 +100,12 @@ export function SessionCard({ slot, isFavorite, isBooked, onToggleFavorite, onPr
           <View className="rounded-lg bg-green-100 px-4 py-2.5">
             <Text className="font-dmsans-bold text-xs text-green-600">
               {t('home.booked')}
+            </Text>
+          </View>
+        ) : isWaitlisted ? (
+          <View className="rounded-lg bg-orange-100 px-4 py-2.5">
+            <Text className="font-dmsans-bold text-xs text-orange-500">
+              {t('home.waitlisted_badge')}
             </Text>
           </View>
         ) : isFull ? (

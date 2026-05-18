@@ -23,7 +23,7 @@ interface BookingState {
   isLoading: boolean
   createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null }>
   cancelBooking: (slotId: string) => Promise<{ noshow?: { level: string; hours?: number } } | void>
-  confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean }>
+  confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean; code?: string }>
   fetchBookings: (userId: string) => Promise<void>
   isBooked: (slotId: string) => boolean
   addFavorite: (slotId: string) => void
@@ -140,9 +140,22 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const { data, error } = await supabase.functions.invoke('confirm-waitlist', {
         body: { booking_id: bookingId },
       })
-      if (error) throw new Error(error.message ?? 'Confirm failed')
 
-      // Refresh bookings
+      // Extract code from HTTP error body (FunctionsHttpError puts response on error.context)
+      if (error) {
+        let errorBody: Record<string, unknown> | null = null
+        try {
+          if ((error as { context?: Response }).context) {
+            errorBody = await (error as { context: Response }).context.json()
+          }
+        } catch { /* not JSON */ }
+        const code = (errorBody?.code as string) ?? ''
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) get().fetchBookings(user.id)
+        return { confirmed: false, code }
+      }
+
+      // Refresh bookings on success
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
