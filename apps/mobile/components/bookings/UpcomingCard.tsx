@@ -5,12 +5,20 @@ import type { Booking } from '../../stores/useBookingStore'
 interface UpcomingCardProps {
   booking: Booking
   onCancel: () => void
+  onConfirmWaitlist?: () => void
   dayLabel: string
 }
 
-export function UpcomingCard({ booking, onCancel, dayLabel }: UpcomingCardProps) {
+function isWaitlistNotified(booking: Booking): boolean {
+  return booking.status === 'waitlisted'
+    && booking.waitlistNotifiedAt !== null
+    && new Date(booking.waitlistNotifiedAt).getTime() + 30 * 60 * 1000 > Date.now()
+}
+
+export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, dayLabel }: UpcomingCardProps) {
   const { t } = useTranslation()
 
+  const notified = isWaitlistNotified(booking)
   const statusKey = booking.status === 'waitlisted' ? 'status_waitlisted' : 'status_confirmed'
   const statusBg = booking.status === 'waitlisted' ? 'bg-orange-500/20' : 'bg-green-500/20'
   const statusText = booking.status === 'waitlisted' ? 'text-orange-400' : 'text-green-400'
@@ -47,14 +55,31 @@ export function UpcomingCard({ booking, onCancel, dayLabel }: UpcomingCardProps)
             </View>
           </View>
 
-          {/* Cancel button */}
+          {notified && (
+            <View className="mt-3 rounded-lg bg-orange-500/15 px-3 py-2.5">
+              <Text className="font-dmsans-bold text-xs text-orange-300">
+                {t('bookings.spot_available_banner')}
+              </Text>
+              <TouchableOpacity
+                onPress={onConfirmWaitlist}
+                activeOpacity={0.8}
+                className="mt-2 self-start rounded-lg bg-move-accent px-4 py-2"
+              >
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 14, color: '#111111' }}>
+                  {t('bookings.confirm_my_place').toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Cancel / Decline button */}
           <TouchableOpacity
             onPress={onCancel}
             activeOpacity={0.7}
             className="mt-3 self-start rounded-lg border border-red-500/30 px-3 py-1.5"
           >
             <Text className="font-dmsans-bold text-xs text-red-400">
-              {t('bookings.cancel')}
+              {notified ? t('bookings.decline') : t('bookings.cancel')}
             </Text>
           </TouchableOpacity>
         </View>

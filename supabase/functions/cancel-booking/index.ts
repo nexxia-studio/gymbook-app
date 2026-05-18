@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
         .single()
 
       if (resendKey && promotedProfile?.email) {
-        const confirmUrl = `dopamine://session/${booking.slot_id}?confirm=${nextInLine.id}`
+        const confirmUrl = `dopamine://bookings`
         await sendEmail(resendKey, promotedProfile.email,
           `Place disponible — ${activityName}`,
           emailHtml('Place disponible !',

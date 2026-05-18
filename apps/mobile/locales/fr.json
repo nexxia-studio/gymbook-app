@@ -182,7 +182,10 @@
     "status_noshow": "No-show",
     "status_cancelled": "Annule",
     "book": "Reserver",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "decline": "Décliner",
+    "confirm_my_place": "Confirmer ma place",
+    "spot_available_banner": "🎉 Place disponible — 30 min pour confirmer"
   },
   "studio": {
     "title": "Studio",

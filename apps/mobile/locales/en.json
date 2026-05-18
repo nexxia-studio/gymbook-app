@@ -182,7 +182,10 @@
     "status_noshow": "No-show",
     "status_cancelled": "Cancelled",
     "book": "Book",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "decline": "Decline",
+    "confirm_my_place": "Confirm my spot",
+    "spot_available_banner": "🎉 Spot available — 30 min to confirm"
   },
   "studio": {
     "title": "Studio",
