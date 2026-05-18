@@ -21,7 +21,7 @@ export function ProfileHeader({ firstName, lastName, memberSince, levelKey }: Pr
   const bgColor = nameToColor(`${firstName} ${lastName}`)
 
   return (
-    <View className="mx-4 -mt-6 items-center rounded-3xl bg-move-card px-6 py-6 shadow-sm">
+    <View className="mx-4 mt-4 items-center rounded-3xl bg-move-card px-6 py-6 shadow-sm">
       {/* Avatar */}
       <View
         className="mb-3 h-20 w-20 items-center justify-center rounded-full"

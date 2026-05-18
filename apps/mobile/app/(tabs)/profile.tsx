@@ -71,9 +71,9 @@ export default function Profile() {
   }, [signOut, router])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-10 pt-3">
+      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
           {t('profile.title').toUpperCase()}
         </Text>
@@ -82,7 +82,7 @@ export default function Profile() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView className="flex-1 bg-move-bg" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Profile card */}
         <ProfileHeader
           firstName={firstName}
