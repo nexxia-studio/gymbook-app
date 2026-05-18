@@ -60,6 +60,7 @@ export default function SessionDetail() {
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
   const [existingBookingId, setExistingBookingId] = useState<string | null>(null)
   const [waitlistNotifiedAt, setWaitlistNotifiedAt] = useState<string | null>(null)
+  const [waitlistConfirmationDeadline, setWaitlistConfirmationDeadline] = useState<string | null>(null)
 
   // Fetch fresh slot data from Supabase when id changes
   useEffect(() => {
@@ -105,7 +106,7 @@ export default function SessionDetail() {
 
       const { data: existing } = await supabase
         .from('bookings')
-        .select('id, status, waitlist_notified_at')
+        .select('id, status, waitlist_notified_at, waitlist_confirmation_deadline')
         .eq('slot_id', slotId)
         .eq('member_id', user.id)
         .in('status', ['confirmed', 'waitlisted'])
@@ -113,6 +114,7 @@ export default function SessionDetail() {
 
       setExistingBookingId(existing?.id ?? null)
       setWaitlistNotifiedAt(existing?.waitlist_notified_at ?? null)
+      setWaitlistConfirmationDeadline(existing?.waitlist_confirmation_deadline ?? null)
 
       if (existing?.status === 'confirmed') setBookingState('confirmed')
       else if (existing?.status === 'waitlisted') setBookingState('waitlisted')
@@ -246,6 +248,7 @@ export default function SessionDetail() {
     setBookingState('available')
     setExistingBookingId(null)
     setWaitlistNotifiedAt(null)
+    setWaitlistConfirmationDeadline(null)
     setCancelModalVisible(false)
   }, [slotId, cancelBooking])
 
@@ -267,12 +270,17 @@ export default function SessionDetail() {
       setBookingState('available')
       setExistingBookingId(null)
       setWaitlistNotifiedAt(null)
+      setWaitlistConfirmationDeadline(null)
     }
   }, [existingBookingId, confirmWaitlist, t])
 
-  const isNotified = bookingState === 'waitlisted'
-    && waitlistNotifiedAt !== null
-    && new Date(waitlistNotifiedAt).getTime() + 30 * 60 * 1000 > Date.now()
+  const isNotified = (() => {
+    if (bookingState !== 'waitlisted' || waitlistNotifiedAt === null) return false
+    const deadline = waitlistConfirmationDeadline
+      ? new Date(waitlistConfirmationDeadline).getTime()
+      : new Date(waitlistNotifiedAt).getTime() + 30 * 60 * 1000
+    return Date.now() < deadline
+  })()
 
   const toggleFav = useCallback(() => {
     if (isFav) removeFavorite(slotId)

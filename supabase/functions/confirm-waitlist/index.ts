@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     // 2. Get booking
     const { data: booking } = await admin
       .from('bookings')
-      .select('id, member_id, slot_id, gym_id, status, waitlist_notified_at')
+      .select('id, member_id, slot_id, gym_id, status, waitlist_notified_at, waitlist_confirmation_deadline')
       .eq('id', bookingId)
       .single()
 
@@ -50,10 +50,21 @@ Deno.serve(async (req) => {
     if (booking.member_id !== user.id) return errorResponse(403, 'Accès refusé', 'FORBIDDEN')
     if (booking.status !== 'waitlisted') return errorResponse(400, 'Réservation non en attente', 'NOT_WAITLISTED')
 
-    // 3. Check 30-minute deadline
+    // 3. Check confirmation deadline (gym-configured)
     if (booking.waitlist_notified_at) {
-      const notifiedAt = new Date(booking.waitlist_notified_at)
-      const deadline = new Date(notifiedAt.getTime() + 30 * 60 * 1000)
+      // Prefer explicit deadline if set, else fall back to notified_at + gym setting
+      let deadline: Date
+      if (booking.waitlist_confirmation_deadline) {
+        deadline = new Date(booking.waitlist_confirmation_deadline)
+      } else {
+        const { data: gym } = await admin
+          .from('nexxia_gyms')
+          .select('waitlist_confirmation_minutes')
+          .eq('id', booking.gym_id)
+          .single()
+        const minutes = gym?.waitlist_confirmation_minutes ?? 30
+        deadline = new Date(new Date(booking.waitlist_notified_at).getTime() + minutes * 60 * 1000)
+      }
 
       if (new Date() > deadline) {
         // Expired — cancel this and promote next
@@ -93,6 +104,7 @@ Deno.serve(async (req) => {
       status: 'confirmed',
       waitlist_position: null,
       waitlist_notified_at: null,
+      waitlist_confirmation_deadline: null,
       promoted_from_waitlist_at: new Date().toISOString(),
     }).eq('id', bookingId)
 

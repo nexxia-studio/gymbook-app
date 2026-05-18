@@ -10,6 +10,7 @@ import { ActivityDeleteModal } from '@/components/settings/ActivityDeleteModal'
 import { CoachCard } from '@/components/settings/CoachCard'
 import { CoachModal } from '@/components/settings/CoachModal'
 import { CoachDeleteModal } from '@/components/settings/CoachDeleteModal'
+import { GymSettingsCard } from '@/components/settings/GymSettingsCard'
 import { useActivities } from '@/hooks/useActivities'
 import { useCoaches } from '@/hooks/useCoaches'
 import { useToastStore } from '@/hooks/useToast'
@@ -290,8 +291,11 @@ export default function Settings() {
           </>
         )}
 
+        {/* ========= GYM TAB ========= */}
+        {activeTab === 'gym' && <GymSettingsCard />}
+
         {/* ========= PLACEHOLDER TABS ========= */}
-        {(activeTab === 'gym' || activeTab === 'plans') && <PlaceholderTab />}
+        {activeTab === 'plans' && <PlaceholderTab />}
       </div>
 
       {/* Confirm modal for toggles */}

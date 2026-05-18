@@ -280,6 +280,15 @@
       "coaches": "Coaches",
       "gym": "Gym",
       "plans": "Plans"
+    },
+    "gym": {
+      "booking_rules_title": "Booking rules",
+      "waitlist_delay_label": "Waitlist confirmation window",
+      "waitlist_delay_unit": "minutes",
+      "waitlist_delay_helper": "Time given to a member to confirm their spot after being notified (10–120 min)",
+      "waitlist_delay_range_error": "Must be between 10 and 120 minutes",
+      "save": "Save",
+      "saved": "Settings saved"
     }
   },
   "activities": {

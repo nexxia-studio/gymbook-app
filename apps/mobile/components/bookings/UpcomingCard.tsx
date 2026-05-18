@@ -10,9 +10,11 @@ interface UpcomingCardProps {
 }
 
 function isWaitlistNotified(booking: Booking): boolean {
-  return booking.status === 'waitlisted'
-    && booking.waitlistNotifiedAt !== null
-    && new Date(booking.waitlistNotifiedAt).getTime() + 30 * 60 * 1000 > Date.now()
+  if (booking.status !== 'waitlisted' || booking.waitlistNotifiedAt === null) return false
+  const deadline = booking.waitlistConfirmationDeadline
+    ? new Date(booking.waitlistConfirmationDeadline).getTime()
+    : new Date(booking.waitlistNotifiedAt).getTime() + 30 * 60 * 1000
+  return Date.now() < deadline
 }
 
 export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, dayLabel }: UpcomingCardProps) {
