@@ -5,6 +5,7 @@ interface ProfileHeaderProps {
   firstName: string
   lastName: string
   memberSince: string
+  levelKey?: string
 }
 
 function nameToColor(name: string): string {
@@ -14,7 +15,7 @@ function nameToColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export function ProfileHeader({ firstName, lastName, memberSince }: ProfileHeaderProps) {
+export function ProfileHeader({ firstName, lastName, memberSince, levelKey }: ProfileHeaderProps) {
   const { t } = useTranslation()
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   const bgColor = nameToColor(`${firstName} ${lastName}`)
@@ -34,6 +35,14 @@ export function ProfileHeader({ firstName, lastName, memberSince }: ProfileHeade
       <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
         {firstName} {lastName}
       </Text>
+
+      {levelKey && (
+        <View className="mt-1 rounded-lg bg-move-accent/15 px-3 py-1">
+          <Text className="font-dmsans-bold text-xs text-move-dark">
+            {t(`profile.level.${levelKey}`)}
+          </Text>
+        </View>
+      )}
 
       <Text className="mt-1 font-dmsans text-[13px] text-move-text-secondary">
         {t('profile.member_since', { date: memberSince })}
