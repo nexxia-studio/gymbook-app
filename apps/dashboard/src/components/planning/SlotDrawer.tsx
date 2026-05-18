@@ -133,14 +133,27 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                   <p className="font-body text-sm text-muted">{t('planning.no_members')}</p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {slot.members.map((member) => (
-                      <div key={member.id} className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 font-body text-xs font-bold text-accent-dim">
-                          {member.name.split(' ').map((n) => n[0]).join('')}
+                    {slot.members.map((member) => {
+                      const fullName = `${member.firstName} ${member.lastName}`.trim() || member.email || '—'
+                      const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase() || (member.email[0] ?? '?').toUpperCase()
+                      return (
+                        <div key={member.bookingId} className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/10 font-body text-xs font-bold text-accent-dim">
+                            {member.avatarUrl ? (
+                              <img src={member.avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                            ) : (
+                              initials
+                            )}
+                          </div>
+                          <span className="flex-1 font-body text-sm text-dark">{fullName}</span>
+                          {member.noshowCount > 0 && (
+                            <span className="rounded-md bg-red-50 px-1.5 py-0.5 font-body text-[10px] font-semibold text-red-500">
+                              {t('planning.noshow_count', { count: member.noshowCount })}
+                            </span>
+                          )}
                         </div>
-                        <span className="font-body text-sm text-dark">{member.name}</span>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
