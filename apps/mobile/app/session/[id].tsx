@@ -270,7 +270,9 @@ export default function SessionDetail() {
     }
   }, [existingBookingId, confirmWaitlist, t])
 
-  const isNotified = bookingState === 'waitlisted' && waitlistNotifiedAt !== null
+  const isNotified = bookingState === 'waitlisted'
+    && waitlistNotifiedAt !== null
+    && new Date(waitlistNotifiedAt).getTime() + 30 * 60 * 1000 > Date.now()
 
   const toggleFav = useCallback(() => {
     if (isFav) removeFavorite(slotId)
