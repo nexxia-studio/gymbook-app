@@ -52,27 +52,22 @@ Deno.serve(async (req) => {
     // 2. Get member profile
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('id, gym_id, first_name, last_name, email')
+      .select('id, gym_id, noshow_count, suspended_until, push_token, first_name, email')
       .eq('id', user.id)
       .single()
 
     if (!profile) return errorResponse(404, 'Profil introuvable', 'PROFILE_NOT_FOUND')
 
-    // 3. Check no-show suspension
-    const { data: penalties } = await supabaseAdmin
-      .from('penalties')
-      .select('id, expires_at')
-      .eq('member_id', user.id)
-      .eq('type', 'suspension')
-      .gte('expires_at', new Date().toISOString())
-      .limit(1)
+    // 3. Check no-show suspension via suspended_until
+    const isSuspended = profile.suspended_until !== null
+      && new Date(profile.suspended_until) > new Date()
 
-    if (penalties && penalties.length > 0) {
+    if (isSuspended) {
       return jsonResponse({
         error: true,
         code: 'SUSPENDED',
         message: 'Compte suspendu pour no-show',
-        suspended_until: penalties[0].expires_at,
+        suspended_until: profile.suspended_until,
       }, 403)
     }
 
