@@ -62,24 +62,33 @@ Deno.serve(async (req) => {
     const { booking_id: bookingId } = await req.json() as { booking_id: string }
     if (!bookingId) return errorResponse(400, 'booking_id requis', 'MISSING_BOOKING_ID')
 
+    console.log('[cancel-booking] Starting for booking:', bookingId, 'user:', user.id)
+
     // 2. Get booking
-    const { data: booking } = await admin
+    const { data: booking, error: bookingError } = await admin
       .from('bookings')
       .select('id, member_id, slot_id, gym_id, status')
       .eq('id', bookingId)
       .single()
 
+    console.log('[cancel-booking] Booking found:', booking?.id, booking?.status, 'member_id:', booking?.member_id)
+    if (bookingError) console.log('[cancel-booking] Booking query error:', bookingError)
+
     if (!booking) return errorResponse(404, 'Réservation introuvable', 'BOOKING_NOT_FOUND')
-    if (booking.member_id !== user.id) return errorResponse(403, 'Accès refusé', 'FORBIDDEN')
+    if (booking.member_id !== user.id) {
+      console.log('[cancel-booking] FORBIDDEN — booking.member_id', booking.member_id, '!== user.id', user.id)
+      return errorResponse(403, 'Accès refusé', 'FORBIDDEN')
+    }
     if (booking.status === 'cancelled') return errorResponse(400, 'Déjà annulée', 'ALREADY_CANCELLED')
 
     // 3. Get slot
-    const { data: slot } = await admin
+    const { data: slot, error: slotError } = await admin
       .from('time_slots')
       .select('id, starts_at, ends_at, gym_id, activities(name), coaches(name)')
       .eq('id', booking.slot_id)
       .single()
 
+    if (slotError) console.log('[cancel-booking] Slot query error:', slotError)
     if (!slot) return errorResponse(404, 'Créneau introuvable', 'SLOT_NOT_FOUND')
 
     // 4. Calculate late cancel
@@ -89,15 +98,17 @@ Deno.serve(async (req) => {
     const isLateCancellation = hoursUntil < 2 && hoursUntil > 0
     const isSlotPassed = slotStart < now
 
-    // 5. Cancel booking
-    await admin.from('bookings').update({
+    // 5. Cancel booking (trigger trg_update_bookings_count maintains time_slots counts)
+    const { error: updateErr } = await admin.from('bookings').update({
       status: 'cancelled',
       cancelled_at: now.toISOString(),
       is_late_cancel: isLateCancellation,
     }).eq('id', bookingId)
 
-    // 6. Decrement counter
-    await admin.rpc('decrement_slot_booking_count', { p_slot_id: booking.slot_id })
+    if (updateErr) {
+      console.log('[cancel-booking] Update error:', updateErr)
+      return errorResponse(500, updateErr.message, 'UPDATE_FAILED')
+    }
 
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
     const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
@@ -209,11 +220,12 @@ Deno.serve(async (req) => {
         .single()
 
       if (resendKey && promotedProfile?.email) {
+        const confirmUrl = `dopamine://session/${booking.slot_id}?confirm=${nextInLine.id}`
         await sendEmail(resendKey, promotedProfile.email,
           `Place disponible — ${activityName}`,
           emailHtml('Place disponible !',
             `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez 30 minutes pour confirmer.</p>`,
-            'Confirmer ma place', 'dopamine://bookings'))
+            'Confirmer ma place', confirmUrl))
       }
 
       // Push notification
@@ -244,8 +256,10 @@ Deno.serve(async (req) => {
           `<p style="color:#6B6861;"><strong>${activityName}</strong></p><p style="color:#6B6861;">${dateStr} à ${timeStr}</p><p style="color:#9A9890;">Coach: ${coachName}</p>${lateWarning}`))
     }
 
+    console.log('[cancel-booking] Success — late:', isLateCancellation, 'noshow:', noshowResult?.level ?? 'none')
     return jsonResponse({ cancelled: true, noshow: noshowResult })
   } catch (err) {
+    console.error('[cancel-booking] Uncaught error:', err)
     return errorResponse(500, (err as Error).message ?? 'Erreur interne', 'INTERNAL_ERROR')
   }
 })

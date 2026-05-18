@@ -12,7 +12,7 @@ import { useHomeSchedule } from '../../hooks/useHomeSchedule'
 export default function Home() {
   const { t } = useTranslation()
   const router = useRouter()
-  const { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, refresh } = useHomeSchedule()
+  const { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, isSlotWaitlisted, refresh } = useHomeSchedule()
   const [activeDay, setActiveDay] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
@@ -95,6 +95,7 @@ export default function Home() {
                     slot={slot}
                     isFavorite={isFavorite(slot.id)}
                     isBooked={isSlotBooked(slot.id)}
+                    isWaitlisted={isSlotWaitlisted(slot.id)}
                     onToggleFavorite={() => toggleFavorite(slot.id)}
                     onPress={() => {
                       router.push({

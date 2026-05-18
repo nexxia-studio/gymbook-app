@@ -52,23 +52,23 @@ Deno.serve(async (req) => {
     // 2. Get member profile
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('id, gym_id, first_name, last_name, email')
+      .select('id, gym_id, noshow_count, suspended_until, push_token, first_name, email')
       .eq('id', user.id)
       .single()
 
     if (!profile) return errorResponse(404, 'Profil introuvable', 'PROFILE_NOT_FOUND')
 
-    // 3. Check no-show suspension
-    const { data: penalties } = await supabaseAdmin
-      .from('penalties')
-      .select('id, expires_at')
-      .eq('member_id', user.id)
-      .eq('type', 'suspension')
-      .gte('expires_at', new Date().toISOString())
-      .limit(1)
+    // 3. Check no-show suspension via suspended_until
+    const isSuspended = profile.suspended_until !== null
+      && new Date(profile.suspended_until) > new Date()
 
-    if (penalties && penalties.length > 0) {
-      return errorResponse(403, 'Compte suspendu pour no-show', 'SUSPENDED')
+    if (isSuspended) {
+      return jsonResponse({
+        error: true,
+        code: 'SUSPENDED',
+        message: 'Compte suspendu pour no-show',
+        suspended_until: profile.suspended_until,
+      }, 403)
     }
 
     // 4. Get time slot
@@ -182,10 +182,8 @@ Deno.serve(async (req) => {
 
     if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
 
-    // 9. Increment counter
-    await supabaseAdmin.rpc('increment_slot_booking_count', { p_slot_id: slotId })
-
-    // 10. Send confirmation email (non-blocking)
+    // 9. Send confirmation email (non-blocking)
+    // (trigger trg_update_bookings_count maintains time_slots.bookings_count)
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
     const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
 

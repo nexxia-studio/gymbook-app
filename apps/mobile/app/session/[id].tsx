@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -33,7 +33,7 @@ export default function SessionDetail() {
     booked: string
   }>()
 
-  const { createBooking, cancelBooking, favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { createBooking, cancelBooking, confirmWaitlist, favorites, addFavorite, removeFavorite } = useBookingStore()
 
   const slotId = params.id ?? ''
 
@@ -58,6 +58,8 @@ export default function SessionDetail() {
   const [maxBookingsVisible, setMaxBookingsVisible] = useState(false)
   const [suspensionModal, setSuspensionModal] = useState<{ visible: boolean; until: string | null }>({ visible: false, until: null })
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
+  const [existingBookingId, setExistingBookingId] = useState<string | null>(null)
+  const [waitlistNotifiedAt, setWaitlistNotifiedAt] = useState<string | null>(null)
 
   // Fetch fresh slot data from Supabase when id changes
   useEffect(() => {
@@ -103,11 +105,14 @@ export default function SessionDetail() {
 
       const { data: existing } = await supabase
         .from('bookings')
-        .select('id, status')
+        .select('id, status, waitlist_notified_at')
         .eq('slot_id', slotId)
         .eq('member_id', user.id)
         .in('status', ['confirmed', 'waitlisted'])
         .maybeSingle()
+
+      setExistingBookingId(existing?.id ?? null)
+      setWaitlistNotifiedAt(existing?.waitlist_notified_at ?? null)
 
       if (existing?.status === 'confirmed') setBookingState('confirmed')
       else if (existing?.status === 'waitlisted') setBookingState('waitlisted')
@@ -205,37 +210,67 @@ export default function SessionDetail() {
   const handleBook = useCallback(async () => {
     console.log('[Booking] handleBook called, slotId:', slotId)
     setLoading(true)
-    try {
-      console.log('[Booking] Calling createBooking...')
-      const result = await createBooking(slotId)
-      console.log('[Booking] Result:', JSON.stringify(result))
-      if (result.status === 'waitlisted') {
-        setWaitlistPosition(result.position ?? 1)
-        setBookingState('waitlisted')
-      } else {
-        setBookedCount((c) => c + 1)
-        setBookingState('confirmed')
-      }
-      setBookingModalVisible(true)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[Booking] Error:', msg)
-      if (msg.includes('MAX_BOOKINGS') || msg.includes('2 réservations')) {
-        setMaxBookingsVisible(true)
-      } else if (msg.includes('SUSPENDED') || msg.includes('suspendu')) {
-        setSuspensionModal({ visible: true, until: null })
-      }
-    } finally {
-      setLoading(false)
+    console.log('[Booking] Calling createBooking...')
+    const result = await createBooking(slotId)
+    console.log('[Booking] Result:', JSON.stringify(result))
+    setLoading(false)
+
+    if (!result) return
+
+    if (result.code === 'SUSPENDED') {
+      setSuspensionModal({ visible: true, until: result.suspended_until ?? null })
+      return
     }
+    if (result.code === 'MAX_BOOKINGS_REACHED') {
+      setMaxBookingsVisible(true)
+      return
+    }
+    if (result.status === 'error') return // generic error, logged in store
+
+    if (result.status === 'waitlisted') {
+      setWaitlistPosition(result.position ?? 1)
+      setBookingState('waitlisted')
+      setBookingModalVisible(true)
+      return
+    }
+
+    // Confirmed
+    setBookedCount((c) => c + 1)
+    setBookingState('confirmed')
+    setBookingModalVisible(true)
   }, [slotId, createBooking])
 
   const handleCancel = useCallback(async () => {
     await cancelBooking(slotId)
     setBookedCount((c) => Math.max(0, c - 1))
     setBookingState('available')
+    setExistingBookingId(null)
+    setWaitlistNotifiedAt(null)
     setCancelModalVisible(false)
   }, [slotId, cancelBooking])
+
+  const handleConfirmWaitlist = useCallback(async () => {
+    if (!existingBookingId) return
+    setLoading(true)
+    const result = await confirmWaitlist(existingBookingId)
+    setLoading(false)
+
+    if (result.confirmed) {
+      setBookingState('confirmed')
+      setBookedCount((c) => c + 1)
+      setWaitlistNotifiedAt(null)
+      return
+    }
+
+    if (result.code === 'WAITLIST_EXPIRED') {
+      Alert.alert(t('session.waitlist_expired_title'), t('session.waitlist_expired_message'))
+      setBookingState('available')
+      setExistingBookingId(null)
+      setWaitlistNotifiedAt(null)
+    }
+  }, [existingBookingId, confirmWaitlist, t])
+
+  const isNotified = bookingState === 'waitlisted' && waitlistNotifiedAt !== null
 
   const toggleFav = useCallback(() => {
     if (isFav) removeFavorite(slotId)
@@ -322,13 +357,21 @@ export default function SessionDetail() {
         className="absolute bottom-0 left-0 right-0 border-t border-move-border bg-move-card px-5"
         style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
       >
+        {isNotified && (
+          <View className="mb-3 rounded-lg bg-orange-100 px-3 py-2">
+            <Text className="font-dmsans-bold text-xs text-orange-600">
+              {t('session.spot_available_banner')}
+            </Text>
+          </View>
+        )}
+
         <View className="flex-row items-center">
           <View className="flex-1">
             <Text className="font-dmsans-bold text-sm text-move-dark">
-              {dayLabel} {time ? `\u00B7 ${time}` : ''}
+              {dayLabel} {time ? `· ${time}` : ''}
             </Text>
             <Text className="font-dmsans text-xs text-move-text-muted">
-              {activity} \u00B7 {t('home.duration_min', { duration })}
+              {activity} · {t('home.duration_min', { duration })}
             </Text>
           </View>
 
@@ -341,6 +384,21 @@ export default function SessionDetail() {
               <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#EF4444' }}>
                 {t('session.cancel').toUpperCase()}
               </Text>
+            </TouchableOpacity>
+          ) : bookingState === 'waitlisted' && isNotified ? (
+            <TouchableOpacity
+              onPress={handleConfirmWaitlist}
+              disabled={loading}
+              activeOpacity={0.8}
+              className="rounded-xl bg-move-dark px-6 py-3.5"
+            >
+              {loading ? (
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+              ) : (
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>
+                  {t('session.confirm_my_place').toUpperCase()}
+                </Text>
+              )}
             </TouchableOpacity>
           ) : bookingState === 'waitlisted' ? (
             <TouchableOpacity
@@ -369,6 +427,18 @@ export default function SessionDetail() {
             </TouchableOpacity>
           )}
         </View>
+
+        {isNotified && (
+          <TouchableOpacity
+            onPress={() => setCancelModalVisible(true)}
+            activeOpacity={0.7}
+            className="mt-3 self-center"
+          >
+            <Text className="font-dmsans-bold text-xs text-move-text-muted underline">
+              {t('session.decline')}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Booking success modal */}
