@@ -182,10 +182,8 @@ Deno.serve(async (req) => {
 
     if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
 
-    // 9. Increment counter
-    await supabaseAdmin.rpc('increment_slot_booking_count', { p_slot_id: slotId })
-
-    // 10. Send confirmation email (non-blocking)
+    // 9. Send confirmation email (non-blocking)
+    // (trigger trg_update_bookings_count maintains time_slots.bookings_count)
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
     const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
 
