@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -11,6 +11,8 @@ import { HistoryCard } from '../../components/bookings/HistoryCard'
 import { LimitBanner } from '../../components/bookings/LimitBanner'
 import { CancelModal } from '../../components/session/CancelModal'
 import { useBookingStore } from '../../stores/useBookingStore'
+import { supabase } from '../../lib/supabase'
+import { formatTime, formatDateStr } from '../../utils/timezone'
 
 function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
   const [y, mo, d] = dateStr.split('-').map(Number)
@@ -75,16 +77,37 @@ export default function Bookings() {
     return start.getTime() - Date.now() < 2 * 60 * 60 * 1000
   }, [cancelSlotId, bookings])
 
-  // Parse favorite IDs into displayable data
-  const favoritesData = useMemo((): Array<{ id: string; date: string; time: string; activity: string; coach: string }> => {
-    return favorites.map((id) => {
-      // ID format: "2026-05-13-07:30-Open Gym"
-      const parts = id.split('-')
-      const date = `${parts[0]}-${parts[1]}-${parts[2]}`
-      const time = parts[3] ?? ''
-      const activity = parts.slice(4).join(' ') || 'Open Gym'
-      return { id, date, time, activity, coach: 'Nicolas' }
-    })
+  // Enrich favorite slot IDs with real Supabase data (filtered to future slots)
+  const [favoritesData, setFavoritesData] = useState<Array<{ id: string; date: string; time: string; activity: string; coach: string }>>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadFavorites() {
+      if (favorites.length === 0) {
+        setFavoritesData([])
+        return
+      }
+      const { data } = await supabase
+        .from('time_slots')
+        .select('id, starts_at, activities(name), coaches(name)')
+        .in('id', favorites)
+        .gt('starts_at', new Date().toISOString())
+        .order('starts_at')
+      if (cancelled) return
+      setFavoritesData((data ?? []).map((row: Record<string, unknown>) => {
+        const act = row.activities as Record<string, unknown> | null
+        const coach = row.coaches as Record<string, unknown> | null
+        return {
+          id: row.id as string,
+          date: formatDateStr(row.starts_at as string),
+          time: formatTime(row.starts_at as string),
+          activity: (act?.name as string) ?? 'Open Gym',
+          coach: (coach?.name as string) ?? '',
+        }
+      }))
+    }
+    loadFavorites()
+    return () => { cancelled = true }
   }, [favorites])
 
   return (

@@ -216,6 +216,12 @@
       "noshows": "No-shows",
       "weeks": "Weeks"
     },
+    "level": {
+      "starter": "Starter",
+      "athlete": "Athlete",
+      "elite": "Elite",
+      "champion": "Champion"
+    },
     "section_subscription": "Subscription",
     "my_subscription": "My subscription",
     "subscription_detail": "Unlimited 6 months · until Nov 13 2026",

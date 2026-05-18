@@ -14,6 +14,8 @@ import { ProfileSection } from '../../components/profile/ProfileSection'
 import { ProfileListItem } from '../../components/profile/ProfileListItem'
 import { SignOutModal } from '../../components/profile/SignOutModal'
 import { useAuthStore, type MemberProfile } from '../../stores/useAuthStore'
+import { useProfileStats } from '../../hooks/useProfileStats'
+import { getLevel } from '../../utils/level'
 
 interface GamificationItem {
   key: string
@@ -43,13 +45,15 @@ export default function Profile() {
   const signOut = useAuthStore((s) => s.signOut)
   const profile = useAuthStore((s) => s.profile)
   const refreshProfile = useAuthStore((s) => s.refreshProfile)
+  const { stats, refresh: refreshStats } = useProfileStats()
   const [signOutVisible, setSignOutVisible] = useState(false)
 
-  // Refresh profile on tab focus
+  // Refresh profile + stats on tab focus
   useFocusEffect(
     useCallback(() => {
       refreshProfile()
-    }, [refreshProfile])
+      refreshStats()
+    }, [refreshProfile, refreshStats])
   )
 
   const { items, percentage } = useMemo(() => buildGamification(profile), [profile])
@@ -84,13 +88,18 @@ export default function Profile() {
           firstName={firstName}
           lastName={lastName}
           memberSince={memberSince}
+          levelKey={getLevel(stats.completedSessions)}
         />
 
         {/* Gamification */}
         <GamificationCard items={items} percentage={percentage} />
 
         {/* Stats */}
-        <StatsRow sessions={12} noshows={profile?.noshowCount ?? 0} weeks={3} />
+        <StatsRow
+          sessions={stats.completedSessions}
+          noshows={profile?.noshowCount ?? 0}
+          weeks={stats.activeWeeks}
+        />
 
         {/* Subscription */}
         <ProfileSection title={t('profile.section_subscription')}>
