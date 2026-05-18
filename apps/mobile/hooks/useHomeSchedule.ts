@@ -92,21 +92,30 @@ export function useHomeSchedule() {
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
   // Realtime: refresh on time_slots + bookings changes for this gym
+  // Fallback polling every 30s in case Realtime fails (network drop, missed event)
   useEffect(() => {
     const channel = supabase
       .channel(`home-schedule-${DOPAMINE_GYM_ID}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
-        console.log('[Realtime] time_slots:', payload.eventType)
+        console.log('[Realtime] Home time_slots:', payload.eventType)
         fetchSlots()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
-        console.log('[Realtime] bookings:', payload.eventType)
+        console.log('[Realtime] Home bookings:', payload.eventType)
         fetchSlots()
       })
       .subscribe((status) => {
         console.log('[Realtime] Home subscription:', status)
       })
-    return () => { supabase.removeChannel(channel) }
+
+    const pollingInterval = setInterval(() => {
+      fetchSlots()
+    }, 30000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(pollingInterval)
+    }
   }, [fetchSlots])
 
   // Fetch member's active bookings (confirmed + waitlisted) as separate sets

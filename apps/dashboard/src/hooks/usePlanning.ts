@@ -179,15 +179,31 @@ export function usePlanning() {
   useEffect(() => { fetchSlots() }, [fetchSlots])
   useEffect(() => { fetchMeta() }, [fetchMeta])
 
-  // Realtime subscription
+  // Realtime subscription (gym-scoped channel) + 30s polling fallback
   useEffect(() => {
     if (!gymId) return
     const channel = supabase
-      .channel('planning-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${gymId}` }, () => fetchSlots())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, () => fetchSlots())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+      .channel(`planning-${gymId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${gymId}` }, (payload) => {
+        console.log('[Realtime Dashboard] time_slots:', payload.eventType)
+        fetchSlots()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, (payload) => {
+        console.log('[Realtime Dashboard] bookings:', payload.eventType)
+        fetchSlots()
+      })
+      .subscribe((status) => {
+        console.log('[Realtime Dashboard] Planning subscription:', status)
+      })
+
+    const pollingInterval = setInterval(() => {
+      fetchSlots()
+    }, 30000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(pollingInterval)
+    }
   }, [gymId, fetchSlots])
 
   const filteredSlots = useMemo(() => {

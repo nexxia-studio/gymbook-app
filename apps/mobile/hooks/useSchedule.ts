@@ -96,21 +96,30 @@ export function useSchedule() {
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
   // Realtime: refresh on time_slots + bookings changes for this gym
+  // Fallback polling every 30s in case Realtime fails (network drop, missed event)
   useEffect(() => {
     const channel = supabase
       .channel(`schedule-${DOPAMINE_GYM_ID}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
-        console.log('[Realtime] time_slots:', payload.eventType)
+        console.log('[Realtime] Schedule time_slots:', payload.eventType)
         fetchSlots()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
-        console.log('[Realtime] bookings:', payload.eventType)
+        console.log('[Realtime] Schedule bookings:', payload.eventType)
         fetchSlots()
       })
       .subscribe((status) => {
         console.log('[Realtime] Schedule subscription:', status)
       })
-    return () => { supabase.removeChannel(channel) }
+
+    const pollingInterval = setInterval(() => {
+      fetchSlots()
+    }, 30000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(pollingInterval)
+    }
   }, [fetchSlots])
 
   const filteredSlots = useMemo(() => {
