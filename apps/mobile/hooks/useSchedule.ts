@@ -100,8 +100,20 @@ export function useSchedule() {
   useEffect(() => {
     const channel = supabase
       .channel(`schedule-${DOPAMINE_GYM_ID}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
-        console.log('[Realtime] Schedule time_slots:', payload.eventType)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+        const deletedId = (payload.old as { id?: string } | null)?.id
+        console.log('[Realtime] Schedule time_slots DELETE:', deletedId)
+        if (deletedId) {
+          setAllSlots((prev) => prev.filter((s) => s.id !== deletedId))
+        }
+        fetchSlots()
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+        console.log('[Realtime] Schedule time_slots INSERT:', payload.new)
+        fetchSlots()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+        console.log('[Realtime] Schedule time_slots UPDATE:', payload.new)
         fetchSlots()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
