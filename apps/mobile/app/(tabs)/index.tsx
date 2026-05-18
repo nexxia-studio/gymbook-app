@@ -40,7 +40,7 @@ export default function Home() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center justify-between bg-move-dark px-5 pb-3 pt-2">
         <View>
@@ -65,7 +65,7 @@ export default function Home() {
       {/* Content */}
       <ScrollView
         ref={scrollRef}
-        className="flex-1"
+        className="flex-1 bg-move-bg"
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
