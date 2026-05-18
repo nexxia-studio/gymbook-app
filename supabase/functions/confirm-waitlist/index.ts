@@ -88,14 +88,13 @@ Deno.serve(async (req) => {
       return errorResponse(409, 'Place déjà prise par un autre membre', 'SLOT_FULL')
     }
 
-    // 5. Confirm the booking
+    // 5. Confirm the booking (trigger trg_update_bookings_count maintains time_slots counts)
     await admin.from('bookings').update({
       status: 'confirmed',
       waitlist_position: null,
+      waitlist_notified_at: null,
       promoted_from_waitlist_at: new Date().toISOString(),
     }).eq('id', bookingId)
-
-    await admin.rpc('increment_slot_booking_count', { p_slot_id: booking.slot_id })
 
     // 6. Send confirmation
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
