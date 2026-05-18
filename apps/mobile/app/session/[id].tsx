@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MapPin } from 'lucide-react-native'
+import { WaitlistCountdown } from '../../components/shared/WaitlistCountdown'
 import { SessionHero } from '../../components/session/SessionHero'
 import { SessionInfo } from '../../components/session/SessionInfo'
 import { SessionDescription } from '../../components/session/SessionDescription'
@@ -367,11 +368,17 @@ export default function SessionDetail() {
         className="absolute bottom-0 left-0 right-0 border-t border-move-border bg-move-card px-5"
         style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
       >
-        {isNotified && (
-          <View className="mb-3 rounded-lg bg-orange-100 px-3 py-2">
-            <Text className="font-dmsans-bold text-xs text-orange-600">
-              {t('session.spot_available_banner')}
-            </Text>
+        {isNotified && waitlistConfirmationDeadline && (
+          <View className="mb-3">
+            <WaitlistCountdown
+              deadline={waitlistConfirmationDeadline}
+              onExpire={() => {
+                setBookingState('available')
+                setExistingBookingId(null)
+                setWaitlistNotifiedAt(null)
+                setWaitlistConfirmationDeadline(null)
+              }}
+            />
           </View>
         )}
 

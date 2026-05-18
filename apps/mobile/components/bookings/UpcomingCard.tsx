@@ -1,11 +1,13 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import type { Booking } from '../../stores/useBookingStore'
+import { WaitlistCountdown } from '../shared/WaitlistCountdown'
 
 interface UpcomingCardProps {
   booking: Booking
   onCancel: () => void
   onConfirmWaitlist?: () => void
+  onWaitlistExpire?: () => void
   dayLabel: string
 }
 
@@ -17,7 +19,7 @@ function isWaitlistNotified(booking: Booking): boolean {
   return Date.now() < deadline
 }
 
-export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, dayLabel }: UpcomingCardProps) {
+export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistExpire, dayLabel }: UpcomingCardProps) {
   const { t } = useTranslation()
 
   const notified = isWaitlistNotified(booking)
@@ -57,11 +59,12 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, dayLabel }:
             </View>
           </View>
 
-          {notified && (
-            <View className="mt-3 rounded-lg bg-orange-500/15 px-3 py-2.5">
-              <Text className="font-dmsans-bold text-xs text-orange-300">
-                {t('bookings.spot_available_banner')}
-              </Text>
+          {notified && booking.waitlistConfirmationDeadline && (
+            <View className="mt-3">
+              <WaitlistCountdown
+                deadline={booking.waitlistConfirmationDeadline}
+                onExpire={onWaitlistExpire}
+              />
               <TouchableOpacity
                 onPress={onConfirmWaitlist}
                 activeOpacity={0.8}
