@@ -30,7 +30,11 @@ export interface TimeSlot {
 
 export interface SlotMember {
   id: string
-  name: string
+  bookingId: string
+  firstName: string
+  lastName: string
+  email: string
+  noshowCount: number
   avatarUrl?: string
 }
 

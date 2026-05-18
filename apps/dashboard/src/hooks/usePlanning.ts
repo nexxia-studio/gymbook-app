@@ -28,6 +28,22 @@ function toDateStr(iso: string, tz: string): string {
   return formatDateTz(new Date(iso), tz)
 }
 
+interface DbMember {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  noshow_count: number | null
+  avatar_url: string | null
+}
+
+interface DbBooking {
+  id: string
+  member_id: string
+  status: string | null
+  member: DbMember | null
+}
+
 interface DbSlot {
   id: string
   starts_at: string
@@ -38,7 +54,7 @@ interface DbSlot {
   notes: string | null
   activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null; active: boolean | null } | null
   coaches: { id: string; name: string; active: boolean | null } | null
-  bookings: Array<{ id: string; member_id: string; status: string | null }> | null
+  bookings: DbBooking[] | null
 }
 
 function mapSlot(row: DbSlot, tz: string): TimeSlot {
@@ -64,7 +80,15 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
     status: (row.status as SlotStatus) ?? 'scheduled',
     members: (row.bookings ?? [])
       .filter((b) => b.status === 'confirmed')
-      .map((b) => ({ id: b.member_id, name: b.member_id.slice(0, 8) })),
+      .map((b) => ({
+        id: b.member?.id ?? b.member_id,
+        bookingId: b.id,
+        firstName: b.member?.first_name ?? '',
+        lastName: b.member?.last_name ?? '',
+        email: b.member?.email ?? '',
+        noshowCount: b.member?.noshow_count ?? 0,
+        avatarUrl: b.member?.avatar_url ?? undefined,
+      })),
   }
 }
 
@@ -119,7 +143,10 @@ export function usePlanning() {
           id, starts_at, ends_at, capacity, bookings_count, status, notes,
           activities(id, name, color, duration_min, icon, active),
           coaches(id, name, active),
-          bookings(id, member_id, status)
+          bookings(
+            id, member_id, status,
+            member:profiles(id, first_name, last_name, email, noshow_count, avatar_url)
+          )
         `)
         .eq('gym_id', gymId)
         .gte('starts_at', weekStart.toISOString())
