@@ -79,7 +79,11 @@ Deno.serve(async (req) => {
       console.log('[cancel-booking] FORBIDDEN — booking.member_id', booking.member_id, '!== user.id', user.id)
       return errorResponse(403, 'Accès refusé', 'FORBIDDEN')
     }
-    if (booking.status === 'cancelled') return errorResponse(400, 'Déjà annulée', 'ALREADY_CANCELLED')
+    if (!['confirmed', 'waitlisted'].includes(booking.status)) {
+      return errorResponse(400, 'Réservation non annulable', 'ALREADY_CANCELLED')
+    }
+
+    const wasWaitlisted = booking.status === 'waitlisted'
 
     // 3. Get slot
     const { data: slot, error: slotError } = await admin
@@ -91,14 +95,36 @@ Deno.serve(async (req) => {
     if (slotError) console.log('[cancel-booking] Slot query error:', slotError)
     if (!slot) return errorResponse(404, 'Créneau introuvable', 'SLOT_NOT_FOUND')
 
-    // 4. Calculate late cancel
+    // 4. Calculate late cancel (only meaningful for confirmed bookings)
     const now = new Date()
     const slotStart = new Date(slot.starts_at)
     const hoursUntil = (slotStart.getTime() - now.getTime()) / (1000 * 60 * 60)
-    const isLateCancellation = hoursUntil < 2 && hoursUntil > 0
+    const isLateCancellation = !wasWaitlisted && hoursUntil < 2 && hoursUntil > 0
     const isSlotPassed = slotStart < now
 
-    // 5. Cancel booking (trigger trg_update_bookings_count maintains time_slots counts)
+    // 5a. Waitlist cancellation — simple path: cancel + reorder, no penalty, no promotion
+    if (wasWaitlisted) {
+      const { error: wlErr } = await admin.from('bookings').update({
+        status: 'cancelled',
+        cancelled_at: now.toISOString(),
+        cancel_reason: 'member_left_waitlist',
+        waitlist_position: null,
+        waitlist_notified_at: null,
+        waitlist_confirmation_deadline: null,
+      }).eq('id', bookingId)
+
+      if (wlErr) {
+        console.log('[cancel-booking] Waitlist update error:', wlErr)
+        return errorResponse(500, wlErr.message, 'UPDATE_FAILED')
+      }
+
+      await admin.rpc('reorder_waitlist', { p_slot_id: booking.slot_id })
+
+      console.log('[cancel-booking] Waitlist cancelled + reordered')
+      return jsonResponse({ cancelled: true, noshow: null })
+    }
+
+    // 5b. Confirmed cancellation (trigger trg_update_bookings_count maintains time_slots counts)
     const { error: updateErr } = await admin.from('bookings').update({
       status: 'cancelled',
       cancelled_at: now.toISOString(),
