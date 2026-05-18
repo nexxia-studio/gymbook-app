@@ -73,7 +73,7 @@ export default function Schedule() {
   const keyExtractor = useCallback((item: ScheduleSlot) => item.id, [])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       {/* Header */}
       <View className="bg-move-dark px-5 pb-4 pt-3">
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
@@ -84,38 +84,40 @@ export default function Schedule() {
         </Text>
       </View>
 
-      {/* Filters */}
-      <FilterPills
-        activityFilter={activityFilter}
-        weekFilter={weekFilter}
-        coachFilter={coachFilter}
-        coaches={coaches}
-        onActivityChange={setActivityFilter}
-        onWeekChange={setWeekFilter}
-        onCoachChange={setCoachFilter}
-      />
-
-      {/* List */}
-      {isLoading ? (
-        <Skeleton />
-      ) : groupedByDay.length === 0 && hasActiveFilters ? (
-        <EmptySchedule onReset={resetFilters} />
-      ) : (
-        <SectionList
-          sections={groupedByDay}
-          renderItem={renderItem}
-          renderSectionHeader={renderSectionHeader}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
-          stickySectionHeadersEnabled
-          windowSize={5}
-          maxToRenderPerBatch={10}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
-          }
+      <View className="flex-1 bg-move-bg">
+        {/* Filters */}
+        <FilterPills
+          activityFilter={activityFilter}
+          weekFilter={weekFilter}
+          coachFilter={coachFilter}
+          coaches={coaches}
+          onActivityChange={setActivityFilter}
+          onWeekChange={setWeekFilter}
+          onCoachChange={setCoachFilter}
         />
-      )}
+
+        {/* List */}
+        {isLoading ? (
+          <Skeleton />
+        ) : groupedByDay.length === 0 && hasActiveFilters ? (
+          <EmptySchedule onReset={resetFilters} />
+        ) : (
+          <SectionList
+            sections={groupedByDay}
+            renderItem={renderItem}
+            renderSectionHeader={renderSectionHeader}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+            stickySectionHeadersEnabled
+            windowSize={5}
+            maxToRenderPerBatch={10}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
+            }
+          />
+        )}
+      </View>
     </SafeAreaView>
   )
 }

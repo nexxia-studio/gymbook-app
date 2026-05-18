@@ -111,7 +111,7 @@ export default function Bookings() {
   }, [favorites])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       {/* Header */}
       <View className="bg-move-dark px-5 pb-4 pt-3">
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
@@ -122,11 +122,10 @@ export default function Bookings() {
         </Text>
       </View>
 
-      {/* Tabs */}
-      <BookingTabs active={activeTab} onSelect={setActiveTab} />
-
       {/* Content */}
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
+        {/* Tabs (inside the off-white area) */}
+        <BookingTabs active={activeTab} onSelect={setActiveTab} />
         {/* === UPCOMING === */}
         {activeTab === 'upcoming' && (
           <>
