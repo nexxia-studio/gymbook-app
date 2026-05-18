@@ -58,6 +58,12 @@ export default function Bookings() {
     }
   }, [confirmWaitlist, t])
 
+  const handleWaitlistExpire = useCallback(async () => {
+    const { supabase } = await import('../../lib/supabase')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) fetchBookings(user.id)
+  }, [fetchBookings])
+
   // Check late cancellation
   const isLate = useMemo(() => {
     if (!cancelSlotId) return false
@@ -130,6 +136,7 @@ export default function Bookings() {
                   dayLabel={formatDayLabel(booking.date, days, months)}
                   onCancel={() => setCancelSlotId(booking.slotId)}
                   onConfirmWaitlist={() => handleConfirmWaitlist(booking.id)}
+                  onWaitlistExpire={handleWaitlistExpire}
                 />
               ))
             )}
