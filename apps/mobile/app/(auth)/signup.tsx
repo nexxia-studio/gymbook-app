@@ -9,6 +9,7 @@ import { PasswordStrength } from '../../components/ui/PasswordStrength'
 import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Checkbox'
 import { Toast } from '../../components/ui/Toast'
+import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 
 interface FormErrors {
@@ -185,6 +186,8 @@ export default function Signup() {
               </View>
 
               <Button title={t('auth.signup')} onPress={handleSubmit} isLoading={isLoading} />
+
+              <OAuthButtons />
             </View>
           </View>
 

@@ -15,6 +15,7 @@ export default {
     ios: {
       supportsTablet: false,
       bundleIdentifier: 'be.dopamineclub.app',
+      usesAppleSignIn: true,
     },
     android: {
       adaptiveIcon: {
@@ -32,6 +33,8 @@ export default {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      'expo-apple-authentication',
+      'expo-local-authentication',
       [
         'expo-notifications',
         {
