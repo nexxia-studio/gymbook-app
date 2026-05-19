@@ -5,7 +5,7 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   Settings, CreditCard, Receipt, Bell, Globe,
-  User, Shield, FileText, Download, Trash2, LogOut,
+  User, Shield, FileText, Download, Trash2, LogOut, Pencil,
 } from 'lucide-react-native'
 import { ProfileHeader } from '../../components/profile/ProfileHeader'
 import { GamificationCard } from '../../components/profile/GamificationCard'
@@ -22,16 +22,17 @@ interface GamificationItem {
   labelKey: string
   points: number
   completed: boolean
+  onPress?: () => void
 }
 
-function buildGamification(p: MemberProfile | null): { items: GamificationItem[]; percentage: number } {
+function buildGamification(p: MemberProfile | null, navigate: (path: string) => void): { items: GamificationItem[]; percentage: number } {
   const items: GamificationItem[] = [
     { key: 'account', labelKey: 'account_created', points: 10, completed: true },
-    { key: 'avatar', labelKey: 'has_avatar', points: 15, completed: !!p?.avatarUrl },
-    { key: 'phone', labelKey: 'has_phone', points: 10, completed: !!p?.phone },
-    { key: 'birth', labelKey: 'has_birthdate', points: 10, completed: !!p?.dateOfBirth },
-    { key: 'address', labelKey: 'has_address', points: 10, completed: !!p?.addressLine },
-    { key: 'emergency', labelKey: 'has_emergency', points: 15, completed: !!p?.emergencyContactName },
+    { key: 'avatar', labelKey: 'has_avatar', points: 15, completed: !!p?.avatarUrl, onPress: () => navigate('/profile/edit?focus=photo') },
+    { key: 'phone', labelKey: 'has_phone', points: 10, completed: !!p?.phone, onPress: () => navigate('/profile/edit?focus=phone') },
+    { key: 'birth', labelKey: 'has_birthdate', points: 10, completed: !!p?.dateOfBirth, onPress: () => navigate('/profile/edit?focus=birth_date') },
+    { key: 'address', labelKey: 'has_address', points: 10, completed: !!p?.addressLine, onPress: () => navigate('/profile/edit?focus=address') },
+    { key: 'emergency', labelKey: 'has_emergency', points: 15, completed: !!p?.emergencyContactName, onPress: () => navigate('/profile/edit?focus=emergency') },
     { key: 'payment', labelKey: 'has_payment', points: 20, completed: true },
     { key: 'marketing', labelKey: 'marketing', points: 10, completed: p?.marketingConsent ?? false },
   ]
@@ -56,7 +57,10 @@ export default function Profile() {
     }, [refreshProfile, refreshStats])
   )
 
-  const { items, percentage } = useMemo(() => buildGamification(profile), [profile])
+  const { items, percentage } = useMemo(
+    () => buildGamification(profile, (path) => router.push(path as never)),
+    [profile, router],
+  )
 
   const firstName = profile?.firstName ?? ''
   const lastName = profile?.lastName ?? ''
@@ -77,9 +81,14 @@ export default function Profile() {
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
           {t('profile.title').toUpperCase()}
         </Text>
-        <TouchableOpacity activeOpacity={0.7}>
-          <Settings size={22} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View className="flex-row items-center gap-4">
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/edit')}>
+            <Pencil size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7}>
+            <Settings size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView className="flex-1 bg-move-bg" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -89,6 +98,7 @@ export default function Profile() {
           lastName={lastName}
           memberSince={memberSince}
           levelKey={getLevel(stats.completedSessions)}
+          avatarUrl={profile?.avatarUrl}
         />
 
         {/* Gamification */}
