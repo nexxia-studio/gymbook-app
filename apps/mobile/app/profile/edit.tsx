@@ -272,7 +272,7 @@ export default function EditProfileScreen() {
 
       await refreshProfile()
       Alert.alert(t('profile.edit.saved_title'), t('profile.edit.saved_message'), [
-        { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile') } },
+        { text: 'OK', onPress: () => router.replace('/(tabs)/profile') },
       ])
     } catch (err) {
       console.error('[saveProfile]', err)
@@ -289,7 +289,7 @@ export default function EditProfileScreen() {
     <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile') }} hitSlop={12}>
+        <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
           <ChevronLeft size={24} color="#FFFFFF" />
         </Pressable>
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
