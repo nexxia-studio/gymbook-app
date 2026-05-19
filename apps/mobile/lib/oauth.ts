@@ -1,14 +1,41 @@
 import * as WebBrowser from 'expo-web-browser'
 import { makeRedirectUri } from 'expo-auth-session'
-import * as QueryParams from 'expo-auth-session/build/QueryParams'
 import * as AppleAuthentication from 'expo-apple-authentication'
+import Constants from 'expo-constants'
 import { supabase } from './supabase'
-import { ensureProfile } from './ensureProfile'
+import { ensureProfile, checkRoleAndEnsureProfile } from './ensureProfile'
 
 WebBrowser.maybeCompleteAuthSession()
 
-export async function signInWithGoogle(): Promise<void> {
-  const redirectUrl = makeRedirectUri({ scheme: 'dopamine', path: 'auth/callback' })
+const isExpoGo = Constants.appOwnership === 'expo'
+
+export function getRedirectUri(): string {
+  if (isExpoGo) {
+    return makeRedirectUri({
+      scheme: 'exp',
+      path: 'auth/callback',
+      preferLocalhost: false,
+      isTripleSlashed: true,
+    })
+  }
+  return makeRedirectUri({ scheme: 'dopamine', path: 'auth/callback' })
+}
+
+function parseTokensFromUrl(callbackUrl: string): { access_token: string | null; refresh_token: string | null } {
+  const url = new URL(callbackUrl)
+  const fragment = url.hash ? new URLSearchParams(url.hash.slice(1)) : null
+  const query = url.searchParams
+  return {
+    access_token: fragment?.get('access_token') ?? query.get('access_token'),
+    refresh_token: fragment?.get('refresh_token') ?? query.get('refresh_token'),
+  }
+}
+
+export type OAuthResult = { success: true } | { success: false; cancelled: true }
+
+export async function signInWithGoogle(): Promise<OAuthResult> {
+  const redirectUrl = getRedirectUri()
+  console.log('[OAuth] Redirect URL:', redirectUrl)
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -17,13 +44,21 @@ export async function signInWithGoogle(): Promise<void> {
   if (error) throw error
   if (!data.url) throw new Error('No OAuth URL returned')
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
-  if (result.type !== 'success') throw new Error('OAuth cancelled')
+  console.log('[OAuth] Opening:', data.url)
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl, { showInRecents: true })
+  console.log('[OAuth] Result type:', result.type)
 
-  const { params, errorCode } = QueryParams.getQueryParams(result.url)
-  if (errorCode) throw new Error(errorCode)
+  if (result.type === 'cancel' || result.type === 'dismiss') {
+    return { success: false, cancelled: true }
+  }
+  if (result.type !== 'success' || !result.url) {
+    throw new Error(`OAuth flow failed: ${result.type}`)
+  }
 
-  const { access_token, refresh_token } = params
+  console.log('[OAuth] Callback URL:', result.url)
+  const { access_token, refresh_token } = parseTokensFromUrl(result.url)
+  console.log('[OAuth] Tokens found:', !!access_token, !!refresh_token)
+
   if (!access_token || !refresh_token) throw new Error('Missing tokens')
 
   const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
@@ -31,7 +66,8 @@ export async function signInWithGoogle(): Promise<void> {
     refresh_token,
   })
   if (sessionError) throw sessionError
-  if (sessionData.user) await ensureProfile(sessionData.user)
+  if (sessionData.user) await checkRoleAndEnsureProfile(sessionData.user)
+  return { success: true }
 }
 
 export async function signInWithApple(): Promise<void> {
@@ -62,7 +98,7 @@ export async function signInWithApple(): Promise<void> {
         },
       })
     }
-    await ensureProfile(data.user)
+    await checkRoleAndEnsureProfile(data.user)
   }
 }
 

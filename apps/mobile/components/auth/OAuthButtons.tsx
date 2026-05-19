@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRouter } from 'expo-router'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import { signInWithGoogle, signInWithApple, isAppleSignInCancelled } from '../../lib/oauth'
+import { ADMIN_ACCOUNT_ERROR } from '../../lib/ensureProfile'
 
 export function OAuthButtons() {
   const { t } = useTranslation()
@@ -11,11 +12,14 @@ export function OAuthButtons() {
 
   const handleGoogle = useCallback(async () => {
     try {
-      await signInWithGoogle()
-      router.replace('/(tabs)')
+      const result = await signInWithGoogle()
+      if (result.success) router.replace('/(tabs)')
     } catch (err) {
       const message = (err as Error).message ?? ''
-      if (message === 'OAuth cancelled') return
+      if (message === ADMIN_ACCOUNT_ERROR) {
+        Alert.alert(t('auth.admin_account_title'), t('auth.admin_account_message'))
+        return
+      }
       console.error('[Google OAuth]', err)
       Alert.alert(t('auth.errors.generic'), t('auth.google_error'))
     }
@@ -27,6 +31,11 @@ export function OAuthButtons() {
       router.replace('/(tabs)')
     } catch (err) {
       if (isAppleSignInCancelled(err)) return
+      const message = (err as Error).message ?? ''
+      if (message === ADMIN_ACCOUNT_ERROR) {
+        Alert.alert(t('auth.admin_account_title'), t('auth.admin_account_message'))
+        return
+      }
       console.error('[Apple Sign In]', err)
       Alert.alert(t('auth.errors.generic'), t('auth.apple_error'))
     }

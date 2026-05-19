@@ -77,6 +77,8 @@
     "continue_with_google": "Continuer avec Google",
     "google_error": "Connexion Google impossible. Réessayez.",
     "apple_error": "Connexion Apple impossible.",
+    "admin_account_title": "Compte gérant détecté",
+    "admin_account_message": "Ce compte est associé à un espace gérant. Connectez-vous depuis le tableau de bord sur gymbook-app.vercel.app",
     "biometric": {
       "kind_face_id": "Face ID",
       "kind_touch_id": "Touch ID",

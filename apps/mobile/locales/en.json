@@ -77,6 +77,8 @@
     "continue_with_google": "Continue with Google",
     "google_error": "Google sign-in failed. Try again.",
     "apple_error": "Apple sign-in failed.",
+    "admin_account_title": "Manager account detected",
+    "admin_account_message": "This account is linked to a manager workspace. Please sign in from the dashboard at gymbook-app.vercel.app",
     "biometric": {
       "kind_face_id": "Face ID",
       "kind_touch_id": "Touch ID",

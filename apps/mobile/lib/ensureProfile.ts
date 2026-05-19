@@ -3,6 +3,8 @@ import { supabase } from './supabase'
 
 const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
 
+export const ADMIN_ACCOUNT_ERROR = 'ADMIN_ACCOUNT'
+
 export async function ensureProfile(user: User): Promise<void> {
   const { data: existing } = await supabase
     .from('profiles')
@@ -26,4 +28,25 @@ export async function ensureProfile(user: User): Promise<void> {
     privacy_policy_accepted_at: new Date().toISOString(),
     terms_accepted_at: new Date().toISOString(),
   })
+}
+
+/**
+ * Verify the authenticated user is allowed on the member app, then ensure their profile exists.
+ * Throws ADMIN_ACCOUNT_ERROR if the user is a gym_admin / super_admin (member app blocks them).
+ */
+export async function checkRoleAndEnsureProfile(user: User): Promise<void> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profile?.role === 'gym_admin' || profile?.role === 'super_admin') {
+    await supabase.auth.signOut()
+    throw new Error(ADMIN_ACCOUNT_ERROR)
+  }
+
+  if (!profile) {
+    await ensureProfile(user)
+  }
 }
