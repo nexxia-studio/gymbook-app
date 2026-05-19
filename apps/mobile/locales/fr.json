@@ -299,6 +299,22 @@
       "edit_photo": "Modifier la photo"
     }
   },
+  "preferences": {
+    "title": "Préférences",
+    "notifications_section": "Notifications",
+    "push_col": "Push",
+    "email_col": "Email",
+    "category_booking": "Réservation confirmée",
+    "category_reminder": "Rappel avant cours",
+    "category_waitlist": "Liste d'attente",
+    "category_noshow": "No-show / Suspension",
+    "whatsapp_label": "WhatsApp",
+    "whatsapp_coming_soon": "Bientôt disponible",
+    "push_info": "Les notifications push nécessitent d'avoir l'app Dopamine installée sur votre appareil.",
+    "language_section": "Langue",
+    "language_updated": "Langue mise à jour",
+    "save_error": "Impossible d'enregistrer. Réessayez."
+  },
   "security": {
     "title": "Sécurité",
     "password_section": "Mot de passe",

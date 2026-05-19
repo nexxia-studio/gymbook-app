@@ -125,9 +125,19 @@ export default function Profile() {
 
         {/* Preferences */}
         <ProfileSection title={t('profile.section_preferences')}>
-          <ProfileListItem icon={Bell} label={t('profile.notifications')} detail={t('profile.notifications_detail')} />
+          <ProfileListItem
+            icon={Bell}
+            label={t('profile.notifications')}
+            detail={t('profile.notifications_detail')}
+            onPress={() => router.push('/profile/preferences')}
+          />
           <View className="mx-5 h-px bg-move-border" />
-          <ProfileListItem icon={Globe} label={t('profile.language')} detail={t('profile.language_detail')} />
+          <ProfileListItem
+            icon={Globe}
+            label={t('profile.language')}
+            detail={t('profile.language_detail')}
+            onPress={() => router.push('/profile/preferences')}
+          />
         </ProfileSection>
 
         {/* Account */}

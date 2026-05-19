@@ -299,6 +299,22 @@
       "edit_photo": "Edit photo"
     }
   },
+  "preferences": {
+    "title": "Preferences",
+    "notifications_section": "Notifications",
+    "push_col": "Push",
+    "email_col": "Email",
+    "category_booking": "Booking confirmed",
+    "category_reminder": "Class reminder",
+    "category_waitlist": "Waitlist",
+    "category_noshow": "No-show / Suspension",
+    "whatsapp_label": "WhatsApp",
+    "whatsapp_coming_soon": "Coming soon",
+    "push_info": "Push notifications require the Dopamine app to be installed on your device.",
+    "language_section": "Language",
+    "language_updated": "Language updated",
+    "save_error": "Could not save. Please try again."
+  },
   "security": {
     "title": "Security",
     "password_section": "Password",
