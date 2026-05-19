@@ -21,10 +21,28 @@ interface EditableProfile {
   email: string
   phone: string
   dateOfBirth: string
-  addressLine: string
+  streetName: string
+  streetNumber: string
+  postalCode: string
+  city: string
   emergencyName: string
   emergencyPhone: string
   avatarUrl: string | null
+}
+
+function autoFormatDateInput(text: string): string {
+  const digits = text.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+function isValidDateInput(date: string): boolean {
+  const match = date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return false
+  const [, dd, mm, yyyy] = match
+  const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`)
+  return !isNaN(d.getTime()) && d.getDate() === Number(dd) && d.getMonth() + 1 === Number(mm)
 }
 
 function formatBirthDateForDb(input: string): string | null {
@@ -43,6 +61,18 @@ function formatBirthDateFromDb(value: string | null): string {
   return `${dd}/${mm}/${yyyy}`
 }
 
+async function fetchBelgianCityFromPostalCode(code: string): Promise<string | null> {
+  if (code.length !== 4) return null
+  try {
+    const r = await fetch(`https://api.zippopotam.us/BE/${code}`)
+    if (!r.ok) return null
+    const data = await r.json() as { places?: Array<{ 'place name': string }> }
+    return data.places?.[0]?.['place name'] ?? null
+  } catch {
+    return null
+  }
+}
+
 function nameToColor(name: string): string {
   const colors = ['#4ECDC4', '#FF6B6B', '#6C5CE7', '#FF8E53', '#A8E6CF', '#B8B8FF']
   let hash = 0
@@ -58,7 +88,8 @@ export default function EditProfileScreen() {
 
   const [form, setForm] = useState<EditableProfile>({
     firstName: '', lastName: '', email: '', phone: '',
-    dateOfBirth: '', addressLine: '',
+    dateOfBirth: '',
+    streetName: '', streetNumber: '', postalCode: '', city: '',
     emergencyName: '', emergencyPhone: '',
     avatarUrl: null,
   })
@@ -73,7 +104,7 @@ export default function EditProfileScreen() {
       if (!user) return
       const { data } = await supabase
         .from('profiles')
-        .select('first_name, last_name, email, phone, date_of_birth, address_line, emergency_contact_name, emergency_contact_phone, avatar_url')
+        .select('first_name, last_name, email, phone, date_of_birth, street_name, street_number, postal_code, city, emergency_contact_name, emergency_contact_phone, avatar_url')
         .eq('id', user.id)
         .single()
       if (data) {
@@ -83,7 +114,10 @@ export default function EditProfileScreen() {
           email: data.email ?? '',
           phone: data.phone ?? '',
           dateOfBirth: formatBirthDateFromDb(data.date_of_birth),
-          addressLine: data.address_line ?? '',
+          streetName: data.street_name ?? '',
+          streetNumber: data.street_number ?? '',
+          postalCode: data.postal_code ?? '',
+          city: data.city ?? '',
           emergencyName: data.emergency_contact_name ?? '',
           emergencyPhone: data.emergency_contact_phone ?? '',
           avatarUrl: data.avatar_url,
@@ -198,7 +232,7 @@ export default function EditProfileScreen() {
 
   const handleSave = useCallback(async () => {
     const dbBirth = formatBirthDateForDb(form.dateOfBirth)
-    if (form.dateOfBirth.trim() && !dbBirth) {
+    if (form.dateOfBirth.trim() && (!dbBirth || !isValidDateInput(form.dateOfBirth))) {
       setErrors({ birth: t('profile.edit.birth_date_invalid') })
       return
     }
@@ -207,6 +241,16 @@ export default function EditProfileScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      const street = form.streetName.trim()
+      const num = form.streetNumber.trim()
+      const pc = form.postalCode.trim()
+      const cty = form.city.trim()
+      const composedAddress = [
+        [street, num].filter(Boolean).join(' '),
+        [pc, cty].filter(Boolean).join(' '),
+      ].filter(Boolean).join(', ')
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -214,7 +258,11 @@ export default function EditProfileScreen() {
           last_name: form.lastName.trim(),
           phone: form.phone.trim() || null,
           date_of_birth: dbBirth,
-          address_line: form.addressLine.trim() || null,
+          street_name: street || null,
+          street_number: num || null,
+          postal_code: pc || null,
+          city: cty || null,
+          address_line: composedAddress || null,
           emergency_contact_name: form.emergencyName.trim() || null,
           emergency_contact_phone: form.emergencyPhone.trim() || null,
           avatar_url: form.avatarUrl,
@@ -224,7 +272,7 @@ export default function EditProfileScreen() {
 
       await refreshProfile()
       Alert.alert(t('profile.edit.saved_title'), t('profile.edit.saved_message'), [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile') } },
       ])
     } catch (err) {
       console.error('[saveProfile]', err)
@@ -241,7 +289,7 @@ export default function EditProfileScreen() {
     <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile') }} hitSlop={12}>
           <ChevronLeft size={24} color="#FFFFFF" />
         </Pressable>
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
@@ -336,23 +384,68 @@ export default function EditProfileScreen() {
               label={t('profile.edit.birth_date')}
               placeholder={t('profile.edit.birth_date_placeholder')}
               value={form.dateOfBirth}
-              onChangeText={(v) => setForm((f) => ({ ...f, dateOfBirth: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, dateOfBirth: autoFormatDateInput(v) }))}
               error={errors.birth}
               keyboardType="numeric"
+              maxLength={10}
               editable={!loading}
               autoFocus={autoFocus('birth_date')}
             />
 
-            <TextInput
-              label={t('profile.edit.address')}
-              placeholder={t('profile.edit.address_placeholder')}
-              value={form.addressLine}
-              onChangeText={(v) => setForm((f) => ({ ...f, addressLine: v }))}
-              multiline
-              numberOfLines={2}
-              editable={!loading}
-              autoFocus={autoFocus('address')}
-            />
+            {/* Address — 4 fields */}
+            <View className="gap-3">
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <TextInput
+                    label={t('profile.edit.street_name')}
+                    placeholder={t('profile.edit.street_name_placeholder')}
+                    value={form.streetName}
+                    onChangeText={(v) => setForm((f) => ({ ...f, streetName: v }))}
+                    editable={!loading}
+                    autoFocus={autoFocus('address')}
+                  />
+                </View>
+                <View style={{ width: 88 }}>
+                  <TextInput
+                    label={t('profile.edit.street_number')}
+                    placeholder="N°"
+                    value={form.streetNumber}
+                    onChangeText={(v) => setForm((f) => ({ ...f, streetNumber: v }))}
+                    keyboardType="numeric"
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+
+              <View className="flex-row gap-2">
+                <View style={{ width: 110 }}>
+                  <TextInput
+                    label={t('profile.edit.postal_code')}
+                    placeholder="0000"
+                    value={form.postalCode}
+                    onChangeText={async (v) => {
+                      const digits = v.replace(/\D/g, '').slice(0, 4)
+                      setForm((f) => ({ ...f, postalCode: digits }))
+                      if (digits.length === 4) {
+                        const cityName = await fetchBelgianCityFromPostalCode(digits)
+                        if (cityName) setForm((f) => ({ ...f, city: cityName }))
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    editable={!loading}
+                  />
+                </View>
+                <View className="flex-1">
+                  <TextInput
+                    label={t('profile.edit.city')}
+                    value={form.city}
+                    onChangeText={(v) => setForm((f) => ({ ...f, city: v }))}
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+            </View>
           </View>
 
           {/* Emergency */}
