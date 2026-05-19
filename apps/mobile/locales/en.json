@@ -264,5 +264,30 @@
     "logout_title": "Log out?",
     "logout_confirm": "Confirm",
     "logout_cancel": "Cancel"
+  },
+  "security": {
+    "title": "Security",
+    "password_section": "Password",
+    "biometric_section": "{{kind}}",
+    "change_password": "Change my password",
+    "current_password": "Current password",
+    "new_password": "New password",
+    "confirm_password": "Confirm new password",
+    "update_password": "Update",
+    "updating": "Updating...",
+    "cancel": "Cancel",
+    "biometric_toggle": "Sign in with {{kind}}",
+    "biometric_subtitle": "Sign in without typing your password",
+    "note": "Your sign-in data is stored securely on your device and never shared.",
+    "updated_title": "Password updated",
+    "updated_message": "Your password was changed successfully.",
+    "disable_biometric_title": "Disable {{kind}}?",
+    "disable_biometric_message": "You will have to type your password every time you sign in.",
+    "disable_biometric_confirm": "Disable",
+    "wrong_password": "Current password is incorrect.",
+    "reconnect_required_title": "Re-authentication required",
+    "reconnect_required_message": "Sign in again with your password to enable {{kind}}.",
+    "passwords_dont_match": "Passwords do not match.",
+    "password_too_short": "Password must be at least 8 characters."
   }
 }

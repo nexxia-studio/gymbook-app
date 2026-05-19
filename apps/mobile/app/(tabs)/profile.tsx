@@ -124,7 +124,12 @@ export default function Profile() {
         <ProfileSection title={t('profile.section_account')}>
           <ProfileListItem icon={User} label={t('profile.edit_profile')} />
           <View className="mx-5 h-px bg-move-border" />
-          <ProfileListItem icon={Shield} label={t('profile.security')} detail={t('profile.security_detail')} />
+          <ProfileListItem
+            icon={Shield}
+            label={t('profile.security')}
+            detail={t('profile.security_detail')}
+            onPress={() => router.push('/profile/security')}
+          />
         </ProfileSection>
 
         {/* Privacy */}

@@ -264,5 +264,30 @@
     "logout_title": "Se deconnecter ?",
     "logout_confirm": "Confirmer",
     "logout_cancel": "Annuler"
+  },
+  "security": {
+    "title": "Sécurité",
+    "password_section": "Mot de passe",
+    "biometric_section": "{{kind}}",
+    "change_password": "Modifier mon mot de passe",
+    "current_password": "Mot de passe actuel",
+    "new_password": "Nouveau mot de passe",
+    "confirm_password": "Confirmer le nouveau mot de passe",
+    "update_password": "Mettre à jour",
+    "updating": "Mise à jour...",
+    "cancel": "Annuler",
+    "biometric_toggle": "Connexion avec {{kind}}",
+    "biometric_subtitle": "Connectez-vous sans saisir votre mot de passe",
+    "note": "Vos données de connexion sont stockées de façon sécurisée sur votre appareil et ne sont jamais partagées.",
+    "updated_title": "Mot de passe mis à jour",
+    "updated_message": "Votre mot de passe a été modifié avec succès.",
+    "disable_biometric_title": "Désactiver {{kind}} ?",
+    "disable_biometric_message": "Vous devrez saisir votre mot de passe à chaque connexion.",
+    "disable_biometric_confirm": "Désactiver",
+    "wrong_password": "Mot de passe actuel incorrect.",
+    "reconnect_required_title": "Reconnexion requise",
+    "reconnect_required_message": "Reconnectez-vous avec votre mot de passe pour activer {{kind}}.",
+    "passwords_dont_match": "Les mots de passe ne correspondent pas.",
+    "password_too_short": "Le mot de passe doit contenir au moins 8 caractères."
   }
 }
