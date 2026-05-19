@@ -72,6 +72,25 @@
       "email_not_confirmed": "Veuillez confirmer votre email",
       "user_already_registered": "Un compte existe déjà avec cet email",
       "generic": "Une erreur est survenue, réessayez"
+    },
+    "or": "ou",
+    "continue_with_google": "Continuer avec Google",
+    "google_error": "Connexion Google impossible. Réessayez.",
+    "apple_error": "Connexion Apple impossible.",
+    "admin_account_title": "Compte gérant détecté",
+    "admin_account_message": "Ce compte est associé à un espace gérant. Connectez-vous depuis le tableau de bord sur gymbook-app.vercel.app",
+    "biometric": {
+      "kind_face_id": "Face ID",
+      "kind_touch_id": "Touch ID",
+      "kind_biometric": "Biométrie",
+      "enable_prompt": "Activer {{kind}} pour Dopamine",
+      "login_prompt": "Connexion avec {{kind}}",
+      "use_password": "Utiliser le mot de passe",
+      "cancel": "Annuler",
+      "offer_title": "Activer {{kind}} ?",
+      "offer_message": "Connectez-vous rapidement avec {{kind}} sans saisir votre mot de passe.",
+      "offer_later": "Plus tard",
+      "offer_enable": "Activer"
     }
   },
   "tabs": {
