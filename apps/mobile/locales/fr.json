@@ -359,7 +359,22 @@
     "plan_monthly_12_description": "Engagement annuel",
     "plan_monthly_12_unit": "mois",
     "payment_error_title": "Paiement impossible",
-    "payment_error_message": "Une erreur est survenue lors de la création du paiement. Réessayez."
+    "payment_error_message": "Une erreur est survenue lors de la création du paiement. Réessayez.",
+    "activated_title": "✅ Abonnement activé !",
+    "activated_message": "{{plan}}\nProchain paiement : {{date}}",
+    "ends_on": "Jusqu'au {{date}}",
+    "canceling_badge": "Résilié",
+    "cancel_action": "Résilier mon abonnement",
+    "cancel_title": "Résilier mon abonnement",
+    "cancel_message": "Votre abonnement {{plan}} continuera jusqu'au {{date}}. Aucun nouveau prélèvement ne sera effectué après cette date.",
+    "cancel_keep": "Annuler",
+    "cancel_confirm": "Confirmer la résiliation",
+    "cancel_error_title": "Erreur",
+    "cancel_error_message": "Impossible de résilier. Contactez le support.",
+    "canceled_title": "✅ Résiliation confirmée",
+    "canceled_message": "Votre abonnement se terminera le {{date}}.",
+    "exclusive_note_sub": "💡 Votre abonnement vous donne accès illimité aux cours. Vous n'avez pas besoin de séances à l'unité.",
+    "exclusive_note_credits": "💡 Vous avez des séances disponibles. Les abonnements mensuels seront accessibles une fois vos crédits épuisés."
   },
   "preferences": {
     "title": "Préférences",

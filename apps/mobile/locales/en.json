@@ -359,7 +359,22 @@
     "plan_monthly_12_description": "Annual commitment",
     "plan_monthly_12_unit": "month",
     "payment_error_title": "Payment unavailable",
-    "payment_error_message": "Something went wrong while creating the payment. Please try again."
+    "payment_error_message": "Something went wrong while creating the payment. Please try again.",
+    "activated_title": "✅ Subscription activated!",
+    "activated_message": "{{plan}}\nNext charge: {{date}}",
+    "ends_on": "Until {{date}}",
+    "canceling_badge": "Canceled",
+    "cancel_action": "Cancel my subscription",
+    "cancel_title": "Cancel my subscription",
+    "cancel_message": "Your {{plan}} subscription will remain active until {{date}}. No further charges will be made after that date.",
+    "cancel_keep": "Keep",
+    "cancel_confirm": "Confirm cancellation",
+    "cancel_error_title": "Error",
+    "cancel_error_message": "Could not cancel. Please contact support.",
+    "canceled_title": "✅ Cancellation confirmed",
+    "canceled_message": "Your subscription will end on {{date}}.",
+    "exclusive_note_sub": "💡 Your subscription gives you unlimited access to classes. You don't need single sessions.",
+    "exclusive_note_credits": "💡 You still have sessions available. Monthly subscriptions will be available once your credits are used up."
   },
   "preferences": {
     "title": "Preferences",
