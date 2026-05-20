@@ -79,18 +79,43 @@ export default function SubscriptionScreen() {
     })()
   }, [t])
 
-  const handleSelectPlan = useCallback((plan: PlanSpec) => {
-    Alert.alert(
-      t('subscription.contact_title', { plan: t(`subscription.plan_${plan.id}_name`) }),
-      t('subscription.contact_message', {
-        price: plan.price,
-        unit: t(`subscription.plan_${plan.id}_unit`),
-      }),
-      [
-        { text: t('subscription.contact_close'), style: 'cancel' },
-        { text: t('subscription.contact_cta'), onPress: () => Linking.openURL('mailto:contact@dopamineclub.be') },
-      ],
-    )
+  const [paying, setPaying] = useState(false)
+
+  const handleSelectPlan = useCallback(async (plan: PlanSpec) => {
+    // Recurring plans not yet wired (Sprint 6 GYM-30)
+    if (plan.id !== 'drop_in' && plan.id !== 'pack_10') {
+      Alert.alert(
+        t('subscription.contact_title', { plan: t(`subscription.plan_${plan.id}_name`) }),
+        t('subscription.contact_message', {
+          price: plan.price,
+          unit: t(`subscription.plan_${plan.id}_unit`),
+        }),
+        [
+          { text: t('subscription.contact_close'), style: 'cancel' },
+          { text: t('subscription.contact_cta'), onPress: () => Linking.openURL('mailto:contact@dopamineclub.be') },
+        ],
+      )
+      return
+    }
+
+    setPaying(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('create-payment', {
+        body: { plan_id: plan.id },
+      })
+      if (error || !data?.checkout_url) {
+        console.error('[Payment] error:', error, data)
+        Alert.alert(t('subscription.payment_error_title'), t('subscription.payment_error_message'))
+        return
+      }
+      console.log('[Payment] checkout URL:', data.checkout_url)
+      await Linking.openURL(data.checkout_url)
+    } catch (err) {
+      console.error('[Payment] threw:', err)
+      Alert.alert(t('subscription.payment_error_title'), t('subscription.payment_error_message'))
+    } finally {
+      setPaying(false)
+    }
   }, [t])
 
   return (
@@ -216,8 +241,8 @@ export default function SubscriptionScreen() {
 
                 <Pressable
                   onPress={() => handleSelectPlan(plan)}
-                  disabled={isCurrent}
-                  className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl py-3 ${isCurrent ? 'bg-green-100' : 'bg-move-dark'}`}
+                  disabled={isCurrent || paying}
+                  className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl py-3 ${isCurrent ? 'bg-green-100' : 'bg-move-dark'} ${paying ? 'opacity-60' : ''}`}
                 >
                   {isCurrent && <Check size={16} color="#16A34A" />}
                   <Text
