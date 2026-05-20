@@ -323,6 +323,10 @@
     "status_expired": "Expiré",
     "status_canceled": "Annulé",
     "download_invoice": "Télécharger la facture",
+    "email_invoice": "Recevoir la facture par email",
+    "sending_invoice": "Envoi en cours...",
+    "invoice_sent_title": "📄 Facture envoyée !",
+    "invoice_sent_message": "La facture {{invoice}} a été envoyée à {{email}}.",
     "invoice_error_title": "Facture indisponible",
     "invoice_error_message": "Impossible de générer la facture. Réessayez.",
     "invoice_error_auth": "Veuillez vous reconnecter pour télécharger la facture."

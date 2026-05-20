@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { View, Text, ScrollView, Pressable, Linking, Alert } from 'react-native'
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -47,13 +47,12 @@ function statusText(status: PaymentStatus): string {
   return 'text-move-text-muted'
 }
 
-const FUNCTIONS_URL = 'https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1'
-
 export default function PaymentsScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const [transactions, setTransactions] = useState<PaymentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingInvoice, setLoadingInvoice] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -73,18 +72,25 @@ export default function PaymentsScreen() {
   }, [])
 
   const handleDownloadInvoice = useCallback(async (paymentId: string) => {
+    setLoadingInvoice(paymentId)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) {
-        Alert.alert(t('payments.invoice_error_title'), t('payments.invoice_error_auth'))
+      const { data, error } = await supabase.functions.invoke('generate-invoice', {
+        body: { payment_id: paymentId },
+      })
+      if (error || !data?.success) {
+        console.error('[invoice] error:', error, data)
+        Alert.alert(t('payments.invoice_error_title'), t('payments.invoice_error_message'))
         return
       }
-      const url = `${FUNCTIONS_URL}/generate-invoice?payment_id=${paymentId}&token=${encodeURIComponent(token)}`
-      await Linking.openURL(url)
+      Alert.alert(
+        t('payments.invoice_sent_title'),
+        t('payments.invoice_sent_message', { invoice: data.invoice_number ?? '', email: data.email ?? '' }),
+      )
     } catch (err) {
-      console.error('[invoice] error:', err)
+      console.error('[invoice] threw:', err)
       Alert.alert(t('payments.invoice_error_title'), t('payments.invoice_error_message'))
+    } finally {
+      setLoadingInvoice(null)
     }
   }, [t])
 
@@ -157,11 +163,16 @@ export default function PaymentsScreen() {
                 {canDownload && (
                   <Pressable
                     onPress={() => handleDownloadInvoice(tx.id)}
-                    className="mt-3 flex-row items-center justify-center gap-1.5 self-start rounded-md border border-move-border px-3 py-1.5"
+                    disabled={loadingInvoice === tx.id}
+                    className={`mt-3 flex-row items-center justify-center gap-1.5 self-start rounded-md border border-move-border px-3 py-1.5 ${loadingInvoice === tx.id ? 'opacity-50' : ''}`}
                   >
-                    <FileText size={12} color="#6B6861" />
+                    {loadingInvoice === tx.id ? (
+                      <ActivityIndicator size="small" color="#6B6861" />
+                    ) : (
+                      <FileText size={12} color="#6B6861" />
+                    )}
                     <Text className="font-dmsans-medium text-xs text-move-text-secondary">
-                      {t('payments.download_invoice')}
+                      {loadingInvoice === tx.id ? t('payments.sending_invoice') : t('payments.email_invoice')}
                     </Text>
                   </Pressable>
                 )}

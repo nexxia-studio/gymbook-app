@@ -323,6 +323,10 @@
     "status_expired": "Expired",
     "status_canceled": "Canceled",
     "download_invoice": "Download invoice",
+    "email_invoice": "Email me the invoice",
+    "sending_invoice": "Sending...",
+    "invoice_sent_title": "📄 Invoice sent!",
+    "invoice_sent_message": "Invoice {{invoice}} has been emailed to {{email}}.",
     "invoice_error_title": "Invoice unavailable",
     "invoice_error_message": "Could not generate the invoice. Please try again.",
     "invoice_error_auth": "Please sign in again to download the invoice."
