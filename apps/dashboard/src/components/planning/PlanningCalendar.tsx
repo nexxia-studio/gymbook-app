@@ -24,6 +24,9 @@ export type CalendarView = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
 export interface PlanningCalendarHandle {
   changeView: (view: CalendarView) => void
   gotoDate: (date: Date | string) => void
+  prev: () => void
+  next: () => void
+  today: () => void
 }
 
 interface PlanningCalendarProps {
@@ -137,10 +140,14 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
     return m
   }, [slots])
 
-  // Expose imperative API to the page (view switch, date navigation)
+  // Expose imperative API to the page. prev/next/today delegate to FullCalendar so the
+  // step matches the active view (1 day / 7 days / 1 month).
   useImperativeHandle(ref, () => ({
     changeView: (view) => calendarRef.current?.getApi().changeView(view),
     gotoDate: (date) => calendarRef.current?.getApi().gotoDate(date),
+    prev: () => calendarRef.current?.getApi().prev(),
+    next: () => calendarRef.current?.getApi().next(),
+    today: () => calendarRef.current?.getApi().today(),
   }), [])
 
   // Sync FullCalendar's internal date to the week selected by the page header.
