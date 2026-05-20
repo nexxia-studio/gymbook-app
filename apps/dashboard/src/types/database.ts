@@ -1102,6 +1102,7 @@ export type Database = {
       }
       member_subscriptions: {
         Row: {
+          amount: number | null
           auto_renew: boolean | null
           cancellation_reason: string | null
           cancelled_at: string | null
@@ -1111,12 +1112,17 @@ export type Database = {
           ends_at: string | null
           gym_id: string
           id: string
+          max_payments: number | null
           member_id: string
           mollie_customer_id: string | null
           mollie_subscription_id: string | null
+          next_payment_at: string | null
           pause_resumes_at: string | null
           paused_at: string | null
-          plan_id: string
+          payments_count: number | null
+          plan_code: string | null
+          plan_id: string | null
+          plan_name: string | null
           site_id: string | null
           starts_at: string
           status: string | null
@@ -1124,6 +1130,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          amount?: number | null
           auto_renew?: boolean | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
@@ -1133,12 +1140,17 @@ export type Database = {
           ends_at?: string | null
           gym_id: string
           id?: string
+          max_payments?: number | null
           member_id: string
           mollie_customer_id?: string | null
           mollie_subscription_id?: string | null
+          next_payment_at?: string | null
           pause_resumes_at?: string | null
           paused_at?: string | null
-          plan_id: string
+          payments_count?: number | null
+          plan_code?: string | null
+          plan_id?: string | null
+          plan_name?: string | null
           site_id?: string | null
           starts_at: string
           status?: string | null
@@ -1146,6 +1158,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          amount?: number | null
           auto_renew?: boolean | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
@@ -1155,12 +1168,17 @@ export type Database = {
           ends_at?: string | null
           gym_id?: string
           id?: string
+          max_payments?: number | null
           member_id?: string
           mollie_customer_id?: string | null
           mollie_subscription_id?: string | null
+          next_payment_at?: string | null
           pause_resumes_at?: string | null
           paused_at?: string | null
-          plan_id?: string
+          payments_count?: number | null
+          plan_code?: string | null
+          plan_id?: string | null
+          plan_name?: string | null
           site_id?: string | null
           starts_at?: string
           status?: string | null
@@ -1251,6 +1269,54 @@ export type Database = {
             columns: ["gym_id"]
             isOneToOne: true
             referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mollie_customers: {
+        Row: {
+          created_at: string | null
+          gym_id: string
+          has_valid_mandate: boolean | null
+          id: string
+          member_id: string
+          mollie_customer_id: string
+          mollie_mandate_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          gym_id: string
+          has_valid_mandate?: boolean | null
+          id?: string
+          member_id: string
+          mollie_customer_id: string
+          mollie_mandate_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          gym_id?: string
+          has_valid_mandate?: boolean | null
+          id?: string
+          member_id?: string
+          mollie_customer_id?: string
+          mollie_mandate_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mollie_customers_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mollie_customers_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1791,6 +1857,7 @@ export type Database = {
           expires_at: string | null
           gym_id: string
           id: string
+          invoice_number: string | null
           member_id: string
           mollie_payment_id: string | null
           nexxia_fee: number | null
@@ -1810,6 +1877,7 @@ export type Database = {
           expires_at?: string | null
           gym_id: string
           id?: string
+          invoice_number?: string | null
           member_id: string
           mollie_payment_id?: string | null
           nexxia_fee?: number | null
@@ -1829,6 +1897,7 @@ export type Database = {
           expires_at?: string | null
           gym_id?: string
           id?: string
+          invoice_number?: string | null
           member_id?: string
           mollie_payment_id?: string | null
           nexxia_fee?: number | null
@@ -2343,6 +2412,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      allocate_invoice_number: {
+        Args: { p_payment_id: string }
+        Returns: string
+      }
       check_rate_limit: {
         Args: {
           p_action: string
