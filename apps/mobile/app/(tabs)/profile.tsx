@@ -118,6 +118,7 @@ export default function Profile() {
             label={t('profile.my_subscription')}
             detail={t('profile.subscription_detail')}
             badge={t('profile.subscription_active')}
+            onPress={() => router.push('/profile/subscription')}
           />
           <View className="mx-5 h-px bg-move-border" />
           <ProfileListItem icon={Receipt} label={t('profile.payment_history')} />
