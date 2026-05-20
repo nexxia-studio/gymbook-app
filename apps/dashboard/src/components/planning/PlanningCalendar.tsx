@@ -129,6 +129,8 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
   const { t } = useTranslation()
   const tz = useGymTimezone()
   const calendarRef = useRef<FullCalendar | null>(null)
+  const lastReportedDateRef = useRef<string>('')
+  const isInternalNavRef = useRef(false)
   const slotsById = useMemo(() => {
     const m = new Map<string, TimeSlot>()
     for (const s of slots) m.set(s.id, s)
@@ -141,10 +143,22 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
     gotoDate: (date) => calendarRef.current?.getApi().gotoDate(date),
   }), [])
 
-  // Sync FullCalendar's internal date to the week selected by the page header
+  // Sync FullCalendar's internal date to the week selected by the page header.
+  // Only navigate when the displayed date actually differs from weekStart — otherwise
+  // gotoDate→datesSet→onDatesChange→setWeekStart can loop indefinitely (React #185).
   useEffect(() => {
     const api = calendarRef.current?.getApi()
-    if (api) api.gotoDate(weekStart)
+    if (!api) return
+    const current = api.getDate()
+    const currentYmd = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`
+    const wantedYmd = `${weekStart.getFullYear()}-${pad(weekStart.getMonth() + 1)}-${pad(weekStart.getDate())}`
+    if (currentYmd === wantedYmd) return
+
+    isInternalNavRef.current = true
+    api.gotoDate(weekStart)
+    // FullCalendar fires datesSet synchronously inside gotoDate, but we clear the flag
+    // on the next tick to be safe against any async behavior.
+    setTimeout(() => { isInternalNavRef.current = false }, 0)
   }, [weekStart])
 
   const events: EventInput[] = useMemo(() => {
@@ -249,10 +263,14 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
           return <EventContent slot={slot} t={t} />
         }}
         datesSet={(info: DatesSetArg) => {
-          // Bubble up the first visible date so the page hook can refetch the right window
+          // Don't echo our own programmatic gotoDate back to the parent.
+          if (isInternalNavRef.current) return
           if (!onDatesChange) return
           const d = info.start
           const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+          // Ignore repeated emissions of the same date (React strict mode, view changes).
+          if (iso === lastReportedDateRef.current) return
+          lastReportedDateRef.current = iso
           onDatesChange(iso)
         }}
       />
