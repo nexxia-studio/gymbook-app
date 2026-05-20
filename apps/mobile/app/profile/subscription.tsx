@@ -148,14 +148,28 @@ export default function SubscriptionScreen() {
     )
   }, [activeSub, loadSubscription, t])
 
-  // Exclusive business rule: hide plans that conflict with active subscription/credits
+  // Exclusive business rule:
+  //  - active monthly sub  → upsell to longer durations only
+  //  - active credits      → upsell to all monthly plans
+  //  - nothing active      → show all plans (full cards)
+  const POPULAR_PLAN_ID = 'monthly_6'
   const hasActiveSub = activeSub?.status === 'active' || activeSub?.status === 'canceling'
   const hasActiveCredits = (activeCredits?.creditsRemaining ?? 0) > 0
-  const visiblePlans = PLANS.filter((plan) => {
-    if (hasActiveSub) return false // any active monthly sub → hide all upsell
-    if (hasActiveCredits) return plan.id === 'drop_in' || plan.id === 'pack_10'
-    return true
-  })
+
+  const upsellPlans: PlanSpec[] = (() => {
+    if (hasActiveSub) {
+      const code = activeSub?.planCode
+      if (code === 'monthly_3') return PLANS.filter((p) => p.id === 'monthly_6' || p.id === 'monthly_12')
+      if (code === 'monthly_6') return PLANS.filter((p) => p.id === 'monthly_12')
+      return [] // monthly_12 → no further upsell
+    }
+    if (hasActiveCredits) {
+      return PLANS.filter((p) => p.id === 'monthly_3' || p.id === 'monthly_6' || p.id === 'monthly_12')
+    }
+    return []
+  })()
+
+  const showFullPlans = !hasActiveSub && !hasActiveCredits
 
   const handleSelectPlan = useCallback(async (plan: PlanSpec) => {
     setPaying(true)
@@ -332,91 +346,160 @@ export default function SubscriptionScreen() {
           </View>
         )}
 
-        {/* Exclusive rule note */}
-        {hasActiveSub && (
-          <View className="rounded-xl border border-move-border bg-move-bg p-3">
-            <Text className="font-dmsans text-xs leading-5 text-move-text-secondary">
-              {t('subscription.exclusive_note_sub')}
+        {/* === UPSELL SECTION (compact pricing cards) === */}
+        {upsellPlans.length > 0 && (
+          <>
+            <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+              {hasActiveSub ? t('subscription.upsell_switch_title') : t('subscription.upsell_upgrade_title')}
             </Text>
-          </View>
+            {upsellPlans.map((plan) => {
+              const isPopular = plan.id === POPULAR_PLAN_ID
+              const planName = t(`subscription.plan_${plan.id}_name`)
+              const planDescription = t(`subscription.plan_${plan.id}_description`)
+              return (
+                <Pressable
+                  key={plan.id}
+                  onPress={() => handleSelectPlan(plan)}
+                  disabled={paying}
+                  className={`overflow-hidden rounded-xl border ${isPopular ? 'border-2 border-move-accent bg-move-dark' : 'border-move-border bg-move-card'} ${paying ? 'opacity-60' : ''}`}
+                >
+                  {isPopular && (
+                    <View className="items-center bg-move-accent py-1">
+                      <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 10, color: '#111111', letterSpacing: 1 }}>
+                        {t('subscription.most_popular')}
+                      </Text>
+                    </View>
+                  )}
+                  <View className="flex-row items-center justify-between p-4">
+                    <View className="flex-1 pr-3">
+                      <Text
+                        style={{
+                          fontFamily: 'BarlowCondensed_900Black',
+                          fontSize: 16,
+                          color: isPopular ? '#FFFFFF' : '#111111',
+                          letterSpacing: 1,
+                        }}
+                      >
+                        {planName.toUpperCase()}
+                      </Text>
+                      <Text
+                        className="mt-0.5 font-dmsans text-xs"
+                        style={{ color: isPopular ? '#9CA3AF' : '#9A9890' }}
+                      >
+                        {planDescription}
+                      </Text>
+                    </View>
+                    <View className="flex-row items-end gap-2">
+                      <View className="items-end">
+                        <View className="flex-row items-baseline">
+                          <Text
+                            style={{
+                              fontFamily: 'DMSans_700Bold',
+                              fontSize: 20,
+                              color: isPopular ? '#C8F000' : '#111111',
+                            }}
+                          >
+                            {plan.price}€
+                          </Text>
+                          <Text
+                            className="font-dmsans text-[11px]"
+                            style={{ color: '#9CA3AF', marginLeft: 2 }}
+                          >
+                            /mois
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        className={`rounded-md px-3 py-1.5 ${isPopular ? 'bg-move-accent' : 'bg-move-dark'}`}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: 'DMSans_700Bold',
+                            fontSize: 12,
+                            color: isPopular ? '#111111' : '#C8F000',
+                          }}
+                        >
+                          {t('subscription.choose')}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Pressable>
+              )
+            })}
+          </>
         )}
 
-        {/* Plans (filtered by exclusive rule) */}
-        {visiblePlans.length > 0 && (
-          <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
-            {t('subscription.available_plans')}
-          </Text>
-        )}
+        {/* === FULL PLANS SECTION (no active sub / no credits) === */}
+        {showFullPlans && (
+          <>
+            <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+              {t('subscription.available_plans')}
+            </Text>
 
-        {visiblePlans.map((plan) => {
-          const planName = t(`subscription.plan_${plan.id}_name`)
-          const planDescription = t(`subscription.plan_${plan.id}_description`)
-          const planUnit = t(`subscription.plan_${plan.id}_unit`)
-          const isCurrent = activeSub?.planName === planName
+            {PLANS.map((plan) => {
+              const planName = t(`subscription.plan_${plan.id}_name`)
+              const planDescription = t(`subscription.plan_${plan.id}_description`)
+              const planUnit = t(`subscription.plan_${plan.id}_unit`)
 
-          return (
-            <View
-              key={plan.id}
-              className={`overflow-hidden rounded-2xl bg-move-card ${plan.popular ? 'border-2 border-orange-500' : 'border border-move-border'}`}
-            >
-              {plan.popular && (
-                <View className="flex-row items-center justify-center gap-1.5 bg-orange-50 py-1.5">
-                  <Star size={12} color="#F97316" fill="#F97316" />
-                  <Text className="font-dmsans-bold text-[11px] text-orange-600">
-                    {t('subscription.popular')}
-                  </Text>
-                </View>
-              )}
+              return (
+                <View
+                  key={plan.id}
+                  className={`overflow-hidden rounded-2xl bg-move-card ${plan.popular ? 'border-2 border-orange-500' : 'border border-move-border'}`}
+                >
+                  {plan.popular && (
+                    <View className="flex-row items-center justify-center gap-1.5 bg-orange-50 py-1.5">
+                      <Star size={12} color="#F97316" fill="#F97316" />
+                      <Text className="font-dmsans-bold text-[11px] text-orange-600">
+                        {t('subscription.popular')}
+                      </Text>
+                    </View>
+                  )}
 
-              <View className="flex-row items-center justify-between p-4" style={{ backgroundColor: plan.color }}>
-                <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#FFFFFF' }}>
-                  {planName}
-                </Text>
-                <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 20, color: '#FFFFFF' }}>
-                  {plan.price}€
-                  <Text style={{ fontSize: 13 }}>/{planUnit}</Text>
-                </Text>
-              </View>
-
-              <View className="gap-2 p-4">
-                <Text className="font-dmsans text-sm text-move-text-secondary">
-                  {planDescription}
-                </Text>
-
-                {plan.pricePerSession && (
-                  <Text className="font-dmsans text-xs text-move-text-muted">
-                    {t('subscription.per_session', { price: plan.pricePerSession })}
-                  </Text>
-                )}
-
-                {plan.saving && (
-                  <View className="self-start rounded-md bg-green-50 px-2 py-1">
-                    <Text className="font-dmsans-bold text-[11px] text-green-600">
-                      {t('subscription.saving', { amount: plan.saving })}
+                  <View className="flex-row items-center justify-between p-4" style={{ backgroundColor: plan.color }}>
+                    <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#FFFFFF' }}>
+                      {planName}
+                    </Text>
+                    <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 20, color: '#FFFFFF' }}>
+                      {plan.price}€
+                      <Text style={{ fontSize: 13 }}>/{planUnit}</Text>
                     </Text>
                   </View>
-                )}
 
-                <Pressable
-                  onPress={() => handleSelectPlan(plan)}
-                  disabled={isCurrent || paying}
-                  className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl py-3 ${isCurrent ? 'bg-green-100' : 'bg-move-dark'} ${paying ? 'opacity-60' : ''}`}
-                >
-                  {isCurrent && <Check size={16} color="#16A34A" />}
-                  <Text
-                    style={{
-                      fontFamily: 'DMSans_700Bold',
-                      fontSize: 14,
-                      color: isCurrent ? '#16A34A' : '#C8F000',
-                    }}
-                  >
-                    {isCurrent ? t('subscription.current_plan') : t('subscription.select')}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          )
-        })}
+                  <View className="gap-2 p-4">
+                    <Text className="font-dmsans text-sm text-move-text-secondary">
+                      {planDescription}
+                    </Text>
+
+                    {plan.pricePerSession && (
+                      <Text className="font-dmsans text-xs text-move-text-muted">
+                        {t('subscription.per_session', { price: plan.pricePerSession })}
+                      </Text>
+                    )}
+
+                    {plan.saving && (
+                      <View className="self-start rounded-md bg-green-50 px-2 py-1">
+                        <Text className="font-dmsans-bold text-[11px] text-green-600">
+                          {t('subscription.saving', { amount: plan.saving })}
+                        </Text>
+                      </View>
+                    )}
+
+                    <Pressable
+                      onPress={() => handleSelectPlan(plan)}
+                      disabled={paying}
+                      className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl bg-move-dark py-3 ${paying ? 'opacity-60' : ''}`}
+                    >
+                      <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
+                        {t('subscription.select')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )
+            })}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   )

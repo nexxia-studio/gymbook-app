@@ -374,7 +374,11 @@
     "canceled_title": "✅ Cancellation confirmed",
     "canceled_message": "Your subscription will end on {{date}}.",
     "exclusive_note_sub": "💡 Your subscription gives you unlimited access to classes. You don't need single sessions.",
-    "exclusive_note_credits": "💡 You still have sessions available. Monthly subscriptions will be available once your credits are used up."
+    "exclusive_note_credits": "💡 You still have sessions available. Monthly subscriptions will be available once your credits are used up.",
+    "upsell_switch_title": "SWITCH PLAN",
+    "upsell_upgrade_title": "GO UNLIMITED",
+    "most_popular": "MOST POPULAR",
+    "choose": "Choose"
   },
   "preferences": {
     "title": "Preferences",
