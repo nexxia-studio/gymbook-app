@@ -50,16 +50,11 @@ export default function Planning() {
     setView(next)
   }, [])
 
-  // Push date changes from FullCalendar back to the hook. Bail when the requested
-  // date already falls inside the active week — without this guard the hook would
-  // create a new Date reference every datesSet round-trip and re-trigger an effect
-  // loop (React #185).
-  const handleDatesChange = useCallback((startIso: string) => {
-    const ymd = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const currentWeekYmd = ymd(planning.weekStart)
-    if (startIso === currentWeekYmd) return
-    planning.goToDate(startIso)
+  // Push the full visible range from FullCalendar (datesSet) to the hook so it can
+  // refetch the right window — 1 day, 7 days or ~35 days depending on the active view.
+  // weekStart is left untouched so the header label still reflects the current week.
+  const handleDatesChange = useCallback((start: string, end: string) => {
+    planning.setVisibleRange(start, end)
   }, [planning])
 
   // Override navigate so it ALSO drives FullCalendar (the calendar listens to weekStart
