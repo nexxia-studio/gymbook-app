@@ -14,19 +14,6 @@ import { usePlanning } from '@/hooks/usePlanning'
 import { useToastStore } from '@/hooks/useToast'
 import type { TimeSlot } from '@/types/planning'
 
-function formatWeekRange(start: Date, end: Date, t: (key: string) => string): string {
-  const startDay = start.getDate()
-  const endDay = end.getDate()
-  const startMonth = t(`planning.months.${start.getMonth()}`)
-  const endMonth = t(`planning.months.${end.getMonth()}`)
-  const year = end.getFullYear()
-
-  if (start.getMonth() === end.getMonth()) {
-    return `${startDay} — ${endDay} ${startMonth} ${year}`
-  }
-  return `${startDay} ${startMonth} — ${endDay} ${endMonth} ${year}`
-}
-
 function getIsoWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   const dayNum = d.getUTCDay() || 7
