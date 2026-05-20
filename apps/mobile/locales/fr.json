@@ -340,7 +340,9 @@
     "plan_monthly_6_unit": "mois",
     "plan_monthly_12_name": "Abonnement 12 mois",
     "plan_monthly_12_description": "Engagement annuel",
-    "plan_monthly_12_unit": "mois"
+    "plan_monthly_12_unit": "mois",
+    "payment_error_title": "Paiement impossible",
+    "payment_error_message": "Une erreur est survenue lors de la création du paiement. Réessayez."
   },
   "preferences": {
     "title": "Préférences",

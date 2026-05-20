@@ -340,7 +340,9 @@
     "plan_monthly_6_unit": "month",
     "plan_monthly_12_name": "12-month plan",
     "plan_monthly_12_description": "Annual commitment",
-    "plan_monthly_12_unit": "month"
+    "plan_monthly_12_unit": "month",
+    "payment_error_title": "Payment unavailable",
+    "payment_error_message": "Something went wrong while creating the payment. Please try again."
   },
   "preferences": {
     "title": "Preferences",

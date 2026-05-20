@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ToastContainer } from '@/components/ui/Toast'
 import MollieCallback from '@/pages/MollieCallback'
+import PaymentSuccess from '@/pages/PaymentSuccess'
+import PaymentCancel from '@/pages/PaymentCancel'
 
 const Login = lazy(() => import('@/pages/Login'))
 const Signup = lazy(() => import('@/pages/Signup'))
@@ -91,12 +93,14 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route 
-          path="/mollie/callback" 
+        <Route
+          path="/mollie/callback"
           element={
             <MollieCallback />
-          } 
+          }
         />
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/cancel" element={<PaymentCancel />} />
       </Routes>
     </Suspense>
   )
