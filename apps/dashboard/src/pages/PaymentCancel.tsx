@@ -1,9 +1,16 @@
+import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function PaymentCancel() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const paymentId = searchParams.get('id')
+
+  useEffect(() => {
+    if (!paymentId) return
+    // Try to re-open the mobile app via deep link.
+    window.location.href = `dopamine://payment/cancel?id=${paymentId}`
+  }, [paymentId])
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -14,11 +21,19 @@ export default function PaymentCancel() {
           Le paiement a été annulé. Aucun montant n&apos;a été prélevé.
         </p>
         {paymentId && (
-          <p className="text-xs text-gray-400 mb-4">Réf. {paymentId.slice(0, 8)}</p>
+          <>
+            <p className="text-xs text-gray-400 mb-4">Réf. {paymentId.slice(0, 8)}</p>
+            <a
+              href={`dopamine://payment/cancel?id=${paymentId}`}
+              className="block w-full text-center bg-gray-900 text-lime-400 font-bold py-3 px-6 rounded-xl mb-2"
+            >
+              Retourner dans l&apos;app
+            </a>
+          </>
         )}
         <button
           onClick={() => navigate('/')}
-          className="bg-gray-900 text-lime-400 px-6 py-3 rounded-xl font-bold w-full"
+          className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-xl font-bold w-full"
         >
           Retour à l&apos;accueil
         </button>
