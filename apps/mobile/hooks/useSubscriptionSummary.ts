@@ -40,19 +40,21 @@ export function useSubscriptionSummary() {
       return
     }
 
-    // 2. Recurring subscription
+    // 2. Recurring subscription — read plan_name TEXT directly (Mollie subs have plan_id=null).
+    // Fallback to gym_plans.name when only the legacy plan_id (uuid) FK is set.
     const { data: sub } = await supabase
       .from('member_subscriptions')
-      .select('id, plan:gym_plans(name)')
+      .select('id, status, plan_name, plan:gym_plans(name)')
       .eq('member_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'canceling'])
       .order('starts_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (sub) {
-      const plan = sub.plan as unknown as { name?: string } | null
-      setSummary({ isActive: true, detail: plan?.name ?? null })
+      const joined = sub.plan as unknown as { name?: string } | null
+      const detail = sub.plan_name ?? joined?.name ?? null
+      setSummary({ isActive: true, detail })
       return
     }
 

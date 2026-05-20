@@ -317,9 +317,15 @@
     "empty_title": "No payments yet",
     "empty_subtitle": "Your payment history will show here once your subscription is active.",
     "view_subscriptions": "See available plans",
-    "status_paid": "✓ Paid",
-    "status_pending": "⏳ Pending",
-    "status_failed": "✗ Failed"
+    "status_paid": "Paid",
+    "status_pending": "Pending",
+    "status_failed": "Failed",
+    "status_expired": "Expired",
+    "status_canceled": "Canceled",
+    "download_invoice": "Download invoice",
+    "invoice_error_title": "Invoice unavailable",
+    "invoice_error_message": "Could not generate the invoice. Please try again.",
+    "invoice_error_auth": "Please sign in again to download the invoice."
   },
   "subscription": {
     "title": "My subscription",
