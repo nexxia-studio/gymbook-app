@@ -299,6 +299,15 @@
       "edit_photo": "Edit photo"
     }
   },
+  "payments": {
+    "title": "Payment history",
+    "empty_title": "No payments yet",
+    "empty_subtitle": "Your payment history will show here once your subscription is active.",
+    "view_subscriptions": "See available plans",
+    "status_paid": "✓ Paid",
+    "status_pending": "⏳ Pending",
+    "status_failed": "✗ Failed"
+  },
   "subscription": {
     "title": "My subscription",
     "active_badge": "✓ Active",

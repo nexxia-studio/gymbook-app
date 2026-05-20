@@ -121,7 +121,11 @@ export default function Profile() {
             onPress={() => router.push('/profile/subscription')}
           />
           <View className="mx-5 h-px bg-move-border" />
-          <ProfileListItem icon={Receipt} label={t('profile.payment_history')} />
+          <ProfileListItem
+            icon={Receipt}
+            label={t('profile.payment_history')}
+            onPress={() => router.push('/profile/payments')}
+          />
         </ProfileSection>
 
         {/* Preferences */}

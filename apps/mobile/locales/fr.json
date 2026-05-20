@@ -299,6 +299,15 @@
       "edit_photo": "Modifier la photo"
     }
   },
+  "payments": {
+    "title": "Historique des paiements",
+    "empty_title": "Aucun paiement",
+    "empty_subtitle": "Votre historique de paiements apparaîtra ici une fois votre abonnement activé.",
+    "view_subscriptions": "Voir les abonnements disponibles",
+    "status_paid": "✓ Payé",
+    "status_pending": "⏳ En attente",
+    "status_failed": "✗ Échoué"
+  },
   "subscription": {
     "title": "Mon abonnement",
     "active_badge": "✓ Actif",
