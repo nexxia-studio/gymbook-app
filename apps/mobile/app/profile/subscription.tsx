@@ -28,10 +28,10 @@ interface ActiveSub {
   status: string
   startsAt: string | null
   endsAt: string | null
-  creditsRemaining: number | null
+  nextPaymentAt: string | null
+  planCode: string | null
   planName: string
-  pricePerUnit: number
-  unit: string
+  amount: number
 }
 
 function formatDate(iso: string | null): string {
@@ -55,95 +55,152 @@ export default function SubscriptionScreen() {
   const [activeCredits, setActiveCredits] = useState<ActiveCredits | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+  const loadSubscription = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLoading(false); return }
 
-      // 1. Recurring subscription (member_subscriptions)
-      const { data: sub } = await supabase
-        .from('member_subscriptions')
-        .select('id, status, starts_at, ends_at, credits_remaining, plan_id, plan:gym_plans(name, price_cents, billing_type, credit_count)')
-        .eq('member_id', user.id)
-        .eq('status', 'active')
-        .order('starts_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    // 1. Mollie recurring subscription (member_subscriptions)
+    const { data: sub } = await supabase
+      .from('member_subscriptions')
+      .select('id, status, starts_at, ends_at, next_payment_at, plan_code, plan_name, amount')
+      .eq('member_id', user.id)
+      .in('status', ['active', 'canceling'])
+      .order('starts_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-      if (sub) {
-        const plan = sub.plan as unknown as { name?: string; price_cents?: number; billing_type?: string; credit_count?: number } | null
-        const cents = plan?.price_cents ?? 0
-        const billing = plan?.billing_type ?? 'one_time'
-        const unit = billing === 'recurring' ? t('subscription.plan_monthly_3_unit') : (plan?.credit_count ? t('subscription.plan_pack_10_unit') : t('subscription.plan_drop_in_unit'))
-        setActiveSub({
-          id: sub.id,
-          status: sub.status,
-          startsAt: sub.starts_at,
-          endsAt: sub.ends_at,
-          creditsRemaining: sub.credits_remaining,
-          planName: plan?.name ?? '—',
-          pricePerUnit: cents / 100,
-          unit,
-        })
-      }
+    if (sub) {
+      setActiveSub({
+        id: sub.id,
+        status: sub.status ?? 'active',
+        startsAt: sub.starts_at,
+        endsAt: sub.ends_at,
+        nextPaymentAt: sub.next_payment_at,
+        planCode: sub.plan_code,
+        planName: sub.plan_name ?? '—',
+        amount: typeof sub.amount === 'number' ? sub.amount : parseFloat(sub.amount ?? '0'),
+      })
+    } else {
+      setActiveSub(null)
+    }
 
-      // 2. One-time credits (member_credits) — drop_in / pack_10
-      const { data: credits } = await supabase
-        .from('member_credits')
-        .select('plan_id, credits_total, credits_used, credits_remaining, expires_at')
-        .eq('member_id', user.id)
-        .gt('credits_remaining', 0)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    // 2. One-time credits (member_credits) — drop_in / pack_10
+    const { data: credits } = await supabase
+      .from('member_credits')
+      .select('plan_id, credits_total, credits_used, credits_remaining, expires_at')
+      .eq('member_id', user.id)
+      .gt('credits_remaining', 0)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-      if (credits && credits.plan_id) {
-        const planName = t(`subscription.plan_${credits.plan_id}_name`)
-        setActiveCredits({
-          planId: credits.plan_id,
-          planName,
-          creditsTotal: credits.credits_total,
-          creditsUsed: credits.credits_used,
-          creditsRemaining: credits.credits_remaining,
-          expiresAt: credits.expires_at,
-        })
-      }
+    if (credits && credits.plan_id) {
+      const planName = t(`subscription.plan_${credits.plan_id}_name`)
+      setActiveCredits({
+        planId: credits.plan_id,
+        planName,
+        creditsTotal: credits.credits_total,
+        creditsUsed: credits.credits_used,
+        creditsRemaining: credits.credits_remaining,
+        expiresAt: credits.expires_at,
+      })
+    } else {
+      setActiveCredits(null)
+    }
 
-      setLoading(false)
-    })()
+    setLoading(false)
   }, [t])
+
+  useEffect(() => { loadSubscription() }, [loadSubscription])
 
   const [paying, setPaying] = useState(false)
 
-  const handleSelectPlan = useCallback(async (plan: PlanSpec) => {
-    // Recurring plans not yet wired (Sprint 6 GYM-30)
-    if (plan.id !== 'drop_in' && plan.id !== 'pack_10') {
-      Alert.alert(
-        t('subscription.contact_title', { plan: t(`subscription.plan_${plan.id}_name`) }),
-        t('subscription.contact_message', {
-          price: plan.price,
-          unit: t(`subscription.plan_${plan.id}_unit`),
-        }),
-        [
-          { text: t('subscription.contact_close'), style: 'cancel' },
-          { text: t('subscription.contact_cta'), onPress: () => Linking.openURL('mailto:contact@dopamineclub.be') },
-        ],
-      )
-      return
-    }
+  const handleCancelSubscription = useCallback(() => {
+    if (!activeSub) return
+    Alert.alert(
+      t('subscription.cancel_title'),
+      t('subscription.cancel_message', {
+        plan: activeSub.planName,
+        date: formatDate(activeSub.endsAt),
+      }),
+      [
+        { text: t('subscription.cancel_keep'), style: 'cancel' },
+        {
+          text: t('subscription.cancel_confirm'),
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.functions.invoke('cancel-subscription', {
+              body: { subscription_id: activeSub.id },
+            })
+            if (error) {
+              console.error('[cancel-subscription] error:', error)
+              Alert.alert(t('subscription.cancel_error_title'), t('subscription.cancel_error_message'))
+              return
+            }
+            Alert.alert(
+              t('subscription.canceled_title'),
+              t('subscription.canceled_message', { date: formatDate(activeSub.endsAt) }),
+            )
+            loadSubscription()
+          },
+        },
+      ],
+    )
+  }, [activeSub, loadSubscription, t])
 
+  // Exclusive business rule: hide plans that conflict with active subscription/credits
+  const hasActiveSub = activeSub?.status === 'active' || activeSub?.status === 'canceling'
+  const hasActiveCredits = (activeCredits?.creditsRemaining ?? 0) > 0
+  const visiblePlans = PLANS.filter((plan) => {
+    if (hasActiveSub) return false // any active monthly sub → hide all upsell
+    if (hasActiveCredits) return plan.id === 'drop_in' || plan.id === 'pack_10'
+    return true
+  })
+
+  const handleSelectPlan = useCallback(async (plan: PlanSpec) => {
     setPaying(true)
     try {
-      const { data, error } = await supabase.functions.invoke('create-payment', {
-        body: { plan_id: plan.id },
-      })
-      if (error || !data?.checkout_url) {
-        console.error('[Payment] error:', error, data)
-        Alert.alert(t('subscription.payment_error_title'), t('subscription.payment_error_message'))
+      // Recurring plans (monthly_*) → create-subscription
+      if (plan.id === 'monthly_3' || plan.id === 'monthly_6' || plan.id === 'monthly_12') {
+        const { data, error } = await supabase.functions.invoke('create-subscription', {
+          body: { plan_id: plan.id },
+        })
+        if (error || !data) {
+          console.error('[Subscription] error:', error, data)
+          Alert.alert(t('subscription.payment_error_title'), t('subscription.payment_error_message'))
+          return
+        }
+
+        if (data.type === 'first_payment' && data.checkout_url) {
+          console.log('[Subscription] first payment URL:', data.checkout_url)
+          await Linking.openURL(data.checkout_url)
+        } else if (data.type === 'subscription_created') {
+          Alert.alert(
+            t('subscription.activated_title'),
+            t('subscription.activated_message', {
+              plan: data.plan_name ?? '',
+              date: data.next_payment_at ? new Date(data.next_payment_at).toLocaleDateString('fr-BE') : '—',
+            }),
+          )
+        }
         return
       }
-      console.log('[Payment] checkout URL:', data.checkout_url)
-      await Linking.openURL(data.checkout_url)
+
+      // One-time plans (drop_in, pack_10) → create-payment
+      if (plan.id === 'drop_in' || plan.id === 'pack_10') {
+        const { data, error } = await supabase.functions.invoke('create-payment', {
+          body: { plan_id: plan.id },
+        })
+        if (error || !data?.checkout_url) {
+          console.error('[Payment] error:', error, data)
+          Alert.alert(t('subscription.payment_error_title'), t('subscription.payment_error_message'))
+          return
+        }
+        console.log('[Payment] checkout URL:', data.checkout_url)
+        await Linking.openURL(data.checkout_url)
+        return
+      }
+
     } catch (err) {
       console.error('[Payment] threw:', err)
       Alert.alert(t('subscription.payment_error_title'), t('subscription.payment_error_message'))
@@ -196,26 +253,31 @@ export default function SubscriptionScreen() {
           </View>
         )}
 
-        {/* Active sub or empty state */}
+        {/* Recurring subscription card */}
         {loading ? null : activeSub ? (
-          <View className="rounded-2xl border-2 border-move-accent bg-move-card p-5">
-            <View className="mb-3 self-start rounded-full bg-green-100 px-3 py-1">
-              <Text className="font-dmsans-bold text-[11px] text-green-600">
-                {t('subscription.active_badge')}
+          <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} bg-move-card p-5`}>
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+                {activeSub.planName.toUpperCase()}
               </Text>
+              {activeSub.status === 'canceling' ? (
+                <View className="rounded-full bg-orange-100 px-3 py-1">
+                  <Text className="font-dmsans-bold text-[11px] text-orange-600">
+                    {t('subscription.canceling_badge')}
+                  </Text>
+                </View>
+              ) : (
+                <View className="rounded-full bg-green-100 px-3 py-1">
+                  <Text className="font-dmsans-bold text-[11px] text-green-600">
+                    {t('subscription.active_badge')}
+                  </Text>
+                </View>
+              )}
             </View>
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
-              {activeSub.planName.toUpperCase()}
-            </Text>
-            <Text className="mt-1 font-dmsans-bold text-base text-move-dark">
-              {activeSub.pricePerUnit}€ / {activeSub.unit}
-            </Text>
 
-            {activeSub.creditsRemaining !== null && (
-              <Text className="mt-2 font-dmsans text-sm text-move-text-secondary">
-                {t('subscription.credits_remaining', { count: activeSub.creditsRemaining })}
-              </Text>
-            )}
+            <Text className="font-dmsans-bold text-base text-move-dark">
+              {activeSub.amount}€ / {t('subscription.plan_monthly_3_unit')}
+            </Text>
 
             {activeSub.startsAt && (
               <View className="mt-3">
@@ -228,13 +290,34 @@ export default function SubscriptionScreen() {
               </View>
             )}
 
-            {activeSub.endsAt && (
+            {activeSub.status === 'active' && activeSub.nextPaymentAt && (
               <View className="mt-3 flex-row items-center gap-1.5">
                 <Calendar size={14} color="#6B6861" />
                 <Text className="font-dmsans text-xs text-move-text-secondary">
-                  {t('subscription.next_billing', { date: formatDate(activeSub.endsAt) })}
+                  {t('subscription.next_billing', { date: formatDate(activeSub.nextPaymentAt) })}
                 </Text>
               </View>
+            )}
+
+            {activeSub.endsAt && (
+              <View className="mt-2 flex-row items-center gap-1.5">
+                <Calendar size={14} color="#6B6861" />
+                <Text className="font-dmsans text-xs text-move-text-secondary">
+                  {t('subscription.ends_on', { date: formatDate(activeSub.endsAt) })}
+                </Text>
+              </View>
+            )}
+
+            {/* Cancel button — only when not already canceling */}
+            {activeSub.status === 'active' && (
+              <Pressable
+                onPress={handleCancelSubscription}
+                className="mt-4 items-center rounded-lg border border-move-border py-2.5"
+              >
+                <Text className="font-dmsans text-[13px] text-move-text-muted">
+                  {t('subscription.cancel_action')}
+                </Text>
+              </Pressable>
             )}
           </View>
         ) : activeCredits ? null : (
@@ -249,12 +332,23 @@ export default function SubscriptionScreen() {
           </View>
         )}
 
-        {/* Plans */}
-        <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
-          {t('subscription.available_plans')}
-        </Text>
+        {/* Exclusive rule note */}
+        {hasActiveSub && (
+          <View className="rounded-xl border border-move-border bg-move-bg p-3">
+            <Text className="font-dmsans text-xs leading-5 text-move-text-secondary">
+              {t('subscription.exclusive_note_sub')}
+            </Text>
+          </View>
+        )}
 
-        {PLANS.map((plan) => {
+        {/* Plans (filtered by exclusive rule) */}
+        {visiblePlans.length > 0 && (
+          <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+            {t('subscription.available_plans')}
+          </Text>
+        )}
+
+        {visiblePlans.map((plan) => {
           const planName = t(`subscription.plan_${plan.id}_name`)
           const planDescription = t(`subscription.plan_${plan.id}_description`)
           const planUnit = t(`subscription.plan_${plan.id}_unit`)
