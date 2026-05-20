@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useEffect } from 'react'
+import { useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { useTranslation } from 'react-i18next'
 import FullCalendar from '@fullcalendar/react'
 import type {
@@ -7,6 +7,7 @@ import type {
   EventContentArg,
   DateSelectArg,
   EventDropArg,
+  DatesSetArg,
 } from '@fullcalendar/core'
 import frLocale from '@fullcalendar/core/locales/fr'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -18,11 +19,19 @@ import { supabase } from '@/lib/supabase'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { getDisplayStatus, type TimeSlot, type DisplayStatus } from '@/types/planning'
 
+export type CalendarView = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
+
+export interface PlanningCalendarHandle {
+  changeView: (view: CalendarView) => void
+  gotoDate: (date: Date | string) => void
+}
+
 interface PlanningCalendarProps {
   slots: TimeSlot[]
   weekStart: Date
   onSlotClick: (slot: TimeSlot) => void
   onSlotCreate?: (date: string, startTime: string) => void
+  onDatesChange?: (startDate: string) => void
 }
 
 function pad(n: number): string {
@@ -113,7 +122,10 @@ function EventContent({ slot, t }: { slot: TimeSlot; t: (key: string) => string 
   )
 }
 
-export function PlanningCalendar({ slots, weekStart, onSlotClick, onSlotCreate }: PlanningCalendarProps) {
+export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalendarProps>(function PlanningCalendar(
+  { slots, weekStart, onSlotClick, onSlotCreate, onDatesChange },
+  ref,
+) {
   const { t } = useTranslation()
   const tz = useGymTimezone()
   const calendarRef = useRef<FullCalendar | null>(null)
@@ -122,6 +134,12 @@ export function PlanningCalendar({ slots, weekStart, onSlotClick, onSlotCreate }
     for (const s of slots) m.set(s.id, s)
     return m
   }, [slots])
+
+  // Expose imperative API to the page (view switch, date navigation)
+  useImperativeHandle(ref, () => ({
+    changeView: (view) => calendarRef.current?.getApi().changeView(view),
+    gotoDate: (date) => calendarRef.current?.getApi().gotoDate(date),
+  }), [])
 
   // Sync FullCalendar's internal date to the week selected by the page header
   useEffect(() => {
@@ -230,7 +248,14 @@ export function PlanningCalendar({ slots, weekStart, onSlotClick, onSlotCreate }
           if (!slot) return null
           return <EventContent slot={slot} t={t} />
         }}
+        datesSet={(info: DatesSetArg) => {
+          // Bubble up the first visible date so the page hook can refetch the right window
+          if (!onDatesChange) return
+          const d = info.start
+          const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+          onDatesChange(iso)
+        }}
       />
     </div>
   )
-}
+})

@@ -158,6 +158,9 @@
     "cancel_slot": "Annuler le créneau",
     "close": "Fermer",
     "move_with_bookings_confirm": "Ce créneau a {{count}} membre(s) inscrit(s). Confirmer le déplacement ?",
+    "view_day": "Jour",
+    "view_week": "Semaine",
+    "view_month": "Mois",
     "status": {
       "scheduled": "Planifié",
       "completed": "Terminé",

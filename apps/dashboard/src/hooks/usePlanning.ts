@@ -244,6 +244,13 @@ export function usePlanning() {
     }
   }
 
+  // Snap any date (Date or YYYY-MM-DD) to the Monday of that week and update the active week.
+  function goToDate(date: Date | string) {
+    setSelectedSlot(null)
+    const d = typeof date === 'string' ? new Date(`${date}T00:00:00`) : new Date(date)
+    setWeekStart(getMonday(d, tz))
+  }
+
   function checkOverlap(coachId: string, date: string, startTime: string, duration: number, excludeId?: string): boolean {
     const newStart = timeToMin(startTime)
     const newEnd = newStart + duration
@@ -322,6 +329,7 @@ export function usePlanning() {
     filteredSlots,
     getSlotsByDay,
     navigate,
+    goToDate,
     selectedSlot,
     setSelectedSlot,
     filterCoach,

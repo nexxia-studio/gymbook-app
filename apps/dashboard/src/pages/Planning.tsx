@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { FilterPills } from '@/components/planning/FilterPills'
-import { PlanningCalendar } from '@/components/planning/PlanningCalendar'
+import { PlanningCalendar, type PlanningCalendarHandle, type CalendarView } from '@/components/planning/PlanningCalendar'
 import { MobileDayList } from '@/components/planning/MobileDayList'
 import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
@@ -35,6 +35,31 @@ export default function Planning() {
   const [editSlot, setEditSlot] = useState<TimeSlot | null>(null)
   const [confirmSlot, setConfirmSlot] = useState<TimeSlot | null>(null)
   const [confirmMode, setConfirmMode] = useState<SlotDeleteMode>('cancel')
+
+  const calendarRef = useRef<PlanningCalendarHandle>(null)
+  const [view, setView] = useState<'day' | 'week' | 'month'>('week')
+
+  const handleViewChange = useCallback((next: 'day' | 'week' | 'month') => {
+    const map: Record<'day' | 'week' | 'month', CalendarView> = {
+      day: 'timeGridDay',
+      week: 'timeGridWeek',
+      month: 'dayGridMonth',
+    }
+    calendarRef.current?.changeView(map[next])
+    setView(next)
+  }, [])
+
+  // Push date changes from FullCalendar (via its imperative API or future toolbar)
+  // back to the planning hook so it refetches the right window.
+  const handleDatesChange = useCallback((startIso: string) => {
+    planning.goToDate(startIso)
+  }, [planning])
+
+  // Override navigate so it ALSO drives FullCalendar (the calendar listens to weekStart
+  // via useEffect, but for views that don't follow weekStart 1:1 we are explicit).
+  const handleNav = useCallback((dir: 'prev' | 'next' | 'today') => {
+    planning.navigate(dir)
+  }, [planning])
 
   async function handleCreate(data: SlotFormData) {
     const count = await planning.createSlot(data)
@@ -102,25 +127,44 @@ export default function Planning() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View switcher */}
+          <div className="flex items-center gap-1 rounded-xl bg-card p-1">
+            {(['day', 'week', 'month'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => handleViewChange(v)}
+                className={`rounded-lg px-3 py-1.5 font-body text-xs font-semibold transition-colors ${
+                  view === v
+                    ? 'bg-accent text-dark'
+                    : 'text-muted hover:bg-dark/5 hover:text-dark'
+                }`}
+              >
+                {t(`planning.view_${v}`)}
+              </button>
+            ))}
+          </div>
+
+          {/* Date navigation */}
           <div className="flex items-center gap-1 rounded-xl bg-card p-1">
             <button
               type="button"
-              onClick={() => planning.navigate('prev')}
+              onClick={() => handleNav('prev')}
               className="rounded-lg p-2 text-muted transition-colors hover:bg-dark/5 hover:text-dark"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               type="button"
-              onClick={() => planning.navigate('today')}
+              onClick={() => handleNav('today')}
               className="rounded-lg px-3 py-1.5 font-body text-xs font-semibold text-secondary transition-colors hover:bg-dark/5 hover:text-dark"
             >
               {t('planning.today')}
             </button>
             <button
               type="button"
-              onClick={() => planning.navigate('next')}
+              onClick={() => handleNav('next')}
               className="rounded-lg p-2 text-muted transition-colors hover:bg-dark/5 hover:text-dark"
             >
               <ChevronRight className="h-4 w-4" />
@@ -150,9 +194,11 @@ export default function Planning() {
 
       {/* Desktop week grid (FullCalendar) */}
       <PlanningCalendar
+        ref={calendarRef}
         slots={planning.filteredSlots}
         weekStart={planning.weekStart}
         onSlotClick={planning.setSelectedSlot}
+        onDatesChange={handleDatesChange}
       />
 
       {/* Mobile day list */}

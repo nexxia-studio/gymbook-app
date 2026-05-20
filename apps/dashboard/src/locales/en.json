@@ -158,6 +158,9 @@
     "cancel_slot": "Cancel slot",
     "close": "Close",
     "move_with_bookings_confirm": "This slot has {{count}} enrolled member(s). Confirm the move?",
+    "view_day": "Day",
+    "view_week": "Week",
+    "view_month": "Month",
     "status": {
       "scheduled": "Scheduled",
       "completed": "Completed",
