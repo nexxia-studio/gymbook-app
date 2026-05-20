@@ -35,23 +35,31 @@ function getIsoWeekNumber(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
+function capitalize(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s
+}
+
 function getPeriodLabel(
   view: 'day' | 'week' | 'month',
-  weekStart: Date,
-  weekEnd: Date,
+  periodStart: Date,
   t: (key: string) => string,
 ): string {
   if (view === 'day') {
-    return weekStart.toLocaleDateString('fr-BE', {
+    return capitalize(periodStart.toLocaleDateString('fr-BE', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    })
+    }))
   }
   if (view === 'month') {
-    return weekStart.toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' })
+    return capitalize(periodStart.toLocaleDateString('fr-BE', {
+      month: 'long', year: 'numeric',
+    }))
   }
-  const monthName = t(`planning.months.${weekStart.getMonth()}`)
-  const week = getIsoWeekNumber(weekStart)
-  return `${formatWeekRange(weekStart, weekEnd, t)} · ${monthName} · ${t('planning.week_short')} ${week}`
+  const weekEnd = new Date(periodStart)
+  weekEnd.setDate(weekEnd.getDate() + 6)
+  const start = periodStart.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long' })
+  const end = weekEnd.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
+  const weekNum = getIsoWeekNumber(periodStart)
+  return `${capitalize(start)} — ${capitalize(end)} · ${t('planning.week_short')} ${weekNum}`
 }
 
 export default function Planning() {
@@ -66,6 +74,9 @@ export default function Planning() {
 
   const calendarRef = useRef<PlanningCalendarHandle>(null)
   const [view, setView] = useState<'day' | 'week' | 'month'>('week')
+  // Real period start as reported by FullCalendar's datesSet — drives the header label
+  // independently of weekStart (which only follows day/week views).
+  const [currentPeriodStart, setCurrentPeriodStart] = useState<Date>(() => planning.weekStart)
 
   const handleViewChange = useCallback((next: 'day' | 'week' | 'month') => {
     const map: Record<'day' | 'week' | 'month', CalendarView> = {
@@ -81,6 +92,8 @@ export default function Planning() {
   // refetch the right window — 1 day, 7 days or ~35 days depending on the active view.
   // weekStart is left untouched so the header label still reflects the current week.
   const handleDatesChange = useCallback((start: string, end: string) => {
+    // T12:00:00 anchors the date solidly in local time, dodging DST edge cases.
+    setCurrentPeriodStart(new Date(`${start}T12:00:00`))
     planning.setVisibleRange(start, end)
   }, [planning])
 
@@ -152,8 +165,8 @@ export default function Planning() {
           <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
             {t('planning.title')}
           </h1>
-          <p className="mt-1 font-body text-sm text-muted">
-            {getPeriodLabel(view, planning.weekStart, planning.weekEnd, t)}
+          <p className="mt-1 font-body text-sm font-bold text-dark">
+            {getPeriodLabel(view, currentPeriodStart, t)}
           </p>
         </div>
 
