@@ -73,6 +73,12 @@ export function useBiometrics() {
     return { email, password }
   }, [])
 
+  const updateSavedPassword = useCallback(async (newPassword: string): Promise<void> => {
+    const email = await SecureStore.getItemAsync(SAVED_EMAIL_KEY)
+    if (!email) return
+    await SecureStore.setItemAsync(SAVED_PASSWORD_KEY, newPassword)
+  }, [])
+
   return {
     isBiometricAvailable,
     getBiometricKind,
@@ -82,5 +88,6 @@ export function useBiometrics() {
     disableBiometric,
     authenticateWithBiometric,
     getSavedCredentials,
+    updateSavedPassword,
   }
 }

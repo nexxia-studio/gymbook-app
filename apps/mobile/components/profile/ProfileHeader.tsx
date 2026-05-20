@@ -1,4 +1,5 @@
-import { View, Text } from 'react-native'
+import { View, Text, Pressable, Image } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 
 interface ProfileHeaderProps {
@@ -6,6 +7,7 @@ interface ProfileHeaderProps {
   lastName: string
   memberSince: string
   levelKey?: string
+  avatarUrl?: string | null
 }
 
 function nameToColor(name: string): string {
@@ -15,22 +17,29 @@ function nameToColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export function ProfileHeader({ firstName, lastName, memberSince, levelKey }: ProfileHeaderProps) {
+export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avatarUrl }: ProfileHeaderProps) {
   const { t } = useTranslation()
+  const router = useRouter()
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   const bgColor = nameToColor(`${firstName} ${lastName}`)
 
   return (
     <View className="mx-4 mt-4 items-center rounded-3xl bg-move-card px-6 py-6 shadow-sm">
-      {/* Avatar */}
-      <View
-        className="mb-3 h-20 w-20 items-center justify-center rounded-full"
-        style={{ backgroundColor: bgColor, borderWidth: 3, borderColor: '#C8F000' }}
-      >
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#FFFFFF' }}>
-          {initials}
-        </Text>
-      </View>
+      {/* Avatar (tap → edit photo) */}
+      <Pressable onPress={() => router.push('/profile/edit?focus=photo' as never)}>
+        <View
+          className="mb-3 h-20 w-20 items-center justify-center overflow-hidden rounded-full"
+          style={{ backgroundColor: bgColor, borderWidth: 3, borderColor: '#C8F000' }}
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} className="h-full w-full" />
+          ) : (
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#FFFFFF' }}>
+              {initials}
+            </Text>
+          )}
+        </View>
+      </Pressable>
 
       <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
         {firstName} {lastName}

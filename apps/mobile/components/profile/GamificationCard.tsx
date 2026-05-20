@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { View, Text } from 'react-native'
+import { View, Text, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { Check, Circle, Trophy } from 'lucide-react-native'
+import { Check, Circle, Trophy, ChevronRight } from 'lucide-react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
 
 interface GamificationItem {
@@ -9,6 +9,7 @@ interface GamificationItem {
   labelKey: string
   points: number
   completed: boolean
+  onPress?: () => void
 }
 
 interface GamificationCardProps {
@@ -50,23 +51,43 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
 
       {/* Items */}
       <View className="mt-4 gap-2.5">
-        {items.map((item) => (
-          <View key={item.key} className="flex-row items-center">
-            {item.completed ? (
-              <View className="h-5 w-5 items-center justify-center rounded-full bg-green-500/20">
-                <Check size={12} color="#22C55E" />
-              </View>
-            ) : (
-              <Circle size={20} color="#555555" />
-            )}
-            <Text className={`ml-3 flex-1 font-dmsans text-sm ${item.completed ? 'text-white' : 'text-white/40'}`}>
-              {t(`profile.gamification.${item.labelKey}`)}
-            </Text>
-            <Text className="font-dmsans-bold text-xs text-move-accent">
-              {item.points}pts
-            </Text>
-          </View>
-        ))}
+        {items.map((item) => {
+          const isClickable = !item.completed && !!item.onPress
+          const Row = (
+            <>
+              {item.completed ? (
+                <View className="h-5 w-5 items-center justify-center rounded-full bg-green-500/20">
+                  <Check size={12} color="#22C55E" />
+                </View>
+              ) : (
+                <Circle size={20} color="#555555" />
+              )}
+              <Text className={`ml-3 flex-1 font-dmsans text-sm ${item.completed ? 'text-white' : 'text-white/60'}`}>
+                {t(`profile.gamification.${item.labelKey}`)}
+              </Text>
+              <Text className="font-dmsans-bold text-xs text-move-accent">
+                {item.points}pts
+              </Text>
+              {isClickable && <ChevronRight size={14} color="#C8F000" />}
+            </>
+          )
+          if (isClickable) {
+            return (
+              <Pressable
+                key={item.key}
+                onPress={item.onPress}
+                className="flex-row items-center"
+              >
+                {Row}
+              </Pressable>
+            )
+          }
+          return (
+            <View key={item.key} className="flex-row items-center">
+              {Row}
+            </View>
+          )
+        })}
       </View>
 
       {/* Reward */}
