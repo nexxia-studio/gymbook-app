@@ -39,10 +39,20 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+interface ActiveCredits {
+  planId: string
+  planName: string
+  creditsTotal: number
+  creditsUsed: number
+  creditsRemaining: number
+  expiresAt: string | null
+}
+
 export default function SubscriptionScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const [activeSub, setActiveSub] = useState<ActiveSub | null>(null)
+  const [activeCredits, setActiveCredits] = useState<ActiveCredits | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -50,6 +60,7 @@ export default function SubscriptionScreen() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
+      // 1. Recurring subscription (member_subscriptions)
       const { data: sub } = await supabase
         .from('member_subscriptions')
         .select('id, status, starts_at, ends_at, credits_remaining, plan_id, plan:gym_plans(name, price_cents, billing_type, credit_count)')
@@ -75,6 +86,29 @@ export default function SubscriptionScreen() {
           unit,
         })
       }
+
+      // 2. One-time credits (member_credits) — drop_in / pack_10
+      const { data: credits } = await supabase
+        .from('member_credits')
+        .select('plan_id, credits_total, credits_used, credits_remaining, expires_at')
+        .eq('member_id', user.id)
+        .gt('credits_remaining', 0)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (credits && credits.plan_id) {
+        const planName = t(`subscription.plan_${credits.plan_id}_name`)
+        setActiveCredits({
+          planId: credits.plan_id,
+          planName,
+          creditsTotal: credits.credits_total,
+          creditsUsed: credits.credits_used,
+          creditsRemaining: credits.credits_remaining,
+          expiresAt: credits.expires_at,
+        })
+      }
+
       setLoading(false)
     })()
   }, [t])
@@ -132,6 +166,36 @@ export default function SubscriptionScreen() {
       </View>
 
       <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
+        {/* One-time credits card (drop_in / pack_10) */}
+        {!loading && activeCredits && (
+          <View className="rounded-2xl border-2 border-move-accent bg-move-card p-5">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+                {activeCredits.planName.toUpperCase()}
+              </Text>
+              <View className="rounded-full bg-green-100 px-3 py-1">
+                <Text className="font-dmsans-bold text-[11px] text-green-600">
+                  {t('subscription.active_badge')}
+                </Text>
+              </View>
+            </View>
+            <Text className="font-dmsans-bold text-base text-move-dark">
+              {t('subscription.credits_remaining', { count: activeCredits.creditsRemaining })}
+            </Text>
+            <Text className="mt-1 font-dmsans text-sm text-move-text-secondary">
+              {t('subscription.credits_usage', { used: activeCredits.creditsUsed, total: activeCredits.creditsTotal })}
+            </Text>
+            {activeCredits.expiresAt && (
+              <View className="mt-3 flex-row items-center gap-1.5">
+                <Calendar size={14} color="#6B6861" />
+                <Text className="font-dmsans text-xs text-move-text-secondary">
+                  {t('subscription.valid_until', { date: formatDate(activeCredits.expiresAt) })}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Active sub or empty state */}
         {loading ? null : activeSub ? (
           <View className="rounded-2xl border-2 border-move-accent bg-move-card p-5">
@@ -173,7 +237,7 @@ export default function SubscriptionScreen() {
               </View>
             )}
           </View>
-        ) : (
+        ) : activeCredits ? null : (
           <View className="items-center rounded-2xl bg-move-card p-8">
             <CreditCard size={48} color="#9A9890" />
             <Text className="mt-3 font-dmsans-bold text-base text-move-dark">

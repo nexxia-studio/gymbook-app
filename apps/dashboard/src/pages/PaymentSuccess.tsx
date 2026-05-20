@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
 interface Payment {
@@ -12,7 +12,6 @@ interface Payment {
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
   const [payment, setPayment] = useState<Payment | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -24,10 +23,6 @@ export default function PaymentSuccess() {
       setIsLoading(false)
       return
     }
-
-    // Try to re-open the mobile app via deep link. The browser will silently
-    // ignore the navigation if the app isn't installed, leaving us on the web fallback.
-    window.location.href = `dopamine://payment/success?id=${paymentId}`
 
     const fetchPayment = async () => {
       const { data } = await supabase
@@ -96,15 +91,18 @@ export default function PaymentSuccess() {
             href={`dopamine://payment/success?id=${paymentId}`}
             className="block w-full text-center bg-gray-900 text-lime-400 font-bold py-3 px-6 rounded-xl mb-2"
           >
-            Retourner dans l&apos;app
+            Retourner dans l&apos;app Dopamine
           </a>
         )}
         <button
-          onClick={() => navigate('/')}
+          onClick={() => window.close()}
           className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-xl font-bold w-full"
         >
-          Retour à l&apos;accueil
+          Fermer cette fenêtre
         </button>
+        <p className="text-xs text-gray-400 mt-3">
+          Vous pouvez fermer cette fenêtre et retourner dans l&apos;app.
+        </p>
       </div>
     </div>
   )

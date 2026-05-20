@@ -15,6 +15,7 @@ import { ProfileListItem } from '../../components/profile/ProfileListItem'
 import { SignOutModal } from '../../components/profile/SignOutModal'
 import { useAuthStore, type MemberProfile } from '../../stores/useAuthStore'
 import { useProfileStats } from '../../hooks/useProfileStats'
+import { useSubscriptionSummary } from '../../hooks/useSubscriptionSummary'
 import { getLevel } from '../../utils/level'
 
 interface GamificationItem {
@@ -47,14 +48,16 @@ export default function Profile() {
   const profile = useAuthStore((s) => s.profile)
   const refreshProfile = useAuthStore((s) => s.refreshProfile)
   const { stats, refresh: refreshStats } = useProfileStats()
+  const { summary: subscriptionSummary, refresh: refreshSubscription } = useSubscriptionSummary()
   const [signOutVisible, setSignOutVisible] = useState(false)
 
-  // Refresh profile + stats on tab focus
+  // Refresh profile + stats + subscription on tab focus
   useFocusEffect(
     useCallback(() => {
       refreshProfile()
       refreshStats()
-    }, [refreshProfile, refreshStats])
+      refreshSubscription()
+    }, [refreshProfile, refreshStats, refreshSubscription])
   )
 
   const { items, percentage } = useMemo(
@@ -116,8 +119,8 @@ export default function Profile() {
           <ProfileListItem
             icon={CreditCard}
             label={t('profile.my_subscription')}
-            detail={t('profile.subscription_detail')}
-            badge={t('profile.subscription_active')}
+            detail={subscriptionSummary.detail ?? t('profile.no_subscription_detail')}
+            badge={subscriptionSummary.isActive ? t('profile.subscription_active') : undefined}
             onPress={() => router.push('/profile/subscription')}
           />
           <View className="mx-5 h-px bg-move-border" />
