@@ -57,11 +57,12 @@ export default function Planning() {
     planning.setVisibleRange(start, end)
   }, [planning])
 
-  // Override navigate so it ALSO drives FullCalendar (the calendar listens to weekStart
-  // via useEffect, but for views that don't follow weekStart 1:1 we are explicit).
-  const handleNav = useCallback((dir: 'prev' | 'next' | 'today') => {
-    planning.navigate(dir)
-  }, [planning])
+  // Delegate prev/next/today to FullCalendar — it advances by the view's step
+  // (1 day / 7 days / 1 month). The resulting datesSet → handleDatesChange path
+  // updates the hook's range and (in week/day views) its weekStart anchor.
+  const handlePrev = useCallback(() => calendarRef.current?.prev(), [])
+  const handleNext = useCallback(() => calendarRef.current?.next(), [])
+  const handleToday = useCallback(() => calendarRef.current?.today(), [])
 
   async function handleCreate(data: SlotFormData) {
     const count = await planning.createSlot(data)
@@ -152,21 +153,21 @@ export default function Planning() {
           <div className="flex items-center gap-1 rounded-xl bg-card p-1">
             <button
               type="button"
-              onClick={() => handleNav('prev')}
+              onClick={handlePrev}
               className="rounded-lg p-2 text-muted transition-colors hover:bg-dark/5 hover:text-dark"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               type="button"
-              onClick={() => handleNav('today')}
+              onClick={handleToday}
               className="rounded-lg px-3 py-1.5 font-body text-xs font-semibold text-secondary transition-colors hover:bg-dark/5 hover:text-dark"
             >
               {t('planning.today')}
             </button>
             <button
               type="button"
-              onClick={() => handleNav('next')}
+              onClick={handleNext}
               className="rounded-lg p-2 text-muted transition-colors hover:bg-dark/5 hover:text-dark"
             >
               <ChevronRight className="h-4 w-4" />

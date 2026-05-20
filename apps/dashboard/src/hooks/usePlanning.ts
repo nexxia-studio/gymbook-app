@@ -277,10 +277,18 @@ export function usePlanning() {
     setWeekStart(getMonday(d, tz))
   }
 
-  // Set the visible date range without touching weekStart (used by view changes:
-  // day shows 1 day, week shows 7, month shows ~35-42). Does not alter the header label.
+  // Set the visible date range. In day/week views (≤ 8 days), also realign weekStart
+  // to the Monday of the displayed range so the page header label updates. In month
+  // view (~35-42 days), leave weekStart untouched — the header keeps the last week label.
   function setVisibleRange(start: string, end: string) {
     setDateRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
+    const startDate = new Date(`${start}T00:00:00`)
+    const endDate = new Date(`${end}T00:00:00`)
+    const daysSpan = Math.round((endDate.getTime() - startDate.getTime()) / 86400000)
+    if (daysSpan > 0 && daysSpan <= 8) {
+      const monday = getMonday(startDate, tz)
+      setWeekStart((prev) => (ymd(prev) === ymd(monday) ? prev : monday))
+    }
   }
 
   function checkOverlap(coachId: string, date: string, startTime: string, duration: number, excludeId?: string): boolean {
