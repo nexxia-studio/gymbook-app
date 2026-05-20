@@ -66,3 +66,94 @@ body {
 .animate-badge {
   animation: badge-pulse 2s ease-in-out infinite;
 }
+
+/* === FullCalendar — GymBook design tokens === */
+:root {
+  --fc-border-color: rgba(0, 0, 0, 0.08);
+  --fc-today-bg-color: rgba(200, 240, 0, 0.05);
+  --fc-now-indicator-color: #EF4444;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: transparent;
+  --fc-highlight-color: rgba(200, 240, 0, 0.12);
+  --fc-event-selected-overlay-color: rgba(0, 0, 0, 0.25);
+  --fc-small-font-size: 11px;
+}
+
+.fc { font-family: inherit; }
+
+/* Hide native toolbar (we use the page header instead) */
+.fc .fc-toolbar { display: none; }
+
+/* Day headers row */
+.fc .fc-col-header { background: transparent; }
+.fc .fc-col-header-cell {
+  border-color: var(--fc-border-color);
+  padding: 10px 4px;
+}
+.fc .fc-col-header-cell-cushion {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6B7280;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+}
+.fc .fc-day-today .fc-col-header-cell-cushion {
+  color: #111111;
+  font-weight: 700;
+}
+
+/* Hour gutter labels */
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-timegrid-slot-label-cushion {
+  font-family: inherit;
+  font-size: 10px;
+  color: #9CA3AF;
+}
+.fc .fc-timegrid-axis-frame {
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+/* Hour grid lines */
+.fc-theme-standard td,
+.fc-theme-standard th { border-color: var(--fc-border-color); }
+.fc .fc-timegrid-slot { height: 30px; }
+
+/* Now indicator */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: var(--fc-now-indicator-color);
+  border-width: 2px;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: var(--fc-now-indicator-color);
+}
+
+/* Events — neutralise FullCalendar default chrome, EventContent draws itself */
+.fc .gymbook-event {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+}
+.fc .gymbook-event .fc-event-main {
+  padding: 1px 2px;
+  height: 100%;
+}
+.fc .gymbook-event:hover { filter: brightness(1.02); }
+.fc .gymbook-event.fc-event-dragging,
+.fc .gymbook-event.fc-event-resizing { opacity: 0.8; }
+
+/* Selectable empty area */
+.fc .fc-timegrid-col.fc-day { cursor: pointer; }
+.fc .fc-highlight { background-color: var(--fc-highlight-color); }
+
+/* Dark mode */
+.dark {
+  --fc-border-color: rgba(255, 255, 255, 0.08);
+  --fc-today-bg-color: rgba(200, 240, 0, 0.08);
+  --fc-highlight-color: rgba(200, 240, 0, 0.15);
+}
+.dark .fc .fc-col-header-cell-cushion { color: #9CA3AF; }
+.dark .fc .fc-day-today .fc-col-header-cell-cushion { color: #FFFFFF; }
