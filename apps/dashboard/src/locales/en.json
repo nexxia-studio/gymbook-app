@@ -157,6 +157,7 @@
     "edit_slot": "Edit",
     "cancel_slot": "Cancel slot",
     "close": "Close",
+    "move_with_bookings_confirm": "This slot has {{count}} enrolled member(s). Confirm the move?",
     "status": {
       "scheduled": "Scheduled",
       "completed": "Completed",

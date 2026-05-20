@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { FilterPills } from '@/components/planning/FilterPills'
-import { WeekGrid } from '@/components/planning/WeekGrid'
+import { PlanningCalendar } from '@/components/planning/PlanningCalendar'
 import { MobileDayList } from '@/components/planning/MobileDayList'
 import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
@@ -148,12 +148,11 @@ export default function Planning() {
         />
       </div>
 
-      {/* Desktop week grid */}
-      <WeekGrid
-        weekDays={planning.weekDays}
-        getSlotsByDay={planning.getSlotsByDay}
+      {/* Desktop week grid (FullCalendar) */}
+      <PlanningCalendar
+        slots={planning.filteredSlots}
+        weekStart={planning.weekStart}
         onSlotClick={planning.setSelectedSlot}
-        loading={planning.loading}
       />
 
       {/* Mobile day list */}
