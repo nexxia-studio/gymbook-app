@@ -1046,6 +1046,60 @@ export type Database = {
           },
         ]
       }
+      member_credits: {
+        Row: {
+          created_at: string | null
+          credits_remaining: number | null
+          credits_total: number
+          credits_used: number
+          expires_at: string | null
+          gym_id: string
+          id: string
+          member_id: string
+          plan_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          credits_remaining?: number | null
+          credits_total?: number
+          credits_used?: number
+          expires_at?: string | null
+          gym_id: string
+          id?: string
+          member_id: string
+          plan_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          credits_remaining?: number | null
+          credits_total?: number
+          credits_used?: number
+          expires_at?: string | null
+          gym_id?: string
+          id?: string
+          member_id?: string
+          plan_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_credits_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_credits_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_subscriptions: {
         Row: {
           auto_renew: boolean | null
@@ -1140,6 +1194,95 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "gym_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mollie_connections: {
+        Row: {
+          access_token: string
+          connected_at: string | null
+          expires_at: string | null
+          gym_admin_id: string
+          gym_id: string
+          id: string
+          is_test_mode: boolean | null
+          mollie_profile_id: string | null
+          mollie_profile_name: string | null
+          refresh_token: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string | null
+          expires_at?: string | null
+          gym_admin_id: string
+          gym_id: string
+          id?: string
+          is_test_mode?: boolean | null
+          mollie_profile_id?: string | null
+          mollie_profile_name?: string | null
+          refresh_token?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string | null
+          expires_at?: string | null
+          gym_admin_id?: string
+          gym_id?: string
+          id?: string
+          is_test_mode?: boolean | null
+          mollie_profile_id?: string | null
+          mollie_profile_name?: string | null
+          refresh_token?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mollie_connections_gym_admin_id_fkey"
+            columns: ["gym_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mollie_connections_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: true
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mollie_oauth_states: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          gym_admin_id: string
+          id: string
+          state: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          gym_admin_id: string
+          id?: string
+          state: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          gym_admin_id?: string
+          id?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mollie_oauth_states_gym_admin_id_fkey"
+            columns: ["gym_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1638,6 +1781,81 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount: number
+          checkout_url: string | null
+          created_at: string | null
+          credits_granted: number | null
+          currency: string
+          expires_at: string | null
+          gym_id: string
+          id: string
+          member_id: string
+          mollie_payment_id: string | null
+          nexxia_fee: number | null
+          paid_at: string | null
+          payment_method: string | null
+          plan_id: string
+          plan_name: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          checkout_url?: string | null
+          created_at?: string | null
+          credits_granted?: number | null
+          currency?: string
+          expires_at?: string | null
+          gym_id: string
+          id?: string
+          member_id: string
+          mollie_payment_id?: string | null
+          nexxia_fee?: number | null
+          paid_at?: string | null
+          payment_method?: string | null
+          plan_id: string
+          plan_name: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          checkout_url?: string | null
+          created_at?: string | null
+          credits_granted?: number | null
+          currency?: string
+          expires_at?: string | null
+          gym_id?: string
+          id?: string
+          member_id?: string
+          mollie_payment_id?: string | null
+          nexxia_fee?: number | null
+          paid_at?: string | null
+          payment_method?: string | null
+          plan_id?: string
+          plan_name?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       penalties: {
         Row: {
           applied_at: string | null
@@ -1718,6 +1936,7 @@ export type Database = {
           marketing_consent_at: string | null
           member_since: string | null
           noshow_count: number | null
+          notification_preferences: Json | null
           phone: string | null
           postal_code: string | null
           preferred_language: string | null
@@ -1727,6 +1946,8 @@ export type Database = {
           push_token: string | null
           reward_unlocked: boolean | null
           role: string
+          street_name: string | null
+          street_number: string | null
           suspended_until: string | null
           terms_accepted_at: string | null
           terms_version: string | null
@@ -1758,6 +1979,7 @@ export type Database = {
           marketing_consent_at?: string | null
           member_since?: string | null
           noshow_count?: number | null
+          notification_preferences?: Json | null
           phone?: string | null
           postal_code?: string | null
           preferred_language?: string | null
@@ -1767,6 +1989,8 @@ export type Database = {
           push_token?: string | null
           reward_unlocked?: boolean | null
           role: string
+          street_name?: string | null
+          street_number?: string | null
           suspended_until?: string | null
           terms_accepted_at?: string | null
           terms_version?: string | null
@@ -1798,6 +2022,7 @@ export type Database = {
           marketing_consent_at?: string | null
           member_since?: string | null
           noshow_count?: number | null
+          notification_preferences?: Json | null
           phone?: string | null
           postal_code?: string | null
           preferred_language?: string | null
@@ -1807,6 +2032,8 @@ export type Database = {
           push_token?: string | null
           reward_unlocked?: boolean | null
           role?: string
+          street_name?: string | null
+          street_number?: string | null
           suspended_until?: string | null
           terms_accepted_at?: string | null
           terms_version?: string | null
@@ -1853,6 +2080,72 @@ export type Database = {
           window_start?: string | null
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string | null
+          ends_at: string | null
+          gym_id: string
+          id: string
+          member_id: string
+          mollie_subscription_id: string | null
+          next_billing_date: string | null
+          plan_id: string
+          plan_name: string
+          price: number
+          price_unit: string
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          ends_at?: string | null
+          gym_id: string
+          id?: string
+          member_id: string
+          mollie_subscription_id?: string | null
+          next_billing_date?: string | null
+          plan_id: string
+          plan_name: string
+          price: number
+          price_unit: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          ends_at?: string | null
+          gym_id?: string
+          id?: string
+          member_id?: string
+          mollie_subscription_id?: string | null
+          next_billing_date?: string | null
+          plan_id?: string
+          plan_name?: string
+          price?: number
+          price_unit?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       super_admin_proxy_actions: {
         Row: {
@@ -2078,6 +2371,7 @@ export type Database = {
       }
       is_gym_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      reorder_waitlist: { Args: { p_slot_id: string }; Returns: undefined }
       request_account_deletion: { Args: { p_user_id: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
