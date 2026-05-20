@@ -130,14 +130,15 @@ export function PlanningCalendar({ slots, weekStart, onSlotClick, onSlotCreate }
   }, [weekStart])
 
   const events: EventInput[] = useMemo(() => {
-    return slots.map((slot) => {
+    const mapped: EventInput[] = slots.map((slot) => {
       const isFrozen = slot.activity.active === false || slot.coach.active === false
       return {
         id: slot.id,
+        // slot.date / startTime / endTime are already in the gym timezone (Brussels),
+        // so FullCalendar should treat them as local time (no `timeZone` prop set on the calendar).
         start: `${slot.date}T${slot.startTime}:00`,
         end: `${slot.date}T${slot.endTime}:00`,
         editable: !isFrozen && slot.status !== 'cancelled',
-        // Avoid FullCalendar adding its own coloured background or border on top of ours.
         backgroundColor: 'transparent',
         borderColor: 'transparent',
         textColor: 'inherit',
@@ -145,6 +146,8 @@ export function PlanningCalendar({ slots, weekStart, onSlotClick, onSlotCreate }
         extendedProps: { slotId: slot.id },
       }
     })
+    console.log('[PlanningCalendar] mapped events:', mapped.length, 'first:', mapped[0])
+    return mapped
   }, [slots])
 
   const handleEventClick = useCallback((info: EventClickArg) => {
@@ -211,7 +214,6 @@ export function PlanningCalendar({ slots, weekStart, onSlotClick, onSlotCreate }
         nowIndicator
         height="auto"
         expandRows
-        timeZone={tz}
         events={events}
         editable
         droppable={false}
