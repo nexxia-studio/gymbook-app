@@ -27,6 +27,33 @@ function formatWeekRange(start: Date, end: Date, t: (key: string) => string): st
   return `${startDay} ${startMonth} — ${endDay} ${endMonth} ${year}`
 }
 
+function getIsoWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+}
+
+function getPeriodLabel(
+  view: 'day' | 'week' | 'month',
+  weekStart: Date,
+  weekEnd: Date,
+  t: (key: string) => string,
+): string {
+  if (view === 'day') {
+    return weekStart.toLocaleDateString('fr-BE', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    })
+  }
+  if (view === 'month') {
+    return weekStart.toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' })
+  }
+  const monthName = t(`planning.months.${weekStart.getMonth()}`)
+  const week = getIsoWeekNumber(weekStart)
+  return `${formatWeekRange(weekStart, weekEnd, t)} · ${monthName} · ${t('planning.week_short')} ${week}`
+}
+
 export default function Planning() {
   const { t } = useTranslation()
   const addToast = useToastStore((s) => s.addToast)
@@ -126,7 +153,7 @@ export default function Planning() {
             {t('planning.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">
-            {formatWeekRange(planning.weekStart, planning.weekEnd, t)}
+            {getPeriodLabel(view, planning.weekStart, planning.weekEnd, t)}
           </p>
         </div>
 
