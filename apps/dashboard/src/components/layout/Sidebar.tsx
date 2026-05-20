@@ -6,6 +6,7 @@ import {
   Calendar,
   Users,
   CreditCard,
+  Receipt,
   TrendingUp,
   Settings,
   LogOut,
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { key: 'planning', path: '/planning', icon: Calendar },
   { key: 'members', path: '/members', icon: Users },
   { key: 'plans', path: '/plans', icon: CreditCard },
+  { key: 'payments', path: '/payments', icon: Receipt },
   { key: 'revenue', path: '/revenue', icon: TrendingUp },
   { key: 'settings', path: '/settings', icon: Settings },
 ] as const
