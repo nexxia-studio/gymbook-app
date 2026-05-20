@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ErrorBoundary } from 'react-error-boundary'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
@@ -49,9 +50,15 @@ export default function Planning() {
     setView(next)
   }, [])
 
-  // Push date changes from FullCalendar (via its imperative API or future toolbar)
-  // back to the planning hook so it refetches the right window.
+  // Push date changes from FullCalendar back to the hook. Bail when the requested
+  // date already falls inside the active week — without this guard the hook would
+  // create a new Date reference every datesSet round-trip and re-trigger an effect
+  // loop (React #185).
   const handleDatesChange = useCallback((startIso: string) => {
+    const ymd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const currentWeekYmd = ymd(planning.weekStart)
+    if (startIso === currentWeekYmd) return
     planning.goToDate(startIso)
   }, [planning])
 
@@ -193,13 +200,32 @@ export default function Planning() {
       </div>
 
       {/* Desktop week grid (FullCalendar) */}
-      <PlanningCalendar
-        ref={calendarRef}
-        slots={planning.filteredSlots}
-        weekStart={planning.weekStart}
-        onSlotClick={planning.setSelectedSlot}
-        onDatesChange={handleDatesChange}
-      />
+      <ErrorBoundary
+        fallbackRender={({ resetErrorBoundary }) => (
+          <div className="hidden items-center justify-center rounded-2xl border border-border bg-card p-12 md:flex">
+            <div className="text-center">
+              <p className="font-body text-sm text-muted">
+                ⚠️ {t('planning.calendar_error')}
+              </p>
+              <button
+                type="button"
+                onClick={() => { resetErrorBoundary(); window.location.reload() }}
+                className="mt-3 font-body text-sm text-dark underline"
+              >
+                {t('planning.calendar_reload')}
+              </button>
+            </div>
+          </div>
+        )}
+      >
+        <PlanningCalendar
+          ref={calendarRef}
+          slots={planning.filteredSlots}
+          weekStart={planning.weekStart}
+          onSlotClick={planning.setSelectedSlot}
+          onDatesChange={handleDatesChange}
+        />
+      </ErrorBoundary>
 
       {/* Mobile day list */}
       <MobileDayList

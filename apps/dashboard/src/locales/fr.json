@@ -161,6 +161,8 @@
     "view_day": "Jour",
     "view_week": "Semaine",
     "view_month": "Mois",
+    "calendar_error": "Erreur dans le calendrier",
+    "calendar_reload": "Recharger la page",
     "status": {
       "scheduled": "Planifié",
       "completed": "Terminé",
