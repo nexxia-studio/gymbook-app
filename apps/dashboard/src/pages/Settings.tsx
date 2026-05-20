@@ -16,6 +16,7 @@ import { useCoaches } from '@/hooks/useCoaches'
 import { useToastStore } from '@/hooks/useToast'
 import type { ActivityItem, ActivityFormData } from '@/types/activity'
 import type { CoachItem, CoachFormData } from '@/types/coach'
+import { MollieConnectCard } from '@/components/settings/MollieConnectCard'
 
 const TABS = ['activities', 'coaches', 'gym', 'plans'] as const
 type Tab = (typeof TABS)[number]
@@ -292,7 +293,12 @@ export default function Settings() {
         )}
 
         {/* ========= GYM TAB ========= */}
-        {activeTab === 'gym' && <GymSettingsCard />}
+        {activeTab === 'gym' && (
+          <div className="flex flex-col gap-4">
+            <GymSettingsCard />
+            <MollieConnectCard />
+          </div>
+        )}
 
         {/* ========= PLACEHOLDER TABS ========= */}
         {activeTab === 'plans' && <PlaceholderTab />}

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ToastContainer } from '@/components/ui/Toast'
+import MollieCallback from '@/pages/MollieCallback'
 
 const Login = lazy(() => import('@/pages/Login'))
 const Signup = lazy(() => import('@/pages/Signup'))
@@ -89,6 +90,12 @@ function AppRoutes() {
               <Settings />
             </ProtectedRoute>
           }
+        />
+        <Route 
+          path="/mollie/callback" 
+          element={
+            <MollieCallback />
+          } 
         />
       </Routes>
     </Suspense>
