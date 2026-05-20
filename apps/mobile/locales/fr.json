@@ -317,9 +317,15 @@
     "empty_title": "Aucun paiement",
     "empty_subtitle": "Votre historique de paiements apparaîtra ici une fois votre abonnement activé.",
     "view_subscriptions": "Voir les abonnements disponibles",
-    "status_paid": "✓ Payé",
-    "status_pending": "⏳ En attente",
-    "status_failed": "✗ Échoué"
+    "status_paid": "Payé",
+    "status_pending": "En cours",
+    "status_failed": "Échoué",
+    "status_expired": "Expiré",
+    "status_canceled": "Annulé",
+    "download_invoice": "Télécharger la facture",
+    "invoice_error_title": "Facture indisponible",
+    "invoice_error_message": "Impossible de générer la facture. Réessayez.",
+    "invoice_error_auth": "Veuillez vous reconnecter pour télécharger la facture."
   },
   "subscription": {
     "title": "Mon abonnement",

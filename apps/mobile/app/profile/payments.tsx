@@ -1,43 +1,92 @@
-import { useState } from 'react'
-import { View, Text, ScrollView, Pressable } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { View, Text, ScrollView, Pressable, Linking, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { ChevronLeft, Receipt } from 'lucide-react-native'
+import { ChevronLeft, Receipt, FileText } from 'lucide-react-native'
+import { supabase } from '../../lib/supabase'
 
-type PaymentStatus = 'paid' | 'pending' | 'failed'
+type PaymentStatus = 'paid' | 'pending' | 'failed' | 'expired' | 'canceled'
 
-interface PaymentTransaction {
+interface PaymentRow {
   id: string
-  date: string
-  amount: number
-  planName: string
+  plan_id: string | null
+  plan_name: string | null
+  amount: number | string
   status: PaymentStatus
-  mollieId?: string
+  paid_at: string | null
+  created_at: string | null
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
+const ONE_TIME_PLAN_IDS = new Set(['drop_in', 'pack_10'])
+
+function isOneTime(planId: string | null): boolean {
+  return !!planId && ONE_TIME_PLAN_IDS.has(planId)
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('fr-BE', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function statusKey(status: PaymentStatus): string {
+  return `payments.status_${status}`
 }
 
 function statusBg(status: PaymentStatus): string {
-  if (status === 'paid') return 'bg-green-100'
-  if (status === 'pending') return 'bg-orange-100'
-  return 'bg-red-100'
+  if (status === 'paid') return 'bg-green-50'
+  if (status === 'pending') return 'bg-orange-50'
+  if (status === 'failed') return 'bg-red-50'
+  return 'bg-gray-100'
 }
 
 function statusText(status: PaymentStatus): string {
   if (status === 'paid') return 'text-green-600'
   if (status === 'pending') return 'text-orange-600'
-  return 'text-red-600'
+  if (status === 'failed') return 'text-red-600'
+  return 'text-move-text-muted'
 }
+
+const FUNCTIONS_URL = 'https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1'
 
 export default function PaymentsScreen() {
   const { t } = useTranslation()
   const router = useRouter()
+  const [transactions, setTransactions] = useState<PaymentRow[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Sprint 6: query Mollie-backed payment_transactions table here
-  const [transactions] = useState<PaymentTransaction[]>([])
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data } = await supabase
+        .from('payments')
+        .select('id, plan_id, plan_name, amount, status, paid_at, created_at')
+        .eq('member_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      setTransactions((data ?? []) as PaymentRow[])
+      setLoading(false)
+    })()
+  }, [])
+
+  const handleDownloadInvoice = useCallback(async (paymentId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        Alert.alert(t('payments.invoice_error_title'), t('payments.invoice_error_auth'))
+        return
+      }
+      const url = `${FUNCTIONS_URL}/generate-invoice?payment_id=${paymentId}&token=${encodeURIComponent(token)}`
+      await Linking.openURL(url)
+    } catch (err) {
+      console.error('[invoice] error:', err)
+      Alert.alert(t('payments.invoice_error_title'), t('payments.invoice_error_message'))
+    }
+  }, [t])
 
   return (
     <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
@@ -52,7 +101,9 @@ export default function PaymentsScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {transactions.length === 0 ? (
+      {loading ? (
+        <View className="flex-1 bg-move-bg" />
+      ) : transactions.length === 0 ? (
         <View className="flex-1 items-center justify-center gap-4 bg-move-bg px-8">
           <Receipt size={64} color="#E5E5E0" />
           <Text className="text-center font-dmsans-bold text-xl text-move-dark">
@@ -72,28 +123,51 @@ export default function PaymentsScreen() {
         </View>
       ) : (
         <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}>
-          {transactions.map((tx) => (
-            <View key={tx.id} className="flex-row items-center justify-between rounded-xl bg-move-card p-4">
-              <View>
-                <Text className="font-dmsans text-xs text-move-text-muted">
-                  {formatDate(tx.date)}
-                </Text>
-                <Text className="mt-0.5 font-dmsans-medium text-sm text-move-dark">
-                  {tx.planName}
-                </Text>
-              </View>
-              <View className="items-end">
-                <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#111111' }}>
-                  {tx.amount}€
-                </Text>
-                <View className={`mt-1 self-end rounded-full px-2 py-0.5 ${statusBg(tx.status)}`}>
-                  <Text className={`font-dmsans text-[11px] ${statusText(tx.status)}`}>
-                    {t(`payments.status_${tx.status}`)}
-                  </Text>
+          {transactions.map((tx) => {
+            const oneTime = isOneTime(tx.plan_id)
+            const canDownload = oneTime && tx.status === 'paid'
+            return (
+              <View key={tx.id} className="rounded-xl bg-move-card p-4">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 flex-row items-center gap-3">
+                    <View className="h-10 w-10 items-center justify-center rounded-full bg-move-bg">
+                      <Text style={{ fontSize: 18 }}>{oneTime ? '🎟️' : '📅'}</Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="font-dmsans-medium text-sm text-move-dark" numberOfLines={1}>
+                        {tx.plan_name ?? '—'}
+                      </Text>
+                      <Text className="mt-0.5 font-dmsans text-xs text-move-text-muted">
+                        {formatDate(tx.paid_at ?? tx.created_at)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="items-end gap-1">
+                    <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#111111' }}>
+                      {Number(tx.amount).toFixed(2)}€
+                    </Text>
+                    <View className={`rounded-full px-2 py-0.5 ${statusBg(tx.status)}`}>
+                      <Text className={`font-dmsans text-[11px] ${statusText(tx.status)}`}>
+                        {t(statusKey(tx.status))}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
+
+                {canDownload && (
+                  <Pressable
+                    onPress={() => handleDownloadInvoice(tx.id)}
+                    className="mt-3 flex-row items-center justify-center gap-1.5 self-start rounded-md border border-move-border px-3 py-1.5"
+                  >
+                    <FileText size={12} color="#6B6861" />
+                    <Text className="font-dmsans-medium text-xs text-move-text-secondary">
+                      {t('payments.download_invoice')}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
-            </View>
-          ))}
+            )
+          })}
         </ScrollView>
       )}
     </SafeAreaView>
