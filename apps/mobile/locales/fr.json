@@ -299,6 +299,18 @@
       "edit_photo": "Modifier la photo"
     }
   },
+  "payment": {
+    "success_title": "PAIEMENT CONFIRMÉ !",
+    "verifying": "VÉRIFICATION...",
+    "credits_added_one": "{{count}} séance ajoutée !",
+    "credits_added_other": "{{count}} séances ajoutées !",
+    "credits_added": "{{count}} séance(s) ajoutée(s) !",
+    "waiting_confirmation": "Nous attendons la confirmation de Mollie. Cette page se met à jour automatiquement.",
+    "go_to_profile": "Voir mon profil",
+    "cancel_title": "PAIEMENT ANNULÉ",
+    "cancel_message": "Aucun montant n'a été prélevé.",
+    "back_to_plans": "Retour aux abonnements"
+  },
   "payments": {
     "title": "Historique des paiements",
     "empty_title": "Aucun paiement",

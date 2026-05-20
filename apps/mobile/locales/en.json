@@ -299,6 +299,18 @@
       "edit_photo": "Edit photo"
     }
   },
+  "payment": {
+    "success_title": "PAYMENT CONFIRMED!",
+    "verifying": "VERIFYING...",
+    "credits_added_one": "{{count}} session added!",
+    "credits_added_other": "{{count}} sessions added!",
+    "credits_added": "{{count}} session(s) added!",
+    "waiting_confirmation": "Waiting for Mollie confirmation. This page updates automatically.",
+    "go_to_profile": "Go to my profile",
+    "cancel_title": "PAYMENT CANCELLED",
+    "cancel_message": "No amount was charged.",
+    "back_to_plans": "Back to plans"
+  },
   "payments": {
     "title": "Payment history",
     "empty_title": "No payments yet",
