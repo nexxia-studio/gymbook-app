@@ -25,6 +25,10 @@ export default function PaymentSuccess() {
       return
     }
 
+    // Try to re-open the mobile app via deep link. The browser will silently
+    // ignore the navigation if the app isn't installed, leaving us on the web fallback.
+    window.location.href = `dopamine://payment/success?id=${paymentId}`
+
     const fetchPayment = async () => {
       const { data } = await supabase
         .from('payments')
@@ -61,6 +65,7 @@ export default function PaymentSuccess() {
   }
 
   const isPaid = payment?.status === 'paid'
+  const paymentId = searchParams.get('id')
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -86,9 +91,17 @@ export default function PaymentSuccess() {
             Nous attendons la confirmation de Mollie. Vous pouvez fermer cette page.
           </p>
         )}
+        {paymentId && (
+          <a
+            href={`dopamine://payment/success?id=${paymentId}`}
+            className="block w-full text-center bg-gray-900 text-lime-400 font-bold py-3 px-6 rounded-xl mb-2"
+          >
+            Retourner dans l&apos;app
+          </a>
+        )}
         <button
           onClick={() => navigate('/')}
-          className="bg-gray-900 text-lime-400 px-6 py-3 rounded-xl font-bold w-full"
+          className="bg-white border border-gray-200 text-gray-900 px-6 py-3 rounded-xl font-bold w-full"
         >
           Retour à l&apos;accueil
         </button>
