@@ -57,6 +57,26 @@ const STATUS_BADGE: Record<DisplayStatus, string> = {
   scheduled: '',
 }
 
+function MonthCompactEvent({ slot }: { slot: TimeSlot }) {
+  return (
+    <div
+      className="flex w-full items-center gap-1 overflow-hidden px-1 py-0.5"
+      style={{ minWidth: 0 }}
+    >
+      <span
+        className="shrink-0 rounded-full"
+        style={{ width: 8, height: 8, backgroundColor: slot.activity.color }}
+      />
+      <span className="shrink-0 font-body text-[11px] text-secondary">
+        {slot.startTime}
+      </span>
+      <span className="overflow-hidden text-ellipsis whitespace-nowrap font-body text-[11px] font-semibold text-dark">
+        {slot.activity.name}
+      </span>
+    </div>
+  )
+}
+
 function EventContent({ slot, t }: { slot: TimeSlot; t: (key: string) => string }) {
   const fillPercent = Math.round((slot.booked / slot.capacity) * 100)
   const displayStatus = getDisplayStatus(slot)
@@ -263,10 +283,13 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}
         eventOverlap
+        dayMaxEvents={3}
+        moreLinkText={(n) => `+${n}`}
         eventContent={(arg: EventContentArg) => {
           const id = (arg.event.extendedProps as { slotId?: string }).slotId ?? arg.event.id
           const slot = slotsById.get(id)
           if (!slot) return null
+          if (arg.view.type === 'dayGridMonth') return <MonthCompactEvent slot={slot} />
           return <EventContent slot={slot} t={t} />
         }}
         datesSet={(info: DatesSetArg) => {
