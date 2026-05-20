@@ -31,7 +31,7 @@ interface PlanningCalendarProps {
   weekStart: Date
   onSlotClick: (slot: TimeSlot) => void
   onSlotCreate?: (date: string, startTime: string) => void
-  onDatesChange?: (startDate: string) => void
+  onDatesChange?: (start: string, end: string) => void
 }
 
 function pad(n: number): string {
@@ -129,7 +129,7 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
   const { t } = useTranslation()
   const tz = useGymTimezone()
   const calendarRef = useRef<FullCalendar | null>(null)
-  const lastReportedDateRef = useRef<string>('')
+  const lastReportedRangeRef = useRef<string>('')
   const isInternalNavRef = useRef(false)
   const slotsById = useMemo(() => {
     const m = new Map<string, TimeSlot>()
@@ -263,15 +263,16 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
           return <EventContent slot={slot} t={t} />
         }}
         datesSet={(info: DatesSetArg) => {
-          // Don't echo our own programmatic gotoDate back to the parent.
           if (isInternalNavRef.current) return
           if (!onDatesChange) return
-          const d = info.start
-          const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-          // Ignore repeated emissions of the same date (React strict mode, view changes).
-          if (iso === lastReportedDateRef.current) return
-          lastReportedDateRef.current = iso
-          onDatesChange(iso)
+          const sd = info.start
+          const ed = info.end
+          const startIso = `${sd.getFullYear()}-${pad(sd.getMonth() + 1)}-${pad(sd.getDate())}`
+          const endIso = `${ed.getFullYear()}-${pad(ed.getMonth() + 1)}-${pad(ed.getDate())}`
+          const rangeKey = `${startIso}/${endIso}`
+          if (rangeKey === lastReportedRangeRef.current) return
+          lastReportedRangeRef.current = rangeKey
+          onDatesChange(startIso, endIso)
         }}
       />
     </div>

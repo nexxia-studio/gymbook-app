@@ -111,9 +111,25 @@ function addMinutes(time: string, mins: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return ymd(d)
+}
+
 export function usePlanning() {
   const tz = useGymTimezone()
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date(), tz))
+  // Date range actually fetched. Defaults to the week of weekStart but can be widened
+  // by view changes (month/day) via setVisibleRange.
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
+    const start = ymd(getMonday(new Date(), tz))
+    return { start, end: addDaysIso(start, 7) }
+  })
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [filterCoach, setFilterCoach] = useState<string | null>(null)
   const [filterActivity, setFilterActivity] = useState<string | null>(null)
@@ -132,11 +148,21 @@ export function usePlanning() {
     return d
   }, [weekStart])
 
-  // Fetch slots for the week
+  // Keep dateRange aligned with weekStart when the page navigates via prev/today/next.
+  // View-change-driven range updates (setVisibleRange) leave weekStart untouched.
+  useEffect(() => {
+    const start = ymd(weekStart)
+    const end = addDaysIso(start, 7)
+    setDateRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
+  }, [weekStart])
+
+  // Fetch slots for the visible date range
   const fetchSlots = useCallback(async () => {
     if (!gymId) return
     setLoading(true)
     try {
+      const startIso = new Date(`${dateRange.start}T00:00:00`).toISOString()
+      const endIso = new Date(`${dateRange.end}T23:59:59`).toISOString()
       const { data, error } = await supabase
         .from('time_slots')
         .select(`
@@ -149,8 +175,8 @@ export function usePlanning() {
           )
         `)
         .eq('gym_id', gymId)
-        .gte('starts_at', weekStart.toISOString())
-        .lte('starts_at', weekEnd.toISOString())
+        .gte('starts_at', startIso)
+        .lte('starts_at', endIso)
         .neq('status', 'deleted')
         .order('starts_at')
 
@@ -161,7 +187,7 @@ export function usePlanning() {
     } finally {
       setLoading(false)
     }
-  }, [gymId, weekStart, weekEnd])
+  }, [gymId, dateRange.start, dateRange.end, tz])
 
   // Fetch activities + coaches for filters and modals
   const fetchMeta = useCallback(async () => {
@@ -251,6 +277,12 @@ export function usePlanning() {
     setWeekStart(getMonday(d, tz))
   }
 
+  // Set the visible date range without touching weekStart (used by view changes:
+  // day shows 1 day, week shows 7, month shows ~35-42). Does not alter the header label.
+  function setVisibleRange(start: string, end: string) {
+    setDateRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
+  }
+
   function checkOverlap(coachId: string, date: string, startTime: string, duration: number, excludeId?: string): boolean {
     const newStart = timeToMin(startTime)
     const newEnd = newStart + duration
@@ -330,6 +362,7 @@ export function usePlanning() {
     getSlotsByDay,
     navigate,
     goToDate,
+    setVisibleRange,
     selectedSlot,
     setSelectedSlot,
     filterCoach,
