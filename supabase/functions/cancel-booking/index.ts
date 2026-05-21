@@ -249,36 +249,19 @@ Deno.serve(async (req) => {
         waitlist_confirmation_deadline: deadline.toISOString(),
       }).eq('id', nextInLine.id)
 
-      // Email + push notification
-      const { data: promotedProfile } = await admin
-        .from('profiles')
-        .select('email, first_name, push_token')
-        .eq('id', nextInLine.member_id)
-        .single()
-
-      if (resendKey && promotedProfile?.email) {
-        const confirmUrl = `dopamine://bookings`
-        await sendEmail(resendKey, promotedProfile.email,
-          `Place disponible — ${activityName}`,
-          emailHtml('Place disponible !',
-            `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${delayMinutes} minutes pour confirmer.</p>`,
-            'Confirmer ma place', confirmUrl))
-      }
-
-      // Push notification
-      if (promotedProfile?.push_token) {
-        try {
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-            body: JSON.stringify({
-              tokens: [promotedProfile.push_token],
-              title: 'Place disponible !',
-              body: `Vous avez ${delayMinutes} min pour confirmer — ${activityName}`,
-              data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
-            }),
-          })
-        } catch { /* non-blocking */ }
+      // Délégation email + push à notify-waitlist (non-bloquant)
+      const internalSecret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET')
+      if (internalSecret) {
+        fetch(`${supabaseUrl}/functions/v1/notify-waitlist`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Secret': internalSecret,
+          },
+          body: JSON.stringify({ booking_id: nextInLine.id }),
+        }).catch((e) => console.error('[cancel-booking] notify-waitlist error:', e))
+      } else {
+        console.warn('[cancel-booking] INTERNAL_FUNCTIONS_SECRET not set — waitlist notification skipped')
       }
     }
 

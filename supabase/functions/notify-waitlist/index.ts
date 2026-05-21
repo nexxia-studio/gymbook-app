@@ -15,6 +15,14 @@ function jsonResponse(body: unknown, status = 200) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
+  // Vérification secret interne — appels externes rejetés
+  const internalSecret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET')
+  const providedSecret = req.headers.get('X-Internal-Secret')
+  if (!internalSecret || !providedSecret || providedSecret !== internalSecret) {
+    console.warn('[notify-waitlist] Unauthorized — invalid X-Internal-Secret')
+    return new Response('Unauthorized', { status: 401 })
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -50,7 +58,6 @@ Deno.serve(async (req) => {
 
     if (!slot || !profile) return jsonResponse({ skipped: true, reason: 'data_missing' })
 
-    // Compute remaining minutes from deadline if available, else fall back to gym setting
     let minutes = 30
     if (booking.waitlist_confirmation_deadline) {
       const ms = new Date(booking.waitlist_confirmation_deadline).getTime() - Date.now()
