@@ -4,11 +4,9 @@
 // TODO GYM-61 : lire gym_reminder_settings pour les intervalles et canaux configurés
 // Actuellement hardcodé : 24h (email + push) / 2h (push uniquement)
 //
-// Hypothèse sur le shape retourné par get_pending_reminders() (RPC sur prod, non versionnée
-// dans le repo — voir [[project-edge-functions-governance]]). Ajuster si différent :
-//   { booking_id, reminder_type ('24h' | '2h'),
-//     member_id, member_email, member_first_name, member_push_token,
-//     activity_name, coach_name, starts_at }
+// Shape retourné par get_pending_reminders() (confirmé prod) :
+//   booking_id, member_id, gym_id, slot_id, slot_starts_at,
+//   activity_name, coach_name, member_email, member_first_name, push_token, reminder_type
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -16,14 +14,16 @@ const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
 
 interface PendingReminder {
   booking_id: string
-  reminder_type: '24h' | '2h'
   member_id: string
-  member_email: string | null
-  member_first_name: string | null
-  member_push_token: string | null
+  gym_id: string
+  slot_id: string
+  slot_starts_at: string
   activity_name: string | null
   coach_name: string | null
-  starts_at: string
+  member_email: string | null
+  member_first_name: string | null
+  push_token: string | null
+  reminder_type: '24h' | '2h'
 }
 
 function emailHtml(title: string, body: string, ctaText: string, ctaHref: string): string {
@@ -52,7 +52,7 @@ async function sendReminderEmail(reminder: PendingReminder, dateStr: string, tim
 }
 
 async function sendReminderPush(supabaseUrl: string, serviceKey: string, reminder: PendingReminder, timeStr: string) {
-  if (!reminder.member_push_token) return
+  if (!reminder.push_token) return
   const activityName = reminder.activity_name ?? 'Cours'
   const is24h = reminder.reminder_type === '24h'
   const title = is24h ? 'Rappel cours 🏋️' : "C'est bientôt ! 🏃"
@@ -61,7 +61,7 @@ async function sendReminderPush(supabaseUrl: string, serviceKey: string, reminde
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
     body: JSON.stringify({
-      tokens: [reminder.member_push_token],
+      tokens: [reminder.push_token],
       title,
       body,
       data: { type: 'booking_reminder', booking_id: reminder.booking_id },
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
     let sent = 0
     for (const r of (reminders ?? []) as PendingReminder[]) {
       try {
-        const startDate = new Date(r.starts_at)
+        const startDate = new Date(r.slot_starts_at)
         const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
         const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
