@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +12,26 @@ interface SubscriptionRequest {
   redirect_url: string
 }
 
-const APPLICATION_FEE_RATE = 0.01
+async function getGymPlanLimits(
+  supabase: SupabaseClient,
+  gymId: string,
+): Promise<{ commission_sepa_rate: number; payments_enabled: boolean } | null> {
+  const { data: gym } = await supabase
+    .from('nexxia_gyms')
+    .select('plan')
+    .eq('id', gymId)
+    .single()
+
+  if (!gym?.plan) return null
+
+  const { data: limits } = await supabase
+    .from('nexxia_plan_limits')
+    .select('commission_sepa_rate, payments_enabled')
+    .eq('plan', gym.plan)
+    .single()
+
+  return limits ?? null
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -70,6 +89,12 @@ Deno.serve(async (req) => {
 
     if (!profile) return errorResponse(404, 'Profil introuvable', 'PROFILE_NOT_FOUND')
     if (profile.gym_id !== gymId) return errorResponse(403, 'Accès interdit à ce gym', 'GYM_FORBIDDEN')
+
+    const planLimits = await getGymPlanLimits(supabaseAdmin, gymId)
+    if (!planLimits) return errorResponse(404, 'Plan GymBook introuvable', 'PLAN_NOT_FOUND')
+    if (!planLimits.payments_enabled) {
+      return errorResponse(403, 'Paiements non disponibles sur votre plan GymBook', 'PAYMENTS_DISABLED')
+    }
 
     const { data: plan } = await supabaseAdmin
       .from('gym_plans')
@@ -140,7 +165,8 @@ Deno.serve(async (req) => {
     }
 
     const priceEur = plan.price_cents / 100
-    const feeValue = Math.max(0.01, Number((priceEur * APPLICATION_FEE_RATE).toFixed(2)))
+    const applicationFeeCents = Math.round(plan.price_cents * planLimits.commission_sepa_rate)
+    const feeValue = applicationFeeCents / 100
 
     const firstPaymentPayload: Record<string, unknown> = {
       amount: { currency: plan.currency ?? 'EUR', value: formatAmount(priceEur) },
@@ -157,7 +183,7 @@ Deno.serve(async (req) => {
       },
     }
     if (profileId) firstPaymentPayload.profileId = profileId
-    if (feeValue > 0) {
+    if (applicationFeeCents > 0) {
       firstPaymentPayload.applicationFee = {
         amount: { currency: plan.currency ?? 'EUR', value: formatAmount(feeValue) },
         description: 'GymBook commission',

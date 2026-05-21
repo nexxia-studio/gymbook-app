@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +12,26 @@ interface PaymentRequest {
   redirect_url: string
 }
 
-const APPLICATION_FEE_RATE = 0.015
+async function getGymPlanLimits(
+  supabase: SupabaseClient,
+  gymId: string,
+): Promise<{ commission_cb_rate: number; payments_enabled: boolean } | null> {
+  const { data: gym } = await supabase
+    .from('nexxia_gyms')
+    .select('plan')
+    .eq('id', gymId)
+    .single()
+
+  if (!gym?.plan) return null
+
+  const { data: limits } = await supabase
+    .from('nexxia_plan_limits')
+    .select('commission_cb_rate, payments_enabled')
+    .eq('plan', gym.plan)
+    .single()
+
+  return limits ?? null
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -73,6 +92,12 @@ Deno.serve(async (req) => {
     if (!profile) return errorResponse(404, 'Profil introuvable', 'PROFILE_NOT_FOUND')
     if (profile.gym_id !== gymId) return errorResponse(403, 'Accès interdit à ce gym', 'GYM_FORBIDDEN')
 
+    const planLimits = await getGymPlanLimits(supabaseAdmin, gymId)
+    if (!planLimits) return errorResponse(404, 'Plan GymBook introuvable', 'PLAN_NOT_FOUND')
+    if (!planLimits.payments_enabled) {
+      return errorResponse(403, 'Paiements non disponibles sur votre plan GymBook', 'PAYMENTS_DISABLED')
+    }
+
     const { data: connData, error: connError } = await supabaseAdmin
       .rpc('get_gym_mollie_tokens', { p_gym_id: gymId })
 
@@ -95,7 +120,9 @@ Deno.serve(async (req) => {
 
     const profileId = connMeta?.mollie_profile_id ?? null
 
-    const feeValue = Math.max(0.01, Number((amount * APPLICATION_FEE_RATE).toFixed(2)))
+    const amountCents = Math.round(amount * 100)
+    const applicationFeeCents = Math.round(amountCents * planLimits.commission_cb_rate)
+    const feeValue = applicationFeeCents / 100
 
     const molliePayload: Record<string, unknown> = {
       amount: { currency: 'EUR', value: formatAmount(amount) },
@@ -108,7 +135,7 @@ Deno.serve(async (req) => {
       },
     }
     if (profileId) molliePayload.profileId = profileId
-    if (feeValue > 0) {
+    if (applicationFeeCents > 0) {
       molliePayload.applicationFee = {
         amount: { currency: 'EUR', value: formatAmount(feeValue) },
         description: 'GymBook commission',
