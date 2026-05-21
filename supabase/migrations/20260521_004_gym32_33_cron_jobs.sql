@@ -1,9 +1,10 @@
 -- GYM-32 + GYM-33 — Mise à jour des jobs pg_cron pour invoquer les Edge Functions de notification
--- Migration déjà appliquée sur prod le 21 mai 2026 via Supabase MCP — fichier versionné pour traçabilité.
 --
--- ⚠️ AVANT TOUTE RE-APPLICATION : remplacer 'REPLACE_WITH_SECRET' par la valeur réelle
--- de INTERNAL_FUNCTIONS_SECRET (disponible dans Supabase Dashboard → Edge Functions → Secrets).
--- Le secret n'est PAS versionné ici pour ne pas l'exposer dans l'historique Git.
+-- ⚠️  AVANT D'APPLIQUER : remplacer REPLACE_WITH_SECRET
+-- par la valeur de INTERNAL_FUNCTIONS_SECRET
+-- (disponible dans Supabase Dashboard > Edge Functions > Secrets)
+-- Ne jamais committer la vraie valeur dans Git.
+-- Les cron jobs prod ont déjà été appliqués manuellement avec la vraie valeur.
 --
 -- Extensions requises : pg_cron, pg_net (déjà activées sur prod).
 
