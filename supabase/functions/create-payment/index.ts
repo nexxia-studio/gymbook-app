@@ -124,6 +124,10 @@ Deno.serve(async (req) => {
     const applicationFeeCents = Math.round(amountCents * planLimits.commission_cb_rate)
     const feeValue = applicationFeeCents / 100
 
+    console.log('[create-payment] gym plan limits:', planLimits)
+    console.log('[create-payment] amount:', amount, 'amountCents:', amountCents, 'applicationFeeCents:', applicationFeeCents)
+    console.log('[create-payment] accessToken length:', accessToken?.length, 'profileId:', profileId)
+
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
     const webhookUrl = `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-webhook?secret=${webhookSecret}`
 
@@ -146,6 +150,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log('[create-payment] Mollie payload:', JSON.stringify(molliePayload))
+
     const mollieRes = await fetch('https://api.mollie.com/v2/payments', {
       method: 'POST',
       headers: {
@@ -155,8 +161,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify(molliePayload),
     })
 
+    console.log('[create-payment] Mollie response status:', mollieRes.status)
+
     if (!mollieRes.ok) {
       const detail = await mollieRes.text()
+      console.error('[create-payment] Mollie error body:', detail)
       return errorResponse(502, `Mollie API a refusé la requête: ${detail}`, 'MOLLIE_ERROR')
     }
 
