@@ -88,7 +88,87 @@
     "plans": "Plans",
     "payments": "Payments",
     "revenue": "Revenue",
+    "communications": "Communications",
     "settings": "Settings"
+  },
+  "communications": {
+    "title": "Communications",
+    "subtitle": "Send messages to your members via push and email.",
+    "composer": "Compose a message",
+    "preview": "Preview",
+    "history": "History",
+    "history_empty": "No communications sent yet.",
+    "send": "Send",
+    "sending": "Sending...",
+    "confirm_send": "Send this message to {{count}} member(s)?",
+    "sent_success": "Sent to {{total}} member(s) — {{push}} push, {{email}} email",
+    "recipients_loading": "Computing recipients...",
+    "recipients_count_one": "{{count}} member targeted",
+    "recipients_count_other": "{{count}} members targeted",
+    "recipients_count": "{{count}} members targeted",
+    "preview_now": "Just now",
+    "preview_title_placeholder": "Message title",
+    "preview_body_placeholder": "Content preview...",
+    "preview_hint": "The message will appear like this in the members' mobile app.",
+    "fields": {
+      "title": "Title",
+      "body": "Message",
+      "segment": "Recipients"
+    },
+    "channels": {
+      "push": "Push notification",
+      "email": "Email"
+    },
+    "segments": {
+      "all": "All members",
+      "active_subscribers": "Active subscribers",
+      "drop_in": "Drop-in (pay per session)",
+      "today_present": "Present today"
+    },
+    "templates": {
+      "info": {
+        "label": "Announcement",
+        "title": "📢 Announcement",
+        "placeholder": "Share important info with your members..."
+      },
+      "closure": {
+        "label": "Closure",
+        "title": "🔒 Exceptional closure",
+        "placeholder": "The club will be closed on [date] due to..."
+      },
+      "promo": {
+        "label": "Promo",
+        "title": "🎉 Special offer",
+        "placeholder": "Enjoy our exclusive offer..."
+      },
+      "cancellation": {
+        "label": "Cancellation",
+        "title": "⚠️ Class cancelled",
+        "placeholder": "The [activity] class on [date] at [time] is cancelled..."
+      },
+      "custom": {
+        "label": "Custom",
+        "title": "",
+        "placeholder": "Write your message..."
+      }
+    },
+    "status": {
+      "draft": "Draft",
+      "sending": "Sending",
+      "sent": "Sent",
+      "failed": "Failed"
+    },
+    "table": {
+      "date": "Date",
+      "title": "Title",
+      "segment": "Segment",
+      "channels": "Channels",
+      "recipients": "Recipients",
+      "status": "Status"
+    },
+    "errors": {
+      "create_failed": "Failed to create communication"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
