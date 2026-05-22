@@ -102,6 +102,47 @@ Deno.serve(async (req) => {
     const isLateCancellation = !wasWaitlisted && hoursUntil < 2 && hoursUntil > 0
     const isSlotPassed = slotStart < now
 
+    // ============================================================
+    // GYM-64 — Remboursement crédit si annulation éligible
+    // Refund si : waitlist OU (confirmed + slot futur + > 2h avant)
+    // Pas de refund si : late cancel (< 2h), slot passé, ou abonnement actif
+    // ============================================================
+    const { data: activeSubscription } = await admin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', booking.member_id)
+      .eq('gym_id', booking.gym_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!activeSubscription) {
+      const { data: credits } = await admin
+        .from('member_credits')
+        .select('id, credits_total, credits_used')
+        .eq('member_id', booking.member_id)
+        .eq('gym_id', booking.gym_id)
+        .maybeSingle()
+
+      if (credits && credits.credits_used > 0) {
+        const shouldRefund = wasWaitlisted || (!isLateCancellation && !isSlotPassed)
+        if (shouldRefund) {
+          await admin
+            .from('member_credits')
+            .update({
+              credits_used: Math.max(0, credits.credits_used - 1),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', credits.id)
+          console.log('[cancel-booking] Crédit remboursé pour member:', booking.member_id,
+            wasWaitlisted ? '(waitlist)' : '(annulation > 2h)')
+        } else {
+          console.log('[cancel-booking] Crédit non remboursé pour member:', booking.member_id,
+            isSlotPassed ? '(slot passé)' : '(désistement tardif < 2h)')
+        }
+      }
+    }
+    // ============================================================
+
     // 5a. Waitlist cancellation — simple path: cancel + reorder, no penalty, no promotion
     if (wasWaitlisted) {
       const { error: wlErr } = await admin.from('bookings').update({
