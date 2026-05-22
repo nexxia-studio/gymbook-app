@@ -140,6 +140,26 @@
       "in_progress": "In progress"
     }
   },
+  "payment_required": {
+    "title": "Booking unavailable",
+    "subtitle": "You don't have an active subscription or available credit.",
+    "option_subscribe": {
+      "label": "Subscribe to a plan",
+      "sub": "From €95/month"
+    },
+    "option_pack": {
+      "label": "Buy a 10-session pack",
+      "sub": "€170 — €17 per session"
+    },
+    "option_drop_in": {
+      "label": "Pay for this session (€{{amount}})",
+      "sub": "Instant card payment"
+    },
+    "errors": {
+      "no_gym": "Gym not found",
+      "checkout_failed": "Payment could not start. Try again."
+    }
+  },
   "session": {
     "about": "About",
     "other_slots": "Other slots",

@@ -140,6 +140,26 @@
       "in_progress": "En cours"
     }
   },
+  "payment_required": {
+    "title": "Réservation impossible",
+    "subtitle": "Vous n'avez pas d'abonnement actif ni de crédit disponible.",
+    "option_subscribe": {
+      "label": "Souscrire un abonnement",
+      "sub": "À partir de 95€/mois"
+    },
+    "option_pack": {
+      "label": "Acheter un carnet 10 séances",
+      "sub": "170€ — soit 17€ la séance"
+    },
+    "option_drop_in": {
+      "label": "Payer cette séance ({{amount}}€)",
+      "sub": "Paiement immédiat par carte"
+    },
+    "errors": {
+      "no_gym": "Gym introuvable",
+      "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez."
+    }
+  },
   "session": {
     "about": "A propos",
     "other_slots": "Autres creneaux",

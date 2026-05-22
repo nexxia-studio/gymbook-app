@@ -154,6 +154,46 @@ Deno.serve(async (req) => {
       return errorResponse(400, 'Maximum 2 réservations simultanées', 'MAX_BOOKINGS_REACHED')
     }
 
+    // ============================================================
+    // GYM-63 — Guard paiement : abonnement OU crédit obligatoire
+    // ============================================================
+    const { data: activeSubscription } = await supabaseAdmin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', user.id)
+      .eq('gym_id', slot.gym_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    const { data: memberCredits } = await supabaseAdmin
+      .from('member_credits')
+      .select('id, credits_total, credits_used')
+      .eq('member_id', user.id)
+      .eq('gym_id', slot.gym_id)
+      .maybeSingle()
+
+    const hasAvailableCredits = memberCredits != null &&
+      (memberCredits.credits_total - memberCredits.credits_used) > 0
+
+    if (!activeSubscription && !hasAvailableCredits) {
+      return jsonResponse({
+        error: true,
+        code: 'PAYMENT_REQUIRED',
+        message: 'Abonnement ou crédit requis pour réserver ce cours',
+      }, 402)
+    }
+
+    if (!activeSubscription && hasAvailableCredits && memberCredits) {
+      await supabaseAdmin
+        .from('member_credits')
+        .update({
+          credits_used: memberCredits.credits_used + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberCredits.id)
+    }
+    // ============================================================
+
     // 7. Check capacity
     const { count: confirmedCount } = await supabaseAdmin
       .from('bookings')
