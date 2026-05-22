@@ -124,10 +124,14 @@ Deno.serve(async (req) => {
     const applicationFeeCents = Math.round(amountCents * planLimits.commission_cb_rate)
     const feeValue = applicationFeeCents / 100
 
+    const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
+    const webhookUrl = `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-webhook?secret=${webhookSecret}`
+
     const molliePayload: Record<string, unknown> = {
       amount: { currency: 'EUR', value: formatAmount(amount) },
       description: describePaymentType(paymentType),
       redirectUrl,
+      webhookUrl,
       metadata: {
         gym_id: gymId,
         member_id: profile.id,

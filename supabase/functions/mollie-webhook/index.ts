@@ -16,6 +16,15 @@ async function getValidMollieToken(supabase: SupabaseClient, gymId: string): Pro
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
+  // Guard 1 — Secret URL (?secret=xxx). Toujours 200 sur rejet pour éviter les retries Mollie.
+  const WEBHOOK_SECRET = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
+  const url = new URL(req.url)
+  const providedSecret = url.searchParams.get('secret')
+  if (!WEBHOOK_SECRET || providedSecret !== WEBHOOK_SECRET) {
+    console.warn('[mollie-webhook] Invalid webhook secret')
+    return new Response('OK', { status: 200 })
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -23,10 +32,24 @@ Deno.serve(async (req) => {
     )
 
     const body = await req.formData()
-    const molliePaymentId = body.get('id')?.toString()
-    if (!molliePaymentId) {
-      console.error('[mollie-webhook] No payment ID in body')
-      return new Response('Bad Request', { status: 400 })
+    const molliePaymentId = body.get('id')?.toString() ?? ''
+
+    // Guard 2 — Validation format Payment ID (tr_*, re_*, ord_*)
+    if (!molliePaymentId || !/^(tr|re|ord)_[a-zA-Z0-9]+$/.test(molliePaymentId)) {
+      console.warn('[mollie-webhook] Invalid payment ID format:', molliePaymentId)
+      return new Response('OK', { status: 200 })
+    }
+
+    // Guard 3 — Rate limiting (10 appels / 60s par payment ID)
+    const { data: allowed } = await supabase.rpc('check_webhook_rate_limit', {
+      p_identifier: molliePaymentId,
+      p_action: 'mollie_webhook',
+      p_max_calls: 10,
+      p_window_seconds: 60,
+    })
+    if (!allowed) {
+      console.warn('[mollie-webhook] Rate limit exceeded for:', molliePaymentId)
+      return new Response('OK', { status: 200 })
     }
 
     console.log('[mollie-webhook] payment ID:', molliePaymentId, 'test_mode:', IS_TEST_MODE)
