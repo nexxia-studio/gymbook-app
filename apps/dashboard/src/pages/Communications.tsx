@@ -38,6 +38,7 @@ export default function Communications() {
   const { t } = useTranslation()
   const addToast = useToastStore((s) => s.addToast)
   const gymId = useAuthStore((s) => s.gym_id)
+  const user = useAuthStore((s) => s.user)
 
   const [template, setTemplate] = useState<Template>('info')
   const [title, setTitle] = useState('')
@@ -94,7 +95,7 @@ export default function Communications() {
   }, [title, body, sendPush, sendEmail, gymId])
 
   const handleSend = async () => {
-    if (!canSend || !gymId) return
+    if (!canSend || !gymId || !user) return
     if (!confirm(t('communications.confirm_send', { count: recipientCount ?? 0 }))) return
 
     setIsSending(true)
@@ -104,6 +105,7 @@ export default function Communications() {
         .from('gym_communications')
         .insert({
           gym_id: gymId,
+          created_by: user.id,
           title: title.trim(),
           body: body.trim(),
           segment,
