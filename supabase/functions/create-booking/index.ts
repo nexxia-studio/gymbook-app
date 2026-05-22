@@ -170,6 +170,9 @@ Deno.serve(async (req) => {
       .select('id, credits_total, credits_used')
       .eq('member_id', user.id)
       .eq('gym_id', slot.gym_id)
+      .gt('credits_total', 0)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle()
 
     const hasAvailableCredits = memberCredits != null &&
