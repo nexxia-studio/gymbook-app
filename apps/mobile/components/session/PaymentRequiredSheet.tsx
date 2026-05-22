@@ -30,29 +30,44 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
   }
 
   const handleDropIn = async () => {
+    console.log('[PaymentRequiredSheet] drop-in clicked — gymId:', gymId, 'slotId:', slotId)
     if (!gymId || !slotId) {
+      console.warn('[PaymentRequiredSheet] missing gymId or slotId — aborting drop-in')
       Alert.alert(t('common.error'), t('payment_required.errors.no_gym'))
       return
     }
     setIsLoadingDropIn(true)
     try {
+      const payload = {
+        gym_id: gymId,
+        amount: DROP_IN_AMOUNT_EUR,
+        payment_type: 'drop_in',
+        redirect_url: `dopamine://payment/success?slot_id=${slotId}&source=drop_in`,
+      }
+      console.log('[PaymentRequiredSheet] drop-in payload:', payload)
+
       const { data, error } = await supabase.functions.invoke('create-payment', {
-        body: {
-          gym_id: gymId,
-          amount: DROP_IN_AMOUNT_EUR,
-          payment_type: 'drop_in',
-          redirect_url: `dopamine://payment/success?slot_id=${slotId}&source=drop_in`,
-        },
+        body: payload,
       })
+      console.log('[PaymentRequiredSheet] create-payment response — data:', data, 'error:', error)
 
       if (error || !data?.checkout_url) {
+        // Tente d'extraire le code/message d'erreur depuis le body Edge
+        let detail: unknown = null
+        try {
+          if ((error as { context?: Response })?.context) {
+            detail = await (error as { context: Response }).context.json()
+          }
+        } catch { /* not JSON */ }
+        console.warn('[PaymentRequiredSheet] checkout failed — detail:', detail, 'data:', data)
         Alert.alert(t('common.error'), t('payment_required.errors.checkout_failed'))
         return
       }
 
       onClose()
       await WebBrowser.openBrowserAsync(data.checkout_url as string)
-    } catch {
+    } catch (e) {
+      console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
       Alert.alert(t('common.error'), t('payment_required.errors.checkout_failed'))
     } finally {
       setIsLoadingDropIn(false)
@@ -135,7 +150,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
 
           <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="mt-4 items-center py-3">
             <Text className="font-dmsans text-sm text-move-text-muted">
-              {t('planning.close')}
+              {t('common.close')}
             </Text>
           </TouchableOpacity>
         </View>
