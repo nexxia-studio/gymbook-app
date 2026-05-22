@@ -8,6 +8,7 @@ import {
   CreditCard,
   Receipt,
   TrendingUp,
+  Megaphone,
   Settings,
   LogOut,
   X,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { key: 'plans', path: '/plans', icon: CreditCard },
   { key: 'payments', path: '/payments', icon: Receipt },
   { key: 'revenue', path: '/revenue', icon: TrendingUp },
+  { key: 'communications', path: '/communications', icon: Megaphone },
   { key: 'settings', path: '/settings', icon: Settings },
 ] as const
 
