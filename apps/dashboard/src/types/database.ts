@@ -187,6 +187,8 @@ export type Database = {
           is_late_cancel: boolean | null
           member_id: string
           promoted_from_waitlist_at: string | null
+          reminder_24h_sent_at: string | null
+          reminder_2h_sent_at: string | null
           slot_id: string
           status: string | null
           subscription_id: string | null
@@ -207,6 +209,8 @@ export type Database = {
           is_late_cancel?: boolean | null
           member_id: string
           promoted_from_waitlist_at?: string | null
+          reminder_24h_sent_at?: string | null
+          reminder_2h_sent_at?: string | null
           slot_id: string
           status?: string | null
           subscription_id?: string | null
@@ -227,6 +231,8 @@ export type Database = {
           is_late_cancel?: boolean | null
           member_id?: string
           promoted_from_waitlist_at?: string | null
+          reminder_24h_sent_at?: string | null
+          reminder_2h_sent_at?: string | null
           slot_id?: string
           status?: string | null
           subscription_id?: string | null
@@ -551,6 +557,114 @@ export type Database = {
             columns: ["target_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gym_communication_recipients: {
+        Row: {
+          communication_id: string
+          email_sent: boolean | null
+          id: string
+          member_id: string
+          push_sent: boolean | null
+          sent_at: string | null
+        }
+        Insert: {
+          communication_id: string
+          email_sent?: boolean | null
+          id?: string
+          member_id: string
+          push_sent?: boolean | null
+          sent_at?: string | null
+        }
+        Update: {
+          communication_id?: string
+          email_sent?: boolean | null
+          id?: string
+          member_id?: string
+          push_sent?: boolean | null
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gym_communication_recipients_communication_id_fkey"
+            columns: ["communication_id"]
+            isOneToOne: false
+            referencedRelation: "gym_communications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gym_communication_recipients_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gym_communications: {
+        Row: {
+          body: string
+          created_at: string | null
+          created_by: string
+          gym_id: string
+          id: string
+          recipient_count: number | null
+          segment: string
+          send_email: boolean
+          send_push: boolean
+          sent_at: string | null
+          status: string
+          template: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          created_by: string
+          gym_id: string
+          id?: string
+          recipient_count?: number | null
+          segment?: string
+          send_email?: boolean
+          send_push?: boolean
+          sent_at?: string | null
+          status?: string
+          template?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          created_by?: string
+          gym_id?: string
+          id?: string
+          recipient_count?: number | null
+          segment?: string
+          send_email?: boolean
+          send_push?: boolean
+          sent_at?: string | null
+          status?: string
+          template?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gym_communications_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gym_communications_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
             referencedColumns: ["id"]
           },
         ]
@@ -1567,6 +1681,8 @@ export type Database = {
           analytics_enabled: boolean | null
           android_app_enabled: boolean | null
           api_access_enabled: boolean | null
+          commission_cb_rate: number
+          commission_sepa_rate: number
           created_at: string | null
           custom_domain: boolean | null
           export_enabled: boolean | null
@@ -1588,6 +1704,8 @@ export type Database = {
           analytics_enabled?: boolean | null
           android_app_enabled?: boolean | null
           api_access_enabled?: boolean | null
+          commission_cb_rate?: number
+          commission_sepa_rate?: number
           created_at?: string | null
           custom_domain?: boolean | null
           export_enabled?: boolean | null
@@ -1609,6 +1727,8 @@ export type Database = {
           analytics_enabled?: boolean | null
           android_app_enabled?: boolean | null
           api_access_enabled?: boolean | null
+          commission_cb_rate?: number
+          commission_sepa_rate?: number
           created_at?: string | null
           custom_domain?: boolean | null
           export_enabled?: boolean | null
@@ -2425,8 +2545,28 @@ export type Database = {
         }
         Returns: boolean
       }
+      check_webhook_rate_limit: {
+        Args: {
+          p_action: string
+          p_identifier: string
+          p_max_calls?: number
+          p_window_seconds?: number
+        }
+        Returns: boolean
+      }
       cleanup_expired_favorites: { Args: never; Returns: undefined }
       cleanup_oauth_states: { Args: never; Returns: undefined }
+      create_mollie_vault_tokens: {
+        Args: {
+          p_access_token: string
+          p_gym_id: string
+          p_refresh_token?: string
+        }
+        Returns: {
+          access_vault_id: string
+          refresh_vault_id: string
+        }[]
+      }
       decrypt_medical: {
         Args: { ciphertext: string; secret_id: string }
         Returns: string
@@ -2436,18 +2576,70 @@ export type Database = {
         Returns: string
       }
       expire_waitlist_confirmations: { Args: never; Returns: undefined }
+      get_communication_recipients: {
+        Args: { p_gym_id: string; p_segment?: string }
+        Returns: {
+          email: string
+          first_name: string
+          member_id: string
+          push_token: string
+        }[]
+      }
+      get_gym_mollie_tokens: {
+        Args: { p_gym_id: string }
+        Returns: {
+          access_token: string
+          expires_at: string
+          refresh_token: string
+          status: string
+        }[]
+      }
       get_my_gym_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
+      get_pending_reminders: {
+        Args: never
+        Returns: {
+          activity_name: string
+          booking_id: string
+          coach_name: string
+          gym_id: string
+          member_email: string
+          member_first_name: string
+          member_id: string
+          push_token: string
+          reminder_type: string
+          slot_id: string
+          slot_starts_at: string
+        }[]
+      }
       gym_has_feature: {
         Args: { p_feature: string; p_gym_id: string }
         Returns: boolean
       }
       is_gym_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      mark_reminder_sent: {
+        Args: { p_booking_id: string; p_reminder_type: string }
+        Returns: undefined
+      }
+      process_no_shows: {
+        Args: never
+        Returns: {
+          gym_id: string
+          member_id: string
+          new_noshow_count: number
+          penalty_applied: string
+          processed_booking_id: string
+        }[]
+      }
       reorder_waitlist: { Args: { p_slot_id: string }; Returns: undefined }
       request_account_deletion: { Args: { p_user_id: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      update_mollie_vault_token: {
+        Args: { p_new_secret: string; p_vault_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
@@ -2580,3 +2772,6 @@ export const Constants = {
     Enums: {},
   },
 } as const
+<claude-code-hint v="1" type="plugin" value="supabase@claude-plugins-official" />
+A new version of Supabase CLI is available: v2.101.0 (currently installed v2.98.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
