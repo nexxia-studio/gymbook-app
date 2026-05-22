@@ -51,6 +51,16 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  console.log('[mollie-connect-oauth] env check:', {
+    hasClientId: !!Deno.env.get('MOLLIE_CLIENT_ID'),
+    hasClientSecret: !!Deno.env.get('MOLLIE_CLIENT_SECRET'),
+    hasRedirectUri: !!Deno.env.get('MOLLIE_REDIRECT_URI'),
+    hasSupabaseUrl: !!Deno.env.get('SUPABASE_URL'),
+    hasServiceKey: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+    hasAnonKey: !!Deno.env.get('SUPABASE_ANON_KEY'),
+  })
+  console.log('[mollie-connect-oauth] method:', req.method, 'x-action:', req.headers.get('x-action'))
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -60,6 +70,7 @@ Deno.serve(async (req) => {
     const redirectUri = Deno.env.get('MOLLIE_REDIRECT_URI')
 
     if (!clientId || !clientSecret || !redirectUri) {
+      console.warn('[mollie-connect-oauth] CONFIG_MISSING — clientId:', !!clientId, 'clientSecret:', !!clientSecret, 'redirectUri:', !!redirectUri)
       return errorResponse(500, 'Configuration Mollie OAuth manquante côté serveur', 'CONFIG_MISSING')
     }
 
@@ -282,6 +293,8 @@ Deno.serve(async (req) => {
 
     return errorResponse(400, `Action inconnue: ${action}`, 'UNKNOWN_ACTION')
   } catch (err) {
-    return errorResponse(500, (err as Error).message ?? 'Erreur interne', 'INTERNAL')
+    const e = err as Error
+    console.error('[mollie-connect-oauth] uncaught error:', e?.message, '\nstack:', e?.stack)
+    return errorResponse(500, e?.message ?? 'Erreur interne', 'INTERNAL')
   }
 })
