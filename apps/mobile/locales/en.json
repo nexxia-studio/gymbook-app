@@ -140,6 +140,16 @@
       "in_progress": "In progress"
     }
   },
+  "payment_drop_in_retry": {
+    "polling_title": "PROCESSING PAYMENT...",
+    "polling_sub": "A few seconds",
+    "booking_title": "BOOKING...",
+    "success_title": "BOOKING CONFIRMED!",
+    "success_sub": "See you at the class",
+    "error_title": "PAYMENT RECEIVED",
+    "error_sub": "Go back to the class and tap Book to finalize.",
+    "back_to_schedule": "Back to schedule"
+  },
   "payment_required": {
     "title": "Booking unavailable",
     "subtitle": "You don't have an active subscription or available credit.",

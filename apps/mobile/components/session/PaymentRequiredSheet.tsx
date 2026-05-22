@@ -1,9 +1,6 @@
 // GYM-63 — Bottom sheet quand un membre tente de réserver sans abonnement ni crédit.
-//
-// TODO GYM-63-followup : flow drop-in auto-retry via deep link.
-// Actuellement, après "Payer cette séance" l'utilisateur revient à l'app et doit
-// ré-appuyer sur Réserver manuellement (le webhook Mollie crédite member_credits).
-// Pour auto-retry, ajouter expo-linking listener + persister slotId pendant le round-trip.
+// L'auto-retry après paiement drop-in est géré par app/payment/success.tsx (GYM-63b)
+// via le deep link dopamine://payment/success?slot_id=...&source=drop_in.
 import { useState } from 'react'
 import { View, Text, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -44,7 +41,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
           gym_id: gymId,
           amount: DROP_IN_AMOUNT_EUR,
           payment_type: 'drop_in',
-          redirect_url: 'dopamine://payment/success',
+          redirect_url: `dopamine://payment/success?slot_id=${slotId}&source=drop_in`,
         },
       })
 
