@@ -121,9 +121,9 @@
     },
     "segments": {
       "all": "Tous les membres",
-      "active_subscribers": "Abonnés actifs",
+      "subscribers": "Abonnés actifs",
       "drop_in": "Drop-in (paiement à la séance)",
-      "today_present": "Présents aujourd'hui"
+      "present_today": "Présents aujourd'hui"
     },
     "templates": {
       "info": {

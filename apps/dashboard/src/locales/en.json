@@ -121,9 +121,9 @@
     },
     "segments": {
       "all": "All members",
-      "active_subscribers": "Active subscribers",
+      "subscribers": "Active subscribers",
       "drop_in": "Drop-in (pay per session)",
-      "today_present": "Present today"
+      "present_today": "Present today"
     },
     "templates": {
       "info": {

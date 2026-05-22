@@ -7,7 +7,7 @@ import { useToastStore } from '@/hooks/useToast'
 import { supabase } from '@/lib/supabase'
 
 type Template = 'info' | 'closure' | 'promo' | 'cancellation' | 'custom'
-type Segment = 'all' | 'active_subscribers' | 'drop_in' | 'today_present'
+type Segment = 'all' | 'subscribers' | 'drop_in' | 'present_today'
 
 interface HistoryRow {
   id: string
@@ -32,7 +32,7 @@ const TEMPLATE_META: Record<Template, { icon: typeof Megaphone; emoji: string }>
 }
 
 const TEMPLATES: Template[] = ['info', 'closure', 'promo', 'cancellation', 'custom']
-const SEGMENTS: Segment[] = ['all', 'active_subscribers', 'drop_in', 'today_present']
+const SEGMENTS: Segment[] = ['all', 'subscribers', 'drop_in', 'present_today']
 
 export default function Communications() {
   const { t } = useTranslation()
