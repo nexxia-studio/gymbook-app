@@ -168,12 +168,16 @@ Deno.serve(async (req) => {
     const applicationFeeCents = Math.round(plan.price_cents * planLimits.commission_sepa_rate)
     const feeValue = applicationFeeCents / 100
 
+    const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
+    const webhookUrl = `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-subscription-webhook?secret=${webhookSecret}`
+
     const firstPaymentPayload: Record<string, unknown> = {
       amount: { currency: plan.currency ?? 'EUR', value: formatAmount(priceEur) },
       customerId,
       sequenceType: 'first',
       description: `Mandat SEPA — ${plan.name}`,
       redirectUrl,
+      webhookUrl,
       method: ['directdebit', 'bancontact', 'creditcard'],
       metadata: {
         gym_id: gymId,
