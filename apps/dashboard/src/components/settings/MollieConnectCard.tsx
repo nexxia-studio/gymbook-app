@@ -15,8 +15,9 @@ export function MollieConnectCard() {
   const [isConnecting, setIsConnecting] = useState(false)
 
   const checkStatus = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
     const { data } = await supabase.functions.invoke('mollie-connect-oauth', {
-      headers: { 'x-action': 'status' },
+      headers: { 'x-action': 'status', Authorization: `Bearer ${session?.access_token}` },
       body: {},
     })
     setConnection(data as Connection)
@@ -27,8 +28,9 @@ export function MollieConnectCard() {
 
   const handleConnect = async () => {
     setIsConnecting(true)
+    const { data: { session } } = await supabase.auth.getSession()
     const { data } = await supabase.functions.invoke('mollie-connect-oauth', {
-      headers: { 'x-action': 'authorize' },
+      headers: { 'x-action': 'authorize', Authorization: `Bearer ${session?.access_token}` },
       body: {},
     })
     if (data?.url) window.location.href = data.url
@@ -37,8 +39,9 @@ export function MollieConnectCard() {
 
   const handleDisconnect = async () => {
     if (!confirm('Déconnecter Mollie ? Les paiements seront désactivés.')) return
+    const { data: { session } } = await supabase.auth.getSession()
     await supabase.functions.invoke('mollie-connect-oauth', {
-      headers: { 'x-action': 'disconnect' },
+      headers: { 'x-action': 'disconnect', Authorization: `Bearer ${session?.access_token}` },
       body: {},
     })
     setConnection(null)
