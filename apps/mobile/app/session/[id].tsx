@@ -13,6 +13,7 @@ import { BookingModal } from '../../components/session/BookingModal'
 import { CancelModal } from '../../components/session/CancelModal'
 import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { SuspensionModal } from '../../components/session/SuspensionModal'
+import { PaymentRequiredSheet } from '../../components/session/PaymentRequiredSheet'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { getDisplayStatus } from '../../utils/slotStatus'
@@ -57,6 +58,7 @@ export default function SessionDetail() {
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [cancelModalVisible, setCancelModalVisible] = useState(false)
   const [maxBookingsVisible, setMaxBookingsVisible] = useState(false)
+  const [paymentRequiredVisible, setPaymentRequiredVisible] = useState(false)
   const [suspensionModal, setSuspensionModal] = useState<{ visible: boolean; until: string | null }>({ visible: false, until: null })
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
   const [existingBookingId, setExistingBookingId] = useState<string | null>(null)
@@ -226,6 +228,10 @@ export default function SessionDetail() {
     }
     if (result.code === 'MAX_BOOKINGS_REACHED') {
       setMaxBookingsVisible(true)
+      return
+    }
+    if (result.code === 'PAYMENT_REQUIRED') {
+      setPaymentRequiredVisible(true)
       return
     }
     if (result.status === 'error') return // generic error, logged in store
@@ -497,6 +503,12 @@ export default function SessionDetail() {
         visible={suspensionModal.visible}
         suspendedUntil={suspensionModal.until}
         onClose={() => setSuspensionModal({ visible: false, until: null })}
+      />
+
+      <PaymentRequiredSheet
+        visible={paymentRequiredVisible}
+        slotId={slotId}
+        onClose={() => setPaymentRequiredVisible(false)}
       />
     </View>
   )

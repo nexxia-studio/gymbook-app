@@ -3,6 +3,7 @@
     "loading": "Chargement...",
     "save": "Enregistrer",
     "cancel": "Annuler",
+    "close": "Fermer",
     "back": "Retour",
     "error": "Une erreur est survenue",
     "or": "ou",
@@ -138,6 +139,36 @@
       "completed": "Termine",
       "cancelled": "Annule",
       "in_progress": "En cours"
+    }
+  },
+  "payment_drop_in_retry": {
+    "polling_title": "TRAITEMENT DU PAIEMENT...",
+    "polling_sub": "Quelques secondes",
+    "booking_title": "RÉSERVATION EN COURS...",
+    "success_title": "RÉSERVATION CONFIRMÉE !",
+    "success_sub": "À bientôt au cours",
+    "error_title": "PAIEMENT REÇU",
+    "error_sub": "Retournez sur le cours et appuyez sur Réserver pour finaliser.",
+    "back_to_schedule": "Retour au planning"
+  },
+  "payment_required": {
+    "title": "Réservation impossible",
+    "subtitle": "Vous n'avez pas d'abonnement actif ni de crédit disponible.",
+    "option_subscribe": {
+      "label": "Souscrire un abonnement",
+      "sub": "À partir de 95€/mois"
+    },
+    "option_pack": {
+      "label": "Acheter un carnet 10 séances",
+      "sub": "170€ — soit 17€ la séance"
+    },
+    "option_drop_in": {
+      "label": "Payer cette séance ({{amount}}€)",
+      "sub": "Paiement immédiat par carte"
+    },
+    "errors": {
+      "no_gym": "Gym introuvable",
+      "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez."
     }
   },
   "session": {

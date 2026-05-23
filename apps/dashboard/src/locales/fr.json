@@ -88,7 +88,87 @@
     "plans": "Formules",
     "payments": "Paiements",
     "revenue": "Revenus",
+    "communications": "Communications",
     "settings": "Paramètres"
+  },
+  "communications": {
+    "title": "Communications",
+    "subtitle": "Envoyez des messages à vos membres par push et email.",
+    "composer": "Composer un message",
+    "preview": "Prévisualisation",
+    "history": "Historique",
+    "history_empty": "Aucune communication envoyée pour le moment.",
+    "send": "Envoyer",
+    "sending": "Envoi en cours...",
+    "confirm_send": "Envoyer ce message à {{count}} membre(s) ?",
+    "sent_success": "Envoyé à {{total}} membre(s) — {{push}} push, {{email}} email",
+    "recipients_loading": "Calcul des destinataires...",
+    "recipients_count_one": "{{count}} membre ciblé",
+    "recipients_count_other": "{{count}} membres ciblés",
+    "recipients_count": "{{count}} membres ciblés",
+    "preview_now": "À l'instant",
+    "preview_title_placeholder": "Titre du message",
+    "preview_body_placeholder": "Aperçu du contenu...",
+    "preview_hint": "Le message apparaîtra ainsi dans l'app mobile des membres.",
+    "fields": {
+      "title": "Titre",
+      "body": "Message",
+      "segment": "Destinataires"
+    },
+    "channels": {
+      "push": "Notification push",
+      "email": "Email"
+    },
+    "segments": {
+      "all": "Tous les membres",
+      "subscribers": "Abonnés actifs",
+      "drop_in": "Drop-in (paiement à la séance)",
+      "present_today": "Présents aujourd'hui"
+    },
+    "templates": {
+      "info": {
+        "label": "Annonce",
+        "title": "📢 Annonce",
+        "placeholder": "Partagez une information importante avec vos membres..."
+      },
+      "closure": {
+        "label": "Fermeture",
+        "title": "🔒 Fermeture exceptionnelle",
+        "placeholder": "Le club sera fermé le [date] en raison de..."
+      },
+      "promo": {
+        "label": "Promo",
+        "title": "🎉 Offre spéciale",
+        "placeholder": "Profitez de notre offre exclusive..."
+      },
+      "cancellation": {
+        "label": "Annulation",
+        "title": "⚠️ Cours annulé",
+        "placeholder": "Le cours de [activité] du [date] à [heure] est annulé..."
+      },
+      "custom": {
+        "label": "Libre",
+        "title": "",
+        "placeholder": "Écrivez votre message..."
+      }
+    },
+    "status": {
+      "draft": "Brouillon",
+      "sending": "Envoi",
+      "sent": "Envoyé",
+      "failed": "Échoué"
+    },
+    "table": {
+      "date": "Date",
+      "title": "Titre",
+      "segment": "Segment",
+      "channels": "Canaux",
+      "recipients": "Destinataires",
+      "status": "Statut"
+    },
+    "errors": {
+      "create_failed": "Impossible de créer la communication"
+    }
   },
   "dashboard": {
     "title": "Tableau de bord",

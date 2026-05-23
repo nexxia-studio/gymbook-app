@@ -75,6 +75,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         if (code.includes('MAX_BOOKINGS')) {
           return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', position: undefined }
         }
+        if (code === 'PAYMENT_REQUIRED') {
+          return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
+        }
         return { status: 'error' as const, code: 'ERROR', position: undefined }
       }
 
@@ -86,6 +89,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         }
         if (code === 'MAX_BOOKINGS_REACHED') {
           return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', position: undefined }
+        }
+        if (code === 'PAYMENT_REQUIRED') {
+          return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
         }
         return { status: 'error' as const, code, position: undefined }
       }

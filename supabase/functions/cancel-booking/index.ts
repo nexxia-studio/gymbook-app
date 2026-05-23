@@ -102,6 +102,47 @@ Deno.serve(async (req) => {
     const isLateCancellation = !wasWaitlisted && hoursUntil < 2 && hoursUntil > 0
     const isSlotPassed = slotStart < now
 
+    // ============================================================
+    // GYM-64 — Remboursement crédit si annulation éligible
+    // Refund si : waitlist OU (confirmed + slot futur + > 2h avant)
+    // Pas de refund si : late cancel (< 2h), slot passé, ou abonnement actif
+    // ============================================================
+    const { data: activeSubscription } = await admin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', booking.member_id)
+      .eq('gym_id', booking.gym_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!activeSubscription) {
+      const { data: credits } = await admin
+        .from('member_credits')
+        .select('id, credits_total, credits_used')
+        .eq('member_id', booking.member_id)
+        .eq('gym_id', booking.gym_id)
+        .maybeSingle()
+
+      if (credits && credits.credits_used > 0) {
+        const shouldRefund = wasWaitlisted || (!isLateCancellation && !isSlotPassed)
+        if (shouldRefund) {
+          await admin
+            .from('member_credits')
+            .update({
+              credits_used: Math.max(0, credits.credits_used - 1),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', credits.id)
+          console.log('[cancel-booking] Crédit remboursé pour member:', booking.member_id,
+            wasWaitlisted ? '(waitlist)' : '(annulation > 2h)')
+        } else {
+          console.log('[cancel-booking] Crédit non remboursé pour member:', booking.member_id,
+            isSlotPassed ? '(slot passé)' : '(désistement tardif < 2h)')
+        }
+      }
+    }
+    // ============================================================
+
     // 5a. Waitlist cancellation — simple path: cancel + reorder, no penalty, no promotion
     if (wasWaitlisted) {
       const { error: wlErr } = await admin.from('bookings').update({
@@ -249,36 +290,19 @@ Deno.serve(async (req) => {
         waitlist_confirmation_deadline: deadline.toISOString(),
       }).eq('id', nextInLine.id)
 
-      // Email + push notification
-      const { data: promotedProfile } = await admin
-        .from('profiles')
-        .select('email, first_name, push_token')
-        .eq('id', nextInLine.member_id)
-        .single()
-
-      if (resendKey && promotedProfile?.email) {
-        const confirmUrl = `dopamine://bookings`
-        await sendEmail(resendKey, promotedProfile.email,
-          `Place disponible — ${activityName}`,
-          emailHtml('Place disponible !',
-            `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${delayMinutes} minutes pour confirmer.</p>`,
-            'Confirmer ma place', confirmUrl))
-      }
-
-      // Push notification
-      if (promotedProfile?.push_token) {
-        try {
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-            body: JSON.stringify({
-              tokens: [promotedProfile.push_token],
-              title: 'Place disponible !',
-              body: `Vous avez ${delayMinutes} min pour confirmer — ${activityName}`,
-              data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
-            }),
-          })
-        } catch { /* non-blocking */ }
+      // Délégation email + push à notify-waitlist (non-bloquant)
+      const internalSecret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET')
+      if (internalSecret) {
+        fetch(`${supabaseUrl}/functions/v1/notify-waitlist`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Secret': internalSecret,
+          },
+          body: JSON.stringify({ booking_id: nextInLine.id }),
+        }).catch((e) => console.error('[cancel-booking] notify-waitlist error:', e))
+      } else {
+        console.warn('[cancel-booking] INTERNAL_FUNCTIONS_SECRET not set — waitlist notification skipped')
       }
     }
 

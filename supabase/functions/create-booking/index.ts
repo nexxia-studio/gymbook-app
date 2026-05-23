@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +7,41 @@ const corsHeaders = {
 
 interface BookingRequest {
   slot_id: string
+}
+
+async function checkMemberQuota(
+  supabase: SupabaseClient,
+  gymId: string,
+): Promise<{ allowed: boolean; reason?: string }> {
+  const { data: gym } = await supabase
+    .from('nexxia_gyms')
+    .select('plan')
+    .eq('id', gymId)
+    .single()
+
+  if (!gym?.plan) return { allowed: false, reason: 'PLAN_NOT_FOUND' }
+
+  const { data: limits } = await supabase
+    .from('nexxia_plan_limits')
+    .select('max_members')
+    .eq('plan', gym.plan)
+    .single()
+
+  // null = illimité
+  if (!limits || limits.max_members === null) return { allowed: true }
+
+  const { count } = await supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('gym_id', gymId)
+    .eq('role', 'member')
+    .is('deleted_at', null)
+
+  if ((count ?? 0) >= limits.max_members) {
+    return { allowed: false, reason: 'MEMBER_QUOTA_REACHED' }
+  }
+
+  return { allowed: true }
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -83,6 +118,12 @@ Deno.serve(async (req) => {
     if (new Date(slot.starts_at) < new Date()) return errorResponse(400, 'Créneau déjà passé', 'SLOT_PAST')
     if (slot.gym_id !== profile.gym_id) return errorResponse(403, 'Accès refusé', 'WRONG_GYM')
 
+    // 4b. Freemium member quota guard
+    const quotaCheck = await checkMemberQuota(supabaseAdmin, slot.gym_id)
+    if (!quotaCheck.allowed) {
+      return errorResponse(403, 'Limite de membres atteinte sur ce plan GymBook', quotaCheck.reason)
+    }
+
     // 5. Check if already booked (any status)
     const { data: existingRows } = await supabaseAdmin
       .from('bookings')
@@ -112,6 +153,49 @@ Deno.serve(async (req) => {
     if ((futureCount ?? 0) >= 2) {
       return errorResponse(400, 'Maximum 2 réservations simultanées', 'MAX_BOOKINGS_REACHED')
     }
+
+    // ============================================================
+    // GYM-63 — Guard paiement : abonnement OU crédit obligatoire
+    // ============================================================
+    const { data: activeSubscription } = await supabaseAdmin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', user.id)
+      .eq('gym_id', slot.gym_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    const { data: memberCredits } = await supabaseAdmin
+      .from('member_credits')
+      .select('id, credits_total, credits_used')
+      .eq('member_id', user.id)
+      .eq('gym_id', slot.gym_id)
+      .gt('credits_total', 0)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    const hasAvailableCredits = memberCredits != null &&
+      (memberCredits.credits_total - memberCredits.credits_used) > 0
+
+    if (!activeSubscription && !hasAvailableCredits) {
+      return jsonResponse({
+        error: true,
+        code: 'PAYMENT_REQUIRED',
+        message: 'Abonnement ou crédit requis pour réserver ce cours',
+      }, 402)
+    }
+
+    if (!activeSubscription && hasAvailableCredits && memberCredits) {
+      await supabaseAdmin
+        .from('member_credits')
+        .update({
+          credits_used: memberCredits.credits_used + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberCredits.id)
+    }
+    // ============================================================
 
     // 7. Check capacity
     const { count: confirmedCount } = await supabaseAdmin
