@@ -150,7 +150,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'callback') {
-      const body = await req.json() as { code?: string, state?: string }
+      let body: { code?: string, state?: string } = {}
+      try {
+        body = await req.json()
+      } catch {
+        return errorResponse(400, 'Body JSON invalide', 'INVALID_BODY')
+      }
       const { code, state } = body
       if (!code || !state) return errorResponse(400, 'code et state requis', 'MISSING_CODE_STATE')
 
