@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       },
     }
     if (profileId) molliePayload.profileId = profileId
-    if (applicationFeeCents > 0) {
+    if (!isTestMode && applicationFeeCents > 0) {
       molliePayload.applicationFee = {
         amount: { currency: 'EUR', value: formatAmount(feeValue) },
         description: 'GymBook commission',
