@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CreditCard, Check, AlertCircle, Loader2, Unlink } from 'lucide-react'
+import { CreditCard, Check, AlertCircle, AlertTriangle, Loader2, Unlink, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface Connection {
@@ -7,6 +7,7 @@ interface Connection {
   profile_name: string | null
   connected_at: string | null
   is_test_mode: boolean | null
+  status: string | null
 }
 
 export function MollieConnectCard() {
@@ -60,7 +61,26 @@ export function MollieConnectCard() {
         )}
       </div>
 
-      {connection?.connected ? (
+      {connection?.status === 'refresh_failed' ? (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle size={16} className="text-orange-500" />
+            <span className="font-body text-sm font-medium text-dark">{connection.profile_name}</span>
+            <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">Reconnexion requise</span>
+          </div>
+          <p className="mb-4 font-body text-xs text-muted">
+            Le token Mollie a expiré. Reconnectez votre compte pour réactiver les paiements.
+          </p>
+          <button
+            onClick={handleConnect}
+            disabled={isConnecting}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-6 py-3 font-body font-bold text-white disabled:opacity-60"
+          >
+            {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            {isConnecting ? 'Redirection vers Mollie...' : 'Reconnecter Mollie'}
+          </button>
+        </div>
+      ) : connection?.connected ? (
         <div>
           <div className="mb-3 flex items-center gap-2">
             <Check size={16} className="text-green-500" />

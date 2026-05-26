@@ -127,8 +127,8 @@ Deno.serve(async (req) => {
         .eq('gym_id', gymId)
         .maybeSingle()
 
-      if (!existing || existing.status !== 'active') {
-        return jsonResponse({ connected: false, profile_name: null, connected_at: null, is_test_mode: null })
+      if (!existing || existing.status === 'revoked' || existing.status === 'expired') {
+        return jsonResponse({ connected: false, profile_name: null, connected_at: null, is_test_mode: null, status: existing?.status ?? null })
       }
 
       return jsonResponse({
@@ -136,6 +136,7 @@ Deno.serve(async (req) => {
         profile_name: existing.mollie_account_name,
         connected_at: existing.connected_at,
         is_test_mode: null,
+        status: existing.status,
       })
     }
 

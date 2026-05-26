@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getValidMollieToken } from '../_shared/mollie-token.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,15 +15,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
-}
-
-// VERSION CORRIGÉE — lit depuis Vault via RPC
-async function getValidMollieToken(supabase: SupabaseClient, gymId: string): Promise<string | null> {
-  const { data, error } = await supabase.rpc('get_gym_mollie_tokens', { p_gym_id: gymId })
-  if (error || !data || data.length === 0) return null
-  const conn = data[0]
-  if (conn.status !== 'active') return null
-  return conn.access_token
 }
 
 Deno.serve(async (req) => {
