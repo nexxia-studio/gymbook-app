@@ -1,7 +1,7 @@
 // GYM-63 — Bottom sheet quand un membre tente de réserver sans abonnement ni crédit.
 // L'auto-retry après paiement drop-in est géré par app/payment/success.tsx (GYM-63b)
 // via le deep link dopamine://payment/success?slot_id=...&source=drop_in.
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { View, Text, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +27,13 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
   const { createBooking } = useBookingStore()
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [])
 
   const goToPayments = () => {
     onClose()
@@ -68,34 +75,36 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
         return
       }
 
-      await WebBrowser.openBrowserAsync(data.checkout_url as string)
-
-      let creditObtained = false
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 1000))
+      let pollAttempts = 0
+      pollRef.current = setInterval(async () => {
+        pollAttempts++
         const { data: credit } = await supabase
           .from('member_credits')
-          .select('credits_total, credits_used')
+          .select('credits_remaining')
           .eq('member_id', memberId)
           .eq('gym_id', gymId)
           .maybeSingle()
 
-        if (credit && credit.credits_total > credit.credits_used) {
-          creditObtained = true
-          break
+        if (credit && credit.credits_remaining > 0) {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+          setIsLoadingDropIn(false)
+          await createBooking(slotId)
+          onClose()
+          return
         }
-      }
+        if (pollAttempts >= 30) {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+          setIsLoadingDropIn(false)
+          setDropInError(t('payment_required.errors.not_confirmed'))
+        }
+      }, 2000)
 
-      if (creditObtained) {
-        await createBooking(slotId)
-        onClose()
-      } else {
-        setDropInError(t('payment_required.errors.not_confirmed'))
-      }
+      WebBrowser.openBrowserAsync(data.checkout_url as string)
     } catch (e) {
       console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
       Alert.alert(t('common.error'), t('payment_required.errors.checkout_failed'))
-    } finally {
       setIsLoadingDropIn(false)
     }
   }
