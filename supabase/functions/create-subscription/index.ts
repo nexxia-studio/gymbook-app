@@ -109,26 +109,36 @@ Deno.serve(async (req) => {
       return errorResponse(400, 'Cette formule est un paiement unique — utiliser create-payment', 'PLAN_NOT_RECURRING')
     }
 
-    const { data: connData, error: connError } = await supabaseAdmin
-      .rpc('get_gym_mollie_tokens', { p_gym_id: gymId })
+    const isTestMode = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 
-    if (connError || !connData || connData.length === 0) {
-      return errorResponse(404, 'Connexion Mollie introuvable pour ce gym', 'MOLLIE_NOT_CONNECTED')
+    let mollieApiKey: string
+    let profileId: string | null = null
+
+    if (isTestMode) {
+      mollieApiKey = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
+      if (!mollieApiKey) return errorResponse(500, 'MOLLIE_TEST_API_KEY manquant', 'CONFIG_ERROR')
+    } else {
+      const { data: connData, error: connError } = await supabaseAdmin
+        .rpc('get_gym_mollie_tokens', { p_gym_id: gymId })
+
+      if (connError || !connData || connData.length === 0) {
+        return errorResponse(404, 'Connexion Mollie introuvable pour ce gym', 'MOLLIE_NOT_CONNECTED')
+      }
+
+      const conn = connData[0]
+      if (conn.status !== 'active') {
+        return errorResponse(403, 'Connexion Mollie inactive', 'MOLLIE_INACTIVE')
+      }
+
+      mollieApiKey = conn.access_token
+
+      const { data: connMeta } = await supabaseAdmin
+        .from('gym_mollie_connections')
+        .select('mollie_profile_id')
+        .eq('gym_id', gymId)
+        .maybeSingle()
+      profileId = connMeta?.mollie_profile_id ?? null
     }
-
-    const conn = connData[0]
-    if (conn.status !== 'active') {
-      return errorResponse(403, 'Connexion Mollie inactive', 'MOLLIE_INACTIVE')
-    }
-
-    const accessToken: string = conn.access_token
-
-    const { data: connMeta } = await supabaseAdmin
-      .from('gym_mollie_connections')
-      .select('mollie_profile_id')
-      .eq('gym_id', gymId)
-      .maybeSingle()
-    const profileId = connMeta?.mollie_profile_id ?? null
 
     const { data: existingSub } = await supabaseAdmin
       .from('member_subscriptions')
@@ -145,7 +155,7 @@ Deno.serve(async (req) => {
       const customerRes = await fetch('https://api.mollie.com/v2/customers', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${mollieApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -187,7 +197,7 @@ Deno.serve(async (req) => {
       },
     }
     if (profileId) firstPaymentPayload.profileId = profileId
-    if (applicationFeeCents > 0) {
+    if (!isTestMode && applicationFeeCents > 0) {
       firstPaymentPayload.applicationFee = {
         amount: { currency: plan.currency ?? 'EUR', value: formatAmount(feeValue) },
         description: 'GymBook commission',
@@ -197,7 +207,7 @@ Deno.serve(async (req) => {
     const paymentRes = await fetch('https://api.mollie.com/v2/payments', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${mollieApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(firstPaymentPayload),

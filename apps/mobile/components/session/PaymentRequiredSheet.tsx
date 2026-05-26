@@ -42,7 +42,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
         gym_id: gymId,
         amount: DROP_IN_AMOUNT_EUR,
         payment_type: 'drop_in',
-        redirect_url: `dopamine://payment/success?slot_id=${slotId}&source=drop_in`,
+        redirect_url: `https://gymbook-app.vercel.app/mollie/callback?slot_id=${slotId}&source=drop_in`,
       }
       console.log('[PaymentRequiredSheet] drop-in payload:', payload)
 

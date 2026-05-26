@@ -9,6 +9,14 @@ export default function MollieCallback() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
+    const source = searchParams.get('source')
+    const slotId = searchParams.get('slot_id')
+
+    if (source === 'drop_in' && slotId) {
+      window.location.href = `dopamine://payment/success?slot_id=${slotId}&source=drop_in`
+      return
+    }
+
     const code = searchParams.get('code')
     const state = searchParams.get('state')
     const error = searchParams.get('error')
