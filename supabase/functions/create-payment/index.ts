@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getValidMollieToken } from '../_shared/mollie-token.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -107,19 +108,9 @@ Deno.serve(async (req) => {
       mollieApiKey = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
       if (!mollieApiKey) return errorResponse(500, 'MOLLIE_TEST_API_KEY manquant', 'CONFIG_ERROR')
     } else {
-      const { data: connData, error: connError } = await supabaseAdmin
-        .rpc('get_gym_mollie_tokens', { p_gym_id: gymId })
-
-      if (connError || !connData || connData.length === 0) {
-        return errorResponse(404, 'Connexion Mollie introuvable pour ce gym', 'MOLLIE_NOT_CONNECTED')
-      }
-
-      const conn = connData[0]
-      if (conn.status !== 'active') {
-        return errorResponse(403, 'Connexion Mollie inactive', 'MOLLIE_INACTIVE')
-      }
-
-      mollieApiKey = conn.access_token
+      const token = await getValidMollieToken(supabaseAdmin, gymId)
+      if (!token) return errorResponse(503, 'Token Mollie expiré — reconnexion requise', 'MOLLIE_TOKEN_EXPIRED')
+      mollieApiKey = token
 
       const { data: connMeta } = await supabaseAdmin
         .from('gym_mollie_connections')

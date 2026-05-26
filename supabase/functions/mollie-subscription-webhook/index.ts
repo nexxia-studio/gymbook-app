@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getValidMollieToken } from '../_shared/mollie-token.ts'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
@@ -8,15 +9,6 @@ const PLANS: Record<string, { amount: string; times: number; interval: string; n
   monthly_3: { amount: '120.00', times: 3, interval: '1 month', name: 'Illimité 3 mois' },
   monthly_6: { amount: '110.00', times: 6, interval: '1 month', name: 'Illimité 6 mois' },
   monthly_12: { amount: '95.00', times: 12, interval: '1 month', name: 'Illimité 12 mois' },
-}
-
-// VERSION CORRIGÉE — lit depuis Vault via RPC
-async function getValidMollieToken(supabase: SupabaseClient, gymId: string): Promise<string | null> {
-  const { data, error } = await supabase.rpc('get_gym_mollie_tokens', { p_gym_id: gymId })
-  if (error || !data || data.length === 0) return null
-  const conn = data[0]
-  if (conn.status !== 'active') return null
-  return conn.access_token
 }
 
 Deno.serve(async (req) => {
