@@ -186,6 +186,32 @@ Deno.serve(async (req) => {
       return errorResponse(502, 'Mollie n\'a pas retourné d\'URL de checkout', 'MOLLIE_NO_CHECKOUT')
     }
 
+    const creditsGranted = paymentType === 'drop_in' ? 1
+      : paymentType === 'card_10' ? 10
+      : 0
+
+    const { error: insertError } = await supabaseAdmin
+      .from('payments')
+      .insert({
+        gym_id: gymId,
+        member_id: profile.id,
+        plan_id: paymentType,
+        plan_name: describePaymentType(paymentType),
+        amount,
+        mollie_payment_id: mollieData.id,
+        checkout_url: checkoutUrl,
+        credits_granted: creditsGranted,
+        status: 'pending',
+        nexxia_fee: feeValue > 0 ? feeValue : null,
+      })
+
+    if (insertError) {
+      console.error('[create-payment] DB insert failed:', insertError)
+      return errorResponse(500, 'Paiement créé mais non sauvegardé', 'DB_INSERT_FAILED')
+    }
+
+    console.log('[create-payment] payment saved to DB:', mollieData.id, 'credits:', creditsGranted)
+
     return jsonResponse({
       success: true,
       payment_id: mollieData.id,
