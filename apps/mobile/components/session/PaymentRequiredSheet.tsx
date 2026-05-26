@@ -9,6 +9,7 @@ import * as WebBrowser from 'expo-web-browser'
 import { CreditCard, Calendar, Ticket } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useBookingStore } from '../../stores/useBookingStore'
 
 interface PaymentRequiredSheetProps {
   visible: boolean
@@ -22,7 +23,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
   const { t } = useTranslation()
   const router = useRouter()
   const gymId = useAuthStore((s) => s.gym_id)
+  const memberId = useAuthStore((s) => s.user?.id)
+  const { createBooking } = useBookingStore()
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
+  const [dropInError, setDropInError] = useState<string | null>(null)
 
   const goToPayments = () => {
     onClose()
@@ -30,19 +34,20 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
   }
 
   const handleDropIn = async () => {
-    console.log('[PaymentRequiredSheet] drop-in clicked — gymId:', gymId, 'slotId:', slotId)
-    if (!gymId || !slotId) {
-      console.warn('[PaymentRequiredSheet] missing gymId or slotId — aborting drop-in')
+    console.log('[PaymentRequiredSheet] drop-in clicked — gymId:', gymId, 'slotId:', slotId, 'memberId:', memberId)
+    if (!gymId || !slotId || !memberId) {
+      console.warn('[PaymentRequiredSheet] missing gymId, slotId or memberId — aborting drop-in')
       Alert.alert(t('common.error'), t('payment_required.errors.no_gym'))
       return
     }
     setIsLoadingDropIn(true)
+    setDropInError(null)
     try {
       const payload = {
         gym_id: gymId,
         amount: DROP_IN_AMOUNT_EUR,
         payment_type: 'drop_in',
-        redirect_url: `https://gymbook-app.vercel.app/mollie/callback?slot_id=${slotId}&source=drop_in`,
+        redirect_url: 'https://gymbook-app.vercel.app/mollie/callback?source=drop_in',
       }
       console.log('[PaymentRequiredSheet] drop-in payload:', payload)
 
@@ -52,7 +57,6 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
       console.log('[PaymentRequiredSheet] create-payment response — data:', data, 'error:', error)
 
       if (error || !data?.checkout_url) {
-        // Tente d'extraire le code/message d'erreur depuis le body Edge
         let detail: unknown = null
         try {
           if ((error as { context?: Response })?.context) {
@@ -64,8 +68,30 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
         return
       }
 
-      onClose()
       await WebBrowser.openBrowserAsync(data.checkout_url as string)
+
+      let creditObtained = false
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 1000))
+        const { data: credit } = await supabase
+          .from('member_credits')
+          .select('credits_total, credits_used')
+          .eq('member_id', memberId)
+          .eq('gym_id', gymId)
+          .maybeSingle()
+
+        if (credit && credit.credits_total > credit.credits_used) {
+          creditObtained = true
+          break
+        }
+      }
+
+      if (creditObtained) {
+        await createBooking(slotId)
+        onClose()
+      } else {
+        setDropInError(t('payment_required.errors.not_confirmed'))
+      }
     } catch (e) {
       console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
       Alert.alert(t('common.error'), t('payment_required.errors.checkout_failed'))
@@ -147,6 +173,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
               </View>
             </TouchableOpacity>
           </View>
+
+          {dropInError && (
+            <Text className="mt-3 text-center font-dmsans text-sm text-red-500">{dropInError}</Text>
+          )}
 
           <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="mt-4 items-center py-3">
             <Text className="font-dmsans text-sm text-move-text-muted">
