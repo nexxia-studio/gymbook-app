@@ -384,13 +384,13 @@ export default function Studio() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+      <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
         <View className="bg-move-dark px-5 pb-4 pt-3">
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
             MA PROGRESSION
           </Text>
         </View>
-        <View className="flex-1 items-center justify-center">
+        <View className="flex-1 items-center justify-center bg-move-bg">
           <ActivityIndicator size="large" color="#C8F000" />
         </View>
       </SafeAreaView>
@@ -399,13 +399,13 @@ export default function Studio() {
 
   if (error || !data) {
     return (
-      <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+      <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
         <View className="bg-move-dark px-5 pb-4 pt-3">
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
             MA PROGRESSION
           </Text>
         </View>
-        <View className="flex-1 items-center justify-center px-6">
+        <View className="flex-1 items-center justify-center bg-move-bg px-6">
           <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#9A9890', textAlign: 'center' }}>
             {error ?? 'Impossible de charger ta progression'}
           </Text>
@@ -415,7 +415,7 @@ export default function Studio() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       <View className="bg-move-dark px-5 pb-4 pt-3">
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
           MA PROGRESSION
@@ -424,7 +424,7 @@ export default function Studio() {
           Tes stats, ton niveau, ta régularité
         </Text>
       </View>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
         <LevelCard totalSeances={data.total_seances} />
 
         <View className="flex-row gap-3">
