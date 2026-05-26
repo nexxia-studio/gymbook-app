@@ -50,35 +50,35 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
   }))
 
   return (
-    <View className="rounded-2xl bg-move-card p-5" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
+    <View className="overflow-hidden rounded-2xl p-5" style={{ backgroundColor: '#141414' }}>
       <View className="mb-3 flex-row items-center gap-3">
-        <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: level.color + '20' }}>
+        <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
           <Text style={{ fontSize: 24 }}>{level.icon}</Text>
         </View>
         <View className="flex-1">
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: level.color }}>
             {level.name.toUpperCase()}
           </Text>
-          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#6B6861' }}>
+          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#FFFFFF' }}>
             {totalSeances} séances complétées
           </Text>
         </View>
       </View>
-      <View className="mb-2 rounded-full bg-move-bg" style={{ height: 8 }}>
+      <View className="mb-2 rounded-full" style={{ height: 8, backgroundColor: '#333333' }}>
         <Animated.View style={barStyle} />
       </View>
       <View className="flex-row justify-between">
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#9A9890' }}>
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#666666' }}>
           {level.name} — {level.min}
         </Text>
         {nextLevel && (
-          <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#9A9890' }}>
+          <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#888888' }}>
             {nextLevel.name} — {nextLevel.min}
           </Text>
         )}
       </View>
       {nextLevel && (
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: level.color, marginTop: 8 }}>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#999999', marginTop: 8 }}>
           Plus que {remaining} séances pour {nextLevel.name} {nextLevel.icon}
         </Text>
       )}
@@ -385,6 +385,11 @@ export default function Studio() {
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+        <View className="bg-move-dark px-5 pb-4 pt-3">
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+            MA PROGRESSION
+          </Text>
+        </View>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#C8F000" />
         </View>
@@ -395,6 +400,11 @@ export default function Studio() {
   if (error || !data) {
     return (
       <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
+        <View className="bg-move-dark px-5 pb-4 pt-3">
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+            MA PROGRESSION
+          </Text>
+        </View>
         <View className="flex-1 items-center justify-center px-6">
           <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#9A9890', textAlign: 'center' }}>
             {error ?? 'Impossible de charger ta progression'}
@@ -406,11 +416,15 @@ export default function Studio() {
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#111111', marginBottom: 4 }}>
+      <View className="bg-move-dark px-5 pb-4 pt-3">
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
           MA PROGRESSION
         </Text>
-
+        <Text className="font-dmsans text-[13px] text-white/40">
+          Tes stats, ton niveau, ta régularité
+        </Text>
+      </View>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
         <LevelCard totalSeances={data.total_seances} />
 
         <View className="flex-row gap-3">
