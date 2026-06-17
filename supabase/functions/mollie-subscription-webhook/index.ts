@@ -1,15 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { resolvePlan } from '../_shared/plan-resolver.ts'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 const MOLLIE_TEST_API_KEY = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
-
-const PLANS: Record<string, { amount: string; times: number; interval: string; name: string }> = {
-  monthly_3: { amount: '120.00', times: 3, interval: '1 month', name: 'Illimité 3 mois' },
-  monthly_6: { amount: '110.00', times: 6, interval: '1 month', name: 'Illimité 6 mois' },
-  monthly_12: { amount: '95.00', times: 12, interval: '1 month', name: 'Illimité 12 mois' },
-}
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
@@ -95,7 +90,7 @@ Deno.serve(async (req) => {
     const metadata = molliePayment.metadata ?? {}
     const memberId = metadata.member_id ?? existingPayment?.member_id ?? null
     const gymId = metadata.gym_id ?? existingPayment?.gym_id ?? null
-    const planCode = metadata.plan_code ?? metadata.plan_id ?? null
+    const planId = metadata.plan_id ?? null
     const type = metadata.type ?? null
 
     if (!memberId || !gymId) {
@@ -121,18 +116,21 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }).eq('member_id', memberId).eq('gym_id', gymId)
 
-        const plan = planCode ? PLANS[planCode] : null
+        const plan = planId ? await resolvePlan(supabase, gymId, planId) : null
         if (plan && customerId) {
+          const planAmount = plan.price_cents / 100
+          const durationMonths = plan.duration_months ?? 1
+          const renewalTimes = Math.max(durationMonths - 1, 1)
           const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              amount: { currency: 'EUR', value: plan.amount },
-              interval: plan.interval,
-              times: Math.max(plan.times - 1, 1),
+              amount: { currency: plan.currency, value: planAmount.toFixed(2) },
+              interval: '1 month',
+              times: renewalTimes,
               description: `${plan.name} — Dopamine Performance Club`,
               webhookUrl: `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}`,
-              metadata: { member_id: memberId, gym_id: gymId, plan_code: planCode, type: 'subscription_renewal' },
+              metadata: { member_id: memberId, gym_id: gymId, plan_id: planId, type: 'subscription_renewal' },
             }),
           })
 
@@ -140,15 +138,15 @@ Deno.serve(async (req) => {
             const subscription = await subRes.json() as { id: string; nextPaymentDate?: string }
             const startsAt = new Date()
             const endsAt = new Date(startsAt)
-            endsAt.setMonth(endsAt.getMonth() + plan.times)
+            endsAt.setMonth(endsAt.getMonth() + durationMonths)
 
             await supabase.from('member_subscriptions').insert({
-              gym_id: gymId, member_id: memberId, plan_code: planCode,
+              gym_id: gymId, member_id: memberId, plan_id: planId,
               plan_name: plan.name, status: 'active',
               mollie_subscription_id: subscription.id, mollie_customer_id: customerId,
-              amount: parseFloat(plan.amount),
+              amount: planAmount,
               starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(),
-              max_payments: plan.times, payments_count: 1,
+              max_payments: plan.duration_months, payments_count: 1,
               next_payment_at: subscription.nextPaymentDate ?? null,
             })
           } else {
@@ -173,7 +171,7 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 from: 'Dopamine <noreply@nexxia.net>', to: profile.email,
                 subject: `Abonnement activé — ${plan.name}`,
-                html: `<p>Votre abonnement ${plan.name} est activé. ${parseFloat(plan.amount).toFixed(2)}€/mois × ${plan.times} mois.</p>`,
+                html: `<p>Votre abonnement ${plan.name} est activé. ${(plan.price_cents / 100).toFixed(2)}€/mois × ${plan.duration_months ?? 1} mois.</p>`,
               }),
             })
           } catch (e) { console.error('[sub-webhook] email error:', e) }
@@ -185,7 +183,7 @@ Deno.serve(async (req) => {
               body: {
                 tokens: [profile.push_token],
                 title: '✅ Abonnement activé !',
-                body: `${plan.name} — ${parseFloat(plan.amount).toFixed(2)}€/mois`,
+                body: `${plan.name} — ${(plan.price_cents / 100).toFixed(2)}€/mois`,
                 data: { type: 'subscription_activated' },
               },
             })
@@ -211,11 +209,12 @@ Deno.serve(async (req) => {
           }
         }
 
-        const planName = planCode ? (PLANS[planCode]?.name ?? planCode) : 'Renouvellement'
+        const renewalPlan = planId ? await resolvePlan(supabase, gymId, planId) : null
+        const planName = renewalPlan?.name ?? 'Renouvellement'
 
         await supabase.from('payments').upsert({
           gym_id: gymId, member_id: memberId, mollie_payment_id: molliePaymentId,
-          plan_id: planCode, plan_name: `Renouvellement — ${planName}`,
+          plan_id: planId, plan_name: `Renouvellement — ${planName}`,
           amount: molliePayment.amount ? parseFloat(molliePayment.amount.value) : 0,
           status: 'paid', payment_method: molliePayment.method ?? null,
           paid_at: molliePayment.paidAt ?? null, credits_granted: 0,

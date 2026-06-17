@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { resolvePlan } from '../_shared/plan-resolver.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,16 +98,10 @@ Deno.serve(async (req) => {
       return errorResponse(403, 'Paiements non disponibles sur votre plan GymBook', 'PAYMENTS_DISABLED')
     }
 
-    const { data: plan } = await supabaseAdmin
-      .from('gym_plans')
-      .select('id, name, price_cents, currency, billing_type, active')
-      .eq('id', planId)
-      .eq('gym_id', gymId)
-      .maybeSingle()
-
+    // Résolution autoritative du plan (gym_plans = source de vérité).
+    const plan = await resolvePlan(supabaseAdmin, gymId, planId)
     if (!plan) return errorResponse(404, 'Formule introuvable', 'PLAN_NOT_FOUND')
-    if (!plan.active) return errorResponse(403, 'Formule désactivée', 'PLAN_INACTIVE')
-    if (plan.billing_type === 'one_time') {
+    if (plan.is_one_time) {
       return errorResponse(400, 'Cette formule est un paiement unique — utiliser create-payment', 'PLAN_NOT_RECURRING')
     }
 
@@ -184,6 +179,7 @@ Deno.serve(async (req) => {
         gym_id: gymId,
         member_id: memberId,
         plan_id: planId,
+        type: 'subscription_first',
         purpose: 'subscription_mandate',
       },
     }
