@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
+import { getEffectiveCommission } from '../_shared/commission.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -131,7 +132,8 @@ Deno.serve(async (req) => {
     }
 
     const amountCents = plan.price_cents
-    const applicationFeeCents = Math.round(amountCents * planLimits.commission_cb_rate)
+    const { cbRate: effectiveCbRate } = await getEffectiveCommission(supabaseAdmin, gymId)
+    const applicationFeeCents = Math.round(amountCents * effectiveCbRate)
     const feeValue = applicationFeeCents / 100
 
     console.log('[create-payment] gym plan limits:', planLimits)

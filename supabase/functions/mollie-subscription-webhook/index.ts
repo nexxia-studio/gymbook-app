@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
+import { getEffectiveCommission } from '../_shared/commission.ts'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
@@ -121,17 +122,28 @@ Deno.serve(async (req) => {
           const planAmount = plan.price_cents / 100
           const durationMonths = plan.duration_months ?? 1
           const renewalTimes = Math.max(durationMonths - 1, 1)
+
+          // GYM-79 — applicationFee SEPA récurrent (commission effective, jamais en test mode)
+          const { sepaRate: effectiveSepaRate } = await getEffectiveCommission(supabase, gymId)
+          const feeCents = Math.round(plan.price_cents * effectiveSepaRate)
+          const subPayload: Record<string, unknown> = {
+            amount: { currency: plan.currency, value: planAmount.toFixed(2) },
+            interval: '1 month',
+            times: renewalTimes,
+            description: `${plan.name} — Dopamine Performance Club`,
+            webhookUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}`,
+            metadata: { member_id: memberId, gym_id: gymId, plan_id: planId, type: 'subscription_renewal' },
+          }
+          if (!IS_TEST_MODE && feeCents > 0) {
+            subPayload.applicationFee = {
+              amount: { currency: plan.currency, value: (feeCents / 100).toFixed(2) },
+              description: 'GymBook commission',
+            }
+          }
           const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount: { currency: plan.currency, value: planAmount.toFixed(2) },
-              interval: '1 month',
-              times: renewalTimes,
-              description: `${plan.name} — Dopamine Performance Club`,
-              webhookUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}`,
-              metadata: { member_id: memberId, gym_id: gymId, plan_id: planId, type: 'subscription_renewal' },
-            }),
+            body: JSON.stringify(subPayload),
           })
 
           if (subRes.ok) {

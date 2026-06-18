@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
+import { getEffectiveCommission } from '../_shared/commission.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -161,7 +162,8 @@ Deno.serve(async (req) => {
     }
 
     const priceEur = plan.price_cents / 100
-    const applicationFeeCents = Math.round(plan.price_cents * planLimits.commission_sepa_rate)
+    const { sepaRate: effectiveSepaRate } = await getEffectiveCommission(supabaseAdmin, gymId)
+    const applicationFeeCents = Math.round(plan.price_cents * effectiveSepaRate)
     const feeValue = applicationFeeCents / 100
 
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
