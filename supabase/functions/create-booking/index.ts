@@ -186,15 +186,8 @@ Deno.serve(async (req) => {
       }, 402)
     }
 
-    if (!activeSubscription && hasAvailableCredits && memberCredits) {
-      await supabaseAdmin
-        .from('member_credits')
-        .update({
-          credits_used: memberCredits.credits_used + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', memberCredits.id)
-    }
+    // GYM-69 — le débit du crédit est déplacé APRÈS la confirmation du siège
+    // (chemin 'confirmed' plus bas). Aucun débit ici, ni sur le chemin waitlist.
     // ============================================================
 
     // 7. Check capacity
@@ -265,6 +258,18 @@ Deno.serve(async (req) => {
     }
 
     if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
+
+    // GYM-69 — débit du crédit UNIQUEMENT sur le chemin confirmé (jamais waitlist),
+    // APRÈS succès de l'insert/réutilisation 'confirmed'. ALREADY_BOOKED protège du double débit.
+    if (!activeSubscription && hasAvailableCredits && memberCredits) {
+      await supabaseAdmin
+        .from('member_credits')
+        .update({
+          credits_used: memberCredits.credits_used + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberCredits.id)
+    }
 
     // 9. Send confirmation email (non-blocking)
     // (trigger trg_update_bookings_count maintains time_slots.bookings_count)
