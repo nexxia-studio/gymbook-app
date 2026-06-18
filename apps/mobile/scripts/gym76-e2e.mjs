@@ -10,7 +10,12 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const MOBILE = join(HERE, '..')
 
 const URL = 'https://buovgpokubrkejunmauq.supabase.co'
-const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1b3ZncG9rdWJya2VqdW5tYXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDI5OTYsImV4cCI6MjA5NDA3ODk5Nn0.ZPyZskhD-q_syBb4IL0hBNHCGp1eHO8vSQCUbMrWsqY'
+// GYM-72 — anon key lue depuis l'environnement (.env.test gitignoré), jamais en dur.
+const ANON = process.env.STAGING_ANON_KEY
+if (!ANON) {
+  console.error('STAGING_ANON_KEY manquant — définis-le dans l\'environnement (ou apps/mobile/.env.test gitignoré)')
+  process.exit(2)
+}
 const EMAIL = process.env.STAGING_TEST_EMAIL ?? 'test-move95@gymbook.test'
 const PASSWORD = process.env.STAGING_TEST_PASSWORD ?? 'GymBookTest!2026'
 
