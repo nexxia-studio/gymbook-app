@@ -54,5 +54,10 @@ export default {
       typedRoutes: true,
     },
     scheme: 'dopamine',
+    extra: {
+      eas: {
+        projectId: '3c7e7738-841a-4edb-811f-7247ec1678f9',
+      },
+    },
   },
 }
