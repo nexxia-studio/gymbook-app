@@ -7,7 +7,8 @@
     "back": "Back",
     "error": "An error occurred",
     "or": "or",
-    "coming_soon": "Coming soon"
+    "coming_soon": "Coming soon",
+    "retry": "Retry"
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
@@ -112,15 +113,36 @@
     "waitlist": "Waitlist",
     "spots_left": "{{count}} spots",
     "spots_one": "1 spot",
-    "booked": "\u2713 Booked",
-    "waitlisted_badge": "\u23f3 Waitlisted",
+    "booked": "✓ Booked",
+    "waitlisted_badge": "⏳ Waitlisted",
     "empty_title": "No classes this day",
     "empty_closed": "Dopamine is closed on Sundays",
     "empty_none": "No slots scheduled",
     "duration_min": "{{duration}} min",
     "pull_refresh": "Pull to refresh",
-    "months": ["January","February","March","April","May","June","July","August","September","October","November","December"],
-    "days": ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
+    "days": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
   },
   "schedule": {
     "title": "Schedule",
@@ -156,19 +178,26 @@
     "subtitle": "You don't have an active subscription or available credit.",
     "option_subscribe": {
       "label": "Subscribe to a plan",
-      "sub": "From €95/month"
+      "sub": "From €95/month",
+      "sub_from": "From {{price}}/month",
+      "sub_generic": "Unlimited class access"
     },
     "option_pack": {
       "label": "Buy a 10-session pack",
-      "sub": "€170 — €17 per session"
+      "sub": "€170 — €17 per session",
+      "sub_priced": "{{price}} — {{count}} sessions",
+      "sub_generic": "Prepaid session pack"
     },
     "option_drop_in": {
       "label": "Pay for this session (€{{amount}})",
-      "sub": "Instant card payment"
+      "sub": "Instant card payment",
+      "label_priced": "Pay for this session ({{price}})",
+      "label_generic": "Pay for this session"
     },
     "errors": {
       "no_gym": "Gym not found",
-      "checkout_failed": "Payment could not start. Try again."
+      "checkout_failed": "Payment could not start. Try again.",
+      "no_plan": "Drop-in plan unavailable."
     }
   },
   "session": {
@@ -360,7 +389,24 @@
     "invoice_sent_message": "Invoice {{invoice}} has been emailed to {{email}}.",
     "invoice_error_title": "Invoice unavailable",
     "invoice_error_message": "Could not generate the invoice. Please try again.",
-    "invoice_error_auth": "Please sign in again to download the invoice."
+    "invoice_error_auth": "Please sign in again to download the invoice.",
+    "error_title": "Payment failed",
+    "errors": {
+      "MISSING_FIELDS": "Technical error, please try again.",
+      "UNAUTHORIZED": "Session expired, please log in again.",
+      "PROFILE_NOT_FOUND": "Profile not found.",
+      "GYM_FORBIDDEN": "Access to this gym denied.",
+      "PLAN_NOT_FOUND": "Plan unavailable.",
+      "PAYMENTS_DISABLED": "Payments are not enabled for this gym.",
+      "PLAN_MISCONFIGURED": "Plan misconfigured, please contact the gym.",
+      "MOLLIE_TOKEN_EXPIRED": "Payment temporarily unavailable, try again later.",
+      "MOLLIE_ERROR": "Payment failed on the provider side, please try again.",
+      "PLAN_NOT_ONE_TIME": "This plan is not a one-time purchase.",
+      "MEMBER_MISMATCH": "You can only subscribe for yourself.",
+      "PLAN_NOT_RECURRING": "This plan is not a subscription.",
+      "MOLLIE_CUSTOMER_ERROR": "Could not create the mandate, please try again.",
+      "FALLBACK": "Something went wrong, please try again."
+    }
   },
   "subscription": {
     "title": "My subscription",
@@ -419,7 +465,15 @@
     "upsell_switch_title": "SWITCH PLAN",
     "upsell_upgrade_title": "GO UNLIMITED",
     "most_popular": "MOST POPULAR",
-    "choose": "Choose"
+    "choose": "Choose",
+    "per_month": "/month",
+    "sessions_count_one": "{{count}} session",
+    "sessions_count_other": "{{count}} sessions",
+    "commitment": "{{count}}-month commitment",
+    "section_one_time": "Pay per session",
+    "section_recurring": "Subscriptions",
+    "plans_error": "Couldn't load the plans.",
+    "credits_generic_name": "Session credits"
   },
   "preferences": {
     "title": "Preferences",
