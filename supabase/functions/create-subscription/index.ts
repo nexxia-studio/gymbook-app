@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
     const feeValue = applicationFeeCents / 100
 
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
-    const webhookUrl = `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-subscription-webhook?secret=${webhookSecret}`
+    const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${webhookSecret}`
 
     const firstPaymentPayload: Record<string, unknown> = {
       amount: { currency: plan.currency ?? 'EUR', value: formatAmount(priceEur) },

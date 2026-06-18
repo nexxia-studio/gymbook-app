@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
               interval: '1 month',
               times: renewalTimes,
               description: `${plan.name} — Dopamine Performance Club`,
-              webhookUrl: `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}`,
+              webhookUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}`,
               metadata: { member_id: memberId, gym_id: gymId, plan_id: planId, type: 'subscription_renewal' },
             }),
           })

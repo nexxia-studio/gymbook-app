@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
     console.log('[create-payment] isTestMode:', isTestMode, 'mollieApiKey length:', mollieApiKey?.length, 'profileId:', profileId)
 
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
-    const webhookUrl = `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-webhook?secret=${webhookSecret}`
+    const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-webhook?secret=${webhookSecret}`
 
     const molliePayload: Record<string, unknown> = {
       amount: { currency, value: formatAmount(amount) },
