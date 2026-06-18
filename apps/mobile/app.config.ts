@@ -16,6 +16,10 @@ export default {
       supportsTablet: false,
       bundleIdentifier: 'be.dopamineclub.app',
       usesAppleSignIn: true,
+      infoPlist: {
+        NSFaceIDUsageDescription: 'Dopamine utilise Face ID pour sécuriser ta connexion.',
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     android: {
       adaptiveIcon: {
