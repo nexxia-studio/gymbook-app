@@ -127,16 +127,17 @@ Deno.serve(async (req) => {
         .eq('gym_id', gymId)
         .maybeSingle()
 
-      if (!existing || existing.status === 'revoked' || existing.status === 'expired') {
-        return jsonResponse({ connected: false, profile_name: null, connected_at: null, is_test_mode: null, status: existing?.status ?? null })
-      }
+      const isConnected = !!existing && existing.status !== 'revoked' && existing.status !== 'expired'
+      const fullyConnected = isConnected && existing.mollie_profile_id != null
 
       return jsonResponse({
-        connected: true,
-        profile_name: existing.mollie_account_name,
-        connected_at: existing.connected_at,
+        connected: isConnected,
+        fully_connected: fullyConnected,          // GYM-85 : true seulement si mollie_profile_id non null
+        mollie_profile_id: existing?.mollie_profile_id ?? null,
+        profile_name: existing?.mollie_account_name ?? null,
+        connected_at: existing?.connected_at ?? null,
         is_test_mode: null,
-        status: existing.status,
+        status: existing?.status ?? null,
       })
     }
 

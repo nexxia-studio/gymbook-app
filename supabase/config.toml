@@ -1,0 +1,6 @@
+# Config Supabase — verify_jwt explicite par fonction.
+# Le projet cible est passé via --project-ref au déploiement.
+
+# GYM-85 — appel gérant authentifié (JWT requis).
+[functions.mollie-connect-oauth]
+verify_jwt = true
