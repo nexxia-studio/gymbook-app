@@ -4,7 +4,7 @@ export default {
     slug: 'dopamine',
     version: '1.0.0',
     orientation: 'portrait' as const,
-    icon: './assets/icon.png',
+    icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
     newArchEnabled: true,
     splash: {
