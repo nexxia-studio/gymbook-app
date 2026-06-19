@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Platform } from 'react-native'
+import { View, Text, Image, TouchableOpacity, Platform } from 'react-native'
 import { usePathname, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -51,19 +51,33 @@ function CenterButton({ active, onPress }: { active: boolean; onPress: () => voi
               width: 58,
               height: 58,
               borderRadius: 29,
-              backgroundColor: '#111111',
+              backgroundColor: '#000',
               alignItems: 'center',
               justifyContent: 'center',
               ...(Platform.OS === 'ios'
                 ? { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8 }
                 : { elevation: 8 }),
-              ...(active ? { borderWidth: 2, borderColor: ACCENT } : {}),
             },
           ]}
         >
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', lineHeight: 26 }}>
-            D
-          </Text>
+          {/* Logo Dopamine — même pastille (58, rond), logo blanc sur fond noir en cover.
+              Clip sur une vue interne pour ne pas rogner l'ombre iOS de la pastille. */}
+          <View
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: 29,
+              overflow: 'hidden',
+              backgroundColor: '#000',
+              ...(active ? { borderWidth: 2, borderColor: ACCENT } : {}),
+            }}
+          >
+            <Image
+              source={require('../../assets/dopamine-logo-d.png')}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+            />
+          </View>
         </Animated.View>
       </TouchableOpacity>
     </View>
