@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { resolvePlan } from '../_shared/plan-resolver.ts'
+import { getEffectiveCommission } from '../_shared/commission.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,8 +10,7 @@ const corsHeaders = {
 
 interface PaymentRequest {
   gym_id: string
-  amount: number
-  payment_type: 'drop_in' | 'card_10' | string
+  plan_id: string
   redirect_url: string
 }
 
@@ -49,12 +50,6 @@ function formatAmount(value: number): string {
   return value.toFixed(2)
 }
 
-function describePaymentType(type: string): string {
-  if (type === 'drop_in') return 'Drop-in (1 séance)'
-  if (type === 'card_10') return 'Carte 10 séances'
-  return `Paiement ${type}`
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -76,12 +71,13 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser()
     if (authError || !user) return errorResponse(401, 'Non authentifié', 'UNAUTHORIZED')
 
+    // Prix autoritatif serveur : le body ne porte que l'identité du plan.
+    // amount / payment_type éventuellement présents sont totalement ignorés.
     const body = await req.json() as PaymentRequest
-    const { gym_id: gymId, amount, payment_type: paymentType, redirect_url: redirectUrl } = body
+    const { gym_id: gymId, plan_id: planId, redirect_url: redirectUrl } = body
 
     if (!gymId || typeof gymId !== 'string') return errorResponse(400, 'gym_id requis', 'MISSING_GYM_ID')
-    if (typeof amount !== 'number' || amount <= 0) return errorResponse(400, 'amount invalide', 'INVALID_AMOUNT')
-    if (!paymentType) return errorResponse(400, 'payment_type requis', 'MISSING_PAYMENT_TYPE')
+    if (!planId || typeof planId !== 'string') return errorResponse(400, 'plan_id requis', 'MISSING_PLAN_ID')
     if (!redirectUrl) return errorResponse(400, 'redirect_url requis', 'MISSING_REDIRECT_URL')
 
     const { data: profile } = await supabaseAdmin
@@ -98,6 +94,20 @@ Deno.serve(async (req) => {
     if (!planLimits.payments_enabled) {
       return errorResponse(403, 'Paiements non disponibles sur votre plan GymBook', 'PAYMENTS_DISABLED')
     }
+
+    // Résolution autoritative du plan (gym_plans = source de vérité).
+    const plan = await resolvePlan(supabaseAdmin, gymId, planId)
+    if (!plan) return errorResponse(404, 'Formule introuvable', 'PLAN_NOT_FOUND')
+    if (!plan.is_one_time) {
+      return errorResponse(400, 'Cette formule n\'est pas un paiement unique — utiliser create-subscription', 'PLAN_NOT_ONE_TIME')
+    }
+    if (plan.credit_count == null || plan.credit_count <= 0) {
+      return errorResponse(422, 'Formule mal configurée (crédits invalides)', 'PLAN_MISCONFIGURED')
+    }
+
+    const amount = plan.price_cents / 100
+    const creditsGranted = plan.credit_count
+    const currency = plan.currency
 
     const isTestMode = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 
@@ -121,32 +131,33 @@ Deno.serve(async (req) => {
       profileId = connMeta?.mollie_profile_id ?? null
     }
 
-    const amountCents = Math.round(amount * 100)
-    const applicationFeeCents = Math.round(amountCents * planLimits.commission_cb_rate)
+    const amountCents = plan.price_cents
+    const { cbRate: effectiveCbRate } = await getEffectiveCommission(supabaseAdmin, gymId)
+    const applicationFeeCents = Math.round(amountCents * effectiveCbRate)
     const feeValue = applicationFeeCents / 100
 
     console.log('[create-payment] gym plan limits:', planLimits)
-    console.log('[create-payment] amount:', amount, 'amountCents:', amountCents, 'applicationFeeCents:', applicationFeeCents)
+    console.log('[create-payment] plan:', plan.plan_id, plan.name, 'amountCents:', amountCents, 'credits:', creditsGranted, 'applicationFeeCents:', applicationFeeCents)
     console.log('[create-payment] isTestMode:', isTestMode, 'mollieApiKey length:', mollieApiKey?.length, 'profileId:', profileId)
 
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
-    const webhookUrl = `https://fcjupgvmjkqztxtwymdb.supabase.co/functions/v1/mollie-webhook?secret=${webhookSecret}`
+    const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-webhook?secret=${webhookSecret}`
 
     const molliePayload: Record<string, unknown> = {
-      amount: { currency: 'EUR', value: formatAmount(amount) },
-      description: describePaymentType(paymentType),
+      amount: { currency, value: formatAmount(amount) },
+      description: plan.name,
       redirectUrl,
       webhookUrl,
       metadata: {
         gym_id: gymId,
         member_id: profile.id,
-        payment_type: paymentType,
+        plan_id: plan.plan_id,
       },
     }
     if (profileId) molliePayload.profileId = profileId
     if (!isTestMode && applicationFeeCents > 0) {
       molliePayload.applicationFee = {
-        amount: { currency: 'EUR', value: formatAmount(feeValue) },
+        amount: { currency, value: formatAmount(feeValue) },
         description: 'GymBook commission',
       }
     }
@@ -177,17 +188,13 @@ Deno.serve(async (req) => {
       return errorResponse(502, 'Mollie n\'a pas retourné d\'URL de checkout', 'MOLLIE_NO_CHECKOUT')
     }
 
-    const creditsGranted = paymentType === 'drop_in' ? 1
-      : paymentType === 'card_10' ? 10
-      : 0
-
     const { error: insertError } = await supabaseAdmin
       .from('payments')
       .insert({
         gym_id: gymId,
         member_id: profile.id,
-        plan_id: paymentType,
-        plan_name: describePaymentType(paymentType),
+        plan_id: plan.plan_id,
+        plan_name: plan.name,
         amount,
         mollie_payment_id: mollieData.id,
         checkout_url: checkoutUrl,
