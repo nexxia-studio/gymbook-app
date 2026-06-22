@@ -99,6 +99,36 @@ Deno.serve(async (req) => {
       return errorResponse(409, 'Place déjà prise par un autre membre', 'SLOT_FULL')
     }
 
+    // GYM-69 — guard paiement à la promotion : le promu paie son crédit à la confirmation.
+    const { data: activeSubscription } = await admin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', user.id)
+      .eq('gym_id', booking.gym_id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    const { data: memberCredits } = await admin
+      .from('member_credits')
+      .select('id, credits_total, credits_used')
+      .eq('member_id', user.id)
+      .eq('gym_id', booking.gym_id)
+      .gt('credits_total', 0)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    const hasAvailableCredits = memberCredits != null &&
+      (memberCredits.credits_total - memberCredits.credits_used) > 0
+
+    if (!activeSubscription && !hasAvailableCredits) {
+      return jsonResponse({
+        error: true,
+        code: 'PAYMENT_REQUIRED',
+        message: 'Abonnement ou crédit requis pour confirmer cette place',
+      }, 402)
+    }
+
     // 5. Confirm the booking (trigger trg_update_bookings_count maintains time_slots counts)
     await admin.from('bookings').update({
       status: 'confirmed',
@@ -107,6 +137,18 @@ Deno.serve(async (req) => {
       waitlist_confirmation_deadline: null,
       promoted_from_waitlist_at: new Date().toISOString(),
     }).eq('id', bookingId)
+
+    // GYM-69 — débit du crédit APRÈS confirmation réussie (jamais à l'entrée en waitlist).
+    // NOT_WAITLISTED sur retry protège du double débit.
+    if (!activeSubscription && hasAvailableCredits && memberCredits) {
+      await admin
+        .from('member_credits')
+        .update({
+          credits_used: memberCredits.credits_used + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberCredits.id)
+    }
 
     // 6. Send confirmation
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
