@@ -1,15 +1,23 @@
 // GYM-63 — Bottom sheet quand un membre tente de réserver sans abonnement ni crédit.
+// GYM-76 — Migré sur gym_plans : plus de prix/codes en dur, create-payment v24 (plan_id UUID).
 // L'auto-retry après paiement drop-in est géré par app/payment/success.tsx (GYM-63b)
 // via le deep link dopamine://payment/success?slot_id=...&source=drop_in.
 import { useState, useEffect, useRef } from 'react'
 import { View, Text, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import * as WebBrowser from 'expo-web-browser'
 import { CreditCard, Calendar, Ticket } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useBookingStore } from '../../stores/useBookingStore'
+import { useGymPlans } from '../../hooks/useGymPlans'
+import {
+  formatPrice,
+  mapPaymentError,
+  openCheckout,
+  startOneTimeCheckout,
+  buildRedirectUrl,
+} from '../../lib/payments'
 
 interface PaymentRequiredSheetProps {
   visible: boolean
@@ -17,17 +25,27 @@ interface PaymentRequiredSheetProps {
   onClose: () => void
 }
 
-const DROP_IN_AMOUNT_EUR = 20
-
 export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequiredSheetProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const gymId = useAuthStore((s) => s.gym_id)
   const memberId = useAuthStore((s) => s.user?.id)
   const { createBooking } = useBookingStore()
+  const { oneTime, recurring, refetch } = useGymPlans()
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Plans dérivés de gym_plans (fini les prix en dur)
+  const dropInPlan = oneTime
+    .filter((p) => p.creditCount === 1)
+    .sort((a, b) => a.priceCents - b.priceCents)[0] ?? null
+  const packPlan = oneTime
+    .filter((p) => (p.creditCount ?? 0) > 1)
+    .sort((a, b) => a.priceCents - b.priceCents)[0] ?? null
+  const cheapestRecurring = recurring.length
+    ? [...recurring].sort((a, b) => a.priceCents - b.priceCents)[0]
+    : null
 
   useEffect(() => {
     return () => {
@@ -41,37 +59,27 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
   }
 
   const handleDropIn = async () => {
-    console.log('[PaymentRequiredSheet] drop-in clicked — gymId:', gymId, 'slotId:', slotId, 'memberId:', memberId)
     if (!gymId || !slotId || !memberId) {
-      console.warn('[PaymentRequiredSheet] missing gymId, slotId or memberId — aborting drop-in')
       Alert.alert(t('common.error'), t('payment_required.errors.no_gym'))
+      return
+    }
+    if (!dropInPlan) {
+      Alert.alert(t('common.error'), t('payment_required.errors.no_plan'))
       return
     }
     setIsLoadingDropIn(true)
     setDropInError(null)
     try {
-      const payload = {
-        gym_id: gymId,
-        amount: DROP_IN_AMOUNT_EUR,
-        payment_type: 'drop_in',
-        redirect_url: 'https://gymbook-app.vercel.app/mollie/callback?source=drop_in',
-      }
-      console.log('[PaymentRequiredSheet] drop-in payload:', payload)
-
-      const { data, error } = await supabase.functions.invoke('create-payment', {
-        body: payload,
+      const result = await startOneTimeCheckout(dropInPlan.id, {
+        gymId,
+        redirectUrl: buildRedirectUrl('drop_in'),
       })
-      console.log('[PaymentRequiredSheet] create-payment response — data:', data, 'error:', error)
 
-      if (error || !data?.checkout_url) {
-        let detail: unknown = null
-        try {
-          if ((error as { context?: Response })?.context) {
-            detail = await (error as { context: Response }).context.json()
-          }
-        } catch { /* not JSON */ }
-        console.warn('[PaymentRequiredSheet] checkout failed — detail:', detail, 'data:', data)
-        Alert.alert(t('common.error'), t('payment_required.errors.checkout_failed'))
+      if (!result.ok) {
+        const info = mapPaymentError(result.code)
+        if (info.refetch) refetch()
+        setIsLoadingDropIn(false)
+        Alert.alert(t('common.error'), t(info.messageKey))
         return
       }
 
@@ -101,10 +109,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
         }
       }, 2000)
 
-      WebBrowser.openBrowserAsync(data.checkout_url as string)
+      openCheckout(result.checkoutUrl)
     } catch (e) {
       console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
-      Alert.alert(t('common.error'), t('payment_required.errors.checkout_failed'))
+      Alert.alert(t('common.error'), t('payments.errors.FALLBACK'))
       setIsLoadingDropIn(false)
     }
   }
@@ -138,12 +146,16 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
                   {t('payment_required.option_subscribe.label')}
                 </Text>
                 <Text className="font-dmsans text-xs text-move-text-muted">
-                  {t('payment_required.option_subscribe.sub')}
+                  {cheapestRecurring
+                    ? t('payment_required.option_subscribe.sub_from', {
+                        price: formatPrice(cheapestRecurring.priceCents, cheapestRecurring.currency),
+                      })
+                    : t('payment_required.option_subscribe.sub_generic')}
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {/* Option 2 — Carnet 10 séances */}
+            {/* Option 2 — Carnet de séances */}
             <TouchableOpacity
               onPress={goToPayments}
               activeOpacity={0.8}
@@ -155,17 +167,22 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
                   {t('payment_required.option_pack.label')}
                 </Text>
                 <Text className="font-dmsans text-xs text-move-text-muted">
-                  {t('payment_required.option_pack.sub')}
+                  {packPlan
+                    ? t('payment_required.option_pack.sub_priced', {
+                        price: formatPrice(packPlan.priceCents, packPlan.currency),
+                        count: packPlan.creditCount ?? 0,
+                      })
+                    : t('payment_required.option_pack.sub_generic')}
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {/* Option 3 — Paiement à la séance */}
+            {/* Option 3 — Paiement à la séance (drop-in) */}
             <TouchableOpacity
               onPress={handleDropIn}
               activeOpacity={0.8}
-              disabled={isLoadingDropIn}
-              className="flex-row items-center gap-3 rounded-2xl bg-move-dark px-4 py-4"
+              disabled={isLoadingDropIn || !dropInPlan}
+              className={`flex-row items-center gap-3 rounded-2xl bg-move-dark px-4 py-4 ${isLoadingDropIn || !dropInPlan ? 'opacity-60' : ''}`}
             >
               {isLoadingDropIn ? (
                 <ActivityIndicator color="#C8F000" />
@@ -174,7 +191,11 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
               )}
               <View className="flex-1">
                 <Text className="font-dmsans-bold text-sm text-move-accent">
-                  {t('payment_required.option_drop_in.label', { amount: DROP_IN_AMOUNT_EUR })}
+                  {dropInPlan
+                    ? t('payment_required.option_drop_in.label_priced', {
+                        price: formatPrice(dropInPlan.priceCents, dropInPlan.currency),
+                      })
+                    : t('payment_required.option_drop_in.label_generic')}
                 </Text>
                 <Text className="font-dmsans text-xs text-white/60">
                   {t('payment_required.option_drop_in.sub')}
@@ -188,9 +209,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
           )}
 
           <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="mt-4 items-center py-3">
-            <Text className="font-dmsans text-sm text-move-text-muted">
-              {t('common.close')}
-            </Text>
+            <Text className="font-dmsans text-sm text-move-text-muted">{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
       </View>

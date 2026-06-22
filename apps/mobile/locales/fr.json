@@ -7,7 +7,8 @@
     "back": "Retour",
     "error": "Une erreur est survenue",
     "or": "ou",
-    "coming_soon": "Bientot disponible"
+    "coming_soon": "Bientot disponible",
+    "retry": "Réessayer"
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
@@ -112,15 +113,36 @@
     "waitlist": "Liste d'attente",
     "spots_left": "{{count}} places",
     "spots_one": "1 place",
-    "booked": "\u2713 R\u00e9serv\u00e9",
-    "waitlisted_badge": "\u23f3 En attente",
+    "booked": "✓ Réservé",
+    "waitlisted_badge": "⏳ En attente",
     "empty_title": "Aucun cours ce jour",
     "empty_closed": "Dopamine est fermé le dimanche",
     "empty_none": "Pas de créneaux prévus",
     "duration_min": "{{duration}} min",
     "pull_refresh": "Tirer pour rafraîchir",
-    "months": ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"],
-    "days": ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"]
+    "months": [
+      "janvier",
+      "février",
+      "mars",
+      "avril",
+      "mai",
+      "juin",
+      "juillet",
+      "août",
+      "septembre",
+      "octobre",
+      "novembre",
+      "décembre"
+    ],
+    "days": [
+      "Dimanche",
+      "Lundi",
+      "Mardi",
+      "Mercredi",
+      "Jeudi",
+      "Vendredi",
+      "Samedi"
+    ]
   },
   "schedule": {
     "title": "Planning",
@@ -156,19 +178,26 @@
     "subtitle": "Vous n'avez pas d'abonnement actif ni de crédit disponible.",
     "option_subscribe": {
       "label": "Souscrire un abonnement",
-      "sub": "À partir de 95€/mois"
+      "sub": "À partir de 95€/mois",
+      "sub_from": "À partir de {{price}}/mois",
+      "sub_generic": "Accès illimité aux cours"
     },
     "option_pack": {
       "label": "Acheter un carnet 10 séances",
-      "sub": "170€ — soit 17€ la séance"
+      "sub": "170€ — soit 17€ la séance",
+      "sub_priced": "{{price}} — {{count}} séances",
+      "sub_generic": "Carnet de séances prépayées"
     },
     "option_drop_in": {
       "label": "Payer cette séance ({{amount}}€)",
-      "sub": "Paiement immédiat par carte"
+      "sub": "Paiement immédiat par carte",
+      "label_priced": "Payer cette séance ({{price}})",
+      "label_generic": "Payer cette séance"
     },
     "errors": {
       "no_gym": "Gym introuvable",
-      "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez."
+      "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
+      "no_plan": "Formule à la séance indisponible."
     }
   },
   "session": {
@@ -360,7 +389,24 @@
     "invoice_sent_message": "La facture {{invoice}} a été envoyée à {{email}}.",
     "invoice_error_title": "Facture indisponible",
     "invoice_error_message": "Impossible de générer la facture. Réessayez.",
-    "invoice_error_auth": "Veuillez vous reconnecter pour télécharger la facture."
+    "invoice_error_auth": "Veuillez vous reconnecter pour télécharger la facture.",
+    "error_title": "Paiement impossible",
+    "errors": {
+      "MISSING_FIELDS": "Erreur technique, réessaie.",
+      "UNAUTHORIZED": "Session expirée, reconnecte-toi.",
+      "PROFILE_NOT_FOUND": "Profil introuvable.",
+      "GYM_FORBIDDEN": "Accès à cette salle refusé.",
+      "PLAN_NOT_FOUND": "Formule indisponible.",
+      "PAYMENTS_DISABLED": "Les paiements ne sont pas activés pour cette salle.",
+      "PLAN_MISCONFIGURED": "Formule mal configurée, contacte la salle.",
+      "MOLLIE_TOKEN_EXPIRED": "Paiement temporairement indisponible, réessaie plus tard.",
+      "MOLLIE_ERROR": "Le paiement a échoué côté prestataire, réessaie.",
+      "PLAN_NOT_ONE_TIME": "Cette formule n'est pas un achat à l'unité.",
+      "MEMBER_MISMATCH": "Tu ne peux souscrire que pour toi-même.",
+      "PLAN_NOT_RECURRING": "Cette formule n'est pas un abonnement.",
+      "MOLLIE_CUSTOMER_ERROR": "Échec de la création du mandat, réessaie.",
+      "FALLBACK": "Une erreur est survenue, réessaie."
+    }
   },
   "subscription": {
     "title": "Mon abonnement",
@@ -419,7 +465,15 @@
     "upsell_switch_title": "CHANGER DE FORMULE",
     "upsell_upgrade_title": "PASSER À L'ILLIMITÉ",
     "most_popular": "LE PLUS POPULAIRE",
-    "choose": "Choisir"
+    "choose": "Choisir",
+    "per_month": "/mois",
+    "sessions_count_one": "{{count}} séance",
+    "sessions_count_other": "{{count}} séances",
+    "commitment": "Engagement {{count}} mois",
+    "section_one_time": "À l'unité",
+    "section_recurring": "Abonnements",
+    "plans_error": "Impossible de charger les formules.",
+    "credits_generic_name": "Crédits séances"
   },
   "preferences": {
     "title": "Préférences",
