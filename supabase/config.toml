@@ -1,4 +1,4 @@
-# GYM-81 — verify_jwt explicite par fonction (évite une réécriture silencieuse au déploiement).
+# verify_jwt explicite par fonction (évite une réécriture silencieuse au déploiement).
 # Le projet cible est passé via --project-ref au déploiement (pas de project_id couplé ici).
 
 # Webhooks appelés par Mollie (auth = ?secret= dans l'URL, pas de JWT) → JWT désactivé.
@@ -13,4 +13,8 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.create-subscription]
+verify_jwt = true
+
+# GYM-85 — appel gérant authentifié (JWT requis).
+[functions.mollie-connect-oauth]
 verify_jwt = true
