@@ -3,8 +3,11 @@ import { type TestResult, printReport } from './rls-report.js'
 
 // ─── Config ────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://buovgpokubrkejunmauq.supabase.co'
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1b3ZncG9rdWJya2VqdW5tYXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDI5OTYsImV4cCI6MjA5NDA3ODk5Nn0.ZPyZskhD-q_syBb4IL0hBNHCGp1eHO8vSQCUbMrWsqY'
+// GYM-72 — clé anon de test lue depuis l'environnement (voir apps/dashboard/.env.test, gitignoré).
+const SUPABASE_ANON_KEY = process.env.STAGING_ANON_KEY
+if (!SUPABASE_ANON_KEY) {
+  throw new Error('STAGING_ANON_KEY manquant — définis-le dans apps/dashboard/.env.test (gitignoré) ou l\'environnement')
+}
 
 const MOVE95_ID = 'a0000000-0000-0000-0000-000000000001'
 const STUDIO_TEST_ID = 'b0000000-0000-0000-0000-000000000002'
