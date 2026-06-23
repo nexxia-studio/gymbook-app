@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -10,7 +10,7 @@ import Animated, {
   withTiming,
   withDelay,
   Easing,
-  useDerivedValue,
+  runOnJS,
 } from 'react-native-reanimated'
 import Svg, { Circle } from 'react-native-svg'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -21,16 +21,23 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 const EASE_OUT = Easing.out(Easing.cubic)
 
 function AnimatedNumber({ value, delay = 0, suffix = '' }: { value: number; delay?: number; suffix?: string }) {
+  const [display, setDisplay] = useState(0)
   const anim = useSharedValue(0)
+  const updater = useCallback((v: number) => setDisplay(Math.round(v)), [])
+
   useEffect(() => {
-    anim.value = withDelay(delay, withTiming(value, { duration: 1200, easing: EASE_OUT }))
+    anim.value = withDelay(delay, withTiming(value, { duration: 1200, easing: EASE_OUT }, () => {
+      runOnJS(updater)(value)
+    }))
+    const id = setInterval(() => setDisplay(Math.round(anim.value)), 16)
+    const timeout = setTimeout(() => clearInterval(id), delay + 1300)
+    return () => { clearInterval(id); clearTimeout(timeout) }
   }, [value])
-  const display = useDerivedValue(() => `${Math.round(anim.value)}${suffix}`)
-  const style = useAnimatedStyle(() => ({ opacity: 1 }))
+
   return (
-    <Animated.Text style={[{ fontFamily: 'BarlowCondensed_900Black', fontSize: 36, color: '#111111' }, style]}>
-      {display}
-    </Animated.Text>
+    <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 36, color: '#111111' }}>
+      {display}{suffix}
+    </Text>
   )
 }
 
@@ -50,35 +57,35 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
   }))
 
   return (
-    <View className="rounded-2xl bg-move-card p-5" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
+    <View className="overflow-hidden rounded-2xl p-5" style={{ backgroundColor: '#141414' }}>
       <View className="mb-3 flex-row items-center gap-3">
-        <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: level.color + '20' }}>
+        <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
           <Text style={{ fontSize: 24 }}>{level.icon}</Text>
         </View>
         <View className="flex-1">
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: level.color }}>
             {level.name.toUpperCase()}
           </Text>
-          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#6B6861' }}>
+          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#FFFFFF' }}>
             {totalSeances} séances complétées
           </Text>
         </View>
       </View>
-      <View className="mb-2 rounded-full bg-move-bg" style={{ height: 8 }}>
+      <View className="mb-2 rounded-full" style={{ height: 8, backgroundColor: '#333333' }}>
         <Animated.View style={barStyle} />
       </View>
       <View className="flex-row justify-between">
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#9A9890' }}>
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#666666' }}>
           {level.name} — {level.min}
         </Text>
         {nextLevel && (
-          <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#9A9890' }}>
+          <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#888888' }}>
             {nextLevel.name} — {nextLevel.min}
           </Text>
         )}
       </View>
       {nextLevel && (
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: level.color, marginTop: 8 }}>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#999999', marginTop: 8 }}>
           Plus que {remaining} séances pour {nextLevel.name} {nextLevel.icon}
         </Text>
       )}
@@ -245,20 +252,29 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
   const now = new Date()
   const thisMonday = new Date(now)
   thisMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
+  thisMonday.setHours(0, 0, 0, 0)
 
   const weeks: { key: string; count: number }[] = []
   for (let w = 25; w >= 0; w--) {
-    const d = new Date(thisMonday.getTime() - w * 7 * 86400000)
-    const key = d.toISOString().slice(0, 10)
+    const d = new Date(thisMonday)
+    d.setDate(thisMonday.getDate() - w * 7)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const key = `${y}-${m}-${dd}`
     weeks.push({ key, count: weekMap.get(key) ?? 0 })
   }
 
+  const cellSize = 10
+  const gap = 4
+  const colWidth = cellSize + gap
+
   const monthLabels: { label: string; col: number }[] = []
-  let lastMonth = -1
+  let prevMonth = -1
   weeks.forEach((w, i) => {
     const d = new Date(w.key)
-    if (d.getMonth() !== lastMonth) {
-      lastMonth = d.getMonth()
+    if (d.getMonth() !== prevMonth) {
+      prevMonth = d.getMonth()
       monthLabels.push({ label: d.toLocaleDateString('fr-BE', { month: 'short' }), col: i })
     }
   })
@@ -266,14 +282,14 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
   return (
     <View className="rounded-2xl bg-move-card p-5" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
       <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 12 }}>
-        Activité annuelle
+        Activité (6 mois)
       </Text>
-      <View className="flex-row flex-wrap gap-1">
+      <View className="flex-row" style={{ gap }}>
         {weeks.map((w, i) => (
           <HeatmapCell key={w.key} count={w.count} index={i} />
         ))}
       </View>
-      <View className="mt-2 flex-row" style={{ gap: 0 }}>
+      <View className="mt-2" style={{ height: 14, position: 'relative' }}>
         {monthLabels.map((m) => (
           <Text
             key={m.label + m.col}
@@ -282,14 +298,14 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
               fontSize: 9,
               color: '#9A9890',
               position: 'absolute',
-              left: m.col * 14,
+              left: m.col * colWidth,
             }}
           >
             {m.label}
           </Text>
         ))}
       </View>
-      <View className="mt-4 flex-row items-center gap-1">
+      <View className="mt-2 flex-row items-center gap-1">
         <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: '#9A9890' }}>Moins</Text>
         {[0, 1, 2, 3].map((v) => (
           <View
@@ -384,8 +400,13 @@ export default function Studio() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
-        <View className="flex-1 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+        <View className="bg-move-dark px-5 pb-4 pt-3">
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+            MA PROGRESSION
+          </Text>
+        </View>
+        <View className="flex-1 items-center justify-center bg-move-bg">
           <ActivityIndicator size="large" color="#C8F000" />
         </View>
       </SafeAreaView>
@@ -394,8 +415,13 @@ export default function Studio() {
 
   if (error || !data) {
     return (
-      <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
-        <View className="flex-1 items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+        <View className="bg-move-dark px-5 pb-4 pt-3">
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+            MA PROGRESSION
+          </Text>
+        </View>
+        <View className="flex-1 items-center justify-center bg-move-bg px-6">
           <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#9A9890', textAlign: 'center' }}>
             {error ?? 'Impossible de charger ta progression'}
           </Text>
@@ -405,12 +431,16 @@ export default function Studio() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top']}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#111111', marginBottom: 4 }}>
+    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+      <View className="bg-move-dark px-5 pb-4 pt-3">
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
           MA PROGRESSION
         </Text>
-
+        <Text className="font-dmsans text-[13px] text-white/40">
+          Tes stats, ton niveau, ta régularité
+        </Text>
+      </View>
+      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
         <LevelCard totalSeances={data.total_seances} />
 
         <View className="flex-row gap-3">

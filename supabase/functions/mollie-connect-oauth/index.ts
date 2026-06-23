@@ -9,7 +9,9 @@ const corsHeaders = {
 
 const MOLLIE_AUTHORIZE_URL = 'https://my.mollie.com/oauth2/authorize'
 const MOLLIE_TOKEN_URL = 'https://api.mollie.com/oauth2/tokens'
-const MOLLIE_PROFILE_URL = 'https://api.mollie.com/v2/profiles/me'
+// GYM-85 : /v2/profiles/me ne fonctionne PAS avec un token OAuth (org access token).
+// La liste /v2/profiles, elle, est accessible en OAuth → on prend profiles[0].
+const MOLLIE_PROFILES_URL = 'https://api.mollie.com/v2/profiles'
 const MOLLIE_SCOPES = [
   'payments.read',
   'payments.write',
@@ -44,6 +46,11 @@ interface MollieProfile {
   id: string
   name?: string
   mode?: 'test' | 'live'
+}
+
+interface MollieProfilesListResponse {
+  count?: number
+  _embedded?: { profiles?: MollieProfile[] }
 }
 
 Deno.serve(async (req) => {
@@ -127,16 +134,17 @@ Deno.serve(async (req) => {
         .eq('gym_id', gymId)
         .maybeSingle()
 
-      if (!existing || existing.status === 'revoked' || existing.status === 'expired') {
-        return jsonResponse({ connected: false, profile_name: null, connected_at: null, is_test_mode: null, status: existing?.status ?? null })
-      }
+      const isConnected = !!existing && existing.status !== 'revoked' && existing.status !== 'expired'
+      const fullyConnected = isConnected && existing.mollie_profile_id != null
 
       return jsonResponse({
-        connected: true,
-        profile_name: existing.mollie_account_name,
-        connected_at: existing.connected_at,
+        connected: isConnected,
+        fully_connected: fullyConnected,          // GYM-85 : true seulement si mollie_profile_id non null
+        mollie_profile_id: existing?.mollie_profile_id ?? null,
+        profile_name: existing?.mollie_account_name ?? null,
+        connected_at: existing?.connected_at ?? null,
         is_test_mode: null,
-        status: existing.status,
+        status: existing?.status ?? null,
       })
     }
 
@@ -205,17 +213,42 @@ Deno.serve(async (req) => {
       const refreshToken = tokenData.refresh_token ?? null
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
 
-      const profileRes = await fetch(MOLLIE_PROFILE_URL, {
+      const profilesRes = await fetch(MOLLIE_PROFILES_URL, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       })
 
+      // On lit le corps brut une seule fois pour pouvoir le logger en cas d'échec.
+      const profilesRaw = await profilesRes.text()
       let mollieProfile: MollieProfile | null = null
-      if (profileRes.ok) {
-        mollieProfile = await profileRes.json() as MollieProfile
+      if (profilesRes.ok) {
+        try {
+          const parsed = JSON.parse(profilesRaw) as MollieProfilesListResponse
+          mollieProfile = parsed?._embedded?.profiles?.[0] ?? null
+        } catch (_) {
+          mollieProfile = null
+        }
       }
 
       const mollieProfileId = mollieProfile?.id ?? null
       const mollieAccountName = mollieProfile?.name ?? null
+
+      // GYM-85 : ne plus avaler l'échec. Si /v2/profiles échoue (non-2xx) OU
+      // renvoie 0 profil, on LOG la réponse réelle (statut + corps) et on
+      // abort proprement — surtout PAS de status='active' avec profile_id null,
+      // ce qui entretenait la boucle de reconnexion côté front.
+      if (!mollieProfileId) {
+        console.error('[mollie-connect-oauth] callback PROFILE_FETCH_FAILED', {
+          gymId,
+          status: profilesRes.status,
+          ok: profilesRes.ok,
+          body: profilesRaw.slice(0, 2000),
+        })
+        return errorResponse(
+          502,
+          `Profil Mollie introuvable (HTTP ${profilesRes.status}). Connexion non finalisée, réessayez.`,
+          'PROFILE_FETCH_FAILED',
+        )
+      }
 
       const { data: existing } = await supabaseAdmin
         .from('gym_mollie_connections')

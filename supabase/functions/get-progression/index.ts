@@ -54,22 +54,22 @@ Deno.serve(async (req) => {
 
     const thisMonth = await supabaseAdmin
       .from('bookings')
-      .select('id', { count: 'exact', head: true })
+      .select('id, time_slots!inner(starts_at)', { count: 'exact', head: true })
       .eq('member_id', memberId)
       .eq('gym_id', gymId)
       .eq('status', 'confirmed')
-      .gte('booked_at', monthStart)
-      .lt('booked_at', nextMonthStart)
+      .gte('time_slots.starts_at', monthStart)
+      .lt('time_slots.starts_at', nextMonthStart)
     const seancesThisMonth = thisMonth.count ?? 0
 
     const lastMonth = await supabaseAdmin
       .from('bookings')
-      .select('id', { count: 'exact', head: true })
+      .select('id, time_slots!inner(starts_at)', { count: 'exact', head: true })
       .eq('member_id', memberId)
       .eq('gym_id', gymId)
       .eq('status', 'confirmed')
-      .gte('booked_at', lastMonthStart)
-      .lt('booked_at', monthStart)
+      .gte('time_slots.starts_at', lastMonthStart)
+      .lt('time_slots.starts_at', monthStart)
     const seancesLastMonth = lastMonth.count ?? 0
 
     const noShow = await supabaseAdmin

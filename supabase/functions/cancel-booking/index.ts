@@ -103,9 +103,9 @@ Deno.serve(async (req) => {
     const isSlotPassed = slotStart < now
 
     // ============================================================
-    // GYM-64 — Remboursement crédit si annulation éligible
-    // Refund si : waitlist OU (confirmed + slot futur + > 2h avant)
-    // Pas de refund si : late cancel (< 2h), slot passé, ou abonnement actif
+    // GYM-64/69 — Remboursement crédit si annulation éligible
+    // Refund si : booking 'confirmed' + slot futur + > 2h avant (un crédit a réellement été débité)
+    // Pas de refund si : 'waitlisted' (rien n'avait été débité), late cancel (< 2h), slot passé, ou abonnement actif
     // ============================================================
     const { data: activeSubscription } = await admin
       .from('member_subscriptions')
@@ -123,8 +123,9 @@ Deno.serve(async (req) => {
         .eq('gym_id', booking.gym_id)
         .maybeSingle()
 
-      if (credits && credits.credits_used > 0) {
-        const shouldRefund = wasWaitlisted || (!isLateCancellation && !isSlotPassed)
+      // GYM-69 — jamais de refund pour un 'waitlisted' (aucun crédit débité à l'entrée en waitlist).
+      if (!wasWaitlisted && credits && credits.credits_used > 0) {
+        const shouldRefund = !isLateCancellation && !isSlotPassed
         if (shouldRefund) {
           await admin
             .from('member_credits')
@@ -133,8 +134,7 @@ Deno.serve(async (req) => {
               updated_at: new Date().toISOString(),
             })
             .eq('id', credits.id)
-          console.log('[cancel-booking] Crédit remboursé pour member:', booking.member_id,
-            wasWaitlisted ? '(waitlist)' : '(annulation > 2h)')
+          console.log('[cancel-booking] Crédit remboursé pour member:', booking.member_id, '(annulation confirmée > 2h)')
         } else {
           console.log('[cancel-booking] Crédit non remboursé pour member:', booking.member_id,
             isSlotPassed ? '(slot passé)' : '(désistement tardif < 2h)')
