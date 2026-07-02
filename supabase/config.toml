@@ -8,6 +8,17 @@ verify_jwt = false
 [functions.mollie-subscription-webhook]
 verify_jwt = false
 
+# Fonctions appelées en interne par pg_cron / SQL (net.http_post avec
+# X-Internal-Secret, sans JWT) → JWT désactivé sinon le gateway renvoie 401.
+[functions.notify-waitlist]
+verify_jwt = false
+
+[functions.send-reminders]
+verify_jwt = false
+
+[functions.send-noshow-notification]
+verify_jwt = false
+
 # Endpoints appelés par l'app authentifiée (JWT membre requis).
 [functions.create-payment]
 verify_jwt = true

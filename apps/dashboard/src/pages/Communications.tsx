@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Megaphone, Lock, PartyPopper, AlertTriangle, MessageSquare, Send, Users, Bell, Mail, Eye } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
 import { supabase } from '@/lib/supabase'
 
@@ -39,6 +40,7 @@ export default function Communications() {
   const addToast = useToastStore((s) => s.addToast)
   const gymId = useAuthStore((s) => s.gym_id)
   const user = useAuthStore((s) => s.user)
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
 
   const [template, setTemplate] = useState<Template>('info')
   const [title, setTitle] = useState('')
@@ -345,8 +347,8 @@ export default function Communications() {
               <div className="rounded-2xl bg-dark p-3">
                 <div className="rounded-xl bg-white px-3 py-3 shadow-sm">
                   <div className="mb-1 flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-dark text-xs font-bold text-accent">D</div>
-                    <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-muted">Dopamine</span>
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-dark text-xs font-bold text-accent">{gymName.charAt(0).toUpperCase()}</div>
+                    <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-muted">{gymName}</span>
                     <span className="ml-auto font-body text-[10px] text-muted">{t('communications.preview_now')}</span>
                   </div>
                   <p className="font-body text-sm font-semibold text-dark">

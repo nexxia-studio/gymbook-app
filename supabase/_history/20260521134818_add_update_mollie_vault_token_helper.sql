@@ -1,5 +1,10 @@
+-- ============================================================================
+-- ARCHIVE GYM-59 — migration prod 20260521134818 : add_update_mollie_vault_token_helper
+-- Historique Couche 2. NON rejouee (deja incluse dans la baseline).
+-- ============================================================================
+
 CREATE OR REPLACE FUNCTION update_mollie_vault_token(
-  p_vault_id  uuid,
+  p_vault_id uuid,
   p_new_secret text
 )
 RETURNS void
@@ -17,7 +22,7 @@ BEGIN
   END IF;
 
   UPDATE vault.secrets
-  SET secret     = p_new_secret,
+  SET secret = p_new_secret,
       updated_at = now()
   WHERE id = p_vault_id;
 
@@ -33,5 +38,6 @@ REVOKE ALL ON FUNCTION update_mollie_vault_token(uuid, text) FROM authenticated;
 GRANT EXECUTE ON FUNCTION update_mollie_vault_token(uuid, text) TO service_role;
 
 COMMENT ON FUNCTION update_mollie_vault_token(uuid, text) IS
-  'Met à jour un secret Mollie OAuth existant dans Supabase Vault (refresh des tokens).
-   Accès service_role uniquement — ne jamais exposer côté client.';
+  'Met à jour un secret Mollie existant dans Supabase Vault.
+   Accès service_role uniquement.';
+

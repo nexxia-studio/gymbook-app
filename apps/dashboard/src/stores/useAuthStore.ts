@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { useGymStore } from '@/stores/useGymStore'
+import { DEFAULT_TIMEZONE } from '@/lib/timezone'
 
 interface AuthState {
   user: User | null
@@ -23,6 +25,31 @@ interface AuthState {
   signOut: () => Promise<void>
   clearError: () => void
   initialize: () => Promise<void>
+}
+
+// Charge le gym complet (nom, slug, timezone) dans useGymStore.
+// Best-effort : une erreur ici NE DOIT PAS casser le login — le user reste
+// connecté, gym reste null et l'UI retombe sur son fallback ('GymBook').
+async function loadGymContext(gymId: string | null): Promise<void> {
+  if (!gymId) {
+    useGymStore.getState().setGym(null)
+    return
+  }
+  const { data, error } = await supabase
+    .from('nexxia_gyms')
+    .select('id, name, slug, timezone')
+    .eq('id', gymId)
+    .single()
+  if (error || !data) {
+    useGymStore.getState().setGym(null)
+    return
+  }
+  useGymStore.getState().setGym({
+    id: data.id,
+    name: data.name,
+    slug: data.slug,
+    timezone: data.timezone ?? DEFAULT_TIMEZONE,
+  })
 }
 
 function mapSupabaseError(message: string): string {
@@ -65,6 +92,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       role: profile?.role ?? null,
       isLoading: false,
     })
+    await loadGymContext(profile?.gym_id ?? null)
   },
 
   signUp: async (email, password, firstName, lastName, phone, consents) => {
@@ -103,6 +131,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     set({ isLoading: true })
     await supabase.auth.signOut()
+    useGymStore.getState().setGym(null)
     set({
       user: null,
       session: null,
@@ -127,6 +156,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         gym_id: profile?.gym_id ?? null,
         role: profile?.role ?? null,
       })
+      await loadGymContext(profile?.gym_id ?? null)
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {

@@ -6,10 +6,12 @@ import * as WebBrowser from 'expo-web-browser'
 import { supabase } from './supabase'
 import i18n from './i18n'
 
-const MOLLIE_CALLBACK_BASE = 'https://gymbook-app.vercel.app/mollie/callback'
+// GYM-89 — Les paiements MEMBRES (one-time + abonnement) reviennent sur la page membre
+// dédiée /payment/success, et NON sur /mollie/callback (réservé au flux OAuth gérant).
+const PAYMENT_RETURN_BASE = 'https://gymbook-app.vercel.app/payment/success'
 
 export function buildRedirectUrl(source: string): string {
-  return `${MOLLIE_CALLBACK_BASE}?source=${source}`
+  return `${PAYMENT_RETURN_BASE}?source=${source}`
 }
 
 /** Formate un montant (en CENTIMES) selon la devise. Fallback robuste si Intl indisponible. */

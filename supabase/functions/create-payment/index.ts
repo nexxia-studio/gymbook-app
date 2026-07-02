@@ -143,10 +143,17 @@ Deno.serve(async (req) => {
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-webhook?secret=${webhookSecret}`
 
+    // GYM-89 (niveau 2) — pré-générer l'id de la ligne payments et l'injecter dans la
+    // redirectUrl (/payment/success?...&id=<uuid>) pour que la page membre poll le paiement
+    // et affiche la confirmation + le deep link retour-app.
+    const paymentRowId = crypto.randomUUID()
+    const sep = redirectUrl.includes('?') ? '&' : '?'
+    const redirectUrlWithId = `${redirectUrl}${sep}id=${paymentRowId}`
+
     const molliePayload: Record<string, unknown> = {
       amount: { currency, value: formatAmount(amount) },
       description: plan.name,
-      redirectUrl,
+      redirectUrl: redirectUrlWithId,
       webhookUrl,
       metadata: {
         gym_id: gymId,
@@ -191,6 +198,7 @@ Deno.serve(async (req) => {
     const { error: insertError } = await supabaseAdmin
       .from('payments')
       .insert({
+        id: paymentRowId,
         gym_id: gymId,
         member_id: profile.id,
         plan_id: plan.plan_id,
