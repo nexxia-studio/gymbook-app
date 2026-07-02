@@ -143,3 +143,6 @@ vite.config.ts.timestamp-*
 .vite/
 .DS_Store
 **/.DS_Store
+
+# Supabase CLI local artifacts
+supabase/.branches/
