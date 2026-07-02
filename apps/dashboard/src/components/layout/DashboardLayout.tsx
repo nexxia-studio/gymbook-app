@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { StagingBadge } from '@/components/StagingBadge'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -9,6 +10,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="flex min-h-screen bg-background">
+      <StagingBadge />
       <Sidebar />
 
       {/* Main area — offset by sidebar width on desktop */}
