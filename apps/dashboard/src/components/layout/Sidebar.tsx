@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useGymStore } from '@/stores/useGymStore'
 import { useUIStore } from '@/stores/useUIStore'
 
 const NAV_ITEMS = [
@@ -31,6 +32,7 @@ export function Sidebar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, signOut } = useAuthStore()
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
   const { sidebarOpen, toggleSidebar } = useUIStore()
 
   const firstName = user?.user_metadata?.first_name ?? ''
@@ -73,7 +75,7 @@ export function Sidebar() {
 
         {/* Gym name */}
         <div className="px-5 pb-4">
-          <span className="font-body text-xs text-muted">Dopamine Performance Club</span>
+          <span className="font-body text-xs text-muted">{gymName}</span>
         </div>
 
         <div className="mx-5 border-t border-white/10" />

@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useMembers, type Member } from '@/hooks/useMembers'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
+import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
 
 function nameToColor(name: string): string {
@@ -114,6 +115,7 @@ export default function Members() {
     search, setSearch, statusFilter, setStatusFilter,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
 
   async function handleLiftSuspension(member: Member) {
     await liftSuspension(member.id, 'Lifted by admin')
@@ -121,7 +123,7 @@ export default function Members() {
   }
 
   async function handleSendPush(member: Member) {
-    await sendPush(member.id, 'Dopamine', t('members.push_default_message'))
+    await sendPush(member.id, gymName, t('members.push_default_message'))
     addToast(t('members.toast_push_sent'))
   }
 
