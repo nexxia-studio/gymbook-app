@@ -1,3 +1,8 @@
+-- ============================================================================
+-- ARCHIVE GYM-59 — migration prod 20260521133757 : add_create_mollie_vault_tokens_helper
+-- Historique Couche 2. NON rejouee (deja incluse dans la baseline).
+-- ============================================================================
+
 CREATE OR REPLACE FUNCTION create_mollie_vault_tokens(
   p_gym_id        uuid,
   p_access_token  text,
@@ -50,3 +55,4 @@ COMMENT ON FUNCTION create_mollie_vault_tokens(uuid, text, text) IS
   'Crée ou remplace les secrets Mollie OAuth dans Supabase Vault pour un gym.
    Retourne les UUIDs vault à stocker dans gym_mollie_connections.
    Accès service_role uniquement — ne jamais exposer côté client.';
+
