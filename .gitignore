@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Supabase CLI local artifacts
 supabase/.branches/
+
+# Rapports d'audit sécu (listent des chemins de secrets, ne pas versionner)
+AUDIT-SECU-*.md
