@@ -251,6 +251,7 @@
     "empty_upcoming_cta": "Decouvrir les cours",
     "empty_favorites": "Aucun favori",
     "empty_favorites_hint": "Appuyez sur le coeur sur un cours pour l'ajouter",
+    "favorite_no_upcoming": "Aucune seance a venir",
     "empty_history": "Aucun historique",
     "empty_history_hint": "Vos cours passes apparaitront ici",
     "limit_title": "Limite atteinte — 2 reservations max",

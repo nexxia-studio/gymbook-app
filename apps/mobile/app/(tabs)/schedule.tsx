@@ -21,7 +21,7 @@ export default function Schedule() {
     coachFilter, setCoachFilter,
     resetFilters, hasActiveFilters, coaches, refetch,
   } = useSchedule()
-  const { favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { favorites, addFavorite, removeFavorite, isFavorite } = useBookingStore()
   const [refreshing, setRefreshing] = useState(false)
 
   const onRefresh = useCallback(async () => {
@@ -31,19 +31,20 @@ export default function Schedule() {
   }, [refetch])
 
   const toggleFav = useCallback(
-    (id: string) => {
-      if (favorites.includes(id)) removeFavorite(id)
-      else addFavorite(id)
+    (slot: ScheduleSlot) => {
+      const input = { activityId: slot.activityId, startsAt: slot.startsAt }
+      if (isFavorite(input)) removeFavorite(input)
+      else addFavorite(input)
     },
-    [favorites, addFavorite, removeFavorite],
+    [isFavorite, addFavorite, removeFavorite],
   )
 
   const renderItem = useCallback(
     ({ item }: { item: ScheduleSlot }) => (
       <SlotListCard
         slot={item}
-        isFavorite={favorites.includes(item.id)}
-        onToggleFavorite={() => toggleFav(item.id)}
+        isFavorite={isFavorite({ activityId: item.activityId, startsAt: item.startsAt })}
+        onToggleFavorite={() => toggleFav(item)}
         onPress={() => {
           router.push({
             pathname: '/session/[id]',

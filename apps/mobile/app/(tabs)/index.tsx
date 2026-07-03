@@ -93,10 +93,10 @@ export default function Home() {
                   <SessionCard
                     key={slot.id}
                     slot={slot}
-                    isFavorite={isFavorite(slot.id)}
+                    isFavorite={isFavorite(slot)}
                     isBooked={isSlotBooked(slot.id)}
                     isWaitlisted={isSlotWaitlisted(slot.id)}
-                    onToggleFavorite={() => toggleFavorite(slot.id)}
+                    onToggleFavorite={() => toggleFavorite(slot)}
                     onPress={() => {
                       router.push({
                         pathname: '/session/[id]',

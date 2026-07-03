@@ -58,6 +58,9 @@ export default {
       eas: {
         projectId: '3c7e7738-841a-4edb-811f-7247ec1678f9',
       },
+      // Active gym id. Override per environment via EXPO_PUBLIC_GYM_ID;
+      // defaults to the Dopamine gym so behavior is unchanged without the var.
+      gymId: process.env.EXPO_PUBLIC_GYM_ID ?? 'a0000000-0000-0000-0000-000000000001',
     },
   },
 }

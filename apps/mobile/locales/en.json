@@ -251,6 +251,7 @@
     "empty_upcoming_cta": "Discover classes",
     "empty_favorites": "No favorites",
     "empty_favorites_hint": "Tap the heart on a class to add it",
+    "favorite_no_upcoming": "No upcoming session",
     "empty_history": "No history",
     "empty_history_hint": "Your past classes will appear here",
     "limit_title": "Limit reached — 2 bookings max",

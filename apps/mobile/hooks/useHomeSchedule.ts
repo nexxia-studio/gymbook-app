@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useBookingStore } from '../stores/useBookingStore'
-
-const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+import { GYM_ID } from '../constants/dopamine'
 
 export interface HomeSlot {
   id: string
+  activityId: string
+  startsAt: string
   date: string
   time: string
   endTime: string
@@ -29,7 +30,7 @@ export function useHomeSchedule() {
   const [isLoading, setIsLoading] = useState(true)
   const [confirmedSlotIds, setConfirmedSlotIds] = useState<Set<string>>(new Set())
   const [waitlistedSlotIds, setWaitlistedSlotIds] = useState<Set<string>>(new Set())
-  const { favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { favorites, addFavorite, removeFavorite, isFavorite: storeIsFavorite } = useBookingStore()
 
   const days = (() => {
     const today = new Date()
@@ -52,11 +53,11 @@ export function useHomeSchedule() {
       const { data, error } = await supabase
         .from('time_slots')
         .select(`
-          id, starts_at, ends_at, capacity, bookings_count,
+          id, activity_id, starts_at, ends_at, capacity, bookings_count,
           activities(name, color, duration_min),
           coaches(name)
         `)
-        .eq('gym_id', DOPAMINE_GYM_ID)
+        .eq('gym_id', GYM_ID)
         .gte('starts_at', start.toISOString())
         .lt('starts_at', end.toISOString())
         .neq('status', 'cancelled')
@@ -70,6 +71,8 @@ export function useHomeSchedule() {
         const actName = (act?.name as string) ?? 'Open Gym'
         return {
           id: row.id as string,
+          activityId: row.activity_id as string,
+          startsAt: row.starts_at as string,
           date: formatDateStr(row.starts_at as string),
           time: formatTime(row.starts_at as string),
           endTime: formatTime(row.ends_at as string),
@@ -95,8 +98,8 @@ export function useHomeSchedule() {
   // Fallback polling every 30s in case Realtime fails (network drop, missed event)
   useEffect(() => {
     const channel = supabase
-      .channel(`home-schedule-${DOPAMINE_GYM_ID}`)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .channel(`home-schedule-${GYM_ID}`)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         const deletedId = (payload.old as { id?: string } | null)?.id
         console.log('[Realtime] Home time_slots DELETE:', deletedId)
         if (deletedId) {
@@ -104,15 +107,15 @@ export function useHomeSchedule() {
         }
         fetchSlots()
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         console.log('[Realtime] Home time_slots INSERT:', payload.new)
         fetchSlots()
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         console.log('[Realtime] Home time_slots UPDATE:', payload.new)
         fetchSlots()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         console.log('[Realtime] Home bookings:', payload.eventType)
         fetchSlots()
       })
@@ -169,16 +172,18 @@ export function useHomeSchedule() {
   })
 
   const isFavorite = useCallback(
-    (slotId: string) => favorites.includes(slotId),
-    [favorites],
+    // `favorites` in deps so cards re-evaluate membership after any change
+    (slot: HomeSlot) => storeIsFavorite({ activityId: slot.activityId, startsAt: slot.startsAt }),
+    [favorites, storeIsFavorite],
   )
 
   const toggleFavorite = useCallback(
-    (slotId: string) => {
-      if (favorites.includes(slotId)) removeFavorite(slotId)
-      else addFavorite(slotId)
+    (slot: HomeSlot) => {
+      const input = { activityId: slot.activityId, startsAt: slot.startsAt }
+      if (storeIsFavorite(input)) removeFavorite(input)
+      else addFavorite(input)
     },
-    [favorites, addFavorite, removeFavorite],
+    [storeIsFavorite, addFavorite, removeFavorite],
   )
 
   const isSlotBooked = useCallback((slotId: string) => confirmedSlotIds.has(slotId), [confirmedSlotIds])
