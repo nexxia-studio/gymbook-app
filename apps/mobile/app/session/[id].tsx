@@ -36,13 +36,17 @@ export default function SessionDetail() {
     booked: string
   }>()
 
-  const { createBooking, cancelBooking, confirmWaitlist, favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { createBooking, cancelBooking, confirmWaitlist, favorites, addFavorite, removeFavorite, isFavorite } = useBookingStore()
 
   const slotId = params.id ?? ''
 
-  // Slot data — fetched from Supabase, params used as initial fallback only
+  // Slot data — fetched from Supabase, params used as initial fallback only.
+  // activityId/startsAt are resolved from the fetch and needed to derive the
+  // recurring favorite motif.
   const [slotData, setSlotData] = useState({
     activity: params.activity ?? 'Open Gym',
+    activityId: '',
+    startsAt: '',
     date: params.date ?? '',
     time: params.time ?? '',
     endTime: params.endTime ?? '',
@@ -76,7 +80,7 @@ export default function SessionDetail() {
       const { data } = await supabase
         .from('time_slots')
         .select(`
-          id, starts_at, ends_at, capacity, bookings_count, status,
+          id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
           activities(name, duration_min),
           coaches(name)
         `)
@@ -92,6 +96,8 @@ export default function SessionDetail() {
 
         setSlotData({
           activity: actName,
+          activityId: data.activity_id ?? '',
+          startsAt: data.starts_at,
           date: formatDateStr(data.starts_at),
           time: formatTime(data.starts_at),
           endTime: formatTime(data.ends_at),
@@ -131,7 +137,11 @@ export default function SessionDetail() {
   }, [slotId])
 
   const isFull = bookedCount >= capacity
-  const isFav = favorites.includes(slotId)
+  // `favorites` in deps so the heart reflects motif membership after changes
+  const isFav = useMemo(
+    () => isFavorite({ activityId: slotData.activityId, startsAt: slotData.startsAt }),
+    [favorites, slotData.activityId, slotData.startsAt, isFavorite],
+  )
 
   // Check if cancellation is < 2h from start
   const isLateCancellation = useMemo(() => {
@@ -291,9 +301,10 @@ export default function SessionDetail() {
   })()
 
   const toggleFav = useCallback(() => {
-    if (isFav) removeFavorite(slotId)
-    else addFavorite(slotId)
-  }, [isFav, slotId, addFavorite, removeFavorite])
+    const input = { activityId: slotData.activityId, startsAt: slotData.startsAt }
+    if (isFav) removeFavorite(input)
+    else addFavorite(input)
+  }, [isFav, slotData.activityId, slotData.startsAt, addFavorite, removeFavorite])
 
   return (
     <View className="flex-1 bg-move-bg">

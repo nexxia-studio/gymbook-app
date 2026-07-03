@@ -5,6 +5,8 @@ import { GYM_ID } from '../constants/dopamine'
 
 export interface HomeSlot {
   id: string
+  activityId: string
+  startsAt: string
   date: string
   time: string
   endTime: string
@@ -28,7 +30,7 @@ export function useHomeSchedule() {
   const [isLoading, setIsLoading] = useState(true)
   const [confirmedSlotIds, setConfirmedSlotIds] = useState<Set<string>>(new Set())
   const [waitlistedSlotIds, setWaitlistedSlotIds] = useState<Set<string>>(new Set())
-  const { favorites, addFavorite, removeFavorite } = useBookingStore()
+  const { favorites, addFavorite, removeFavorite, isFavorite: storeIsFavorite } = useBookingStore()
 
   const days = (() => {
     const today = new Date()
@@ -51,7 +53,7 @@ export function useHomeSchedule() {
       const { data, error } = await supabase
         .from('time_slots')
         .select(`
-          id, starts_at, ends_at, capacity, bookings_count,
+          id, activity_id, starts_at, ends_at, capacity, bookings_count,
           activities(name, color, duration_min),
           coaches(name)
         `)
@@ -69,6 +71,8 @@ export function useHomeSchedule() {
         const actName = (act?.name as string) ?? 'Open Gym'
         return {
           id: row.id as string,
+          activityId: row.activity_id as string,
+          startsAt: row.starts_at as string,
           date: formatDateStr(row.starts_at as string),
           time: formatTime(row.starts_at as string),
           endTime: formatTime(row.ends_at as string),
@@ -168,16 +172,18 @@ export function useHomeSchedule() {
   })
 
   const isFavorite = useCallback(
-    (slotId: string) => favorites.includes(slotId),
-    [favorites],
+    // `favorites` in deps so cards re-evaluate membership after any change
+    (slot: HomeSlot) => storeIsFavorite({ activityId: slot.activityId, startsAt: slot.startsAt }),
+    [favorites, storeIsFavorite],
   )
 
   const toggleFavorite = useCallback(
-    (slotId: string) => {
-      if (favorites.includes(slotId)) removeFavorite(slotId)
-      else addFavorite(slotId)
+    (slot: HomeSlot) => {
+      const input = { activityId: slot.activityId, startsAt: slot.startsAt }
+      if (storeIsFavorite(input)) removeFavorite(input)
+      else addFavorite(input)
     },
-    [favorites, addFavorite, removeFavorite],
+    [storeIsFavorite, addFavorite, removeFavorite],
   )
 
   const isSlotBooked = useCallback((slotId: string) => confirmedSlotIds.has(slotId), [confirmedSlotIds])

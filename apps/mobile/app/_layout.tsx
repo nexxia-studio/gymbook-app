@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import '../lib/i18n'
 import '../global.css'
@@ -84,10 +85,17 @@ export default function RootLayout() {
 
   const initialize = useAuthStore((s) => s.initialize)
   const userId = useAuthStore((s) => s.user?.id ?? null)
+  const loadFavorites = useBookingStore((s) => s.loadFavorites)
 
   useEffect(() => {
     initialize()
   }, [initialize])
+
+  // Hydrate recurring favorites on app mount and whenever the user changes
+  // (login → load the member's motifs; logout → cleared by loadFavorites).
+  useEffect(() => {
+    loadFavorites()
+  }, [userId, loadFavorites])
 
   // Push notifications (mobile only)
   usePushNotifications(userId)

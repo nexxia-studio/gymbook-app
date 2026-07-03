@@ -402,27 +402,40 @@ export type Database = {
       }
       favorites: {
         Row: {
-          added_at: string | null
+          activity_id: string
+          added_at: string
+          day_of_week: number
           gym_id: string
           id: string
+          local_time: string
           member_id: string
-          slot_id: string
         }
         Insert: {
-          added_at?: string | null
+          activity_id: string
+          added_at?: string
+          day_of_week: number
           gym_id: string
           id?: string
+          local_time: string
           member_id: string
-          slot_id: string
         }
         Update: {
-          added_at?: string | null
+          activity_id?: string
+          added_at?: string
+          day_of_week?: number
           gym_id?: string
           id?: string
+          local_time?: string
           member_id?: string
-          slot_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "favorites_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "favorites_gym_id_fkey"
             columns: ["gym_id"]
@@ -435,13 +448,6 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "favorites_slot_id_fkey"
-            columns: ["slot_id"]
-            isOneToOne: false
-            referencedRelation: "time_slots"
             referencedColumns: ["id"]
           },
         ]

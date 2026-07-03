@@ -4,6 +4,8 @@ import { GYM_ID } from '../constants/dopamine'
 
 export interface ScheduleSlot {
   id: string
+  activityId: string
+  startsAt: string
   date: string
   dayOfWeek: number
   time: string
@@ -54,7 +56,7 @@ export function useSchedule() {
       const { data, error } = await supabase
         .from('time_slots')
         .select(`
-          id, starts_at, ends_at, capacity, bookings_count,
+          id, activity_id, starts_at, ends_at, capacity, bookings_count,
           activities(name, color, duration_min),
           coaches(name)
         `)
@@ -73,6 +75,8 @@ export function useSchedule() {
         const localD = toLocalTime(startsAt)
         return {
           id: row.id as string,
+          activityId: row.activity_id as string,
+          startsAt: startsAt,
           date: toDateStr(localD),
           dayOfWeek: localD.getDay(),
           time: formatTime(startsAt),
