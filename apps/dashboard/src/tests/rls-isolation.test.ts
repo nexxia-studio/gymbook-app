@@ -12,10 +12,14 @@ if (!SUPABASE_ANON_KEY) {
 const MOVE95_ID = 'a0000000-0000-0000-0000-000000000001'
 const STUDIO_TEST_ID = 'b0000000-0000-0000-0000-000000000002'
 
-const MOVE95_EMAIL = 'test-move95@gymbook.test'
-const MOVE95_PASSWORD = 'TestMove95!2026'
-const STUDIO_EMAIL = 'test-studiotest@gymbook.test'
-const STUDIO_PASSWORD = 'TestStudio!2026'
+// Credentials de test lus depuis l'environnement (apps/dashboard/.env.test, gitignoré), jamais en dur.
+const MOVE95_EMAIL = process.env.STAGING_MOVE95_EMAIL
+const MOVE95_PASSWORD = process.env.STAGING_MOVE95_PASSWORD
+const STUDIO_EMAIL = process.env.STAGING_STUDIO_EMAIL
+const STUDIO_PASSWORD = process.env.STAGING_STUDIO_PASSWORD
+if (!MOVE95_EMAIL || !MOVE95_PASSWORD || !STUDIO_EMAIL || !STUDIO_PASSWORD) {
+  throw new Error('STAGING_MOVE95_EMAIL / STAGING_MOVE95_PASSWORD / STAGING_STUDIO_EMAIL / STAGING_STUDIO_PASSWORD manquant — définis-les dans apps/dashboard/.env.test (gitignoré) ou l\'environnement')
+}
 
 // ─── Helpers ───────────────────────────────────────────────────
 async function signIn(email: string, password: string): Promise<SupabaseClient> {
