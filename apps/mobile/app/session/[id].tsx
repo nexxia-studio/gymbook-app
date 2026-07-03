@@ -16,6 +16,7 @@ import { SuspensionModal } from '../../components/session/SuspensionModal'
 import { PaymentRequiredSheet } from '../../components/session/PaymentRequiredSheet'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
+import { GYM_ID } from '../../constants/dopamine'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 
@@ -164,7 +165,7 @@ export default function SessionDetail() {
       const { data } = await supabase
         .from('time_slots')
         .select('id, starts_at, ends_at, capacity, bookings_count, status')
-        .eq('gym_id', 'a0000000-0000-0000-0000-000000000001')
+        .eq('gym_id', GYM_ID)
         .neq('id', slotId)
         .neq('status', 'cancelled')
         .gte('starts_at', now.toISOString())

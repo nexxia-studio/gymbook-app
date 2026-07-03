@@ -1,7 +1,6 @@
 import type { User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-
-const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+import { GYM_ID } from '../constants/dopamine'
 
 export const ADMIN_ACCOUNT_ERROR = 'ADMIN_ACCOUNT'
 
@@ -23,7 +22,7 @@ export async function ensureProfile(user: User): Promise<void> {
     first_name: firstName || (user.user_metadata?.first_name as string) || '',
     last_name: lastNameParts.join(' ') || (user.user_metadata?.last_name as string) || '',
     role: 'member',
-    gym_id: DOPAMINE_GYM_ID,
+    gym_id: GYM_ID,
     preferred_language: 'fr',
     privacy_policy_accepted_at: new Date().toISOString(),
     terms_accepted_at: new Date().toISOString(),

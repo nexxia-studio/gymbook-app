@@ -1,8 +1,7 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-
-const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+import { GYM_ID } from '../constants/dopamine'
 
 function mapError(msg: string): string {
   if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
@@ -65,7 +64,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: false, error: mapError(error.message) })
       throw error
     }
-    set({ user: data.user, session: data.session, gym_id: DOPAMINE_GYM_ID, isLoading: false })
+    set({ user: data.user, session: data.session, gym_id: GYM_ID, isLoading: false })
   },
 
   signUp: async (email, password, firstName, lastName, phone, consents) => {
@@ -79,7 +78,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           last_name: lastName,
           phone: phone ?? null,
           role: 'member',
-          gym_id: DOPAMINE_GYM_ID,
+          gym_id: GYM_ID,
           preferred_language: 'fr',
           privacy_policy_accepted: String(consents?.privacy ?? false),
           terms_accepted: String(consents?.terms ?? false),
@@ -94,7 +93,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const needsConfirmation = !data.session
     if (data.session) {
-      set({ user: data.user, session: data.session, gym_id: DOPAMINE_GYM_ID, isLoading: false })
+      set({ user: data.user, session: data.session, gym_id: GYM_ID, isLoading: false })
     } else {
       set({ isLoading: false })
     }
@@ -142,13 +141,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session) {
-      set({ user: data.session.user, session: data.session, gym_id: DOPAMINE_GYM_ID })
+      set({ user: data.session.user, session: data.session, gym_id: GYM_ID })
     }
     supabase.auth.onAuthStateChange((_event, session) => {
       set({
         user: session?.user ?? null,
         session,
-        gym_id: session ? DOPAMINE_GYM_ID : null,
+        gym_id: session ? GYM_ID : null,
       })
     })
   },

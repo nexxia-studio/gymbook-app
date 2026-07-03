@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-
-const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+import { GYM_ID } from '../constants/dopamine'
 
 export interface ScheduleSlot {
   id: string
@@ -59,7 +58,7 @@ export function useSchedule() {
           activities(name, color, duration_min),
           coaches(name)
         `)
-        .eq('gym_id', DOPAMINE_GYM_ID)
+        .eq('gym_id', GYM_ID)
         .gte('starts_at', start.toISOString())
         .lt('starts_at', end.toISOString())
         .neq('status', 'cancelled')
@@ -99,8 +98,8 @@ export function useSchedule() {
   // Fallback polling every 30s in case Realtime fails (network drop, missed event)
   useEffect(() => {
     const channel = supabase
-      .channel(`schedule-${DOPAMINE_GYM_ID}`)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .channel(`schedule-${GYM_ID}`)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         const deletedId = (payload.old as { id?: string } | null)?.id
         console.log('[Realtime] Schedule time_slots DELETE:', deletedId)
         if (deletedId) {
@@ -108,15 +107,15 @@ export function useSchedule() {
         }
         fetchSlots()
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         console.log('[Realtime] Schedule time_slots INSERT:', payload.new)
         fetchSlots()
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         console.log('[Realtime] Schedule time_slots UPDATE:', payload.new)
         fetchSlots()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${DOPAMINE_GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
         console.log('[Realtime] Schedule bookings:', payload.eventType)
         fetchSlots()
       })
