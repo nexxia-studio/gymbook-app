@@ -108,18 +108,16 @@ Deno.serve(async (req) => {
       .eq('status', 'active')
       .maybeSingle()
 
-    const { data: memberCredits } = await admin
+    // GYM-94 — dispo crédit = même sélection que create-booking : count sur credits_remaining > 0
+    // (colonne générée = total - used). Fin du limit 1 buggé qui masquait des crédits cumulés.
+    const { count: availableCreditCount } = await admin
       .from('member_credits')
-      .select('id, credits_total, credits_used')
+      .select('id', { count: 'exact', head: true })
       .eq('member_id', user.id)
       .eq('gym_id', booking.gym_id)
-      .gt('credits_total', 0)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+      .gt('credits_remaining', 0)
 
-    const hasAvailableCredits = memberCredits != null &&
-      (memberCredits.credits_total - memberCredits.credits_used) > 0
+    const hasAvailableCredits = (availableCreditCount ?? 0) > 0
 
     if (!activeSubscription && !hasAvailableCredits) {
       return jsonResponse({
@@ -138,16 +136,19 @@ Deno.serve(async (req) => {
       promoted_from_waitlist_at: new Date().toISOString(),
     }).eq('id', bookingId)
 
-    // GYM-69 — débit du crédit APRÈS confirmation réussie (jamais à l'entrée en waitlist).
+    // GYM-70b — débit FIFO partagé (trace debited_credit_id, cohérent avec create-booking).
     // NOT_WAITLISTED sur retry protège du double débit.
-    if (!activeSubscription && hasAvailableCredits && memberCredits) {
-      await admin
-        .from('member_credits')
-        .update({
-          credits_used: memberCredits.credits_used + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', memberCredits.id)
+    if (!activeSubscription) {
+      const { error: debitErr } = await admin.rpc('debit_credit_fifo', {
+        p_member_id: user.id,
+        p_gym_id: booking.gym_id,
+        p_booking_id: bookingId,
+      })
+      if (debitErr) {
+        // Course rare : crédit disparu entre le guard et le débit. La place reste confirmée
+        // (confirm-waitlist non transactionnel = comportement pré-existant — voir asymétrie à remonter).
+        console.warn('[confirm-waitlist] débit FIFO échoué après confirmation:', debitErr.message)
+      }
     }
 
     // 6. Send confirmation
