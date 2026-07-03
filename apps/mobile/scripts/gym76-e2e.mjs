@@ -16,8 +16,13 @@ if (!ANON) {
   console.error('STAGING_ANON_KEY manquant — définis-le dans l\'environnement (ou apps/mobile/.env.test gitignoré)')
   process.exit(2)
 }
-const EMAIL = process.env.STAGING_TEST_EMAIL ?? 'test-move95@gymbook.test'
-const PASSWORD = process.env.STAGING_TEST_PASSWORD ?? 'GymBookTest!2026'
+// Credentials de test lus depuis l'environnement (.env.test gitignoré), jamais en dur.
+const EMAIL = process.env.STAGING_TEST_EMAIL
+const PASSWORD = process.env.STAGING_TEST_PASSWORD
+if (!EMAIL || !PASSWORD) {
+  console.error('STAGING_TEST_EMAIL / STAGING_TEST_PASSWORD manquant — définis-les dans apps/mobile/.env.test gitignoré ou l\'environnement')
+  process.exit(2)
+}
 
 const results = []
 const ok = (id, cond, detail = '') => results.push({ id, pass: !!cond, detail })
