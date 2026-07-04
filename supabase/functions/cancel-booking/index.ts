@@ -5,6 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// GYM-70c — horodatage d'application de la migration 20260703230658 (gym70b_credit_symmetry)
+// sur STAGING (version enregistrée 20260703230750). Un booking créé AVANT ce cutoff n'a pas de
+// debited_credit_id (fonctionnalité de traçage absente) → fallback legacy LIFO. Créé APRÈS sans
+// traçage → réservé sous abonnement → aucun remboursement crédit.
+// TODO(prod) : REMPLACER par l'horodatage d'application de cette migration sur PROD
+// (fcjupgvmjkqztxtwymdb) au moment du déploiement — la valeur staging ci-dessous est FAUSSE en prod.
+const GYM70B_MIGRATION_CUTOFF = '2026-07-03T23:07:50Z'
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -67,7 +75,7 @@ Deno.serve(async (req) => {
     // 2. Get booking
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, member_id, slot_id, gym_id, status, debited_credit_id')
+      .select('id, member_id, slot_id, gym_id, status, debited_credit_id, booked_at')
       .eq('id', bookingId)
       .single()
 
@@ -136,8 +144,8 @@ Deno.serve(async (req) => {
         // debited_credit_id → NULL : empêche tout double remboursement (idempotence de l'annulation).
         await admin.from('bookings').update({ debited_credit_id: null }).eq('id', bookingId)
         console.log('[cancel-booking] Crédit remboursé (ligne débitée tracée):', booking.debited_credit_id)
-      } else {
-        // Legacy (booking d'avant GYM-70b, sans traçage) : ligne la plus récente avec credits_used > 0 (LIFO).
+      } else if (booking.booked_at && new Date(booking.booked_at).getTime() < new Date(GYM70B_MIGRATION_CUTOFF).getTime()) {
+        // Legacy (booking d'AVANT le cutoff GYM-70b, jamais tracé) : ligne la plus récente credits_used > 0 (LIFO).
         const { data: legacy } = await admin
           .from('member_credits')
           .select('id, credits_used')
@@ -156,6 +164,9 @@ Deno.serve(async (req) => {
         } else {
           console.warn('[cancel-booking] Aucune ligne crédit à rembourser (legacy sans crédit utilisé) — annulation poursuivie')
         }
+      } else {
+        // Post-cutoff SANS traçage → réservation payée par abonnement → AUCUN remboursement crédit.
+        console.log('[cancel-booking] Pas de remboursement crédit (réservation sous abonnement post-migration)')
       }
     } else if (!activeSubscription) {
       console.log('[cancel-booking] Crédit non remboursé:',

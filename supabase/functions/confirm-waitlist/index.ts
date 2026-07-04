@@ -80,79 +80,44 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4. Check slot capacity (someone else could have taken the spot)
-    const { count: confirmedCount } = await admin
-      .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('slot_id', booking.slot_id)
-      .eq('status', 'confirmed')
+    // 4. GYM-70c — promotion ATOMIQUE sous verrou créneau : capacité (recount sous FOR UPDATE)
+    // + débit crédit FIFO + confirmation en UNE transaction. NO_CREDIT annule tout (booking reste waitlisted).
+    const { data: promo, error: promoError } = await admin.rpc('promote_waitlist_atomic', {
+      p_booking_id: bookingId,
+    })
 
+    if (promoError) {
+      return errorResponse(500, promoError.message, 'PROMOTE_FAILED')
+    }
+
+    // Non promu → REPRODUIT à l'identique le comportement actuel : erreur renvoyée au caller,
+    // le booking reste 'waitlisted', AUCUNE avance automatique au suivant de la waitlist.
+    if (promo?.status === 'skipped') {
+      if (promo.reason === 'NO_CREDIT') {
+        return jsonResponse({
+          error: true,
+          code: 'PAYMENT_REQUIRED',
+          message: 'Abonnement ou crédit requis pour confirmer cette place',
+        }, 402)
+      }
+      if (promo.reason === 'NOT_WAITLISTED') {
+        return errorResponse(400, 'Réservation non en attente', 'NOT_WAITLISTED')
+      }
+      if (promo.reason === 'FULL') {
+        return errorResponse(409, 'Place déjà prise par un autre membre', 'SLOT_FULL')
+      }
+      return errorResponse(404, 'Créneau introuvable', 'SLOT_NOT_FOUND')
+    }
+
+    // promoted → notifications actuelles (email de confirmation).
     const { data: slot } = await admin
       .from('time_slots')
-      .select('capacity, starts_at, activities(name), coaches(name)')
+      .select('starts_at, activities(name)')
       .eq('id', booking.slot_id)
       .single()
 
-    if (!slot) return errorResponse(404, 'Créneau introuvable', 'SLOT_NOT_FOUND')
-
-    if ((confirmedCount ?? 0) >= slot.capacity) {
-      return errorResponse(409, 'Place déjà prise par un autre membre', 'SLOT_FULL')
-    }
-
-    // GYM-69 — guard paiement à la promotion : le promu paie son crédit à la confirmation.
-    const { data: activeSubscription } = await admin
-      .from('member_subscriptions')
-      .select('id')
-      .eq('member_id', user.id)
-      .eq('gym_id', booking.gym_id)
-      .eq('status', 'active')
-      .maybeSingle()
-
-    // GYM-94 — dispo crédit = même sélection que create-booking : count sur credits_remaining > 0
-    // (colonne générée = total - used). Fin du limit 1 buggé qui masquait des crédits cumulés.
-    const { count: availableCreditCount } = await admin
-      .from('member_credits')
-      .select('id', { count: 'exact', head: true })
-      .eq('member_id', user.id)
-      .eq('gym_id', booking.gym_id)
-      .gt('credits_remaining', 0)
-
-    const hasAvailableCredits = (availableCreditCount ?? 0) > 0
-
-    if (!activeSubscription && !hasAvailableCredits) {
-      return jsonResponse({
-        error: true,
-        code: 'PAYMENT_REQUIRED',
-        message: 'Abonnement ou crédit requis pour confirmer cette place',
-      }, 402)
-    }
-
-    // 5. Confirm the booking (trigger trg_update_bookings_count maintains time_slots counts)
-    await admin.from('bookings').update({
-      status: 'confirmed',
-      waitlist_position: null,
-      waitlist_notified_at: null,
-      waitlist_confirmation_deadline: null,
-      promoted_from_waitlist_at: new Date().toISOString(),
-    }).eq('id', bookingId)
-
-    // GYM-70b — débit FIFO partagé (trace debited_credit_id, cohérent avec create-booking).
-    // NOT_WAITLISTED sur retry protège du double débit.
-    if (!activeSubscription) {
-      const { error: debitErr } = await admin.rpc('debit_credit_fifo', {
-        p_member_id: user.id,
-        p_gym_id: booking.gym_id,
-        p_booking_id: bookingId,
-      })
-      if (debitErr) {
-        // Course rare : crédit disparu entre le guard et le débit. La place reste confirmée
-        // (confirm-waitlist non transactionnel = comportement pré-existant — voir asymétrie à remonter).
-        console.warn('[confirm-waitlist] débit FIFO échoué après confirmation:', debitErr.message)
-      }
-    }
-
     // 6. Send confirmation
-    const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
+    const activityName = (slot?.activities as { name: string } | null)?.name ?? 'Cours'
 
     const { data: profile } = await admin
       .from('profiles')
@@ -160,7 +125,7 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    if (resendKey && profile?.email) {
+    if (resendKey && profile?.email && slot) {
       const startDate = new Date(slot.starts_at)
       const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
       const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
