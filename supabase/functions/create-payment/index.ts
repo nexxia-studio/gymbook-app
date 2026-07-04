@@ -105,6 +105,23 @@ Deno.serve(async (req) => {
       return errorResponse(422, 'Formule mal configurée (crédits invalides)', 'PLAN_MISCONFIGURED')
     }
 
+    // GYM-94 — abonnement actif = accès illimité : acheter des crédits one_time = payer pour rien.
+    // Définition "actif" = status='active' UNIQUEMENT : le schéma member_subscriptions n'a pas
+    // d'état en vol ('pending'/'past_due'), et la ligne n'est créée qu'au webhook de confirmation.
+    // Le cumul one_time reste LIBRE quand des crédits existent (aucun blocage lié aux crédits).
+    const { data: activeSub } = await supabaseAdmin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', profile.id)
+      .eq('gym_id', gymId)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle()
+
+    if (activeSub) {
+      return errorResponse(409, 'Accès illimité déjà actif — achat de crédits inutile', 'SUBSCRIPTION_ACTIVE')
+    }
+
     const amount = plan.price_cents / 100
     const creditsGranted = plan.credit_count
     const currency = plan.currency

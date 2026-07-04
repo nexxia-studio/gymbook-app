@@ -406,6 +406,8 @@
       "MEMBER_MISMATCH": "Tu ne peux souscrire que pour toi-même.",
       "PLAN_NOT_RECURRING": "Cette formule n'est pas un abonnement.",
       "MOLLIE_CUSTOMER_ERROR": "Échec de la création du mandat, réessaie.",
+      "SUBSCRIPTION_ACTIVE": "Tu as déjà un accès illimité actif — inutile d'acheter des crédits.",
+      "SUBSCRIPTION_ALREADY_ACTIVE": "Un abonnement est déjà actif.",
       "FALLBACK": "Une erreur est survenue, réessaie."
     }
   },
@@ -474,7 +476,10 @@
     "section_one_time": "À l'unité",
     "section_recurring": "Abonnements",
     "plans_error": "Impossible de charger les formules.",
-    "credits_generic_name": "Crédits séances"
+    "credits_generic_name": "Crédits séances",
+    "unavailable_unlimited_active": "Accès illimité déjà actif",
+    "current_subscription": "Abonnement en cours",
+    "upsell_unavailable": "Bientôt disponible"
   },
   "preferences": {
     "title": "Préférences",

@@ -86,14 +86,15 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
       let pollAttempts = 0
       pollRef.current = setInterval(async () => {
         pollAttempts++
-        const { data: credit } = await supabase
+        // GYM-94 — multi-lignes : au moins une ligne dispo (fin du maybeSingle qui cassait en cumul).
+        const { data: credits } = await supabase
           .from('member_credits')
           .select('credits_remaining')
           .eq('member_id', memberId)
           .eq('gym_id', gymId)
-          .maybeSingle()
+          .gt('credits_remaining', 0)
 
-        if (credit && credit.credits_remaining > 0) {
+        if (credits && credits.length > 0) {
           clearInterval(pollRef.current!)
           pollRef.current = null
           setIsLoadingDropIn(false)

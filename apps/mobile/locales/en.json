@@ -406,6 +406,8 @@
       "MEMBER_MISMATCH": "You can only subscribe for yourself.",
       "PLAN_NOT_RECURRING": "This plan is not a subscription.",
       "MOLLIE_CUSTOMER_ERROR": "Could not create the mandate, please try again.",
+      "SUBSCRIPTION_ACTIVE": "You already have unlimited access — no need to buy credits.",
+      "SUBSCRIPTION_ALREADY_ACTIVE": "A subscription is already active.",
       "FALLBACK": "Something went wrong, please try again."
     }
   },
@@ -474,7 +476,10 @@
     "section_one_time": "Pay per session",
     "section_recurring": "Subscriptions",
     "plans_error": "Couldn't load the plans.",
-    "credits_generic_name": "Session credits"
+    "credits_generic_name": "Session credits",
+    "unavailable_unlimited_active": "Unlimited access already active",
+    "current_subscription": "Current subscription",
+    "upsell_unavailable": "Coming soon"
   },
   "preferences": {
     "title": "Preferences",
