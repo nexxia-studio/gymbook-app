@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Wrench } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
@@ -18,20 +18,9 @@ import type { ActivityItem, ActivityFormData } from '@/types/activity'
 import type { CoachItem, CoachFormData } from '@/types/coach'
 import { MollieConnectCard } from '@/components/settings/MollieConnectCard'
 
-const TABS = ['activities', 'coaches', 'gym', 'plans'] as const
+// GYM-56 — l'onglet "plans" est retiré : le CRUD des formules vit sur la page /plans.
+const TABS = ['activities', 'coaches', 'gym'] as const
 type Tab = (typeof TABS)[number]
-
-function PlaceholderTab() {
-  const { t } = useTranslation()
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
-        <Wrench className="h-7 w-7 text-accent-dim" />
-      </div>
-      <p className="font-body text-sm text-muted">{t('placeholder.subtitle')}</p>
-    </div>
-  )
-}
 
 export default function Settings() {
   const { t } = useTranslation()
@@ -301,7 +290,6 @@ export default function Settings() {
         )}
 
         {/* ========= PLACEHOLDER TABS ========= */}
-        {activeTab === 'plans' && <PlaceholderTab />}
       </div>
 
       {/* Confirm modal for toggles */}
