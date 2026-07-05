@@ -106,6 +106,14 @@ Deno.serve(async (req) => {
 
     if (molliePayment.status === 'paid') {
       if (type === 'subscription_first' || molliePayment.sequenceType === 'first') {
+        // GYM-55b — idempotence : si ce premier paiement a déjà été traité (ligne payments
+        // en 'paid'), un retry Mollie du même webhook ne doit PAS recréer l'abonnement Mollie,
+        // la ligne member_subscriptions, ni renvoyer les notifications.
+        if (existingPayment?.status === 'paid') {
+          console.log('[sub-webhook] first payment already processed — idempotent skip')
+          return new Response('OK', { status: 200 })
+        }
+
         console.log('[sub-webhook] first payment paid — activating mandate')
 
         const mandateId = molliePayment.mandateId ?? null
@@ -166,11 +174,47 @@ Deno.serve(async (req) => {
           }
         }
 
-        await supabase.from('payments').update({
-          status: 'paid', paid_at: molliePayment.paidAt ?? null,
-          payment_method: molliePayment.method ?? null,
-          updated_at: new Date().toISOString(),
-        }).eq('mollie_payment_id', molliePaymentId)
+        // GYM-55b — nexxia_fee : MÊME logique que les one_time (create-payment) → commission
+        // SEPA effective (0 pour Dopamine via override), en euros, null si nul. C'est le fee
+        // réellement prélevé en applicationFee sur ce premier paiement (create-subscription).
+        let firstNexxiaFee: number | null = null
+        if (plan) {
+          const { sepaRate } = await getEffectiveCommission(supabase, gymId)
+          const feeEur = Math.round(plan.price_cents * sepaRate) / 100
+          firstNexxiaFee = feeEur > 0 ? feeEur : null
+        }
+
+        // GYM-55b — laisser une ligne payments pour le PREMIER paiement d'abo, comme tout euro
+        // encaissé (auparavant : simple UPDATE .eq(mollie_payment_id) → 0 ligne, car aucune n'est
+        // insérée en amont, contrairement aux one_time via create-payment). Upsert idempotent
+        // (clé de conflit mollie_payment_id, UNIQUE). credits_granted=0 → classé "abonnement"
+        // côté /revenus (critère credits_granted>0 ⇒ à l'unité). invoice_number laissé NULL :
+        // aucun mécanisme (ni trigger ni code) ne le génère pour les one_time non plus.
+        if (planId) {
+          await supabase.from('payments').upsert({
+            gym_id: gymId,
+            member_id: memberId,
+            mollie_payment_id: molliePaymentId,
+            plan_id: planId,
+            plan_name: plan?.name ?? 'Abonnement',
+            amount: molliePayment.amount ? parseFloat(molliePayment.amount.value) : 0,
+            currency: molliePayment.amount?.currency ?? 'EUR',
+            status: 'paid',
+            payment_method: molliePayment.method ?? null,
+            credits_granted: 0,
+            paid_at: molliePayment.paidAt ?? null,
+            nexxia_fee: firstNexxiaFee,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'mollie_payment_id' })
+        } else {
+          // Sécurité : plan_id absent (colonne NOT NULL) — on ne peut pas créer la ligne.
+          // On conserve l'ancien comportement (update ciblé, no-op si aucune ligne).
+          await supabase.from('payments').update({
+            status: 'paid', paid_at: molliePayment.paidAt ?? null,
+            payment_method: molliePayment.method ?? null,
+            updated_at: new Date().toISOString(),
+          }).eq('mollie_payment_id', molliePaymentId)
+        }
 
         const { data: profile } = await supabase
           .from('profiles').select('email, first_name, push_token').eq('id', memberId).single()
