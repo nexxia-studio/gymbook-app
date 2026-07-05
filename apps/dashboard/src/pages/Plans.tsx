@@ -72,7 +72,7 @@ export default function Plans() {
             <p className="font-body text-sm text-muted">{t('plans.empty')}</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {plans.map((plan) => (
               <PlanCard
                 key={plan.id}
@@ -81,6 +81,15 @@ export default function Plans() {
                 onToggleActive={handleToggleActive}
               />
             ))}
+            {/* Tuile ＋ Nouvelle formule — dernière cellule de la grille */}
+            <button
+              type="button"
+              onClick={() => { setEditPlan(null); setCreateOpen(true) }}
+              className="flex min-h-[190px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted transition-colors hover:border-dark/30 hover:bg-dark/[0.02] hover:text-dark"
+            >
+              <Plus className="h-6 w-6" />
+              <span className="font-body text-sm font-medium">{t('plans.create')}</span>
+            </button>
           </div>
         )}
       </div>
