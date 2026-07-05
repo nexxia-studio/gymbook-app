@@ -18,6 +18,7 @@ const PendingActivation = lazy(() => import('@/pages/PendingActivation'))
 const PlaceholderPage = lazy(() => import('@/pages/PlaceholderPage'))
 const PaymentsPage = lazy(() => import('@/pages/Payments'))
 const Communications = lazy(() => import('@/pages/Communications'))
+const Plans = lazy(() => import('@/pages/Plans'))
 
 function Loading() {
   return (
@@ -75,7 +76,7 @@ function AppRoutes() {
           path="/plans"
           element={
             <ProtectedRoute>
-              <PlaceholderPage pageKey="plans" />
+              <Plans />
             </ProtectedRoute>
           }
         />

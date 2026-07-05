@@ -533,5 +533,50 @@
     "summary_total": "Filtered total:",
     "payments_count_label": "payments",
     "ends_on": "Ends on {{date}}"
+  },
+  "plans": {
+    "title": "Plans",
+    "subtitle": "Manage the pay-per-session and subscription plans offered to your members.",
+    "create": "Create a plan",
+    "create_title": "New plan",
+    "edit_title": "Edit plan",
+    "empty": "No plans yet. Create one to offer it to your members.",
+    "load_error": "Couldn't load the plans.",
+    "name": "Name",
+    "name_placeholder": "e.g. 10-session pack",
+    "description": "Description",
+    "billing_type": "Plan type",
+    "billing": {
+      "one_time": "Pay per session",
+      "recurring_fixed": "Subscription"
+    },
+    "credit_count": "Number of sessions",
+    "duration_months": "Duration (months)",
+    "price": "Price",
+    "per_month": " / month",
+    "sort_order": "Display order",
+    "is_popular": "Feature as popular",
+    "active_label": "Active plan (visible to members)",
+    "price_warning_recurring": "Ongoing subscriptions are not affected: the new price only applies to future sign-ups.",
+    "popular": "Popular",
+    "active": "Active",
+    "inactive": "Inactive",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "credits_count_one": "{{count}} session",
+    "credits_count_other": "{{count}} sessions",
+    "duration_count_one": "{{count}} month",
+    "duration_count_other": "{{count}} months",
+    "validation": {
+      "name_required": "Name is required.",
+      "price_positive": "Price must be greater than 0.",
+      "credits_min": "At least 1 session.",
+      "duration_min": "At least 1 month."
+    },
+    "toast_created": "Plan created.",
+    "toast_updated": "Plan updated.",
+    "toast_activated": "Plan activated.",
+    "toast_deactivated": "Plan deactivated.",
+    "toast_error": "Something went wrong."
   }
 }

@@ -533,5 +533,50 @@
     "summary_total": "Total filtré :",
     "payments_count_label": "paiements",
     "ends_on": "Fin le {{date}}"
+  },
+  "plans": {
+    "title": "Formules",
+    "subtitle": "Gérez les formules à l'unité et les abonnements proposés à vos membres.",
+    "create": "Créer une formule",
+    "create_title": "Nouvelle formule",
+    "edit_title": "Modifier la formule",
+    "empty": "Aucune formule pour le moment. Créez-en une pour la proposer à vos membres.",
+    "load_error": "Impossible de charger les formules.",
+    "name": "Nom",
+    "name_placeholder": "Ex. Carte 10 séances",
+    "description": "Description",
+    "billing_type": "Type de formule",
+    "billing": {
+      "one_time": "À l'unité",
+      "recurring_fixed": "Abonnement"
+    },
+    "credit_count": "Nombre de séances",
+    "duration_months": "Durée (mois)",
+    "price": "Prix",
+    "per_month": " / mois",
+    "sort_order": "Ordre d'affichage",
+    "is_popular": "Mettre en avant (populaire)",
+    "active_label": "Formule active (visible par les membres)",
+    "price_warning_recurring": "Les abonnements en cours ne sont pas modifiés : le nouveau prix ne s'applique qu'aux prochaines souscriptions.",
+    "popular": "Populaire",
+    "active": "Active",
+    "inactive": "Inactive",
+    "activate": "Activer",
+    "deactivate": "Désactiver",
+    "credits_count_one": "{{count}} séance",
+    "credits_count_other": "{{count}} séances",
+    "duration_count_one": "{{count}} mois",
+    "duration_count_other": "{{count}} mois",
+    "validation": {
+      "name_required": "Le nom est requis.",
+      "price_positive": "Le prix doit être supérieur à 0.",
+      "credits_min": "Au moins 1 séance.",
+      "duration_min": "Au moins 1 mois."
+    },
+    "toast_created": "Formule créée.",
+    "toast_updated": "Formule mise à jour.",
+    "toast_activated": "Formule activée.",
+    "toast_deactivated": "Formule désactivée.",
+    "toast_error": "Une erreur est survenue."
   }
 }
