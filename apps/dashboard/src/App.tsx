@@ -15,8 +15,7 @@ const Planning = lazy(() => import('@/pages/Planning'))
 const Settings = lazy(() => import('@/pages/Settings'))
 const Members = lazy(() => import('@/pages/Members'))
 const PendingActivation = lazy(() => import('@/pages/PendingActivation'))
-const PlaceholderPage = lazy(() => import('@/pages/PlaceholderPage'))
-const PaymentsPage = lazy(() => import('@/pages/Payments'))
+const Revenue = lazy(() => import('@/pages/Revenue'))
 const Communications = lazy(() => import('@/pages/Communications'))
 const Plans = lazy(() => import('@/pages/Plans'))
 
@@ -80,19 +79,13 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/payments"
-          element={
-            <ProtectedRoute>
-              <PaymentsPage />
-            </ProtectedRoute>
-          }
-        />
+        {/* GYM-55 — /paiements fusionné dans /revenus */}
+        <Route path="/payments" element={<Navigate to="/revenue" replace />} />
         <Route
           path="/revenue"
           element={
             <ProtectedRoute>
-              <PlaceholderPage pageKey="revenue" />
+              <Revenue />
             </ProtectedRoute>
           }
         />
