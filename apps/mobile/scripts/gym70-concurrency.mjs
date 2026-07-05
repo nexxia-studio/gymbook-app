@@ -85,11 +85,26 @@ async function createSlot(capacity, hoursFromNow = 2) {
     starts_at: starts.toISOString(), ends_at: ends.toISOString(), status: 'scheduled',
   }).select('id').single()
   if (error) throw new Error(`createSlot: ${error.message}`)
+  CREATED_SLOTS.push(data.id)
   return data.id
 }
 
 async function resetSlotBookings(slotId) {
   await admin.from('bookings').delete().eq('slot_id', slotId)
+}
+
+// Slots créés pendant le run (pour teardown complet).
+const CREATED_SLOTS = []
+
+// Nettoyage complet des données de test : bookings + slots créés + crédits injectés.
+async function teardown(memberIds) {
+  if (CREATED_SLOTS.length) {
+    await admin.from('bookings').delete().in('slot_id', CREATED_SLOTS)
+    await admin.from('time_slots').delete().in('id', CREATED_SLOTS)
+  }
+  for (const m of memberIds) {
+    await admin.from('member_credits').delete().eq('member_id', m).eq('gym_id', GYM_ID)
+  }
 }
 
 async function subscriptionOff(memberId) {
@@ -169,7 +184,8 @@ async function run() {
 
   // ── Test D — réactivation : book → cancel → re-book, 1 seul débit net ──
   {
-    const slot = await createSlot(1)
+    // slot à +26h : bien AU-DELÀ de la fenêtre d'annulation tardive (<2h) → remboursement éligible.
+    const slot = await createSlot(1, 26)
     await setCredits(idA, [{ total: 5, used: 0, createdAt: '2026-06-01T00:00:00Z' }])
     const r1 = await book(tokA, slot)
     const usedAfterBook = (await creditsUsed(idA)).reduce((s, x) => s + x.credits_used, 0)
@@ -189,9 +205,16 @@ async function run() {
     await resetSlotBookings(slot)
   }
 
+  await teardown([idA, idB])
+  console.log('   teardown: slots + crédits de test supprimés')
+
   const failed = results.filter((r) => !r.pass)
   console.log(`\n${failed.length === 0 ? '✅ TOUS PASS' : '❌ ' + failed.length + ' FAIL'} (${results.length} checks)`)
   process.exit(failed.length === 0 ? 0 : 1)
 }
 
-run().catch((e) => { console.error('ERREUR:', e.message); process.exit(3) })
+run().catch(async (e) => {
+  console.error('ERREUR:', e.message)
+  try { await teardown([]) } catch { /* best-effort */ }
+  process.exit(3)
+})
