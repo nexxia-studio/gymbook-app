@@ -88,7 +88,7 @@ export default function Profile() {
           <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/edit')}>
             <Pencil size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/preferences')}>
             <Settings size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
@@ -150,7 +150,7 @@ export default function Profile() {
 
         {/* Account */}
         <ProfileSection title={t('profile.section_account')}>
-          <ProfileListItem icon={User} label={t('profile.edit_profile')} />
+          <ProfileListItem icon={User} label={t('profile.edit_profile')} onPress={() => router.push('/profile/edit')} />
           <View className="mx-5 h-px bg-move-border" />
           <ProfileListItem
             icon={Shield}
@@ -162,12 +162,14 @@ export default function Profile() {
 
         {/* Privacy */}
         <ProfileSection title={t('profile.section_privacy')}>
-          <ProfileListItem icon={FileText} label={t('profile.privacy_policy')} />
+          <ProfileListItem icon={FileText} label={t('profile.privacy_policy')} onPress={() => router.push('/profile/legal/privacy')} />
           <View className="mx-5 h-px bg-move-border" />
-          <ProfileListItem icon={FileText} label={t('profile.terms')} />
+          <ProfileListItem icon={FileText} label={t('profile.terms')} onPress={() => router.push('/profile/legal/cgu')} />
           <View className="mx-5 h-px bg-move-border" />
-          <ProfileListItem icon={Download} label={t('profile.export_data')} />
+          <ProfileListItem icon={Download} label={t('profile.export_data')} onPress={() => router.push('/profile/export-data')} />
           <View className="mx-5 h-px bg-move-border" />
+          {/* GYM-46 — "Supprimer mon compte" volontairement sans handler : nécessite une
+              Edge Function delete-account (backend gelé). Tracé pour le scope suivant. */}
           <ProfileListItem icon={Trash2} label={t('profile.delete_account')} destructive />
         </ProfileSection>
 

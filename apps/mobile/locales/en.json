@@ -326,6 +326,25 @@
     "logout_title": "Log out?",
     "logout_confirm": "Confirm",
     "logout_cancel": "Cancel",
+    "legal": {
+      "version": "Version {{version}} · Updated {{date}}"
+    },
+    "export": {
+      "title": "Export my data",
+      "intro": "You can request a copy of all the personal data associated with your account.",
+      "what_title": "Included data",
+      "what_identity": "Identity and contact details",
+      "what_bookings": "Bookings and attendance",
+      "what_payments": "Payment history",
+      "what_activity": "Activity and progression",
+      "delay": "Your request is processed within 30 days, in accordance with the GDPR.",
+      "button": "Request export by email",
+      "recipient": "Your request will be sent to {{email}}",
+      "mail_subject": "Request to export my data — Dopamine",
+      "mail_body": "Hello,\n\nI would like to receive a copy of my personal data in accordance with the GDPR.\n\nAccount email: {{email}}\n\nThank you.",
+      "no_mail_title": "No mail app",
+      "no_mail_message": "No mail app is configured. Please write to us directly at {{email}}."
+    },
     "edit": {
       "title": "Edit my profile",
       "first_name": "First name",

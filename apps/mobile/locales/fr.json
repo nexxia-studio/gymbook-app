@@ -326,6 +326,25 @@
     "logout_title": "Se deconnecter ?",
     "logout_confirm": "Confirmer",
     "logout_cancel": "Annuler",
+    "legal": {
+      "version": "Version {{version}} · Mis à jour le {{date}}"
+    },
+    "export": {
+      "title": "Exporter mes données",
+      "intro": "Vous pouvez demander une copie de l'ensemble des données personnelles associées à votre compte.",
+      "what_title": "Données incluses",
+      "what_identity": "Identité et coordonnées",
+      "what_bookings": "Réservations et présences",
+      "what_payments": "Historique des paiements",
+      "what_activity": "Activité et progression",
+      "delay": "Votre demande est traitée sous 30 jours, conformément au RGPD.",
+      "button": "Demander l'export par email",
+      "recipient": "Votre demande sera envoyée à {{email}}",
+      "mail_subject": "Demande d'export de mes données — Dopamine",
+      "mail_body": "Bonjour,\n\nJe souhaite recevoir une copie de mes données personnelles conformément au RGPD.\n\nEmail du compte : {{email}}\n\nMerci de votre retour.",
+      "no_mail_title": "Aucune application mail",
+      "no_mail_message": "Aucune application mail n'est configurée. Écrivez-nous directement à {{email}}."
+    },
     "edit": {
       "title": "Modifier mon profil",
       "first_name": "Prénom",

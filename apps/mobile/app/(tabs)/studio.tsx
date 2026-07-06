@@ -265,8 +265,14 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
     weeks.push({ key, count: weekMap.get(key) ?? 0 })
   }
 
-  const cellSize = 10
+  // GYM-46 — cellule dimensionnée depuis la largeur RÉELLE du conteneur (onLayout),
+  // plus aucune largeur codée en dur : cellSize = (largeur - gaps) / nbColonnes.
+  // Empêche les carrés de déborder hors de la card sur petits écrans (avant : 26×10
+  // + 25×4 = 360pt fixes > ~321pt dispo sur iPhone 15 Pro → débordement).
   const gap = 4
+  const [rowWidth, setRowWidth] = useState(0)
+  const cols = weeks.length
+  const cellSize = rowWidth > 0 ? (rowWidth - gap * (cols - 1)) / cols : 0
   const colWidth = cellSize + gap
 
   const monthLabels: { label: string; col: number }[] = []
@@ -284,13 +290,17 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
       <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 12 }}>
         Activité (6 mois)
       </Text>
-      <View className="flex-row" style={{ gap }}>
-        {weeks.map((w, i) => (
-          <HeatmapCell key={w.key} count={w.count} index={i} />
+      <View
+        className="flex-row"
+        style={{ gap }}
+        onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}
+      >
+        {cellSize > 0 && weeks.map((w, i) => (
+          <HeatmapCell key={w.key} count={w.count} index={i} size={cellSize} />
         ))}
       </View>
       <View className="mt-2" style={{ height: 14, position: 'relative' }}>
-        {monthLabels.map((m) => (
+        {cellSize > 0 && monthLabels.map((m) => (
           <Text
             key={m.label + m.col}
             style={{
@@ -324,7 +334,7 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
   )
 }
 
-function HeatmapCell({ count, index }: { count: number; index: number }) {
+function HeatmapCell({ count, index, size }: { count: number; index: number; size: number }) {
   const opacity = useSharedValue(0)
 
   useEffect(() => {
@@ -333,8 +343,8 @@ function HeatmapCell({ count, index }: { count: number; index: number }) {
 
   const bg = count === 0 ? '#F0EFEB' : count === 1 ? '#C0DD97' : count === 2 ? '#97C459' : '#3B6D11'
   const style = useAnimatedStyle(() => ({
-    width: 10,
-    height: 10,
+    width: size,
+    height: size,
     borderRadius: 2,
     backgroundColor: bg,
     opacity: opacity.value,
