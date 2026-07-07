@@ -21,9 +21,11 @@ export function RevenueChart({ data }: { data: RevenueBucket[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 8, right: 2, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#E8E6E0" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9A9890' }} axisLine={false} tickLine={false} />
+        {/* interval adaptatif + minTickGap : recharts masque les labels qui se
+            chevauchent → tient à 375px sans déborder (iPad : rien ne change). */}
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9A9890' }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={16} />
         <YAxis
           tick={{ fontSize: 11, fill: '#9A9890' }}
           axisLine={false}

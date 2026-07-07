@@ -10,6 +10,11 @@ interface AuthState {
   gym_id: string | null
   role: string | null
   isLoading: boolean
+  // true une fois initialize() terminé (session résolue ou confirmée absente).
+  // Les gardes de route DOIVENT attendre ce flag : sinon un deep link vers une
+  // route protégée est évalué avec session=null pendant l'init async → rebond
+  // vers /login puis /dashboard, et la route demandée est perdue.
+  initialized: boolean
   error: string | null
   setUser: (user: User | null, session: Session | null) => void
   setGymContext: (gym_id: string, role: string) => void
@@ -66,6 +71,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   gym_id: null,
   role: null,
   isLoading: false,
+  initialized: false,
   error: null,
 
   setUser: (user, session) => set({ user, session }),
@@ -158,6 +164,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       })
       await loadGymContext(profile?.gym_id ?? null)
     }
+
+    // Auth résolue (avec ou sans session) → les gardes peuvent statuer.
+    set({ initialized: true })
 
     supabase.auth.onAuthStateChange((_event, session) => {
       set({ user: session?.user ?? null, session })

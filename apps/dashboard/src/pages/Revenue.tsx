@@ -70,7 +70,7 @@ interface KpiCardProps {
   active?: boolean
 }
 function KpiCard({ label, value, subtitle, subtitleClass = 'text-muted', Icon, onClick, active }: KpiCardProps) {
-  const base = `rounded-2xl border bg-card p-4 text-left transition-shadow sm:p-6 ${
+  const base = `rounded-2xl border bg-card p-3 text-left transition-shadow sm:p-6 ${
     active ? 'border-red-400 ring-1 ring-red-200' : 'border-border'
   }`
   const content = (
@@ -79,7 +79,7 @@ function KpiCard({ label, value, subtitle, subtitleClass = 'text-muted', Icon, o
         <Icon className={`h-4 w-4 ${active ? 'text-red-500' : 'text-dark'}`} />
         <span className="font-body text-xs font-semibold uppercase tracking-wider text-muted">{label}</span>
       </div>
-      <div className="font-display text-xl font-black tracking-tight text-dark sm:text-2xl">{value}</div>
+      <div className="font-display text-lg font-black tracking-tight text-dark sm:text-2xl">{value}</div>
       {subtitle && <div className={`mt-1 font-body text-xs ${subtitleClass}`}>{subtitle}</div>}
     </>
   )
@@ -286,7 +286,7 @@ export default function Revenue() {
           </div>
 
           {/* Chart CA empilé */}
-          <div className="mt-6 rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-black uppercase tracking-tight text-dark">
                 {t('revenue.chart_title')}
@@ -344,33 +344,34 @@ export default function Revenue() {
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-              <div className="grid min-w-[720px] grid-cols-[1.4fr_1.6fr_0.9fr_0.9fr_0.9fr_1fr] gap-3 border-b border-border bg-dark/[0.03] px-5 py-3">
+              <div className="grid grid-cols-[1.5fr_1.5fr_0.9fr_1.1fr] sm:min-w-[720px] sm:grid-cols-[1.4fr_1.6fr_0.9fr_0.9fr_0.9fr_1fr] gap-3 border-b border-border bg-dark/[0.03] px-5 py-3">
                 {[
                   t('revenue.col_member'), t('revenue.col_plan'), t('revenue.col_type'),
                   t('revenue.col_method'), t('revenue.col_amount'), t('revenue.col_status_date'),
-                ].map((h) => (
-                  <span key={h} className="font-body text-xs font-semibold uppercase tracking-wider text-muted">{h}</span>
+                ].map((h, i) => (
+                  // type (i=2) et méthode (i=3) masqués < sm pour tenir à 375px sans scroll.
+                  <span key={h} className={`font-body text-xs font-semibold uppercase tracking-wider text-muted ${i === 2 || i === 3 ? 'hidden sm:block' : ''}`}>{h}</span>
                 ))}
               </div>
               {filtered.length === 0 ? (
                 <div className="py-14 text-center font-body text-sm text-muted">{t('revenue.empty_list')}</div>
               ) : (
                 filtered.map((r) => (
-                  <div key={r.id} className="grid min-w-[720px] grid-cols-[1.4fr_1.6fr_0.9fr_0.9fr_0.9fr_1fr] gap-3 border-b border-border px-5 py-3.5 last:border-b-0 hover:bg-dark/[0.02]">
+                  <div key={r.id} className="grid grid-cols-[1.5fr_1.5fr_0.9fr_1.1fr] sm:min-w-[720px] sm:grid-cols-[1.4fr_1.6fr_0.9fr_0.9fr_0.9fr_1fr] gap-3 border-b border-border px-5 py-3.5 last:border-b-0 hover:bg-dark/[0.02]">
                     <div className="min-w-0">
                       <div className="truncate font-body text-sm font-medium text-dark">{r.memberName}</div>
                       <div className="truncate font-body text-xs text-muted">{r.memberEmail}</div>
                     </div>
                     <div className="min-w-0 self-center">
                       <div className="truncate font-body text-sm text-dark">{r.planName}</div>
-                      {r.invoiceNumber && <div className="truncate font-body text-[11px] text-muted">{r.invoiceNumber}</div>}
+                      {r.invoiceNumber && <div className="hidden truncate font-body text-[11px] text-muted sm:block">{r.invoiceNumber}</div>}
                     </div>
-                    <div className="self-center">
+                    <div className="hidden self-center sm:block">
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.isOneTime ? 'bg-dark/10 text-dark' : 'bg-accent/20 text-accent-dim'}`}>
                         {r.isOneTime ? t('revenue.type_one_time') : t('revenue.type_subscription')}
                       </span>
                     </div>
-                    <div className="self-center font-body text-sm text-muted">{r.method ?? '—'}</div>
+                    <div className="hidden self-center font-body text-sm text-muted sm:block">{r.method ?? '—'}</div>
                     <div className="self-center font-body text-sm font-bold text-dark">{FMT_EUR(r.amount)}</div>
                     <div className="flex flex-col gap-1 self-center">
                       <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[r.status]}`}>
