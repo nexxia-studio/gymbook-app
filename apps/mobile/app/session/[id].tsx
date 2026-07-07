@@ -521,6 +521,7 @@ export default function SessionDetail() {
         visible={paymentRequiredVisible}
         slotId={slotId}
         onClose={() => setPaymentRequiredVisible(false)}
+        context={isFull ? 'waitlist' : 'book'}
       />
     </View>
   )
