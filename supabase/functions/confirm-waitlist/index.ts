@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,65 +14,6 @@ function jsonResponse(body: unknown, status = 200) {
 
 function errorResponse(status: number, message: string, code?: string) {
   return jsonResponse({ error: true, code: code ?? 'ERROR', message }, status)
-}
-
-// GYM-108 — Notifie les membres SAUTÉS à la promotion (sans crédit) : « tu as été passé faute de
-// crédit — recharge pour ne plus rater ta place ». Réutilise le canal de notify-waitlist
-// (Resend email + send-notification push). Messages en dur (les Edge Functions ne sont pas
-// i18n-isées ; la localisation notif reste un chantier séparé). Chaque envoi est non bloquant.
-async function notifySkippedMembers(
-  admin: SupabaseClient,
-  opts: { resendKey: string; supabaseUrl: string; serviceKey: string },
-  slotId: string,
-  skipped: Array<{ member_id: string }>,
-) {
-  if (skipped.length === 0) return
-
-  const { data: slot } = await admin
-    .from('time_slots')
-    .select('starts_at, activities(name)')
-    .eq('id', slotId)
-    .single()
-
-  const activityName = (slot?.activities as { name: string } | null)?.name ?? 'Cours'
-  const start = slot ? new Date(slot.starts_at) : null
-  const dateStr = start ? start.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' }) : ''
-  const timeStr = start ? start.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : ''
-
-  for (const s of skipped) {
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('email, push_token')
-      .eq('id', s.member_id)
-      .single()
-    if (!profile) continue
-
-    if (opts.resendKey && profile.email) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${opts.resendKey}` },
-        body: JSON.stringify({
-          from: 'Dopamine <noreply@nexxia.net>',
-          to: profile.email,
-          subject: `Place manquée — ${activityName}`,
-          html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place manquée</h2><p style="color:#6B6861;">Une place s'était libérée pour <strong>${activityName}</strong>${dateStr ? ` le ${dateStr} à ${timeStr}` : ''}, mais tu n'avais ni crédit ni abonnement actif : elle a été proposée au membre suivant.</p><p style="color:#6B6861;">Recharge un crédit ou prends un abonnement pour ne plus rater ta place.</p><a href="dopamine://profile/subscription" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px;">Recharger</a></div></div></div>`,
-        }),
-      }).catch((e) => console.log('[confirm-waitlist] skipped email error:', e))
-    }
-
-    if (profile.push_token) {
-      await fetch(`${opts.supabaseUrl}/functions/v1/send-notification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${opts.serviceKey}` },
-        body: JSON.stringify({
-          tokens: [profile.push_token],
-          title: 'Place manquée',
-          body: `Tu as été passé faute de crédit — ${activityName}. Recharge pour ne plus rater ta place.`,
-          data: { type: 'waitlist_skipped_no_credit', slot_id: slotId },
-        }),
-      }).catch((e) => console.log('[confirm-waitlist] skipped push error:', e))
-    }
-  }
 }
 
 Deno.serve(async (req) => {
@@ -126,25 +67,23 @@ Deno.serve(async (req) => {
       }
 
       if (new Date() > deadline) {
-        // Expired — cancel this and promote next.
+        // Expired — cancel this and notify the next (modèle A : notify-and-wait).
         await admin.from('bookings').update({
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
           cancel_reason: 'waitlist_expired',
         }).eq('id', bookingId)
 
-        // GYM-108 — promote_next_in_waitlist existe désormais (migration 20260707210853).
-        // On EXCLUT le booking expiré et on VÉRIFIE le retour : plus jamais d'échec silencieux.
-        // L'expiration renvoyée à l'appelant ne doit JAMAIS échouer si la promotion échoue → log.
-        const { data: promoNext, error: promoNextErr } = await admin.rpc('promote_next_in_waitlist', {
+        // GYM-108 — remplace l'appel fantôme : notify_next_in_waitlist (fonction partagée avec le
+        // cron expire_waitlist_confirmations). Le booking expiré vient de passer 'cancelled' → il
+        // n'est plus sélectionné (filtre waitlist_notified_at IS NULL + status='waitlisted'), pas
+        // besoin d'exclusion. Retour VÉRIFIÉ + log non bloquant : l'expiration renvoyée à
+        // l'appelant ne doit jamais échouer si la notification échoue.
+        const { error: notifyErr } = await admin.rpc('notify_next_in_waitlist', {
           p_slot_id: booking.slot_id,
-          p_exclude_booking_id: bookingId,
         })
-        if (promoNextErr) {
-          console.error('[confirm-waitlist] promote_next_in_waitlist failed (non-blocking):', JSON.stringify({ slot_id: booking.slot_id, message: promoNextErr.message }))
-        } else {
-          const skipped = (promoNext?.skipped_members ?? []) as Array<{ member_id: string }>
-          await notifySkippedMembers(admin, { resendKey, supabaseUrl, serviceKey }, booking.slot_id, skipped)
+        if (notifyErr) {
+          console.error('[confirm-waitlist] notify_next_in_waitlist failed (non-blocking):', JSON.stringify({ slot_id: booking.slot_id, message: notifyErr.message }))
         }
 
         return errorResponse(410, 'Délai expiré — place donnée au suivant', 'WAITLIST_EXPIRED')
