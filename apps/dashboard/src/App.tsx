@@ -79,8 +79,9 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        {/* GYM-55 — /paiements fusionné dans /revenus */}
+        {/* GYM-55 — /paiements fusionné dans /revenus (redirection explicite des 2 slugs FR/EN) */}
         <Route path="/payments" element={<Navigate to="/revenue" replace />} />
+        <Route path="/paiements" element={<Navigate to="/revenue" replace />} />
         <Route
           path="/revenue"
           element={

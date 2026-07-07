@@ -26,21 +26,22 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
         plan.active ? 'border-border' : 'border-border opacity-55'
       }`}
     >
-      {/* Header : nom + populaire + badge actif */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <h3 className="truncate font-display text-lg font-black uppercase tracking-tight text-dark">
-            {plan.name}
-          </h3>
-          {plan.isPopular && <Star className="h-4 w-4 shrink-0 fill-orange-500 text-orange-500" />}
-        </div>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            plan.active ? 'bg-green-100 text-green-600' : 'bg-dark/10 text-muted'
-          }`}
-        >
-          {plan.active ? t('plans.active') : t('plans.inactive')}
-        </span>
+      {/* Badge actif/inactif au coin supérieur gauche, au-dessus du titre
+          (le nom de formule respire à 375px en 2 colonnes) */}
+      <span
+        className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+          plan.active ? 'bg-green-100 text-green-600' : 'bg-dark/10 text-muted'
+        }`}
+      >
+        {plan.active ? t('plans.active') : t('plans.inactive')}
+      </span>
+
+      {/* Nom + populaire */}
+      <div className="mt-2 flex min-w-0 items-center gap-1.5">
+        <h3 className="truncate font-display text-lg font-black uppercase tracking-tight text-dark">
+          {plan.name}
+        </h3>
+        {plan.isPopular && <Star className="h-4 w-4 shrink-0 fill-orange-500 text-orange-500" />}
       </div>
 
       {/* Type lisible */}

@@ -23,6 +23,7 @@ interface PaymentRow {
   method: string | null
   isOneTime: boolean
   invoiceNumber: string | null
+  paidAt: string | null
   createdAt: string
   paidAtBxl: Date | null
   createdAtBxl: Date | null
@@ -66,16 +67,19 @@ interface KpiCardProps {
   subtitleClass?: string
   Icon: typeof CreditCard
   onClick?: () => void
+  active?: boolean
 }
-function KpiCard({ label, value, subtitle, subtitleClass = 'text-muted', Icon, onClick }: KpiCardProps) {
-  const base = 'rounded-2xl border border-border bg-card p-6 text-left transition-shadow'
+function KpiCard({ label, value, subtitle, subtitleClass = 'text-muted', Icon, onClick, active }: KpiCardProps) {
+  const base = `rounded-2xl border bg-card p-4 text-left transition-shadow sm:p-6 ${
+    active ? 'border-red-400 ring-1 ring-red-200' : 'border-border'
+  }`
   const content = (
     <>
       <div className="mb-3 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-dark" />
+        <Icon className={`h-4 w-4 ${active ? 'text-red-500' : 'text-dark'}`} />
         <span className="font-body text-xs font-semibold uppercase tracking-wider text-muted">{label}</span>
       </div>
-      <div className="font-display text-2xl font-black tracking-tight text-dark">{value}</div>
+      <div className="font-display text-xl font-black tracking-tight text-dark sm:text-2xl">{value}</div>
       {subtitle && <div className={`mt-1 font-body text-xs ${subtitleClass}`}>{subtitle}</div>}
     </>
   )
@@ -126,6 +130,7 @@ export default function Revenue() {
         // Critère abo/one_time : credits_granted > 0 = à l'unité ; sinon = abonnement.
         isOneTime: Number(p.credits_granted ?? 0) > 0,
         invoiceNumber: (p.invoice_number as string | null) ?? null,
+        paidAt: (p.paid_at as string | null) ?? null,
         createdAt: (p.created_at as string) ?? '',
         paidAtBxl: toBxl((p.paid_at as string | null) ?? null),
         createdAtBxl: toBxl((p.created_at as string | null) ?? null),
@@ -244,8 +249,8 @@ export default function Revenue() {
         </div>
       ) : (
         <>
-          {/* KPIs — grille Bento */}
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* KPIs — grille Bento (2 colonnes dès le mobile, cf. /plans) */}
+          <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
             <KpiCard
               label={t('revenue.kpi_month')}
               value={FMT_EUR(kpis.thisMonth)}
@@ -271,12 +276,17 @@ export default function Revenue() {
               subtitle={t('revenue.kpi_unpaid_sub')}
               subtitleClass={kpis.failedPending > 0 ? 'text-red-500' : 'text-muted'}
               Icon={AlertCircle}
-              onClick={() => { setStatusFilter('failed_pending'); setPeriod('all') }}
+              active={statusFilter === 'failed_pending'}
+              onClick={() => {
+                // Toggle : 1er clic préfiltre impayés, 2e clic (carte active) remet le statut à "tous".
+                if (statusFilter === 'failed_pending') setStatusFilter('all')
+                else { setStatusFilter('failed_pending'); setPeriod('all') }
+              }}
             />
           </div>
 
           {/* Chart CA empilé */}
-          <div className="mt-6 rounded-2xl border border-border bg-card p-5">
+          <div className="mt-6 rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-display text-lg font-black uppercase tracking-tight text-dark">
                 {t('revenue.chart_title')}
@@ -366,7 +376,7 @@ export default function Revenue() {
                       <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[r.status]}`}>
                         {t(`revenue.status_${r.status}`)}
                       </span>
-                      <span className="font-body text-[11px] text-muted">{FMT_DATE(r.createdAt)}</span>
+                      <span className="font-body text-[11px] text-muted">{FMT_DATE(r.paidAt ?? r.createdAt)}</span>
                     </div>
                   </div>
                 ))
