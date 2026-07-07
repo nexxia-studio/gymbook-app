@@ -50,7 +50,7 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
 
       {/* Prix mis en avant */}
       <div className="mt-3 flex items-baseline gap-1">
-        <span className="font-display text-3xl font-black tracking-tight text-dark">
+        <span className="font-display text-2xl font-black tracking-tight text-dark sm:text-3xl">
           {formatPrice(plan.priceCents, plan.currency)}
         </span>
         {!isOneTime && <span className="font-body text-sm text-muted">{t('plans.per_month')}</span>}
