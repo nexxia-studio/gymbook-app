@@ -168,9 +168,7 @@ export default function Profile() {
           <View className="mx-5 h-px bg-move-border" />
           <ProfileListItem icon={Download} label={t('profile.export_data')} onPress={() => router.push('/profile/export-data')} />
           <View className="mx-5 h-px bg-move-border" />
-          {/* GYM-46 — "Supprimer mon compte" volontairement sans handler : nécessite une
-              Edge Function delete-account (backend gelé). Tracé pour le scope suivant. */}
-          <ProfileListItem icon={Trash2} label={t('profile.delete_account')} destructive />
+          <ProfileListItem icon={Trash2} label={t('profile.delete_account')} destructive onPress={() => router.push('/profile/delete-account')} />
         </ProfileSection>
 
         {/* Sign out */}
