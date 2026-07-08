@@ -82,7 +82,7 @@ export default function DeleteAccountScreen() {
           setDeleting(false)
           return
         }
-        if (code === 'SUBSCRIPTION_CANCEL_FAILED') {
+        if (code === 'MOLLIE_CANCEL_FAILED') {
           Alert.alert(t('profile.delete.sub_failed_title'), t('profile.delete.sub_failed_message'))
         } else {
           Alert.alert(t('profile.delete.error_title'), t('profile.delete.error_message'))

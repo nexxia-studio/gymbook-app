@@ -1,5 +1,5 @@
 // GYM-113 — Engagement ferme sur les abonnements : la durée souscrite est due.
-// Helper PARTAGÉ (delete-account maintenant, cancel-subscription ensuite) — ne pas dupliquer.
+// Helper PARTAGÉ (delete-account + cancel-subscription) — une seule source de vérité pour la règle.
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 export interface ActiveEngagement {
@@ -7,33 +7,37 @@ export interface ActiveEngagement {
   endsAt: string
 }
 
-// Renvoie l'abonnement qui ENGAGE encore le membre, sinon null.
-// Règle : status IN ('active','canceling') ET ends_at > now().
-//   - 'canceling' compte comme engagé : sous engagement ferme, une résiliation en cours ne libère
-//     pas le membre avant ends_at (et GYM-113 a montré que 'canceling' peut être un état menteur).
-//   - ends_at NULL → non engagé (NULL > now() est faux).
-// Plusieurs lignes → on prend le ends_at le plus lointain. Lecture SEULE (client service_role).
+// Prédicat PUR — LA règle d'engagement (partagée serveur). Un abonnement engage encore le membre
+// si son statut est 'active' ou 'canceling' ET que son terme (ends_at) est dans le futur.
+//   - 'canceling' compte comme engagé : une résiliation en cours ne libère pas avant ends_at
+//     (et GYM-113 a montré que 'canceling' peut être un état menteur — Mollie pas réellement annulé).
+//   - ends_at NULL / passé → non engagé.
+export function isEngaged(status: string, endsAt: string | null): boolean {
+  return (status === 'active' || status === 'canceling')
+    && !!endsAt
+    && new Date(endsAt).getTime() > Date.now()
+}
+
+// Renvoie l'abonnement qui ENGAGE encore le membre (ends_at le plus lointain), sinon null.
+// Réutilise isEngaged → aucune règle dupliquée. Lecture SEULE (client service_role).
+// Fail-CLOSED : une erreur de requête est PROPAGÉE (l'appelant delete-account tombe dans son
+// catch → 500 AVANT toute écriture) plutôt qu'interprétée comme « pas d'engagement ».
 export async function getActiveEngagement(
   admin: SupabaseClient,
   memberId: string,
   gymId: string,
 ): Promise<ActiveEngagement | null> {
-  const nowIso = new Date().toISOString()
   const { data, error } = await admin
     .from('member_subscriptions')
-    .select('id, ends_at')
+    .select('id, status, ends_at')
     .eq('member_id', memberId)
     .eq('gym_id', gymId)
-    .in('status', ['active', 'canceling'])
-    .gt('ends_at', nowIso)
-    .order('ends_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  // Fail-CLOSED : une erreur de requête ne doit PAS être interprétée comme « pas d'engagement »
-  // (sinon un incident transitoire laisserait supprimer un compte engagé). On propage → l'appelant
-  // (delete-account) tombe dans son catch → 500 AVANT toute écriture, donc aucune anonymisation.
   if (error) throw new Error(`getActiveEngagement query failed: ${error.message}`)
-  if (!data || !data.ends_at) return null
-  return { subscriptionId: data.id as string, endsAt: data.ends_at as string }
+
+  const engaged = (data ?? [])
+    .filter((s) => isEngaged(s.status as string, (s.ends_at as string | null) ?? null))
+    .sort((a, b) => new Date(b.ends_at as string).getTime() - new Date(a.ends_at as string).getTime())
+
+  const top = engaged[0]
+  return top ? { subscriptionId: top.id as string, endsAt: top.ends_at as string } : null
 }
