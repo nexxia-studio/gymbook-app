@@ -38,6 +38,25 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+// GYM-113 — engagement ferme (miroir client du prédicat serveur _shared/subscription-engagement).
+function isEngaged(status: string, endsAt: string | null): boolean {
+  return (status === 'active' || status === 'canceling') && !!endsAt && new Date(endsAt).getTime() > Date.now()
+}
+// Terme d'engagement en heure locale gym (Europe/Brussels), format long fr-BE.
+function formatEngagedDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('fr-BE', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels',
+  })
+}
+// Lit le `code` d'erreur d'une réponse Edge Function (JSON dans error.context).
+async function readErrorCode(data: { code?: string } | null, error: unknown): Promise<string | undefined> {
+  const ctx = (error as { context?: Response } | null)?.context
+  if (ctx && typeof ctx.json === 'function') {
+    try { const b = await ctx.json(); if (b?.code) return b.code as string } catch { /* non-JSON */ }
+  }
+  return data?.code
+}
+
 function PlanCard({
   plan,
   onSelect,
@@ -189,10 +208,25 @@ export default function SubscriptionScreen() {
           text: t('subscription.cancel_confirm'),
           style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase.functions.invoke('cancel-subscription', {
+            const { data, error } = await supabase.functions.invoke('cancel-subscription', {
               body: { subscription_id: activeSub.id },
             })
-            if (error) {
+            if (error || (data && (data as { error?: boolean }).error)) {
+              const code = await readErrorCode(data as { code?: string } | null, error)
+              if (code === 'SUBSCRIPTION_ENGAGED') {
+                // Engagement ferme : pas de résiliation anticipée. Rafraîchit → UI "Engagé jusqu'au".
+                Alert.alert(
+                  t('subscription.engaged_title'),
+                  t('subscription.engaged_alert', { date: formatEngagedDate(activeSub.endsAt ?? new Date().toISOString()) }),
+                )
+                loadSubscription()
+                return
+              }
+              if (code === 'MOLLIE_CANCEL_FAILED') {
+                // SURTOUT PAS un état "résilié" : l'abonnement reste actif.
+                Alert.alert(t('subscription.cancel_error_title'), t('subscription.mollie_failed_message'))
+                return
+              }
               console.error('[cancel-subscription] error:', error)
               Alert.alert(t('subscription.cancel_error_title'), t('subscription.cancel_error_message'))
               return
@@ -359,9 +393,18 @@ export default function SubscriptionScreen() {
             )}
 
             {activeSub.status === 'active' && (
-              <Pressable onPress={handleCancelSubscription} className="mt-4 items-center rounded-lg border border-move-border py-2.5">
-                <Text className="font-dmsans text-[13px] text-move-text-muted">{t('subscription.cancel_action')}</Text>
-              </Pressable>
+              isEngaged(activeSub.status, activeSub.endsAt) ? (
+                /* GYM-113 — engagement ferme : bouton Résilier MASQUÉ, on affiche le terme. */
+                <View className="mt-4 items-center rounded-lg border border-amber-300 bg-amber-50 py-2.5">
+                  <Text className="font-dmsans-medium text-[13px] text-amber-800">
+                    {t('subscription.engaged_until', { date: formatEngagedDate(activeSub.endsAt as string) })}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable onPress={handleCancelSubscription} className="mt-4 items-center rounded-lg border border-move-border py-2.5">
+                  <Text className="font-dmsans text-[13px] text-move-text-muted">{t('subscription.cancel_action')}</Text>
+                </Pressable>
+              )
             )}
           </View>
         ) : activeCredits ? null : (

@@ -91,16 +91,19 @@ Deno.serve(async (req) => {
 
     const nowIso = new Date().toISOString()
 
-    // ── 1. Abonnement actif → annulation Mollie D'ABORD (même chemin que cancel-subscription :
-    //     token maison + endpoint DELETE /customers/{c}/subscriptions/{s}). Contrat plus strict
-    //     ici : tout échec Mollie → 409, on ne supprime JAMAIS un compte avec un prélèvement vivant.
-    const { data: activeSubs } = await admin
+    // ── 1. Filet défensif SEPA (GYM-113, aligné cancel-subscription : Mollie D'ABORD, fail-closed).
+    //     POURQUOI cette étape survit au guard engagement ci-dessus : le guard bloque déjà tout abo
+    //     'active'/'canceling' au terme FUTUR. Restent ici les abos 'active'/'canceling' au terme
+    //     PASSÉ (engagement échu) — dont d'éventuels 'canceling' MENTEURS historiques (status = annulé
+    //     mais Mollie ne l'a jamais réellement été, cf. bug pré-fix). On ne peut PAS anonymiser un
+    //     compte dont le SEPA prélève encore : tout échec Mollie (hors 404) → ABORT 502, aucune écriture.
+    const { data: staleSubs } = await admin
       .from('member_subscriptions')
       .select('id, gym_id, mollie_subscription_id, mollie_customer_id')
       .eq('member_id', memberId)
-      .eq('status', 'active')
+      .in('status', ['active', 'canceling'])
 
-    for (const sub of activeSubs ?? []) {
+    for (const sub of staleSubs ?? []) {
       if (sub.mollie_subscription_id && sub.mollie_customer_id) {
         let token: string | null
         if (IS_TEST_MODE) {
@@ -108,17 +111,18 @@ Deno.serve(async (req) => {
         } else {
           token = await getValidMollieToken(admin, sub.gym_id)
         }
+        // Sans token, impossible de confirmer l'annulation → ABORT sans anonymiser.
         if (!token) {
-          return errorResponse(409, 'Annulation de l\'abonnement impossible (Mollie indisponible)', 'SUBSCRIPTION_CANCEL_FAILED')
+          return errorResponse(502, 'Annulation de l\'abonnement impossible (Mollie indisponible) — réessayez', 'MOLLIE_CANCEL_FAILED')
         }
         const delRes = await fetch(
           `https://api.mollie.com/v2/customers/${sub.mollie_customer_id}/subscriptions/${sub.mollie_subscription_id}`,
           { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
         )
-        // 404 = déjà annulé côté Mollie → acceptable. Tout autre échec → on stoppe.
+        // 404 = déjà annulé côté Mollie → convergent. Tout autre échec → ABORT 502 (aucune anonymisation).
         if (!delRes.ok && delRes.status !== 404) {
-          console.error('[delete-account] Mollie cancel failed', JSON.stringify({ member_id: memberId, status: delRes.status }))
-          return errorResponse(409, 'Annulation de l\'abonnement échouée — réessayez plus tard', 'SUBSCRIPTION_CANCEL_FAILED')
+          console.error('[delete-account] Mollie cancel failed — abort', JSON.stringify({ member_id: memberId, status: delRes.status }))
+          return errorResponse(502, 'Annulation de l\'abonnement échouée — réessayez plus tard', 'MOLLIE_CANCEL_FAILED')
         }
       }
       await admin.from('member_subscriptions').update({
@@ -232,7 +236,7 @@ Deno.serve(async (req) => {
     console.log('[delete-account] done', JSON.stringify({
       member_id: memberId,
       gym_id: profile.gym_id,
-      subscriptions_cancelled: activeSubs?.length ?? 0,
+      subscriptions_cancelled: staleSubs?.length ?? 0,
       future_bookings_cancelled: bookingsCancelled,
       credits_settled: credits?.length ?? 0,
     }))

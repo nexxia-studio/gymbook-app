@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { isEngaged } from '../_shared/subscription-engagement.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,8 +45,22 @@ Deno.serve(async (req) => {
 
     if (!sub) return json({ error: true, code: 'NOT_FOUND' }, 404)
     if (sub.member_id !== user.id) return json({ error: true, code: 'FORBIDDEN' }, 403)
+    // Early return existant : déjà en cours / résilié → idempotent (AVANT le guard engagement).
     if (sub.status === 'canceling' || sub.status === 'canceled') {
       return json({ ok: true, already: true })
+    }
+
+    // ── GYM-113 — GUARD ENGAGEMENT FERME (sur LA ligne visée, pas member-level) : un abonnement
+    //    'active' dont le terme est futur est dû jusqu'à ends_at → pas de résiliation anticipée.
+    //    Aucun appel Mollie ni écriture avant ce return.
+    if (sub.status === 'active' && isEngaged(sub.status, sub.ends_at)) {
+      console.log('[cancel-subscription] blocked — engaged', JSON.stringify({ id: sub.id, ends_at: sub.ends_at }))
+      return json({
+        error: true,
+        code: 'SUBSCRIPTION_ENGAGED',
+        ends_at: sub.ends_at,
+        message: 'Abonnement engagé jusqu\'au terme — résiliation anticipée impossible.',
+      }, 409)
     }
 
     let accessToken: string
@@ -54,10 +69,14 @@ Deno.serve(async (req) => {
       accessToken = MOLLIE_TEST_API_KEY
     } else {
       const t = await getValidMollieToken(supabase, sub.gym_id)
+      // Pas de connexion Mollie → on NE PEUT PAS confirmer l'annulation → 400, aucune écriture.
       if (!t) return json({ error: true, code: 'MOLLIE_NOT_CONNECTED' }, 400)
       accessToken = t
     }
 
+    // ── GYM-113 — FIX DU 200 MENTEUR : Mollie D'ABORD, DB APRÈS. Un échec Mollie (hors 404)
+    //    STOPPE tout : 502 SANS aucune écriture (status reste 'active', le SEPA n'est pas laissé
+    //    vivant sous un état 'canceling' mensonger). 404 = déjà annulé côté Mollie → état convergent.
     if (sub.mollie_subscription_id && sub.mollie_customer_id) {
       const cancelRes = await fetch(
         `https://api.mollie.com/v2/customers/${sub.mollie_customer_id}/subscriptions/${sub.mollie_subscription_id}`,
@@ -66,10 +85,16 @@ Deno.serve(async (req) => {
       console.log('[cancel-subscription] Mollie DELETE status:', cancelRes.status)
       if (!cancelRes.ok && cancelRes.status !== 404) {
         const errText = await cancelRes.text()
-        console.error('[cancel-subscription] Mollie error:', errText)
+        console.error('[cancel-subscription] Mollie cancel FAILED — no DB write:', JSON.stringify({ id: sub.id, status: cancelRes.status, body: errText.slice(0, 500) }))
+        return json({
+          error: true,
+          code: 'MOLLIE_CANCEL_FAILED',
+          message: 'La résiliation n\'a pas pu être confirmée côté paiement — abonnement toujours actif.',
+        }, 502)
       }
     }
 
+    // Écriture DB : UNIQUEMENT après un succès (ou 404) Mollie → la DB ne ment jamais.
     await supabase
       .from('member_subscriptions')
       .update({
@@ -79,6 +104,7 @@ Deno.serve(async (req) => {
       })
       .eq('id', subscriptionId)
 
+    // ── Email de confirmation : NON bloquant, APRÈS l'écriture DB.
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, first_name, push_token')
