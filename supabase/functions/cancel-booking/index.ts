@@ -5,6 +5,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// GYM-70c — horodatage d'application de la migration gym70b_credit_symmetry.
+// Un booking créé AVANT ce cutoff n'a pas de debited_credit_id (traçage absent) → fallback legacy
+// LIFO. Créé APRÈS sans traçage → réservé sous abonnement → aucun remboursement crédit.
+// Valeur = version RÉELLE de gym70b dans schema_migrations de PROD (fcjupgvmjkqztxtwymdb),
+// re-stampée par le MCP au déploiement du train n°1 : 20260708184950 → 2026-07-08T18:49:50Z.
+const GYM70B_MIGRATION_CUTOFF = '2026-07-08T18:49:50Z'
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -67,7 +74,7 @@ Deno.serve(async (req) => {
     // 2. Get booking
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, member_id, slot_id, gym_id, status')
+      .select('id, member_id, slot_id, gym_id, status, debited_credit_id, booked_at')
       .eq('id', bookingId)
       .single()
 
@@ -115,31 +122,54 @@ Deno.serve(async (req) => {
       .eq('status', 'active')
       .maybeSingle()
 
-    if (!activeSubscription) {
-      const { data: credits } = await admin
-        .from('member_credits')
-        .select('id, credits_total, credits_used')
-        .eq('member_id', booking.member_id)
-        .eq('gym_id', booking.gym_id)
-        .maybeSingle()
+    // GYM-70b — remboursement CIBLÉ sur la ligne réellement débitée (tracée à la réservation).
+    // Éligibilité GYM-64 INCHANGÉE : jamais 'waitlisted', ni late cancel, ni slot passé, ni abonnement actif.
+    const shouldRefund = !wasWaitlisted && !isLateCancellation && !isSlotPassed
 
-      // GYM-69 — jamais de refund pour un 'waitlisted' (aucun crédit débité à l'entrée en waitlist).
-      if (!wasWaitlisted && credits && credits.credits_used > 0) {
-        const shouldRefund = !isLateCancellation && !isSlotPassed
-        if (shouldRefund) {
+    if (!activeSubscription && shouldRefund) {
+      if (booking.debited_credit_id) {
+        // Ciblage exact : la ligne débitée à la réservation.
+        const { data: dc } = await admin
+          .from('member_credits')
+          .select('id, credits_used')
+          .eq('id', booking.debited_credit_id)
+          .maybeSingle()
+        if (dc) {
           await admin
             .from('member_credits')
-            .update({
-              credits_used: Math.max(0, credits.credits_used - 1),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', credits.id)
-          console.log('[cancel-booking] Crédit remboursé pour member:', booking.member_id, '(annulation confirmée > 2h)')
-        } else {
-          console.log('[cancel-booking] Crédit non remboursé pour member:', booking.member_id,
-            isSlotPassed ? '(slot passé)' : '(désistement tardif < 2h)')
+            .update({ credits_used: Math.max(0, dc.credits_used - 1), updated_at: new Date().toISOString() })
+            .eq('id', dc.id)
         }
+        // debited_credit_id → NULL : empêche tout double remboursement (idempotence de l'annulation).
+        await admin.from('bookings').update({ debited_credit_id: null }).eq('id', bookingId)
+        console.log('[cancel-booking] Crédit remboursé (ligne débitée tracée):', booking.debited_credit_id)
+      } else if (booking.booked_at && new Date(booking.booked_at).getTime() < new Date(GYM70B_MIGRATION_CUTOFF).getTime()) {
+        // Legacy (booking d'AVANT le cutoff GYM-70b, jamais tracé) : ligne la plus récente credits_used > 0 (LIFO).
+        const { data: legacy } = await admin
+          .from('member_credits')
+          .select('id, credits_used')
+          .eq('member_id', booking.member_id)
+          .eq('gym_id', booking.gym_id)
+          .gt('credits_used', 0)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (legacy) {
+          await admin
+            .from('member_credits')
+            .update({ credits_used: Math.max(0, legacy.credits_used - 1), updated_at: new Date().toISOString() })
+            .eq('id', legacy.id)
+          console.log('[cancel-booking] Crédit remboursé (fallback legacy LIFO):', legacy.id)
+        } else {
+          console.warn('[cancel-booking] Aucune ligne crédit à rembourser (legacy sans crédit utilisé) — annulation poursuivie')
+        }
+      } else {
+        // Post-cutoff SANS traçage → réservation payée par abonnement → AUCUN remboursement crédit.
+        console.log('[cancel-booking] Pas de remboursement crédit (réservation sous abonnement post-migration)')
       }
+    } else if (!activeSubscription) {
+      console.log('[cancel-booking] Crédit non remboursé:',
+        wasWaitlisted ? '(waitlist)' : isSlotPassed ? '(slot passé)' : isLateCancellation ? '(désistement tardif < 2h)' : '(non éligible)')
     }
     // ============================================================
 

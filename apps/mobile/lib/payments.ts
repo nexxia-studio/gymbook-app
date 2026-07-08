@@ -68,6 +68,11 @@ export function mapPaymentError(code?: string): PaymentErrorInfo {
       return { messageKey: 'payments.errors.PLAN_NOT_RECURRING', retryable: false, refetch: false }
     case 'MOLLIE_CUSTOMER_ERROR':
       return { messageKey: 'payments.errors.MOLLIE_CUSTOMER_ERROR', retryable: true, refetch: false }
+    // GYM-94 — abonnement actif : crédits one_time inutiles / 2e abonnement refusé.
+    case 'SUBSCRIPTION_ACTIVE':
+      return { messageKey: 'payments.errors.SUBSCRIPTION_ACTIVE', retryable: false, refetch: true }
+    case 'SUBSCRIPTION_ALREADY_ACTIVE':
+      return { messageKey: 'payments.errors.SUBSCRIPTION_ALREADY_ACTIVE', retryable: false, refetch: true }
     default:
       return { messageKey: 'payments.errors.FALLBACK', retryable: true, refetch: false }
   }

@@ -106,6 +106,22 @@ Deno.serve(async (req) => {
       return errorResponse(400, 'Cette formule est un paiement unique — utiliser create-payment', 'PLAN_NOT_RECURRING')
     }
 
+    // GYM-94 — un seul abonnement actif à la fois (futur upsell de changement de durée).
+    // Définition "actif" = status='active' UNIQUEMENT (voir note create-payment : pas d'état en vol).
+    // Les crédits existants ne bloquent JAMAIS un achat d'abonnement (conversion drop-in → illimité).
+    const { data: activeSub } = await supabaseAdmin
+      .from('member_subscriptions')
+      .select('id')
+      .eq('member_id', memberId)
+      .eq('gym_id', gymId)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle()
+
+    if (activeSub) {
+      return errorResponse(409, 'Un abonnement est déjà actif', 'SUBSCRIPTION_ALREADY_ACTIVE')
+    }
+
     const isTestMode = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 
     let mollieApiKey: string

@@ -165,18 +165,18 @@ Deno.serve(async (req) => {
       .eq('status', 'active')
       .maybeSingle()
 
-    const { data: memberCredits } = await supabaseAdmin
+    // GYM-94 — dispo crédit = MÊME sélection que la RPC : au moins une ligne avec
+    // (credits_total - credits_used) > 0. On compte sur la colonne générée
+    // credits_remaining (= total - used). PAS de limit 1 (qui masquait des crédits
+    // cumulés et provoquait un faux 402).
+    const { count: availableCreditCount } = await supabaseAdmin
       .from('member_credits')
-      .select('id, credits_total, credits_used')
+      .select('id', { count: 'exact', head: true })
       .eq('member_id', user.id)
       .eq('gym_id', slot.gym_id)
-      .gt('credits_total', 0)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+      .gt('credits_remaining', 0)
 
-    const hasAvailableCredits = memberCredits != null &&
-      (memberCredits.credits_total - memberCredits.credits_used) > 0
+    const hasAvailableCredits = (availableCreditCount ?? 0) > 0
 
     if (!activeSubscription && !hasAvailableCredits) {
       return jsonResponse({
@@ -190,21 +190,36 @@ Deno.serve(async (req) => {
     // (chemin 'confirmed' plus bas). Aucun débit ici, ni sur le chemin waitlist.
     // ============================================================
 
-    // 7. Check capacity
-    const { count: confirmedCount } = await supabaseAdmin
-      .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('slot_id', slotId)
-      .eq('status', 'confirmed')
-
-    const booked = confirmedCount ?? 0
-    const isFull = booked >= slot.capacity
-
-    // Generate idempotency key
+    // ============================================================
+    // GYM-70 — capacité + insertion/réactivation + débit crédit dans UNE transaction.
+    // Le verrou FOR UPDATE sur la ligne du créneau (dans la RPC) sérialise la dernière
+    // place : 2 requêtes simultanées → 1 seule 'confirmed', l'autre repart 'full' → waitlist.
+    // Le débit FIFO est atomique avec l'insert (NO_CREDIT annule tout).
+    // ============================================================
     const idempotencyKey = `${user.id}-${slotId}`
 
-    if (isFull) {
-      // Waitlist
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('create_booking_atomic', {
+      p_member_id: user.id,
+      p_slot_id: slotId,
+      p_gym_id: slot.gym_id,
+      p_has_subscription: !!activeSubscription,
+      p_existing_booking_id: existingBooking?.status === 'cancelled' ? existingBooking.id : null,
+    })
+
+    if (rpcError) {
+      // Course rare : crédit consommé entre le guard GYM-63 et la RPC.
+      if (rpcError.message?.includes('NO_CREDIT')) {
+        return jsonResponse({
+          error: true,
+          code: 'PAYMENT_REQUIRED',
+          message: 'Abonnement ou crédit requis pour réserver ce cours',
+        }, 402)
+      }
+      return errorResponse(500, rpcError.message, 'BOOKING_FAILED')
+    }
+
+    // Plein → chemin waitlist ACTUEL inchangé (hors verrou, aucun débit).
+    if (rpcResult?.status === 'full') {
       const { count: waitlistCount } = await supabaseAdmin
         .from('bookings')
         .select('*', { count: 'exact', head: true })
@@ -237,39 +252,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ booking, status: 'waitlisted', position })
     }
 
-    // 8. Create confirmed booking (or reuse cancelled row)
-    let booking
-    let insertErr
-    if (existingBooking?.status === 'cancelled') {
-      const res = await supabaseAdmin
-        .from('bookings')
-        .update({ status: 'confirmed', cancelled_at: null, cancel_reason: null, is_late_cancel: false, booked_at: new Date().toISOString() })
-        .eq('id', existingBooking.id)
-        .select()
-        .single()
-      booking = res.data; insertErr = res.error
-    } else {
-      const res = await supabaseAdmin
-        .from('bookings')
-        .insert({ member_id: user.id, slot_id: slotId, gym_id: slot.gym_id, status: 'confirmed', idempotency_key: idempotencyKey })
-        .select()
-        .single()
-      booking = res.data; insertErr = res.error
-    }
-
-    if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
-
-    // GYM-69 — débit du crédit UNIQUEMENT sur le chemin confirmé (jamais waitlist),
-    // APRÈS succès de l'insert/réutilisation 'confirmed'. ALREADY_BOOKED protège du double débit.
-    if (!activeSubscription && hasAvailableCredits && memberCredits) {
-      await supabaseAdmin
-        .from('member_credits')
-        .update({
-          credits_used: memberCredits.credits_used + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', memberCredits.id)
-    }
+    // Confirmé — la RPC a inséré/réactivé le siège ET débité le crédit atomiquement.
+    // On relit la ligne pour conserver la forme de réponse (booking complet) + email.
+    const { data: booking } = await supabaseAdmin
+      .from('bookings')
+      .select()
+      .eq('id', rpcResult.booking_id)
+      .single()
 
     // 9. Send confirmation email (non-blocking)
     // (trigger trg_update_bookings_count maintains time_slots.bookings_count)

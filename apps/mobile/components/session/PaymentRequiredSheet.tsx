@@ -31,7 +31,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
   const gymId = useAuthStore((s) => s.gym_id)
   const memberId = useAuthStore((s) => s.user?.id)
   const { createBooking } = useBookingStore()
-  const { oneTime, recurring, refetch } = useGymPlans()
+  const { oneTime, recurring, loading: plansLoading, refetch } = useGymPlans()
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -53,9 +53,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
     }
   }, [])
 
-  const goToPayments = () => {
+  // GYM-94 QA — les CTA abonnement/carnet ouvrent la page des FORMULES, pas l'historique.
+  const goToSubscription = () => {
     onClose()
-    router.push('/profile/payments')
+    router.push('/profile/subscription')
   }
 
   const handleDropIn = async () => {
@@ -86,14 +87,15 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
       let pollAttempts = 0
       pollRef.current = setInterval(async () => {
         pollAttempts++
-        const { data: credit } = await supabase
+        // GYM-94 — multi-lignes : au moins une ligne dispo (fin du maybeSingle qui cassait en cumul).
+        const { data: credits } = await supabase
           .from('member_credits')
           .select('credits_remaining')
           .eq('member_id', memberId)
           .eq('gym_id', gymId)
-          .maybeSingle()
+          .gt('credits_remaining', 0)
 
-        if (credit && credit.credits_remaining > 0) {
+        if (credits && credits.length > 0) {
           clearInterval(pollRef.current!)
           pollRef.current = null
           setIsLoadingDropIn(false)
@@ -136,7 +138,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
           <View className="mt-6 gap-3">
             {/* Option 1 — Abonnement */}
             <TouchableOpacity
-              onPress={goToPayments}
+              onPress={goToSubscription}
               activeOpacity={0.8}
               className="flex-row items-center gap-3 rounded-2xl border border-move-border bg-white px-4 py-4"
             >
@@ -157,7 +159,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
 
             {/* Option 2 — Carnet de séances */}
             <TouchableOpacity
-              onPress={goToPayments}
+              onPress={goToSubscription}
               activeOpacity={0.8}
               className="flex-row items-center gap-3 rounded-2xl border border-move-border bg-white px-4 py-4"
             >
@@ -181,10 +183,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
             <TouchableOpacity
               onPress={handleDropIn}
               activeOpacity={0.8}
-              disabled={isLoadingDropIn || !dropInPlan}
-              className={`flex-row items-center gap-3 rounded-2xl bg-move-dark px-4 py-4 ${isLoadingDropIn || !dropInPlan ? 'opacity-60' : ''}`}
+              disabled={isLoadingDropIn || plansLoading || !dropInPlan}
+              className={`flex-row items-center gap-3 rounded-2xl bg-move-dark px-4 py-4 ${isLoadingDropIn || plansLoading || !dropInPlan ? 'opacity-60' : ''}`}
             >
-              {isLoadingDropIn ? (
+              {isLoadingDropIn || plansLoading ? (
                 <ActivityIndicator color="#C8F000" />
               ) : (
                 <CreditCard size={20} color="#C8F000" />

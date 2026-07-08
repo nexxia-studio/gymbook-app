@@ -43,14 +43,19 @@ function PlanCard({
   onSelect,
   paying,
   disabled,
+  unavailableReason,
 }: {
   plan: GymPlan
   onSelect: (plan: GymPlan) => void
   paying: boolean
   disabled: boolean
+  unavailableReason?: string | null
 }) {
   const { t } = useTranslation()
   const isRecurring = plan.billingType !== 'one_time'
+  // GYM-94 — indisponible pour raison métier (abonnement actif) : bouton désactivé + libellé explicite.
+  const isBlocked = !!unavailableReason
+  const isDisabled = disabled || isBlocked
 
   return (
     <View
@@ -90,14 +95,14 @@ function PlanCard({
 
         <Pressable
           onPress={() => onSelect(plan)}
-          disabled={disabled}
-          className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl bg-move-dark py-3 ${disabled ? 'opacity-60' : ''}`}
+          disabled={isDisabled}
+          className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl bg-move-dark py-3 ${isDisabled ? 'opacity-60' : ''}`}
         >
           {paying ? (
             <ActivityIndicator color="#C8F000" />
           ) : (
             <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
-              {t('subscription.select')}
+              {unavailableReason ?? t('subscription.select')}
             </Text>
           )}
         </Pressable>
@@ -146,23 +151,23 @@ export default function SubscriptionScreen() {
       setActiveSub(null)
     }
 
-    // 2. Crédits à l'unité (member_credits)
-    const { data: credits } = await supabase
+    // 2. Crédits à l'unité (member_credits) — GYM-94 : agrégat multi-lignes.
+    //    Solde = SOMME des lignes dispo (fin du limit 1) ; nom/expiration = ligne la plus récente.
+    const { data: creditRows } = await supabase
       .from('member_credits')
       .select('plan_id, credits_total, credits_used, credits_remaining, expires_at')
       .eq('member_id', user.id)
       .gt('credits_remaining', 0)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
 
-    if (credits && credits.plan_id) {
+    if (creditRows && creditRows.length > 0) {
+      const first = creditRows[0]
       setActiveCredits({
-        planId: credits.plan_id,
-        creditsTotal: credits.credits_total,
-        creditsUsed: credits.credits_used,
-        creditsRemaining: credits.credits_remaining,
-        expiresAt: credits.expires_at,
+        planId: first.plan_id,
+        creditsTotal: creditRows.reduce((s, r) => s + (r.credits_total ?? 0), 0),
+        creditsUsed: creditRows.reduce((s, r) => s + (r.credits_used ?? 0), 0),
+        creditsRemaining: creditRows.reduce((s, r) => s + (r.credits_remaining ?? 0), 0),
+        expiresAt: first.expires_at,
       })
     } else {
       setActiveCredits(null)
@@ -232,17 +237,23 @@ export default function SubscriptionScreen() {
     }
   }, [payingId, gymId, userId, refetch, t])
 
-  // Règle d'exclusivité :
-  //  - abonnement actif → upsell abonnements
-  //  - crédits actifs   → upsell abonnements
-  //  - rien d'actif     → tout (à l'unité + abonnements)
+  // GYM-94 — règles d'achat :
+  //  - one_time (cumul LIBRE) : toujours achetable, SAUF abonnement actif (accès illimité).
+  //  - recurring : achetable SAUF abonnement déjà actif (→ upsell futur). Les crédits ne bloquent RIEN.
   const hasActiveSub = activeSub?.status === 'active' || activeSub?.status === 'canceling'
-  const hasActiveCredits = (activeCredits?.creditsRemaining ?? 0) > 0
-  const showFullPlans = !hasActiveSub && !hasActiveCredits
 
   const activeCreditsName = activeCredits
     ? (oneTime.find((p) => p.id === activeCredits.planId)?.name ?? t('subscription.credits_generic_name'))
     : ''
+
+  // Raison d'indisponibilité d'un plan (null = achetable).
+  const unavailableReason = (plan: GymPlan): string | null => {
+    if (!hasActiveSub) return null
+    if (plan.billingType === 'one_time') return t('subscription.unavailable_unlimited_active')
+    return plan.name === activeSub?.planName
+      ? t('subscription.current_subscription')
+      : t('subscription.upsell_unavailable')
+  }
 
   const renderPlans = (plans: GymPlan[]) =>
     plans.map((plan) => (
@@ -252,6 +263,7 @@ export default function SubscriptionScreen() {
         onSelect={handleSelectPlan}
         paying={payingId === plan.id}
         disabled={payingId !== null}
+        unavailableReason={unavailableReason(plan)}
       />
     ))
 
@@ -380,8 +392,8 @@ export default function SubscriptionScreen() {
           </View>
         ) : (
           <>
-            {/* À l'unité — uniquement si rien d'actif */}
-            {showFullPlans && oneTime.length > 0 && (
+            {/* À l'unité — GYM-94 : cumul libre, toujours visible. Désactivé si abonnement illimité actif. */}
+            {oneTime.length > 0 && (
               <>
                 <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
                   {t('subscription.section_one_time')}
@@ -390,15 +402,13 @@ export default function SubscriptionScreen() {
               </>
             )}
 
-            {/* Abonnements */}
+            {/* Abonnements — visibles ; en upsell (désactivés) si un abonnement est déjà actif. */}
             {recurring.length > 0 && (
               <>
                 <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
-                  {showFullPlans
-                    ? t('subscription.section_recurring')
-                    : hasActiveSub
-                      ? t('subscription.upsell_switch_title')
-                      : t('subscription.upsell_upgrade_title')}
+                  {hasActiveSub
+                    ? t('subscription.upsell_switch_title')
+                    : t('subscription.section_recurring')}
                 </Text>
                 {renderPlans(recurring)}
               </>
