@@ -176,6 +176,8 @@
   "payment_required": {
     "title": "Booking unavailable",
     "subtitle": "You don't have an active subscription or available credit.",
+    "waitlist_title": "Waitlist unavailable",
+    "waitlist_subtitle": "To join the waitlist, you need an active subscription or an available credit.",
     "option_subscribe": {
       "label": "Subscribe to a plan",
       "sub": "From €95/month",

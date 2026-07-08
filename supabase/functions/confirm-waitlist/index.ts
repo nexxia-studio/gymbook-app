@@ -67,14 +67,24 @@ Deno.serve(async (req) => {
       }
 
       if (new Date() > deadline) {
-        // Expired — cancel this and promote next
+        // Expired — cancel this and notify the next (modèle A : notify-and-wait).
         await admin.from('bookings').update({
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
           cancel_reason: 'waitlist_expired',
         }).eq('id', bookingId)
 
-        await admin.rpc('promote_next_in_waitlist', { p_slot_id: booking.slot_id })
+        // GYM-108 — remplace l'appel fantôme : notify_next_in_waitlist (fonction partagée avec le
+        // cron expire_waitlist_confirmations). Le booking expiré vient de passer 'cancelled' → il
+        // n'est plus sélectionné (filtre waitlist_notified_at IS NULL + status='waitlisted'), pas
+        // besoin d'exclusion. Retour VÉRIFIÉ + log non bloquant : l'expiration renvoyée à
+        // l'appelant ne doit jamais échouer si la notification échoue.
+        const { error: notifyErr } = await admin.rpc('notify_next_in_waitlist', {
+          p_slot_id: booking.slot_id,
+        })
+        if (notifyErr) {
+          console.error('[confirm-waitlist] notify_next_in_waitlist failed (non-blocking):', JSON.stringify({ slot_id: booking.slot_id, message: notifyErr.message }))
+        }
 
         return errorResponse(410, 'Délai expiré — place donnée au suivant', 'WAITLIST_EXPIRED')
       }

@@ -176,6 +176,8 @@
   "payment_required": {
     "title": "Réservation impossible",
     "subtitle": "Vous n'avez pas d'abonnement actif ni de crédit disponible.",
+    "waitlist_title": "Liste d'attente impossible",
+    "waitlist_subtitle": "Pour rejoindre la liste d'attente, il vous faut un abonnement actif ou un crédit disponible.",
     "option_subscribe": {
       "label": "Souscrire un abonnement",
       "sub": "À partir de 95€/mois",
