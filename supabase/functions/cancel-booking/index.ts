@@ -5,13 +5,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// GYM-70c — horodatage d'application de la migration 20260703230658 (gym70b_credit_symmetry)
-// sur STAGING (version enregistrée 20260703230750). Un booking créé AVANT ce cutoff n'a pas de
-// debited_credit_id (fonctionnalité de traçage absente) → fallback legacy LIFO. Créé APRÈS sans
-// traçage → réservé sous abonnement → aucun remboursement crédit.
-// TODO(prod) : REMPLACER par l'horodatage d'application de cette migration sur PROD
-// (fcjupgvmjkqztxtwymdb) au moment du déploiement — la valeur staging ci-dessous est FAUSSE en prod.
-const GYM70B_MIGRATION_CUTOFF = '2026-07-03T23:07:50Z'
+// GYM-70c — horodatage d'application de la migration gym70b_credit_symmetry.
+// Un booking créé AVANT ce cutoff n'a pas de debited_credit_id (traçage absent) → fallback legacy
+// LIFO. Créé APRÈS sans traçage → réservé sous abonnement → aucun remboursement crédit.
+// Valeur = version RÉELLE de gym70b dans schema_migrations de PROD (fcjupgvmjkqztxtwymdb),
+// re-stampée par le MCP au déploiement du train n°1 : 20260708184950 → 2026-07-08T18:49:50Z.
+const GYM70B_MIGRATION_CUTOFF = '2026-07-08T18:49:50Z'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
