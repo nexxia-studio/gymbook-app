@@ -16,6 +16,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { getActiveEngagement } from '../_shared/subscription-engagement.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -71,6 +72,21 @@ Deno.serve(async (req) => {
     if (profile.deleted_at) {
       console.log('[delete-account] already deleted', JSON.stringify({ member_id: memberId, gym_id: profile.gym_id }))
       return jsonResponse({ success: true, already: true })
+    }
+
+    // ── GYM-113 — ENGAGEMENT FERME : la durée souscrite est due. Suppression BLOQUÉE tant qu'un
+    //    abonnement court (status 'active'/'canceling' + ends_at futur). Guard SERVEUR = vérité :
+    //    tient même si l'UI mobile est contournée. Placé AVANT toute écriture / anonymisation /
+    //    neutralisation auth → aucun compte engagé ne peut être touché.
+    const engagement = await getActiveEngagement(admin, memberId, profile.gym_id as string)
+    if (engagement) {
+      console.log('[delete-account] blocked — subscription engaged', JSON.stringify({ member_id: memberId, ends_at: engagement.endsAt }))
+      return jsonResponse({
+        error: true,
+        code: 'SUBSCRIPTION_ENGAGED',
+        ends_at: engagement.endsAt,
+        message: 'Suppression impossible : abonnement engagé jusqu\'au terme.',
+      }, 409)
     }
 
     const nowIso = new Date().toISOString()

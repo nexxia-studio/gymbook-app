@@ -367,7 +367,9 @@
       "sub_failed_title": "Active subscription",
       "sub_failed_message": "Cancelling your subscription failed. Your account was not deleted. Try again in a few minutes or contact support.",
       "error_title": "Error",
-      "error_message": "Deletion failed. Please try again later."
+      "error_message": "Deletion failed. Please try again later.",
+      "engaged_title": "Deletion unavailable",
+      "engaged_message": "Your subscription runs until {{date}}. Account deletion will be possible after that date."
     },
     "edit": {
       "title": "Edit my profile",

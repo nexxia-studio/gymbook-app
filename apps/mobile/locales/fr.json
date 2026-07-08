@@ -367,7 +367,9 @@
       "sub_failed_title": "Abonnement actif",
       "sub_failed_message": "La résiliation de votre abonnement a échoué. Votre compte n'a pas été supprimé. Réessayez dans quelques minutes ou contactez le support.",
       "error_title": "Erreur",
-      "error_message": "La suppression a échoué. Réessayez plus tard."
+      "error_message": "La suppression a échoué. Réessayez plus tard.",
+      "engaged_title": "Suppression indisponible",
+      "engaged_message": "Ton abonnement court jusqu'au {{date}}. La suppression de compte sera possible après cette date."
     },
     "edit": {
       "title": "Modifier mon profil",

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -8,37 +8,80 @@ import { TextInput } from '../../components/ui/TextInput'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 
-/** Lit le `code` d'erreur d'une réponse Edge Function (corps JSON dans error.context). */
-async function readErrorCode(data: { code?: string } | null, error: unknown): Promise<string | undefined> {
+/** Lit le corps d'erreur d'une réponse Edge Function (JSON dans error.context) : code + ends_at. */
+async function readErrorBody(
+  data: { code?: string; ends_at?: string } | null,
+  error: unknown,
+): Promise<{ code?: string; ends_at?: string }> {
   const ctx = (error as { context?: Response } | null)?.context
   if (ctx && typeof ctx.json === 'function') {
     try {
       const body = await ctx.json()
-      if (body?.code) return body.code as string
+      return { code: body?.code, ends_at: body?.ends_at }
     } catch {
       /* corps non-JSON */
     }
   }
-  return data?.code
+  return { code: data?.code, ends_at: data?.ends_at }
+}
+
+// GYM-113 — date de fin d'engagement, heure locale gym (Europe/Brussels), format long fr-BE.
+function formatEngagedDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('fr-BE', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels',
+  })
 }
 
 export default function DeleteAccountScreen() {
   const { t } = useTranslation()
   const router = useRouter()
   const signOut = useAuthStore((s) => s.signOut)
+  const userId = useAuthStore((s) => s.user?.id)
 
   const [confirmText, setConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  // GYM-113 — engagement ferme : si l'abonnement court, on bloque (ends_at ISO), sinon null.
+  const [engagedUntil, setEngagedUntil] = useState<string | null>(null)
+  const [checking, setChecking] = useState(true)
 
   const confirmWord = t('profile.delete.confirm_word')
   const canDelete = confirmText.trim().toUpperCase() === confirmWord.toUpperCase() && !deleting
+
+  // Pré-vérification client (RLS) : afficher l'état bloquant AVANT même l'appel serveur.
+  // Le guard serveur reste la VÉRITÉ (voir delete-account / getActiveEngagement).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!userId) { setChecking(false); return }
+      const { data } = await supabase
+        .from('member_subscriptions')
+        .select('ends_at')
+        .eq('member_id', userId)
+        .in('status', ['active', 'canceling'])
+        .gt('ends_at', new Date().toISOString())
+        .order('ends_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!cancelled) {
+        setEngagedUntil((data?.ends_at as string | undefined) ?? null)
+        setChecking(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [userId])
 
   const runDeletion = useCallback(async () => {
     setDeleting(true)
     try {
       const { data, error } = await supabase.functions.invoke('delete-account', { body: {} })
       if (error || !data?.success) {
-        const code = await readErrorCode(data as { code?: string } | null, error)
+        const { code, ends_at } = await readErrorBody(data as { code?: string; ends_at?: string } | null, error)
+        if (code === 'SUBSCRIPTION_ENGAGED') {
+          // Guard serveur : bascule l'écran en état bloquant (même si la pré-vérif l'avait raté).
+          setEngagedUntil(ends_at ?? new Date().toISOString())
+          setDeleting(false)
+          return
+        }
         if (code === 'SUBSCRIPTION_CANCEL_FAILED') {
           Alert.alert(t('profile.delete.sub_failed_title'), t('profile.delete.sub_failed_message'))
         } else {
@@ -131,35 +174,56 @@ export default function DeleteAccountScreen() {
           </Text>
         </View>
 
-        {/* Saisie de confirmation */}
-        <View className="rounded-2xl bg-move-card p-4">
-          <Text className="mb-2 font-dmsans text-sm text-move-dark">
-            {t('profile.delete.type_to_confirm', { word: confirmWord })}
-          </Text>
-          <TextInput
-            value={confirmText}
-            onChangeText={setConfirmText}
-            placeholder={confirmWord}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            editable={!deleting}
-          />
-        </View>
-
-        {/* CTA destructif */}
-        <Pressable
-          onPress={confirmAndDelete}
-          disabled={!canDelete}
-          className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${canDelete ? 'bg-red-600' : 'bg-red-200'}`}
-        >
-          {deleting ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <Text className="font-dmsans-bold text-base text-white">
-              {t('profile.delete.cta')}
+        {checking ? (
+          <View className="items-center py-4">
+            <ActivityIndicator color="#EF4444" />
+          </View>
+        ) : engagedUntil ? (
+          /* GYM-113 — état BLOQUANT (persistant, pas une alerte éphémère). Saisie + CTA masqués. */
+          <View className="gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <View className="flex-row items-center gap-2">
+              <AlertTriangle size={18} color="#B45309" />
+              <Text className="font-dmsans-bold text-sm text-amber-800">
+                {t('profile.delete.engaged_title')}
+              </Text>
+            </View>
+            <Text className="font-dmsans text-sm leading-6 text-amber-900">
+              {t('profile.delete.engaged_message', { date: formatEngagedDate(engagedUntil) })}
             </Text>
-          )}
-        </Pressable>
+          </View>
+        ) : (
+          <>
+            {/* Saisie de confirmation */}
+            <View className="rounded-2xl bg-move-card p-4">
+              <Text className="mb-2 font-dmsans text-sm text-move-dark">
+                {t('profile.delete.type_to_confirm', { word: confirmWord })}
+              </Text>
+              <TextInput
+                value={confirmText}
+                onChangeText={setConfirmText}
+                placeholder={confirmWord}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!deleting}
+              />
+            </View>
+
+            {/* CTA destructif */}
+            <Pressable
+              onPress={confirmAndDelete}
+              disabled={!canDelete}
+              className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${canDelete ? 'bg-red-600' : 'bg-red-200'}`}
+            >
+              {deleting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text className="font-dmsans-bold text-base text-white">
+                  {t('profile.delete.cta')}
+                </Text>
+              )}
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
