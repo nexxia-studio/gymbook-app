@@ -36,9 +36,11 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
 
   const notified = isWaitlistNotified(booking)
   const expired = isWaitlistExpired(booking)
-  const statusKey = booking.status === 'waitlisted' ? 'status_waitlisted' : 'status_confirmed'
   const isWaitlisted = booking.status === 'waitlisted'
-  const badgeBg = isWaitlisted ? 'bg-orange-500' : 'bg-green-500'
+  // BUG 2 (GYM-96) — délai passé, statut client encore waitlisted : tag « Expirée » neutre
+  // (rien à annuler, le cron va retirer la ligne). Prioritaire sur waitlisted/confirmed.
+  const statusKey = expired ? 'status_expired' : isWaitlisted ? 'status_waitlisted' : 'status_confirmed'
+  const badgeBg = expired ? 'bg-neutral-500' : isWaitlisted ? 'bg-orange-500' : 'bg-green-500'
 
   return (
     <ImageBackground
@@ -104,16 +106,18 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
               </View>
             )}
 
-            {/* Cancel / Decline button */}
-            <TouchableOpacity
-              onPress={onCancel}
-              activeOpacity={0.7}
-              className="mt-3 self-start rounded-lg border border-red-500 px-3 py-1.5"
-            >
-              <Text className="font-dmsans-bold text-xs text-red-400">
-                {notified ? t('bookings.decline') : t('bookings.cancel')}
-              </Text>
-            </TouchableOpacity>
+            {/* Cancel / Decline button — masqué quand le délai est expiré (rien à annuler) */}
+            {!expired && (
+              <TouchableOpacity
+                onPress={onCancel}
+                activeOpacity={0.7}
+                className="mt-3 self-start rounded-lg border border-red-500 px-3 py-1.5"
+              >
+                <Text className="font-dmsans-bold text-xs text-red-400">
+                  {notified ? t('bookings.decline') : t('bookings.cancel')}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>

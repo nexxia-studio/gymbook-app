@@ -272,7 +272,8 @@
     "countdown_secs_only": "⏳ Place disponible encore {{sec}}s",
     "deadline_expired": "⏳ Délai expiré",
     "waitlist_promoted_toast": "Ta place est confirmée ! 🎉",
-    "waitlist_expired_card": "Délai expiré — la place a été proposée au suivant"
+    "waitlist_expired_card": "Délai expiré — la place a été proposée au suivant",
+    "status_expired": "Expirée"
   },
   "studio": {
     "title": "Studio",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -11,7 +11,7 @@ import { HistoryCard } from '../../components/bookings/HistoryCard'
 import { LimitBanner } from '../../components/bookings/LimitBanner'
 import { CancelModal } from '../../components/session/CancelModal'
 import { Toast } from '../../components/ui/Toast'
-import { useBookingStore, type FavoritePattern, type BookingStatus } from '../../stores/useBookingStore'
+import { useBookingStore, type FavoritePattern } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { GYM_ID } from '../../constants/dopamine'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
@@ -42,7 +42,7 @@ export default function Bookings() {
   const [refreshing, setRefreshing] = useState(false)
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' })
 
-  const { bookings, pastBookings, favorites, cancelBooking, confirmWaitlist, removeFavoritePattern, fetchBookings } = useBookingStore()
+  const { bookings, pastBookings, favorites, cancelBooking, confirmWaitlist, removeFavoritePattern, fetchBookings, justPromoted, clearPromotion } = useBookingStore()
 
   const days = t('home.days', { returnObjects: true }) as string[]
   const months = t('home.months', { returnObjects: true }) as string[]
@@ -71,19 +71,16 @@ export default function Bookings() {
     }
   }, [fetchBookings])
 
-  // ÉTAPE 4 — Toast de promotion : une réservation qui passe de waitlisted → confirmed
-  // entre deux rafraîchissements (focus/pull). Comparaison locale des statuts, pas d'endpoint.
-  const prevStatusRef = useRef<Map<string, BookingStatus>>(new Map())
+  // ÉTAPE 4 — Toast de promotion : le flag `justPromoted` est levé par le store dans
+  // fetchBookings (détection waitlisted → confirmed contre l'état précédent). Le store
+  // survit au remontage de l'écran, contrairement à l'ancien useRef local qui perdait la
+  // baseline et absorbait la transition sans toast. On consomme puis on remet à zéro.
   useEffect(() => {
-    const prev = prevStatusRef.current
-    if (prev.size > 0) {
-      const promoted = bookings.some((b) => prev.get(b.id) === 'waitlisted' && b.status === 'confirmed')
-      if (promoted) setToast({ visible: true, message: t('bookings.waitlist_promoted_toast') })
+    if (justPromoted) {
+      setToast({ visible: true, message: t('bookings.waitlist_promoted_toast') })
+      clearPromotion()
     }
-    const next = new Map<string, BookingStatus>()
-    for (const b of bookings) next.set(b.id, b.status)
-    prevStatusRef.current = next
-  }, [bookings, t])
+  }, [justPromoted, clearPromotion, t])
 
   const handleCancel = useCallback(async () => {
     if (cancelSlotId) {

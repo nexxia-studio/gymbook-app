@@ -272,7 +272,8 @@
     "countdown_secs_only": "⏳ Spot available for {{sec}}s",
     "deadline_expired": "⏳ Window expired",
     "waitlist_promoted_toast": "Your spot is confirmed! 🎉",
-    "waitlist_expired_card": "Window expired — the spot was offered to the next person"
+    "waitlist_expired_card": "Window expired — the spot was offered to the next person",
+    "status_expired": "Expired"
   },
   "studio": {
     "title": "Studio",

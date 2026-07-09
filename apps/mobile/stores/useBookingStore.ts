@@ -23,10 +23,15 @@ interface BookingState {
   pastBookings: Booking[]
   favorites: FavoritePattern[]
   isLoading: boolean
+  // GYM-96 — passe à true quand un fetch détecte une transition waitlisted → confirmed
+  // (promotion serveur). Vit dans le store (survit au remontage de l'écran Réservations,
+  // contrairement à un useRef local) → le toast de promotion ne se perd plus.
+  justPromoted: boolean
   createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null }>
   cancelBooking: (slotId: string) => Promise<{ noshow?: { level: string; hours?: number } } | void>
   confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean; code?: string }>
   fetchBookings: (userId: string) => Promise<void>
+  clearPromotion: () => void
   isBooked: (slotId: string) => boolean
   loadFavorites: () => Promise<void>
   addFavorite: (slot: FavoriteSlotInput) => Promise<void>
@@ -80,6 +85,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   pastBookings: [],
   favorites: [],
   isLoading: false,
+  justPromoted: false,
 
   createBooking: async (slotId: string) => {
     console.log('[Store] createBooking invoked, slotId:', slotId)
@@ -280,11 +286,20 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         .map(mapRow)
 
       console.log('[Bookings] Upcoming:', bookings.length, 'Past:', pastBookings.length)
-      set({ bookings, pastBookings })
+
+      // GYM-96 — détection de promotion AVANT le set, contre l'état PRÉCÉDENT du store
+      // (et non un useRef d'écran qui se réinitialise au remontage). promote_waitlist_atomic
+      // conserve le booking.id (UPDATE en place) → comparaison par id fiable.
+      const prevStatuses = new Map(get().bookings.map((b) => [b.id, b.status]))
+      const promoted = bookings.some((b) => prevStatuses.get(b.id) === 'waitlisted' && b.status === 'confirmed')
+
+      set(promoted ? { bookings, pastBookings, justPromoted: true } : { bookings, pastBookings })
     } catch (e) {
       console.error('Failed to fetch bookings', e)
     }
   },
+
+  clearPromotion: () => set({ justPromoted: false }),
 
   isBooked: (slotId) => get().bookings.some((b) => b.slotId === slotId),
 
