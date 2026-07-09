@@ -257,6 +257,15 @@ export default function SubscriptionScreen() {
           : ({ ok: false, code: 'UNAUTHORIZED' } as const)
 
       if (result.ok) {
+        // GYM-96 — NAVIGATION PROPRIÉTAIRE (one-time) : on monte l'écran de vérification
+        // AVANT d'ouvrir le navigateur, pour que son poll + son filet AppState soient armés
+        // quel que soit le mode de retour (deep link, fermeture manuelle du navigateur, retour
+        // app). Le deep link n'est plus qu'un raccourci. On passe le payment_id Mollie (connu
+        // ici) ; l'écran poll `payments` par mollie_payment_id à défaut du row id du deep link.
+        // Récurrent : pas de ligne `payments` à poller → on garde le comportement existant.
+        if (plan.billingType === 'one_time' && result.paymentId) {
+          router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
+        }
         await openCheckout(result.checkoutUrl)
         return
       }
@@ -269,7 +278,7 @@ export default function SubscriptionScreen() {
     } finally {
       setPayingId(null)
     }
-  }, [payingId, gymId, userId, refetch, t])
+  }, [payingId, gymId, userId, refetch, t, router])
 
   // GYM-94 — règles d'achat :
   //  - one_time (cumul LIBRE) : toujours achetable, SAUF abonnement actif (accès illimité).

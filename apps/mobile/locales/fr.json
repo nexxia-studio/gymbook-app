@@ -270,7 +270,10 @@
     "spot_available_banner": "🎉 Place disponible — 30 min pour confirmer",
     "countdown_with_min": "⏳ Place disponible encore {{min}}min {{sec}}s",
     "countdown_secs_only": "⏳ Place disponible encore {{sec}}s",
-    "deadline_expired": "⏳ Délai expiré"
+    "deadline_expired": "⏳ Délai expiré",
+    "waitlist_promoted_toast": "Ta place est confirmée ! 🎉",
+    "waitlist_expired_card": "Délai expiré — la place a été proposée au suivant",
+    "status_expired": "Expirée"
   },
   "studio": {
     "title": "Studio",
@@ -418,7 +421,15 @@
     "go_to_profile": "Voir mon profil",
     "cancel_title": "PAIEMENT ANNULÉ",
     "cancel_message": "Aucun montant n'a été prélevé.",
-    "back_to_plans": "Retour aux abonnements"
+    "back_to_plans": "Retour aux abonnements",
+    "go_to_bookings": "Voir mes réservations",
+    "close": "Fermer",
+    "failed_title": "PAIEMENT ÉCHOUÉ",
+    "failed_message": "Le paiement n'a pas abouti. Aucun montant confirmé n'a été prélevé.",
+    "timeout_title": "PAIEMENT EN COURS DE TRAITEMENT",
+    "timeout_message": "Ton paiement est en cours de traitement. Tire pour rafraîchir tes réservations.",
+    "modal_success_title": "Paiement réussi",
+    "modal_success_body": "Ton paiement a bien été confirmé."
   },
   "payments": {
     "title": "Historique des paiements",

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -10,6 +10,7 @@ import { FavoriteCard } from '../../components/bookings/FavoriteCard'
 import { HistoryCard } from '../../components/bookings/HistoryCard'
 import { LimitBanner } from '../../components/bookings/LimitBanner'
 import { CancelModal } from '../../components/session/CancelModal'
+import { InScreenBanner } from '../../components/bookings/InScreenBanner'
 import { useBookingStore, type FavoritePattern } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { GYM_ID } from '../../constants/dopamine'
@@ -38,8 +39,12 @@ export default function Bookings() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
   const [cancelSlotId, setCancelSlotId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  // Canal unique de bannière in-screen (promotion + délai expiré). null = rien affiché.
+  const [banner, setBanner] = useState<string | null>(null)
+  const hideBanner = useCallback(() => setBanner(null), [])
 
-  const { bookings, pastBookings, favorites, cancelBooking, confirmWaitlist, removeFavoritePattern, fetchBookings } = useBookingStore()
+  const { bookings, pastBookings, favorites, cancelBooking, confirmWaitlist, removeFavoritePattern, fetchBookings, justPromoted, clearPromotion } = useBookingStore()
 
   const days = t('home.days', { returnObjects: true }) as string[]
   const months = t('home.months', { returnObjects: true }) as string[]
@@ -57,6 +62,28 @@ export default function Bookings() {
     }, [fetchBookings])
   )
 
+  // ÉTAPE 3 — Pull-to-refresh (À venir + Historique partagent la même liste).
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) await fetchBookings(user.id)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [fetchBookings])
+
+  // ÉTAPE 4 — Bannière de promotion : le flag `justPromoted` est levé par le store dans
+  // fetchBookings (détection waitlisted → confirmed contre l'état précédent). Le store
+  // survit au remontage de l'écran, contrairement à l'ancien useRef local qui perdait la
+  // baseline et absorbait la transition. On consomme puis on remet à zéro.
+  useEffect(() => {
+    if (justPromoted) {
+      setBanner(t('bookings.waitlist_promoted_toast'))
+      clearPromotion()
+    }
+  }, [justPromoted, clearPromotion, t])
+
   const handleCancel = useCallback(async () => {
     if (cancelSlotId) {
       await cancelBooking(cancelSlotId)
@@ -67,8 +94,10 @@ export default function Bookings() {
   const handleConfirmWaitlist = useCallback(async (bookingId: string) => {
     const result = await confirmWaitlist(bookingId)
     if (result.confirmed) return
+    // ÉTAPE 5 — 410 WAITLIST_EXPIRED : même état « délai expiré » (bannière non bloquante).
+    // La carte reflète l'état expiré si la réservation est encore présente après refetch.
     if (result.code === 'WAITLIST_EXPIRED') {
-      Alert.alert(t('session.waitlist_expired_title'), t('session.waitlist_expired_message'))
+      setBanner(t('bookings.waitlist_expired_card'))
     }
   }, [confirmWaitlist, t])
 
@@ -173,7 +202,13 @@ export default function Bookings() {
       </View>
 
       {/* Content */}
-      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
+      <ScrollView
+        className="flex-1 bg-move-bg"
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" colors={['#C8F000']} />
+        }
+      >
         {/* Tabs (inside the off-white area) */}
         <BookingTabs active={activeTab} onSelect={setActiveTab} />
         {/* === UPCOMING === */}
@@ -285,6 +320,9 @@ export default function Bookings() {
         onConfirm={handleCancel}
         onClose={() => setCancelSlotId(null)}
       />
+
+      {/* ÉTAPE 4/5 — bannière in-screen (promotion waitlist / délai expiré) */}
+      <InScreenBanner message={banner} onHide={hideBanner} />
     </SafeAreaView>
   )
 }
