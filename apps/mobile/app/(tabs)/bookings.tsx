@@ -10,7 +10,7 @@ import { FavoriteCard } from '../../components/bookings/FavoriteCard'
 import { HistoryCard } from '../../components/bookings/HistoryCard'
 import { LimitBanner } from '../../components/bookings/LimitBanner'
 import { CancelModal } from '../../components/session/CancelModal'
-import { Toast } from '../../components/ui/Toast'
+import { InScreenBanner } from '../../components/bookings/InScreenBanner'
 import { useBookingStore, type FavoritePattern } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
 import { GYM_ID } from '../../constants/dopamine'
@@ -40,7 +40,9 @@ export default function Bookings() {
   const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
   const [cancelSlotId, setCancelSlotId] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [toast, setToast] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' })
+  // Canal unique de bannière in-screen (promotion + délai expiré). null = rien affiché.
+  const [banner, setBanner] = useState<string | null>(null)
+  const hideBanner = useCallback(() => setBanner(null), [])
 
   const { bookings, pastBookings, favorites, cancelBooking, confirmWaitlist, removeFavoritePattern, fetchBookings, justPromoted, clearPromotion } = useBookingStore()
 
@@ -71,13 +73,13 @@ export default function Bookings() {
     }
   }, [fetchBookings])
 
-  // ÉTAPE 4 — Toast de promotion : le flag `justPromoted` est levé par le store dans
+  // ÉTAPE 4 — Bannière de promotion : le flag `justPromoted` est levé par le store dans
   // fetchBookings (détection waitlisted → confirmed contre l'état précédent). Le store
   // survit au remontage de l'écran, contrairement à l'ancien useRef local qui perdait la
-  // baseline et absorbait la transition sans toast. On consomme puis on remet à zéro.
+  // baseline et absorbait la transition. On consomme puis on remet à zéro.
   useEffect(() => {
     if (justPromoted) {
-      setToast({ visible: true, message: t('bookings.waitlist_promoted_toast') })
+      setBanner(t('bookings.waitlist_promoted_toast'))
       clearPromotion()
     }
   }, [justPromoted, clearPromotion, t])
@@ -92,10 +94,10 @@ export default function Bookings() {
   const handleConfirmWaitlist = useCallback(async (bookingId: string) => {
     const result = await confirmWaitlist(bookingId)
     if (result.confirmed) return
-    // ÉTAPE 5 — 410 WAITLIST_EXPIRED : même état « délai expiré » (toast non bloquant).
+    // ÉTAPE 5 — 410 WAITLIST_EXPIRED : même état « délai expiré » (bannière non bloquante).
     // La carte reflète l'état expiré si la réservation est encore présente après refetch.
     if (result.code === 'WAITLIST_EXPIRED') {
-      setToast({ visible: true, message: t('bookings.waitlist_expired_card') })
+      setBanner(t('bookings.waitlist_expired_card'))
     }
   }, [confirmWaitlist, t])
 
@@ -319,13 +321,8 @@ export default function Bookings() {
         onClose={() => setCancelSlotId(null)}
       />
 
-      {/* ÉTAPE 4/5 — toast (promotion waitlist / délai expiré) */}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        variant="success"
-        onHide={() => setToast({ visible: false, message: '' })}
-      />
+      {/* ÉTAPE 4/5 — bannière in-screen (promotion waitlist / délai expiré) */}
+      <InScreenBanner message={banner} onHide={hideBanner} />
     </SafeAreaView>
   )
 }
