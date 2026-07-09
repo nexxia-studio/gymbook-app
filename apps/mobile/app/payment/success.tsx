@@ -41,7 +41,7 @@ const ctaLabel = { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' 
 export default function PaymentSuccess() {
   const { t } = useTranslation()
   const router = useRouter()
-  const params = useLocalSearchParams<{ id?: string; slot_id?: string; source?: string }>()
+  const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string }>()
   const isDropInRetry = params.source === 'drop_in' && !!params.slot_id
 
   // ============================================================
@@ -54,7 +54,7 @@ export default function PaymentSuccess() {
   // ============================================================
   // Mode classique — poll du paiement par payment.id
   // ============================================================
-  return <ClassicPaymentScreen paymentId={params.id} router={router} t={t} />
+  return <ClassicPaymentScreen rowId={params.id} mollieId={params.mollie_id} router={router} t={t} />
 }
 
 function DropInRetryScreen({ slotId }: { slotId: string }) {
@@ -171,11 +171,17 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
 }
 
 function ClassicPaymentScreen({
-  paymentId,
+  rowId,
+  mollieId,
   router,
   t,
 }: {
-  paymentId: string | undefined
+  // GYM-96 — deux clés possibles selon le mode d'arrivée :
+  //  - rowId    : payments.id, porté par le deep link (?id=…) via la redirectUrl serveur.
+  //  - mollieId : payment_id Mollie, connu par le client (réponse create-payment) → utilisé
+  //               par la NAVIGATION PROPRIÉTAIRE (écran monté avant même d'ouvrir le navigateur).
+  rowId: string | undefined
+  mollieId: string | undefined
   router: ReturnType<typeof useRouter>
   t: (key: string, opts?: Record<string, unknown>) => string
 }) {
@@ -205,12 +211,15 @@ function ClassicPaymentScreen({
   }, [router, stopPolling, goToBookings])
 
   const poll = useCallback(async () => {
-    if (settledRef.current || !paymentId) return
-    const { data } = await supabase
+    if (settledRef.current) return
+    // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
+    let query = supabase
       .from('payments')
       .select('id, status, plan_name, amount, credits_granted')
-      .eq('id', paymentId)
-      .single()
+    if (rowId) query = query.eq('id', rowId)
+    else if (mollieId) query = query.eq('mollie_payment_id', mollieId)
+    else return
+    const { data } = await query.maybeSingle()
     if (!data || settledRef.current) return
     setPayment(data as Payment)
     const s = data.status as string
@@ -224,13 +233,13 @@ function ClassicPaymentScreen({
       stopPolling()
       setStatus('failed')
     }
-  }, [paymentId, stopPolling])
+  }, [rowId, mollieId, stopPolling])
 
-  // Cycle de poll : immédiat + intervalle, borné par un timeout global ~2 min.
+  // Cycle de poll : démarre AU MONTAGE (navigation propriétaire ou deep link), immédiat +
+  // intervalle, borné par un timeout global ~2 min.
   useEffect(() => {
-    if (!paymentId) {
-      // Pas d'id dans la redirectUrl → on ne peut pas poller : on bascule sur l'état
-      // « en cours de traitement » (filet CTA vers Réservations).
+    if (!rowId && !mollieId) {
+      // Aucune clé de paiement → on ne peut pas poller : état « en cours de traitement ».
       settledRef.current = true
       setStatus('timeout')
       return
@@ -245,7 +254,7 @@ function ClassicPaymentScreen({
       }
     }, GLOBAL_TIMEOUT_MS)
     return stopPolling
-  }, [paymentId, poll, stopPolling])
+  }, [rowId, mollieId, poll, stopPolling])
 
   // Filet QA-06 : le deep link auto depuis l'app bancaire n'est pas fiable. Quand l'app
   // repasse au premier plan (retour manuel), on re-poll IMMÉDIATEMENT.
