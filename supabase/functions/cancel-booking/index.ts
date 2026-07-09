@@ -1,3 +1,6 @@
+// Redeploy 2026-07-09 — force la prise en compte de la rotation INTERNAL_FUNCTIONS_SECRET (train n°2
+// prod) : le CLI saute un bundle identique ("No change found"), ce marqueur force un nouveau déploiement.
+// Aucun changement de logique.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {

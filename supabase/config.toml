@@ -29,3 +29,7 @@ verify_jwt = true
 # GYM-85 — appel gérant authentifié (JWT requis).
 [functions.mollie-connect-oauth]
 verify_jwt = true
+
+# GYM-46 — suppression de compte in-app (JWT membre requis ; member_id = JWT, jamais body).
+[functions.delete-account]
+verify_jwt = true

@@ -23,9 +23,12 @@ interface PaymentRequiredSheetProps {
   visible: boolean
   slotId: string | null
   onClose: () => void
+  // GYM-108 — 'waitlist' quand le créneau est plein : le 402 vient d'une tentative de
+  // « rejoindre la liste d'attente » sans crédit/abo. Adapte le titre/sous-titre, mêmes CTA.
+  context?: 'book' | 'waitlist'
 }
 
-export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequiredSheetProps) {
+export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book' }: PaymentRequiredSheetProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const gymId = useAuthStore((s) => s.gym_id)
@@ -128,10 +131,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose }: PaymentRequir
               <CreditCard size={24} color="#9DB800" />
             </View>
             <Text className="mt-4 text-center font-barlow text-2xl uppercase text-move-dark">
-              {t('payment_required.title')}
+              {context === 'waitlist' ? t('payment_required.waitlist_title') : t('payment_required.title')}
             </Text>
             <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
-              {t('payment_required.subtitle')}
+              {context === 'waitlist' ? t('payment_required.waitlist_subtitle') : t('payment_required.subtitle')}
             </Text>
           </View>
 
