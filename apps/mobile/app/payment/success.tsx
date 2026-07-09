@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { View, Text, Pressable, ActivityIndicator } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { View, Text, Pressable, ActivityIndicator, AppState, Modal } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 
@@ -17,6 +18,25 @@ interface Payment {
 type DropInStatus = 'polling' | 'booking' | 'success' | 'error'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// ── GYM-96 (QA-06) — poll robuste de la page « paiement en cours ».
+// Contrat serveur (create-payment v26+) : la redirectUrl porte ?id=<payments.id>.
+// On poll la table `payments` par cet id jusqu'à un état TERMINAL.
+const POLL_INTERVAL_MS = 2500
+const GLOBAL_TIMEOUT_MS = 120_000 // ~2 min
+// Statuts terminaux d'échec (Mollie → colonne payments.status via webhook).
+const TERMINAL_FAILURE = new Set(['failed', 'canceled', 'cancelled', 'expired'])
+
+type ClassicStatus = 'polling' | 'success' | 'failed' | 'timeout'
+
+const titleStyle = {
+  fontFamily: 'BarlowCondensed_900Black',
+  fontSize: 24,
+  color: '#111111',
+  textAlign: 'center' as const,
+  letterSpacing: 2,
+}
+const ctaLabel = { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' }
 
 export default function PaymentSuccess() {
   const { t } = useTranslation()
@@ -160,79 +180,184 @@ function ClassicPaymentScreen({
   t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const [payment, setPayment] = useState<Payment | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [status, setStatus] = useState<ClassicStatus>('polling')
+  const [successVisible, setSuccessVisible] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Verrou d'état terminal : une fois SUCCÈS/ÉCHEC/TIMEOUT atteint, on ne re-poll plus.
+  const settledRef = useRef(false)
 
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
+  }, [])
+
+  const goToBookings = useCallback(() => {
+    router.replace('/(tabs)/bookings')
+  }, [router])
+
+  // QA-06 : bouton Fermer FONCTIONNEL. Coupe le poll résiduel puis revient à l'écran
+  // précédent (ou, si ouvert par deep link sans historique, atterrit sur Réservations).
+  const handleClose = useCallback(() => {
+    stopPolling()
+    if (router.canGoBack()) router.back()
+    else goToBookings()
+  }, [router, stopPolling, goToBookings])
+
+  const poll = useCallback(async () => {
+    if (settledRef.current || !paymentId) return
+    const { data } = await supabase
+      .from('payments')
+      .select('id, status, plan_name, amount, credits_granted')
+      .eq('id', paymentId)
+      .single()
+    if (!data || settledRef.current) return
+    setPayment(data as Payment)
+    const s = data.status as string
+    if (s === 'paid') {
+      settledRef.current = true
+      stopPolling()
+      setStatus('success')
+      setSuccessVisible(true)
+    } else if (TERMINAL_FAILURE.has(s)) {
+      settledRef.current = true
+      stopPolling()
+      setStatus('failed')
+    }
+  }, [paymentId, stopPolling])
+
+  // Cycle de poll : immédiat + intervalle, borné par un timeout global ~2 min.
   useEffect(() => {
     if (!paymentId) {
-      setIsLoading(false)
+      // Pas d'id dans la redirectUrl → on ne peut pas poller : on bascule sur l'état
+      // « en cours de traitement » (filet CTA vers Réservations).
+      settledRef.current = true
+      setStatus('timeout')
       return
     }
-    const fetchPayment = async () => {
-      const { data } = await supabase
-        .from('payments')
-        .select('id, status, plan_name, amount, credits_granted')
-        .eq('id', paymentId)
-        .single()
-      if (data) {
-        setPayment(data as Payment)
-        if (data.status === 'paid' && intervalRef.current) {
-          clearInterval(intervalRef.current)
-        }
-      }
-      setIsLoading(false)
-    }
-    fetchPayment()
-    intervalRef.current = setInterval(fetchPayment, 2000)
+    poll()
+    intervalRef.current = setInterval(poll, POLL_INTERVAL_MS)
     timeoutRef.current = setTimeout(() => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }, 30000)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    }
-  }, [paymentId])
+      if (!settledRef.current) {
+        settledRef.current = true
+        stopPolling()
+        setStatus('timeout')
+      }
+    }, GLOBAL_TIMEOUT_MS)
+    return stopPolling
+  }, [paymentId, poll, stopPolling])
 
-  const isPaid = payment?.status === 'paid'
+  // Filet QA-06 : le deep link auto depuis l'app bancaire n'est pas fiable. Quand l'app
+  // repasse au premier plan (retour manuel), on re-poll IMMÉDIATEMENT.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && !settledRef.current) poll()
+    })
+    return () => sub.remove()
+  }, [poll])
+
+  // Modale succès : auto-fermeture ~5 s → Réservations (onglet À venir).
+  useEffect(() => {
+    if (!successVisible) return
+    const id = setTimeout(() => {
+      setSuccessVisible(false)
+      goToBookings()
+    }, 5000)
+    return () => clearTimeout(id)
+  }, [successVisible, goToBookings])
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['top', 'bottom']}>
+      {/* Fermer (QA-06) — sauf pendant la modale succès qui a son propre CTA */}
+      <View className="flex-row justify-end px-5 pt-2">
+        <Pressable onPress={handleClose} hitSlop={12} accessibilityLabel={t('payment.close')}>
+          <X size={26} color="#111111" />
+        </Pressable>
+      </View>
+
       <View className="flex-1 items-center justify-center px-8">
-        <Text style={{ fontSize: 64, marginBottom: 16 }}>
-          {isLoading || !isPaid ? '⏳' : '✅'}
-        </Text>
-
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#111111', textAlign: 'center', letterSpacing: 2 }}>
-          {isPaid ? t('payment.success_title') : t('payment.verifying')}
-        </Text>
-
-        {isPaid && payment && (
+        {status === 'polling' && (
           <>
-            <Text className="mt-3 font-dmsans text-base text-move-text-secondary text-center">
-              {payment.plan_name} — {payment.amount}€
-            </Text>
-            <Text className="mt-1 font-dmsans-bold text-sm text-green-600 text-center">
-              {t('payment.credits_added', { count: payment.credits_granted })}
+            <ActivityIndicator size="large" color="#111111" />
+            <Text style={titleStyle} className="mt-4">{t('payment.verifying')}</Text>
+            <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
+              {t('payment.waiting_confirmation')}
             </Text>
           </>
         )}
 
-        {!isPaid && (
-          <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
-            {t('payment.waiting_confirmation')}
-          </Text>
+        {status === 'success' && (
+          <>
+            <Text style={{ fontSize: 64, marginBottom: 16 }}>✅</Text>
+            <Text style={titleStyle}>{t('payment.success_title')}</Text>
+            {payment && (
+              <>
+                <Text className="mt-3 font-dmsans text-base text-move-text-secondary text-center">
+                  {payment.plan_name} — {payment.amount}€
+                </Text>
+                <Text className="mt-1 font-dmsans-bold text-sm text-green-600 text-center">
+                  {t('payment.credits_added', { count: payment.credits_granted })}
+                </Text>
+              </>
+            )}
+            <Pressable onPress={goToBookings} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+              <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
+            </Pressable>
+          </>
         )}
 
-        <Pressable
-          onPress={() => router.replace('/(tabs)/profile')}
-          className="mt-10 w-full items-center rounded-xl bg-move-dark py-4"
-        >
-          <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' }}>
-            {t('payment.go_to_profile')}
-          </Text>
-        </Pressable>
+        {status === 'failed' && (
+          <>
+            <Text style={{ fontSize: 64, marginBottom: 16 }}>❌</Text>
+            <Text style={titleStyle}>{t('payment.failed_title')}</Text>
+            <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
+              {t('payment.failed_message')}
+            </Text>
+            <Pressable onPress={() => router.replace('/profile/subscription')} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+              <Text style={ctaLabel}>{t('payment.back_to_plans')}</Text>
+            </Pressable>
+          </>
+        )}
+
+        {status === 'timeout' && (
+          <>
+            <Text style={{ fontSize: 64, marginBottom: 16 }}>⏳</Text>
+            <Text style={titleStyle}>{t('payment.timeout_title')}</Text>
+            <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
+              {t('payment.timeout_message')}
+            </Text>
+            <Pressable onPress={goToBookings} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+              <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
+            </Pressable>
+          </>
+        )}
       </View>
+
+      {/* ÉTAPE 2 — modale succès auto-fermante (~5 s) + fermeture manuelle → Réservations */}
+      <Modal
+        visible={successVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setSuccessVisible(false); goToBookings() }}
+      >
+        <View className="flex-1 items-center justify-center bg-black/60 px-8">
+          <View className="w-full items-center rounded-3xl bg-white p-8">
+            <Text style={{ fontSize: 56, marginBottom: 12 }}>🎉</Text>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#111111', textAlign: 'center', letterSpacing: 1 }}>
+              {t('payment.modal_success_title')}
+            </Text>
+            <Text className="mt-3 font-dmsans text-sm text-move-text-secondary text-center">
+              {t('payment.modal_success_body')}
+            </Text>
+            <Pressable
+              onPress={() => { setSuccessVisible(false); goToBookings() }}
+              className="mt-8 w-full items-center rounded-xl bg-move-dark py-4"
+            >
+              <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
