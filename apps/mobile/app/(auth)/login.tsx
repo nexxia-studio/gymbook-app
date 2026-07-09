@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { TextInput } from '../../components/ui/TextInput'
 import { PasswordInput } from '../../components/ui/PasswordInput'
 import { Button } from '../../components/ui/Button'
-import { Toast } from '../../components/ui/Toast'
+import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useBiometrics } from '../../hooks/useBiometrics'
@@ -78,10 +78,10 @@ export default function Login() {
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
-      <Toast
-        message={error ? t(error) : ''}
-        visible={toastVisible}
+      <InScreenBanner
+        message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
+        anchor="top"
         variant="error"
       />
 

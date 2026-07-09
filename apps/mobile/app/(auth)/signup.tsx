@@ -8,7 +8,7 @@ import { PasswordInput } from '../../components/ui/PasswordInput'
 import { PasswordStrength } from '../../components/ui/PasswordStrength'
 import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Checkbox'
-import { Toast } from '../../components/ui/Toast'
+import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 
@@ -76,10 +76,10 @@ export default function Signup() {
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
-      <Toast
-        message={error ? t(error) : ''}
-        visible={toastVisible}
+      <InScreenBanner
+        message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
+        anchor="top"
         variant="error"
       />
 
