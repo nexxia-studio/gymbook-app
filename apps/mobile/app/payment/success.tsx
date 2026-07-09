@@ -41,7 +41,7 @@ const ctaLabel = { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' 
 export default function PaymentSuccess() {
   const { t } = useTranslation()
   const router = useRouter()
-  const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string }>()
+  const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string; returnTo?: string }>()
   const isDropInRetry = params.source === 'drop_in' && !!params.slot_id
 
   // ============================================================
@@ -54,7 +54,7 @@ export default function PaymentSuccess() {
   // ============================================================
   // Mode classique — poll du paiement par payment.id
   // ============================================================
-  return <ClassicPaymentScreen rowId={params.id} mollieId={params.mollie_id} router={router} t={t} />
+  return <ClassicPaymentScreen rowId={params.id} mollieId={params.mollie_id} returnTo={params.returnTo} router={router} t={t} />
 }
 
 function DropInRetryScreen({ slotId }: { slotId: string }) {
@@ -173,6 +173,7 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
 function ClassicPaymentScreen({
   rowId,
   mollieId,
+  returnTo,
   router,
   t,
 }: {
@@ -182,6 +183,9 @@ function ClassicPaymentScreen({
   //               par la NAVIGATION PROPRIÉTAIRE (écran monté avant même d'ouvrir le navigateur).
   rowId: string | undefined
   mollieId: string | undefined
+  // Destination post-succès contextuelle : renseignée par l'écran d'achat (ex. mon abonnement).
+  // Absente (deep link pur) → défaut Réservations > À venir.
+  returnTo: string | undefined
   router: ReturnType<typeof useRouter>
   t: (key: string, opts?: Record<string, unknown>) => string
 }) {
@@ -201,6 +205,12 @@ function ClassicPaymentScreen({
   const goToBookings = useCallback(() => {
     router.replace('/(tabs)/bookings')
   }, [router])
+
+  // Destination post-succès contextuelle : returnTo si l'achat vient d'un écran précis
+  // (ex. mon abonnement → le membre voit ses crédits), sinon défaut Réservations > À venir.
+  const goToSuccessDestination = useCallback(() => {
+    router.replace((returnTo ?? '/(tabs)/bookings') as never)
+  }, [router, returnTo])
 
   // QA-06 : bouton Fermer FONCTIONNEL. Coupe le poll résiduel puis revient à l'écran
   // précédent (ou, si ouvert par deep link sans historique, atterrit sur Réservations).
@@ -265,15 +275,15 @@ function ClassicPaymentScreen({
     return () => sub.remove()
   }, [poll])
 
-  // Modale succès : auto-fermeture ~5 s → Réservations (onglet À venir).
+  // Modale succès : auto-fermeture ~5 s → destination contextuelle (returnTo ou À venir).
   useEffect(() => {
     if (!successVisible) return
     const id = setTimeout(() => {
       setSuccessVisible(false)
-      goToBookings()
+      goToSuccessDestination()
     }, 5000)
     return () => clearTimeout(id)
-  }, [successVisible, goToBookings])
+  }, [successVisible, goToSuccessDestination])
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['top', 'bottom']}>
@@ -347,7 +357,7 @@ function ClassicPaymentScreen({
         visible={successVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => { setSuccessVisible(false); goToBookings() }}
+        onRequestClose={() => { setSuccessVisible(false); goToSuccessDestination() }}
       >
         <View className="flex-1 items-center justify-center bg-black/60 px-8">
           <View className="w-full items-center rounded-3xl bg-white p-8">
@@ -359,7 +369,7 @@ function ClassicPaymentScreen({
               {t('payment.modal_success_body')}
             </Text>
             <Pressable
-              onPress={() => { setSuccessVisible(false); goToBookings() }}
+              onPress={() => { setSuccessVisible(false); goToSuccessDestination() }}
               className="mt-8 w-full items-center rounded-xl bg-move-dark py-4"
             >
               <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>

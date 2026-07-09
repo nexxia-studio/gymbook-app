@@ -264,7 +264,7 @@ export default function SubscriptionScreen() {
         // ici) ; l'écran poll `payments` par mollie_payment_id à défaut du row id du deep link.
         // Récurrent : pas de ligne `payments` à poller → on garde le comportement existant.
         if (plan.billingType === 'one_time' && result.paymentId) {
-          router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId } })
+          router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }
         await openCheckout(result.checkoutUrl)
         return
