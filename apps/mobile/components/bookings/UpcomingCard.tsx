@@ -12,18 +12,30 @@ interface UpcomingCardProps {
   dayLabel: string
 }
 
-function isWaitlistNotified(booking: Booking): boolean {
-  if (booking.status !== 'waitlisted' || booking.waitlistNotifiedAt === null) return false
-  const deadline = booking.waitlistConfirmationDeadline
+function waitlistDeadlineMs(booking: Booking): number | null {
+  if (booking.status !== 'waitlisted' || booking.waitlistNotifiedAt === null) return null
+  return booking.waitlistConfirmationDeadline
     ? new Date(booking.waitlistConfirmationDeadline).getTime()
     : new Date(booking.waitlistNotifiedAt).getTime() + 30 * 60 * 1000
-  return Date.now() < deadline
+}
+
+function isWaitlistNotified(booking: Booking): boolean {
+  const deadline = waitlistDeadlineMs(booking)
+  return deadline !== null && Date.now() < deadline
+}
+
+// ÉTAPE 5 — waitlist notifiée dont le délai est écoulé (statut encore waitlisted côté
+// client) : la place a été proposée au suivant. Cohérent avec le 410 WAITLIST_EXPIRED.
+function isWaitlistExpired(booking: Booking): boolean {
+  const deadline = waitlistDeadlineMs(booking)
+  return deadline !== null && Date.now() >= deadline
 }
 
 export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistExpire, dayLabel }: UpcomingCardProps) {
   const { t } = useTranslation()
 
   const notified = isWaitlistNotified(booking)
+  const expired = isWaitlistExpired(booking)
   const statusKey = booking.status === 'waitlisted' ? 'status_waitlisted' : 'status_confirmed'
   const isWaitlisted = booking.status === 'waitlisted'
   const badgeBg = isWaitlisted ? 'bg-orange-500' : 'bg-green-500'
@@ -80,6 +92,15 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
                     {t('bookings.confirm_my_place').toUpperCase()}
                   </Text>
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* ÉTAPE 5 — délai expiré : la place est passée au suivant (pas de bouton Confirmer) */}
+            {expired && (
+              <View className="mt-3 rounded-lg bg-red-500/15 px-3 py-2.5">
+                <Text className="font-dmsans-bold text-xs text-red-400">
+                  {t('bookings.waitlist_expired_card')}
+                </Text>
               </View>
             )}
 
