@@ -37,7 +37,7 @@ export default function ForgotPassword() {
             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent-dim/10">
               <Mail className="h-8 w-8 text-accent-dim" />
             </div>
-            <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark">
+            <h1 className="font-display text-3xl font-black tracking-tight text-dark">
               {t('auth.check_email')}
             </h1>
             <p className="mt-3 font-body text-sm leading-relaxed text-dark/50">
@@ -54,7 +54,7 @@ export default function ForgotPassword() {
         ) : (
           <>
             <div className="text-center">
-              <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark">
+              <h1 className="font-display text-3xl font-black tracking-tight text-dark">
                 {t('auth.forgot_password_title')}
               </h1>
               <p className="mt-2 font-body text-sm text-dark/50">

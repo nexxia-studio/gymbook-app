@@ -163,7 +163,7 @@ export default function Settings() {
   return (
     <DashboardLayout>
       {/* Page header */}
-      <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+      <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('settings.title')}
       </h1>
 

@@ -137,7 +137,7 @@ export default function Members() {
     <DashboardLayout>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
             {t('members.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">

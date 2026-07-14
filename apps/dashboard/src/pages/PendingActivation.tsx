@@ -26,7 +26,7 @@ export default function PendingActivation() {
           <img src={vinizWordmark} alt="Viniz" className="h-9 w-9 rounded-lg" />
         </div>
 
-        <h1 className="mt-4 font-display text-2xl font-black uppercase tracking-tight text-dark">
+        <h1 className="mt-4 font-display text-2xl font-black tracking-tight text-dark">
           {t('pending.title')}
         </h1>
 

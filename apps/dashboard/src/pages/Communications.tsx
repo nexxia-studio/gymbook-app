@@ -153,7 +153,7 @@ export default function Communications() {
     <DashboardLayout>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <div className="mb-6">
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark">
             {t('communications.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">{t('communications.subtitle')}</p>

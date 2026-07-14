@@ -87,7 +87,7 @@ export default function Support() {
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="mb-3 font-display text-3xl font-black uppercase tracking-tight text-dark">
+        <h1 className="mb-3 font-display text-3xl font-black tracking-tight text-dark">
           {c.title}
         </h1>
         <p className="mb-8 text-sm leading-6 text-secondary">{c.intro}</p>
