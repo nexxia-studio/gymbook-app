@@ -191,7 +191,7 @@ export function MollieConnectCard() {
             {isConnecting ? 'Redirection vers Mollie...' : 'Connecter Mollie'}
           </button>
           <p className="mt-2 text-center font-body text-xs text-muted">
-            Vous serez redirigé vers Mollie pour autoriser GymBook
+            Vous serez redirigé vers Mollie pour autoriser Viniz
           </p>
         </div>
       )}

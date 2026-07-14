@@ -48,7 +48,7 @@ export function Header() {
 
       {/* Breadcrumb */}
       <div className="hidden items-center gap-2 font-body text-sm lg:flex">
-        <span className="text-muted">GymBook</span>
+        <span className="text-muted">Viniz</span>
         {pageLabel && (
           <>
             <span className="text-muted">/</span>
@@ -92,8 +92,8 @@ export function Header() {
         <span className="animate-badge absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
       </button>
 
-      {/* Avatar */}
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 font-body text-xs font-bold text-accent">
+      {/* Avatar — header clair : accent en texte = indigo (accent-dim), lime interdit sur clair */}
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 font-body text-xs font-bold text-accent-dim">
         {firstName.charAt(0)}{lastName.charAt(0)}
       </div>
     </header>

@@ -115,7 +115,7 @@ export default function Members() {
     search, setSearch, statusFilter, setStatusFilter,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
-  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
 
   async function handleLiftSuspension(member: Member) {
     await liftSuspension(member.id, 'Lifted by admin')

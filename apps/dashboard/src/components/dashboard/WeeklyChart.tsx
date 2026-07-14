@@ -52,7 +52,7 @@ export function WeeklyChart({ loading }: { loading: boolean }) {
                 fontSize: 13,
               }}
             />
-            <Bar dataKey="bookings" fill="#C8F000" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="bookings" fill="#4827B4" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -39,8 +39,8 @@ export function RevenueChart({ data }: { data: RevenueBucket[] }) {
           cursor={{ fill: 'rgba(0,0,0,0.04)' }}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar dataKey="oneTime" stackId="rev" name={t('revenue.chart_one_time')} fill="#111111" />
-        <Bar dataKey="subscription" stackId="rev" name={t('revenue.chart_subscription')} fill="#9DB800" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="oneTime" stackId="rev" name={t('revenue.chart_one_time')} fill="#8E86B5" />
+        <Bar dataKey="subscription" stackId="rev" name={t('revenue.chart_subscription')} fill="#4827B4" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )

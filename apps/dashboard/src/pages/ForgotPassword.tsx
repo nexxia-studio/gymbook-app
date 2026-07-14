@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Dumbbell, Mail } from 'lucide-react'
+import { ArrowLeft, Mail } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
+import vinizWordmark from '@/assets/brand/viniz-wordmark.svg'
 
 export default function ForgotPassword() {
   const { t } = useTranslation()
@@ -27,11 +28,8 @@ export default function ForgotPassword() {
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-[440px]">
         {/* Logo */}
-        <div className="mb-10 flex items-center justify-center gap-2">
-          <Dumbbell className="h-7 w-7 text-accent" />
-          <span className="font-display text-2xl font-black uppercase tracking-tight text-dark">
-            GymBook
-          </span>
+        <div className="mb-10 flex items-center justify-center">
+          <img src={vinizWordmark} alt="Viniz" className="h-11 w-11 rounded-xl" />
         </div>
 
         {sent ? (

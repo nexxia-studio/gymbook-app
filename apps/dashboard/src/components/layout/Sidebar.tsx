@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Dumbbell,
   LayoutDashboard,
   Calendar,
   Users,
@@ -15,6 +14,7 @@ import {
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymStore } from '@/stores/useGymStore'
 import { useUIStore } from '@/stores/useUIStore'
+import vinizWordmark from '@/assets/brand/viniz-wordmark.svg'
 
 const NAV_ITEMS = [
   { key: 'dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -30,7 +30,7 @@ export function Sidebar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, signOut } = useAuthStore()
-  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
   const { sidebarOpen, toggleSidebar } = useUIStore()
 
   const firstName = user?.user_metadata?.first_name ?? ''
@@ -61,19 +61,16 @@ export function Sidebar() {
         {/* Header */}
         <div className="flex h-16 items-center justify-between px-5">
           <div className="flex items-center gap-2">
-            <Dumbbell className="h-6 w-6 text-accent" />
-            <span className="font-display text-xl font-black uppercase tracking-tight text-accent">
-              GymBook
-            </span>
+            <img src={vinizWordmark} alt="Viniz" className="h-9 w-9 rounded-lg" />
           </div>
-          <button onClick={toggleSidebar} className="text-muted lg:hidden">
+          <button onClick={toggleSidebar} className="text-sidebar-text/70 lg:hidden">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Gym name */}
         <div className="px-5 pb-4">
-          <span className="font-body text-xs text-muted">{gymName}</span>
+          <span className="font-body text-xs text-sidebar-text/50">{gymName}</span>
         </div>
 
         <div className="mx-5 border-t border-white/10" />
@@ -90,8 +87,8 @@ export function Sidebar() {
               className={({ isActive }) =>
                 `group flex items-center gap-3 rounded-lg px-3 py-2.5 font-body text-sm transition-all duration-150 ${
                   isActive
-                    ? 'bg-accent font-semibold text-[#111111]'
-                    : 'text-muted hover:translate-x-0.5 hover:text-sidebar-text'
+                    ? 'bg-accent font-semibold text-[#17102E]'
+                    : 'text-sidebar-text/55 hover:translate-x-0.5 hover:text-sidebar-text'
                 }`
               }
             >
@@ -111,7 +108,7 @@ export function Sidebar() {
               <p className="truncate font-body text-sm font-medium text-sidebar-text">
                 {firstName} {lastName}
               </p>
-              <p className="truncate font-body text-xs text-muted">{email}</p>
+              <p className="truncate font-body text-xs text-sidebar-text/50">{email}</p>
             </div>
             <button
               onClick={handleSignOut}

@@ -300,7 +300,7 @@ export default function Planning() {
       <button
         type="button"
         onClick={() => setCreateModalOpen(true)}
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#111111] text-[#C8F000] shadow-lg transition-transform hover:scale-105 dark:bg-[#C8F000] dark:text-[#111111] sm:hidden"
+        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#4827B4] text-[#C8FF3D] shadow-lg transition-transform hover:scale-105 dark:bg-[#C8FF3D] dark:text-[#17102E] sm:hidden"
       >
         <Plus className="h-6 w-6" />
       </button>

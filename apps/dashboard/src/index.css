@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* === Polices de marque Viniz (assets/brand, licence client) ===
+   MuseoModerno : variable 100–900 (titres + wordmark).
+   Helvetica Now Display : Bold uniquement (UI/CTA/titres courts). */
+@font-face {
+  font-family: "MuseoModerno";
+  src: url("./assets/brand/MuseoModerno-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Helvetica Now Display";
+  src: url("./assets/brand/HelveticaNowDisplay-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --color-background: var(--bg-primary);
   --color-card: var(--bg-card);
@@ -9,33 +27,46 @@
   --color-border: var(--border-color);
   --color-sidebar: var(--sidebar-bg);
   --color-sidebar-text: var(--sidebar-text);
-  --color-accent: #C8F000;
-  --color-accent-dim: #9DB800;
 
-  --font-display: "Barlow Condensed", sans-serif;
-  --font-body: "DM Sans", sans-serif;
+  /* Marque Viniz */
+  --color-primary: #4827B4;      /* Indigo (primaire) */
+  --color-primary-2: #3A2585;    /* Violet surface (élevé, sombre) */
+  --color-accent: var(--accent);         /* Neon Lime #C8FF3D */
+  --color-accent-dim: var(--accent-dim); /* mode-aware : indigo (clair) / lime (sombre) */
+
+  /* Typo : MuseoModerno = titres/wordmark · Helvetica Now Display Bold = UI/CTA
+     · corps long = système (Helvetica n'a que le Bold sous licence). */
+  --font-display: "MuseoModerno", "Barlow Condensed", sans-serif;
+  --font-ui: "Helvetica Now Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 :root {
-  --bg-primary: #F5F4F0;
+  /* Mode clair — Pale Lilac. RÈGLE A11Y : lime INTERDIT en texte sur fond clair → indigo. */
+  --bg-primary: #F6F4FF;
   --bg-card: #FFFFFF;
-  --text-primary: #111111;
-  --text-secondary: #6B6861;
-  --text-muted: #9A9890;
-  --border-color: #E8E6E0;
-  --sidebar-bg: #111111;
-  --sidebar-text: #FFFFFF;
+  --text-primary: #4827B4;   /* Indigo — UI / texte fort */
+  --text-secondary: #6B5E9C; /* Violet doux */
+  --text-muted: #8E86B5;
+  --border-color: #E4DEFB;
+  --sidebar-bg: #241553;     /* indigo profond (surface sombre → lime autorisé dessus) */
+  --sidebar-text: #F3F0FF;
+  --accent: #C8FF3D;         /* Neon Lime — fills OK partout, texte sur fond sombre seulement */
+  --accent-dim: #4827B4;     /* accent utilisable en texte sur fond clair = indigo */
 }
 
 .dark {
-  --bg-primary: #0F0F0F;
-  --bg-card: #1A1A1A;
-  --text-primary: #F5F4F0;
-  --text-secondary: #9A9890;
-  --text-muted: #6B6861;
-  --border-color: #2A2A2A;
-  --sidebar-bg: #0A0A0A;
-  --sidebar-text: #F5F4F0;
+  /* Mode sombre — indigo/violet. Lime autorisé (fond sombre). */
+  --bg-primary: #17102E;     /* indigo quasi-noir */
+  --bg-card: #3A2585;        /* Violet surface (élevé) */
+  --text-primary: #F3F0FF;   /* texte clair */
+  --text-secondary: #C8C2E6; /* Lavande */
+  --text-muted: #9A93C4;
+  --border-color: #4A3A8C;
+  --sidebar-bg: #150D33;
+  --sidebar-text: #F3F0FF;
+  --accent: #C8FF3D;
+  --accent-dim: #C8FF3D;     /* accent en texte sur fond sombre = lime */
 }
 
 body {
@@ -70,11 +101,11 @@ body {
 /* === FullCalendar — GymBook design tokens === */
 :root {
   --fc-border-color: rgba(0, 0, 0, 0.08);
-  --fc-today-bg-color: rgba(200, 240, 0, 0.05);
+  --fc-today-bg-color: rgba(72, 39, 180, 0.05);
   --fc-now-indicator-color: #EF4444;
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: transparent;
-  --fc-highlight-color: rgba(200, 240, 0, 0.12);
+  --fc-highlight-color: rgba(72, 39, 180, 0.10);
   --fc-event-selected-overlay-color: rgba(0, 0, 0, 0.25);
   --fc-small-font-size: 11px;
 }
@@ -170,8 +201,8 @@ body {
 /* Dark mode */
 .dark {
   --fc-border-color: rgba(255, 255, 255, 0.08);
-  --fc-today-bg-color: rgba(200, 240, 0, 0.08);
-  --fc-highlight-color: rgba(200, 240, 0, 0.15);
+  --fc-today-bg-color: rgba(200, 255, 61, 0.08);
+  --fc-highlight-color: rgba(200, 255, 61, 0.15);
 }
 .dark .fc .fc-col-header-cell-cushion { color: #9CA3AF; }
 .dark .fc .fc-day-today .fc-col-header-cell-cushion { color: #FFFFFF; }

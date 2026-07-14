@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Dumbbell } from 'lucide-react'
 import type { ReactNode } from 'react'
+import vinizWordmark from '@/assets/brand/viniz-wordmark.svg'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -16,10 +16,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* Left panel — hidden on mobile */}
       <div className="relative hidden w-[40%] flex-col justify-between bg-dark p-10 lg:flex">
         <div className="flex items-center gap-2">
-          <Dumbbell className="h-7 w-7 text-accent" />
-          <span className="font-display text-2xl font-black uppercase tracking-tight text-white">
-            GymBook
-          </span>
+          <img src={vinizWordmark} alt="Viniz" className="h-11 w-11 rounded-xl" />
         </div>
 
         <div>
@@ -32,7 +29,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
 
         <p className="font-body text-xs text-white/20">
-          &copy; {new Date().getFullYear()} GymBook by Nexxia
+          &copy; {new Date().getFullYear()} Viniz by Nexxia
         </p>
       </div>
 
@@ -57,10 +54,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         {/* Mobile logo */}
         <div className="flex items-center gap-2 p-6 lg:hidden">
-          <Dumbbell className="h-6 w-6 text-accent" />
-          <span className="font-display text-xl font-black uppercase tracking-tight text-dark">
-            GymBook
-          </span>
+          <img src={vinizWordmark} alt="Viniz" className="h-9 w-9 rounded-lg" />
         </div>
 
         {/* Form area */}

@@ -40,7 +40,7 @@ export default function Communications() {
   const addToast = useToastStore((s) => s.addToast)
   const gymId = useAuthStore((s) => s.gym_id)
   const user = useAuthStore((s) => s.user)
-  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
 
   const [template, setTemplate] = useState<Template>('info')
   const [title, setTitle] = useState('')
