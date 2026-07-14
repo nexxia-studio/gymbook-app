@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <h1 className="mb-6 font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+      <h1 className="mb-6 font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('dashboard.greeting', { name: firstName })}
       </h1>
 

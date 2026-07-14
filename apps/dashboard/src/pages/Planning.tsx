@@ -149,7 +149,7 @@ export default function Planning() {
       {/* Page header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
             {t('planning.title')}
           </h1>
           <p className="mt-1 font-body text-sm font-bold text-dark">
@@ -167,7 +167,7 @@ export default function Planning() {
                 onClick={() => handleViewChange(v)}
                 className={`rounded-lg px-3 py-1.5 font-body text-xs font-semibold transition-colors ${
                   view === v
-                    ? 'bg-accent text-dark'
+                    ? 'bg-accent text-[#17102E]'
                     : 'text-muted hover:bg-dark/5 hover:text-dark'
                 }`}
               >
@@ -300,7 +300,7 @@ export default function Planning() {
       <button
         type="button"
         onClick={() => setCreateModalOpen(true)}
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#111111] text-[#C8F000] shadow-lg transition-transform hover:scale-105 dark:bg-[#C8F000] dark:text-[#111111] sm:hidden"
+        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#4827B4] text-[#C8FF3D] shadow-lg transition-transform hover:scale-105 dark:bg-[#C8FF3D] dark:text-[#17102E] sm:hidden"
       >
         <Plus className="h-6 w-6" />
       </button>

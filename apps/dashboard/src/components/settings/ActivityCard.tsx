@@ -82,7 +82,7 @@ export function ActivityCard({ activity, onEdit, onDuplicate, onDelete, onToggle
         </div>
 
         {/* Name */}
-        <h3 className="font-display text-lg font-black uppercase tracking-tight text-dark">
+        <h3 className="font-display text-lg font-black tracking-tight text-dark">
           {activity.name}
         </h3>
 
@@ -113,7 +113,7 @@ export function ActivityCard({ activity, onEdit, onDuplicate, onDelete, onToggle
             type="button"
             onClick={onToggle}
             className={`relative h-6 w-11 rounded-full transition-colors ${
-              activity.active ? 'bg-accent' : 'bg-dark/15'
+              activity.active ? 'bg-accent-dim' : 'bg-dark/15'
             }`}
           >
             <span

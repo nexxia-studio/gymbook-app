@@ -35,7 +35,7 @@ export function CoachDeleteModal({ coach, futureSlotCount, onClose, onConfirm }:
             <Trash2 className="h-7 w-7 text-red-500" />
           </div>
 
-          <h2 className="text-center font-display text-xl font-black uppercase tracking-tight text-dark">
+          <h2 className="text-center font-display text-xl font-black tracking-tight text-dark">
             {t('coaches.delete_title')}
           </h2>
 

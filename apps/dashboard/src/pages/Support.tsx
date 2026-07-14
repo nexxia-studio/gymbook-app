@@ -87,7 +87,7 @@ export default function Support() {
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="mb-3 font-display text-3xl font-black uppercase tracking-tight text-dark">
+        <h1 className="mb-3 font-display text-3xl font-black tracking-tight text-dark">
           {c.title}
         </h1>
         <p className="mb-8 text-sm leading-6 text-secondary">{c.intro}</p>
@@ -98,9 +98,9 @@ export default function Support() {
           <p className="mb-4 text-sm leading-6 text-secondary">{c.contactBody}</p>
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-dark px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-dark/90"
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-[#17102E] transition-opacity hover:opacity-90"
           >
-            <Mail size={16} className="text-accent" />
+            <Mail size={16} />
             {SUPPORT_EMAIL}
           </a>
         </section>

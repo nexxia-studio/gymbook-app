@@ -29,7 +29,7 @@ export default function Login() {
   return (
     <AuthLayout>
       <div>
-        <h1 className="font-display text-4xl font-black uppercase tracking-tight text-dark">
+        <h1 className="font-display text-4xl font-black tracking-tight text-dark">
           {t('auth.login_title')}
         </h1>
         <p className="mt-2 font-body text-sm text-dark/50">

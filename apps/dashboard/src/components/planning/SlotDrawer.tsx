@@ -14,7 +14,7 @@ interface SlotDrawerProps {
 }
 
 const statusColors: Record<DisplayStatus, string> = {
-  scheduled: 'bg-accent/15 text-accent-dim',
+  scheduled: 'bg-accent-dim/15 text-accent-dim',
   completed: 'bg-dark/5 text-muted',
   cancelled: 'bg-red-50 text-red-500',
   in_progress: 'bg-green-500/15 text-green-600',
@@ -55,7 +55,7 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
           <>
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border p-5">
-              <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+              <h2 className="font-display text-xl font-black tracking-tight text-dark">
                 {t('planning.slot_detail')}
               </h2>
               <button onClick={onClose} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-dark/5">
@@ -72,7 +72,7 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                   style={{ backgroundColor: `${slot.activity.color}30` }}
                 />
                 <div>
-                  <h3 className="font-display text-2xl font-black uppercase tracking-tight text-dark">
+                  <h3 className="font-display text-2xl font-black tracking-tight text-dark">
                     {slot.activity.name}
                   </h3>
                   {(() => {
@@ -138,7 +138,7 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                       const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase() || (member.email[0] ?? '?').toUpperCase()
                       return (
                         <div key={member.bookingId} className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/10 font-body text-xs font-bold text-accent-dim">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-dim/10 font-body text-xs font-bold text-accent-dim">
                             {member.avatarUrl ? (
                               <img src={member.avatarUrl} alt={fullName} className="h-full w-full object-cover" />
                             ) : (

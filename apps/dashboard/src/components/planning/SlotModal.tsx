@@ -175,7 +175,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
       <div className="flex h-full flex-col bg-card md:h-auto md:max-h-[90vh] md:rounded-2xl md:shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-5">
-          <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+          <h2 className="font-display text-xl font-black tracking-tight text-dark">
             {isEdit ? t('slots.edit_title') : t('slots.create_title')}
           </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-dark/5">
@@ -249,7 +249,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
                     onClick={() => setForm((f) => ({ ...f, startTime: time }))}
                     className={`rounded px-2 py-0.5 font-body text-[10px] transition-colors ${
                       form.startTime === time
-                        ? 'bg-accent text-[#111111]'
+                        ? 'bg-accent text-[#17102E]'
                         : 'bg-dark/5 text-muted hover:bg-dark/10'
                     }`}
                   >
@@ -350,7 +350,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
                       />
                     </div>
                     {repeatPreview && (
-                      <p className="rounded-lg bg-accent/10 px-3 py-2 font-body text-xs text-accent-dim">
+                      <p className="rounded-lg bg-accent-dim/10 px-3 py-2 font-body text-xs text-accent-dim">
                         {t('slots.repeat_preview', {
                           count: repeatPreview.count,
                           start: repeatPreview.start,

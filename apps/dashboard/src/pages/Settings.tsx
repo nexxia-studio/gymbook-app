@@ -163,7 +163,7 @@ export default function Settings() {
   return (
     <DashboardLayout>
       {/* Page header */}
-      <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+      <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('settings.title')}
       </h1>
 
@@ -176,7 +176,7 @@ export default function Settings() {
             onClick={() => setActiveTab(tab)}
             className={`shrink-0 border-b-2 px-4 py-2.5 font-body text-sm font-medium transition-colors ${
               activeTab === tab
-                ? 'border-accent text-dark'
+                ? 'border-accent-dim text-dark'
                 : 'border-transparent text-muted hover:text-dark'
             }`}
           >
@@ -192,7 +192,7 @@ export default function Settings() {
           <>
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+                <h2 className="font-display text-xl font-black tracking-tight text-dark">
                   {t('activities.title')}
                 </h2>
                 <p className="mt-1 font-body text-sm text-muted">{t('activities.subtitle')}</p>
@@ -230,7 +230,7 @@ export default function Settings() {
           <>
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+                <h2 className="font-display text-xl font-black tracking-tight text-dark">
                   {t('coaches.title')}
                 </h2>
                 <p className="mt-1 font-body text-sm text-muted">{t('coaches.subtitle')}</p>

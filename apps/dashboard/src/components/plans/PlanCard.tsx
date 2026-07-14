@@ -30,7 +30,7 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
           (le nom de formule respire à 375px en 2 colonnes) */}
       <span
         className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-          plan.active ? 'bg-green-100 text-green-600' : 'bg-dark/10 text-muted'
+          plan.active ? 'bg-green-100 text-green-600 dark:bg-accent dark:text-[#17102E]' : 'bg-dark/10 text-muted'
         }`}
       >
         {plan.active ? t('plans.active') : t('plans.inactive')}
@@ -38,10 +38,12 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
 
       {/* Nom + populaire */}
       <div className="mt-2 flex min-w-0 items-center gap-1.5">
-        <h3 className="truncate font-display text-lg font-black uppercase tracking-tight text-dark">
+        <h3 className="truncate font-display text-lg font-black tracking-tight text-dark">
           {plan.name}
         </h3>
-        {plan.isPopular && <Star className="h-4 w-4 shrink-0 fill-orange-500 text-orange-500" />}
+        {/* Étoile « populaire »/« favori » — mode-aware (accent-dim) : indigo sur card claire
+            (règle : lime jamais en icône sur clair), lime en mode sombre. */}
+        {plan.isPopular && <Star className="h-4 w-4 shrink-0 fill-accent-dim text-accent-dim" />}
       </div>
 
       {/* Type lisible */}
