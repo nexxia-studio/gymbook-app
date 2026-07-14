@@ -249,7 +249,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
                     onClick={() => setForm((f) => ({ ...f, startTime: time }))}
                     className={`rounded px-2 py-0.5 font-body text-[10px] transition-colors ${
                       form.startTime === time
-                        ? 'bg-accent text-[#111111]'
+                        ? 'bg-accent text-[#17102E]'
                         : 'bg-dark/5 text-muted hover:bg-dark/10'
                     }`}
                   >

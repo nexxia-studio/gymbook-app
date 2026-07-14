@@ -155,7 +155,7 @@ export function TodayPlanning() {
                 </div>
 
                 {displayStatus === 'scheduled' ? (
-                  <span className="shrink-0 rounded-lg bg-accent px-2.5 py-1 font-body text-xs font-medium text-[#111111]">
+                  <span className="shrink-0 rounded-lg bg-accent px-2.5 py-1 font-body text-xs font-medium text-[#17102E]">
                     {t('dashboard.slot_status.scheduled')}
                   </span>
                 ) : (

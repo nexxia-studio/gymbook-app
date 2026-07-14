@@ -29,10 +29,10 @@ function Pill({
       onClick={onClick}
       className={`shrink-0 rounded-lg px-3 py-1.5 font-body text-xs font-medium transition-all ${
         active
-          ? 'bg-accent text-[#111111]'
+          ? 'bg-accent text-[#17102E]'
           : 'bg-card text-secondary hover:bg-dark/5'
       }`}
-      style={active && color ? { backgroundColor: color, color: '#111111' } : undefined}
+      style={active && color ? { backgroundColor: color, color: '#17102E' } : undefined}
     >
       {label}
     </button>

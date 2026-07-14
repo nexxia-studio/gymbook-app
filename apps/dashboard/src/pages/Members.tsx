@@ -165,7 +165,7 @@ export default function Members() {
               onClick={() => setStatusFilter(f.key)}
               className={`rounded-lg px-3 py-1.5 font-body text-xs font-medium transition-colors ${
                 statusFilter === f.key
-                  ? 'bg-accent text-[#111111]'
+                  ? 'bg-accent text-[#17102E]'
                   : 'bg-card text-secondary hover:bg-dark/5'
               }`}
             >

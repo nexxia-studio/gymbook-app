@@ -223,7 +223,7 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
                       }
                       className={`rounded-lg px-3 py-1.5 font-body text-xs font-medium transition-all ${
                         selected
-                          ? 'bg-accent text-[#111111]'
+                          ? 'bg-accent text-[#17102E]'
                           : 'bg-dark/5 text-muted hover:bg-dark/10'
                       }`}
                     >
