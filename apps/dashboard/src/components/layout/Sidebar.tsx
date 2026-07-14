@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Dumbbell,
   LayoutDashboard,
   Calendar,
   Users,
@@ -15,6 +14,7 @@ import {
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymStore } from '@/stores/useGymStore'
 import { useUIStore } from '@/stores/useUIStore'
+import vinizLogo from '@/assets/brand/viniz-logo-horizontal-lime.svg'
 
 const NAV_ITEMS = [
   { key: 'dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -30,7 +30,7 @@ export function Sidebar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, signOut } = useAuthStore()
-  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
   const { sidebarOpen, toggleSidebar } = useUIStore()
 
   const firstName = user?.user_metadata?.first_name ?? ''
@@ -58,22 +58,27 @@ export function Sidebar() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between px-5">
-          <div className="flex items-center gap-2">
-            <Dumbbell className="h-6 w-6 text-accent" />
-            <span className="font-display text-xl font-black uppercase tracking-tight text-accent">
-              GymBook
-            </span>
+        {/* Header — logo horizontal Viniz centré. Le SVG est exporté sur un canevas carré
+            (contenu horizontal centré, marges transparentes) : on recadre via un conteneur
+            à hauteur fixe + overflow-hidden avec l'image surdimensionnée et centrée, plutôt
+            que d'altérer l'asset. Lime lisible sur indigo (clair) comme sur #150D33 (sombre). */}
+        <div className="relative flex h-16 items-center justify-center px-4">
+          <div className="relative h-9 w-[180px] overflow-hidden">
+            <img
+              src={vinizLogo}
+              alt="Viniz"
+              className="absolute left-1/2 top-1/2 w-[180px] max-w-none -translate-x-1/2 -translate-y-1/2"
+            />
           </div>
-          <button onClick={toggleSidebar} className="text-muted lg:hidden">
+          <button onClick={toggleSidebar} className="absolute right-4 text-sidebar-text/70 lg:hidden">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Gym name */}
-        <div className="px-5 pb-4">
-          <span className="font-body text-xs text-muted">{gymName}</span>
+        {/* Gym name — couleur mode-aware (text-sidebar-name) : var(--color-card) = blanc en
+            clair sur sidebar indigo ; var(--color-light) #F3F0FF en sombre (lisible sur #150D33). */}
+        <div className="px-5 pb-4 text-center">
+          <span className="font-body text-xs text-sidebar-name">{gymName}</span>
         </div>
 
         <div className="mx-5 border-t border-white/10" />
@@ -90,8 +95,8 @@ export function Sidebar() {
               className={({ isActive }) =>
                 `group flex items-center gap-3 rounded-lg px-3 py-2.5 font-body text-sm transition-all duration-150 ${
                   isActive
-                    ? 'bg-accent font-semibold text-[#111111]'
-                    : 'text-muted hover:translate-x-0.5 hover:text-sidebar-text'
+                    ? 'bg-accent font-semibold text-[#17102E]'
+                    : 'text-sidebar-text/55 hover:translate-x-0.5 hover:text-sidebar-text'
                 }`
               }
             >
@@ -111,7 +116,7 @@ export function Sidebar() {
               <p className="truncate font-body text-sm font-medium text-sidebar-text">
                 {firstName} {lastName}
               </p>
-              <p className="truncate font-body text-xs text-muted">{email}</p>
+              <p className="truncate font-body text-xs text-sidebar-text/50">{email}</p>
             </div>
             <button
               onClick={handleSignOut}

@@ -3,7 +3,7 @@ import { CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react'
 import { useToastStore, type ToastVariant } from '@/hooks/useToast'
 
 const variantConfig: Record<ToastVariant, { bg: string; icon: typeof CheckCircle }> = {
-  success: { bg: 'bg-[#111111] text-[#C8F000]', icon: CheckCircle },
+  success: { bg: 'bg-[#4827B4] text-[#C8FF3D]', icon: CheckCircle },
   error: { bg: 'bg-red-600 text-white', icon: XCircle },
   warning: { bg: 'bg-amber-500 text-white', icon: AlertTriangle },
 }

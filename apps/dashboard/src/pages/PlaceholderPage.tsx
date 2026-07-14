@@ -13,10 +13,10 @@ export default function PlaceholderPage({ pageKey }: PlaceholderPageProps) {
     <DashboardLayout>
       <div className="flex flex-1 items-center justify-center py-20">
         <div className="text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-dim/10">
             <Wrench className="h-8 w-8 text-accent-dim" />
           </div>
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark">
             {t('placeholder.title', { page: t(`nav.${pageKey}`) })}
           </h1>
           <p className="mt-2 font-body text-sm text-muted">

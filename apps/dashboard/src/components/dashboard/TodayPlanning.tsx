@@ -19,7 +19,7 @@ interface SlotRow {
 }
 
 const statusColors: Record<DisplayStatus, string> = {
-  scheduled: 'bg-accent/15 text-accent-dim',
+  scheduled: 'bg-accent-dim/15 text-accent-dim',
   completed: 'bg-dark/5 text-muted',
   cancelled: 'bg-red-50 text-red-500',
   in_progress: 'bg-green-500/15 text-green-600',
@@ -110,7 +110,7 @@ export function TodayPlanning() {
 
   return (
     <div className="rounded-2xl bg-card p-5">
-      <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+      <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
         {t('dashboard.today_planning')}
       </h2>
 
@@ -155,7 +155,7 @@ export function TodayPlanning() {
                 </div>
 
                 {displayStatus === 'scheduled' ? (
-                  <span className="shrink-0 rounded-lg bg-accent px-2.5 py-1 font-body text-xs font-medium text-[#111111]">
+                  <span className="shrink-0 rounded-lg bg-accent px-2.5 py-1 font-body text-xs font-medium text-[#17102E]">
                     {t('dashboard.slot_status.scheduled')}
                   </span>
                 ) : (

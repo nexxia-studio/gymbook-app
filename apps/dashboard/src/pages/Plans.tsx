@@ -48,7 +48,7 @@ export default function Plans() {
     <DashboardLayout>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
             {t('plans.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">{t('plans.subtitle')}</p>
@@ -66,7 +66,7 @@ export default function Plans() {
           <p className="font-body text-sm text-red-500">{t('plans.load_error')}</p>
         ) : plans.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-dim/10">
               <CreditCard className="h-7 w-7 text-accent-dim" />
             </div>
             <p className="font-body text-sm text-muted">{t('plans.empty')}</p>

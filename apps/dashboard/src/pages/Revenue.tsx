@@ -238,14 +238,14 @@ export default function Revenue() {
 
   return (
     <DashboardLayout>
-      <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+      <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('revenue.title')}
       </h1>
       <p className="mt-1 font-body text-sm text-muted">{t('revenue.subtitle')}</p>
 
       {isLoading ? (
         <div className="mt-8 flex h-64 items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent-dim border-t-transparent" />
         </div>
       ) : (
         <>
@@ -288,7 +288,7 @@ export default function Revenue() {
           {/* Chart CA empilé */}
           <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="font-display text-lg font-black tracking-tight text-dark">
                 {t('revenue.chart_title')}
               </h2>
               <div className="flex gap-1 rounded-xl bg-dark/5 p-1">
@@ -336,7 +336,7 @@ export default function Revenue() {
                 type="button"
                 onClick={exportCSV}
                 disabled={filtered.length === 0}
-                className="ml-auto flex items-center gap-2 rounded-xl bg-dark px-4 py-2 font-body text-sm font-semibold text-accent transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="ml-auto flex items-center gap-2 rounded-xl bg-accent px-4 py-2 font-body text-sm font-semibold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
               >
                 <Download className="h-4 w-4" />
                 {t('revenue.export_csv')}
@@ -367,7 +367,7 @@ export default function Revenue() {
                       {r.invoiceNumber && <div className="hidden truncate font-body text-[11px] text-muted sm:block">{r.invoiceNumber}</div>}
                     </div>
                     <div className="hidden self-center sm:block">
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.isOneTime ? 'bg-dark/10 text-dark' : 'bg-accent/20 text-accent-dim'}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.isOneTime ? 'bg-dark/10 text-dark' : 'bg-accent-dim/20 text-accent-dim'}`}>
                         {r.isOneTime ? t('revenue.type_one_time') : t('revenue.type_subscription')}
                       </span>
                     </div>

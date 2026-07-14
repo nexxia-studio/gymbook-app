@@ -107,7 +107,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
       <div className="flex h-full flex-col bg-card md:h-auto md:max-h-[90vh] md:rounded-2xl md:shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-5">
-          <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+          <h2 className="font-display text-xl font-black tracking-tight text-dark">
             {isEdit ? t('activities.edit_title') : t('activities.create_title')}
           </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-dark/5">
@@ -173,7 +173,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, durationMin: d }))}
                     className={`rounded-lg px-3 py-2 font-body text-xs font-medium transition-colors ${
-                      form.durationMin === d ? 'bg-accent text-[#111111]' : 'bg-dark/5 text-muted hover:bg-dark/10'
+                      form.durationMin === d ? 'bg-accent text-[#17102E]' : 'bg-dark/5 text-muted hover:bg-dark/10'
                     }`}
                   >
                     {d}
@@ -223,7 +223,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
                     onClick={() => setForm((f) => ({ ...f, icon: iconName }))}
                     className={`flex h-12 items-center justify-center rounded-xl transition-all ${
                       form.icon === iconName
-                        ? 'border-2 border-accent bg-accent/10'
+                        ? 'border-2 border-accent-dim bg-accent-dim/10'
                         : 'border border-border bg-card hover:bg-dark/5'
                     }`}
                   >

@@ -14,7 +14,7 @@ export function RecentMembers({ loading }: { loading: boolean }) {
 
   return (
     <div className="rounded-2xl bg-card p-5">
-      <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+      <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
         {t('dashboard.recent_members')}
       </h2>
 
@@ -32,7 +32,7 @@ export function RecentMembers({ loading }: { loading: boolean }) {
         ) : (
           mockMembers.map((member) => (
             <div key={member.email} className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 font-body text-xs font-bold text-accent-dim">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-dim/10 font-body text-xs font-bold text-accent-dim">
                 {member.name.split(' ').map((n) => n[0]).join('')}
               </div>
               <div className="min-w-0 flex-1">

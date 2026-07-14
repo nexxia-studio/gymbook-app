@@ -115,7 +115,7 @@ export default function Members() {
     search, setSearch, statusFilter, setStatusFilter,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
-  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
 
   async function handleLiftSuspension(member: Member) {
     await liftSuspension(member.id, 'Lifted by admin')
@@ -137,7 +137,7 @@ export default function Members() {
     <DashboardLayout>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark lg:text-4xl">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
             {t('members.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">
@@ -165,7 +165,7 @@ export default function Members() {
               onClick={() => setStatusFilter(f.key)}
               className={`rounded-lg px-3 py-1.5 font-body text-xs font-medium transition-colors ${
                 statusFilter === f.key
-                  ? 'bg-accent text-[#111111]'
+                  ? 'bg-accent text-[#17102E]'
                   : 'bg-card text-secondary hover:bg-dark/5'
               }`}
             >

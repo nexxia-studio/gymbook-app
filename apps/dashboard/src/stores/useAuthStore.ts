@@ -34,7 +34,7 @@ interface AuthState {
 
 // Charge le gym complet (nom, slug, timezone) dans useGymStore.
 // Best-effort : une erreur ici NE DOIT PAS casser le login — le user reste
-// connecté, gym reste null et l'UI retombe sur son fallback ('GymBook').
+// connecté, gym reste null et l'UI retombe sur son fallback ('Viniz').
 async function loadGymContext(gymId: string | null): Promise<void> {
   if (!gymId) {
     useGymStore.getState().setGym(null)

@@ -107,7 +107,7 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
       <div className="flex h-full flex-col bg-card md:h-auto md:max-h-[90vh] md:rounded-2xl md:shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-5">
-          <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+          <h2 className="font-display text-xl font-black tracking-tight text-dark">
             {isEdit ? t('coaches.edit_title') : t('coaches.create_title')}
           </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-dark/5">
@@ -223,7 +223,7 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
                       }
                       className={`rounded-lg px-3 py-1.5 font-body text-xs font-medium transition-all ${
                         selected
-                          ? 'bg-accent text-[#111111]'
+                          ? 'bg-accent text-[#17102E]'
                           : 'bg-dark/5 text-muted hover:bg-dark/10'
                       }`}
                     >

@@ -121,7 +121,7 @@ export function MollieConnectCard() {
     <section className="rounded-2xl border border-[#E8E6E0] bg-card p-6">
       <div className="mb-6 flex items-center gap-3">
         <CreditCard size={20} className="text-dark" />
-        <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">Paiements Mollie</h2>
+        <h2 className="font-display text-xl font-black tracking-tight text-dark">Paiements Mollie</h2>
         {connection?.is_test_mode && (
           <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-700">Mode test</span>
         )}
@@ -185,13 +185,13 @@ export function MollieConnectCard() {
           <button
             onClick={handleConnect}
             disabled={isConnecting}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-dark px-6 py-3 font-body font-bold text-accent disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-body font-bold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
           >
             {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
             {isConnecting ? 'Redirection vers Mollie...' : 'Connecter Mollie'}
           </button>
           <p className="mt-2 text-center font-body text-xs text-muted">
-            Vous serez redirigé vers Mollie pour autoriser GymBook
+            Vous serez redirigé vers Mollie pour autoriser Viniz
           </p>
         </div>
       )}

@@ -45,7 +45,7 @@ export function SlotDeleteModal({ slot, mode, onClose, onConfirm }: SlotDeleteMo
           </div>
 
           {/* Title */}
-          <h2 className="text-center font-display text-xl font-black uppercase tracking-tight text-dark">
+          <h2 className="text-center font-display text-xl font-black tracking-tight text-dark">
             {isDelete ? t('slots.permanently_delete_title') : t('slots.cancel_title')}
           </h2>
 

@@ -40,7 +40,7 @@ export default function Communications() {
   const addToast = useToastStore((s) => s.addToast)
   const gymId = useAuthStore((s) => s.gym_id)
   const user = useAuthStore((s) => s.user)
-  const gymName = useGymStore((s) => s.gym?.name) ?? 'GymBook'
+  const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
 
   const [template, setTemplate] = useState<Template>('info')
   const [title, setTitle] = useState('')
@@ -153,7 +153,7 @@ export default function Communications() {
     <DashboardLayout>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <div className="mb-6">
-          <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark">
+          <h1 className="font-display text-3xl font-black tracking-tight text-dark">
             {t('communications.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">{t('communications.subtitle')}</p>
@@ -164,7 +164,7 @@ export default function Communications() {
           <div className="space-y-6 lg:col-span-2">
             {/* Section 1 — Composer */}
             <section className="rounded-2xl border border-border bg-card p-6">
-              <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
                 {t('communications.composer')}
               </h2>
 
@@ -181,7 +181,7 @@ export default function Communications() {
                       onClick={() => setTemplate(tpl)}
                       className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition ${
                         isActive
-                          ? 'border-accent bg-accent/10'
+                          ? 'border-accent-dim bg-accent-dim/10'
                           : 'border-border bg-background hover:border-muted'
                       }`}
                     >
@@ -202,7 +202,7 @@ export default function Communications() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent"
+                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent-dim"
               />
 
               {/* Body */}
@@ -214,7 +214,7 @@ export default function Communications() {
                 onChange={(e) => setBody(e.target.value)}
                 placeholder={t(`communications.templates.${template}.placeholder`)}
                 rows={6}
-                className="mb-3 w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent"
+                className="mb-3 w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent-dim"
               />
 
               {/* Segment */}
@@ -224,7 +224,7 @@ export default function Communications() {
               <select
                 value={segment}
                 onChange={(e) => setSegment(e.target.value as Segment)}
-                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent"
+                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent-dim"
               >
                 {SEGMENTS.map((seg) => (
                   <option key={seg} value={seg}>
@@ -272,7 +272,7 @@ export default function Communications() {
                 <button
                   onClick={handleSend}
                   disabled={!canSend || isSending || (recipientCount ?? 0) === 0}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-dark px-6 py-2.5 font-body font-bold text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 font-body font-bold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
                 >
                   <Send className="h-4 w-4" />
                   {isSending ? t('communications.sending') : t('communications.send')}
@@ -282,7 +282,7 @@ export default function Communications() {
 
             {/* Section 3 — History */}
             <section className="rounded-2xl border border-border bg-card p-6">
-              <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
                 {t('communications.history')}
               </h2>
               {isLoadingHistory ? (
@@ -338,7 +338,7 @@ export default function Communications() {
           {/* Section 2 — Preview */}
           <aside className="lg:col-span-1">
             <section className="sticky top-6 rounded-2xl border border-border bg-card p-6">
-              <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-black tracking-tight text-dark">
                 <Eye className="h-4 w-4" />
                 {t('communications.preview')}
               </h2>
@@ -347,7 +347,7 @@ export default function Communications() {
               <div className="rounded-2xl bg-dark p-3">
                 <div className="rounded-xl bg-white px-3 py-3 shadow-sm">
                   <div className="mb-1 flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-dark text-xs font-bold text-accent">{gymName.charAt(0).toUpperCase()}</div>
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-[#17102E]">{gymName.charAt(0).toUpperCase()}</div>
                     <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-muted">{gymName}</span>
                     <span className="ml-auto font-body text-[10px] text-muted">{t('communications.preview_now')}</span>
                   </div>
