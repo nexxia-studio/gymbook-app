@@ -46,6 +46,8 @@ export default function Plans() {
 
   return (
     <DashboardLayout>
+      {/* EXPÉRIMENTAL liquid-glass : fond décoratif derrière les cards (réversible) */}
+      <div className="glass-bg -m-4 p-4 lg:-m-6 lg:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
@@ -93,6 +95,7 @@ export default function Plans() {
           </div>
         )}
       </div>
+      </div>{/* /glass-bg EXPÉRIMENTAL */}
 
       <PlanModal
         open={createOpen}

@@ -75,11 +75,10 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Gym name — couleur var(--color-card) (blanc en clair) ; centré sous le logo.
-            NB : en mode sombre, color-card = #3A2585 (violet surface) sur sidebar #150D33
-            → contraste faible (signalé au compte-rendu, décision en attente). */}
+        {/* Gym name — couleur mode-aware (text-sidebar-name) : var(--color-card) = blanc en
+            clair sur sidebar indigo ; var(--color-light) #F3F0FF en sombre (lisible sur #150D33). */}
         <div className="px-5 pb-4 text-center">
-          <span className="font-body text-xs text-card">{gymName}</span>
+          <span className="font-body text-xs text-sidebar-name">{gymName}</span>
         </div>
 
         <div className="mx-5 border-t border-white/10" />

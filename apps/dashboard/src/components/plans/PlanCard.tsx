@@ -22,7 +22,7 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
 
   return (
     <div
-      className={`flex h-full flex-col rounded-2xl border bg-card p-5 transition-opacity ${
+      className={`glass-card flex h-full flex-col rounded-2xl border bg-card p-5 transition-opacity ${
         plan.active ? 'border-border' : 'border-border opacity-55'
       }`}
     >

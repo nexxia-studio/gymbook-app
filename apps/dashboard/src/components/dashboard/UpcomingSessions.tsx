@@ -71,7 +71,7 @@ export function UpcomingSessions() {
   }, [gymId, fetchSlots])
 
   return (
-    <div className="rounded-2xl bg-card p-5">
+    <div className="glass-card rounded-2xl bg-card p-5">
       <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
         {t('dashboard.upcoming_sessions')}
       </h2>
