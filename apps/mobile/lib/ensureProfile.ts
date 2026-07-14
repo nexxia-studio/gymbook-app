@@ -14,6 +14,10 @@ export async function ensureProfile(user: User): Promise<void> {
 
   if (existing) return
 
+  // Chemin de secours uniquement — en pratique le profil est créé par le trigger DB
+  // handle_new_user() qui pose désormais aussi les versions (GYM-109). Versionnage réel =
+  // métadonnée legal_version (envoyée au signUp) + trigger. Cet INSERT ne s'exécute que si
+  // le trigger était absent.
   const fullName = (user.user_metadata?.full_name as string) ?? ''
   const [firstName, ...lastNameParts] = fullName.split(' ')
 
