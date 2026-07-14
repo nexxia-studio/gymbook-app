@@ -8,7 +8,7 @@ import { PasswordInput } from '../../components/ui/PasswordInput'
 import { PasswordStrength } from '../../components/ui/PasswordStrength'
 import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Checkbox'
-import { Toast } from '../../components/ui/Toast'
+import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 
@@ -76,10 +76,10 @@ export default function Signup() {
 
   return (
     <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
-      <Toast
-        message={error ? t(error) : ''}
-        visible={toastVisible}
+      <InScreenBanner
+        message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
+        anchor="top"
         variant="error"
       />
 
@@ -165,7 +165,15 @@ export default function Signup() {
                 <Checkbox checked={terms} onToggle={() => setTerms(!terms)}>
                   <Text className="font-dmsans text-sm text-move-text-secondary">
                     {t('auth.terms_accept')}{' '}
-                    <Text className="font-dmsans-bold text-move-dark">{t('auth.terms_link')}</Text>
+                    {/* Lien tapable : le <Text onPress> imbriqué capture le tap et navigue
+                        sans déclencher le toggle de la Checkbox parente. */}
+                    <Text
+                      className="font-dmsans-bold text-move-dark underline"
+                      accessibilityRole="link"
+                      onPress={() => router.push('/profile/legal/cgu')}
+                    >
+                      {t('auth.terms_link')}
+                    </Text>
                   </Text>
                 </Checkbox>
                 {errors.terms && <Text className="font-dmsans text-xs text-red-500">{errors.terms}</Text>}
@@ -173,7 +181,13 @@ export default function Signup() {
                 <Checkbox checked={privacy} onToggle={() => setPrivacy(!privacy)}>
                   <Text className="font-dmsans text-sm text-move-text-secondary">
                     {t('auth.privacy_accept')}{' '}
-                    <Text className="font-dmsans-bold text-move-dark">{t('auth.privacy_link')}</Text>
+                    <Text
+                      className="font-dmsans-bold text-move-dark underline"
+                      accessibilityRole="link"
+                      onPress={() => router.push('/profile/legal/privacy')}
+                    >
+                      {t('auth.privacy_link')}
+                    </Text>
                   </Text>
                 </Checkbox>
                 {errors.privacy && <Text className="font-dmsans text-xs text-red-500">{errors.privacy}</Text>}

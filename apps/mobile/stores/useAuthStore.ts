@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { GYM_ID } from '../constants/dopamine'
+import { LEGAL_VERSION } from '../constants/legal/meta'
 
 function mapError(msg: string): string {
   if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
@@ -83,6 +84,10 @@ export const useAuthStore = create<AuthState>((set) => ({
           privacy_policy_accepted: String(consents?.privacy ?? false),
           terms_accepted: String(consents?.terms ?? false),
           marketing_consent: String(consents?.marketing ?? false),
+          // Version des textes acceptés — lue par le trigger DB handle_new_user()
+          // (NEW.raw_user_meta_data->>'legal_version') pour poser
+          // privacy_policy_version / terms_version sur le profil (GYM-109). Clé exacte requise.
+          legal_version: LEGAL_VERSION,
         },
       },
     })

@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { GYM_ID } from '../constants/dopamine'
+import { LEGAL_VERSION } from '../constants/legal/meta'
 
 export const ADMIN_ACCOUNT_ERROR = 'ADMIN_ACCOUNT'
 
@@ -13,6 +14,10 @@ export async function ensureProfile(user: User): Promise<void> {
 
   if (existing) return
 
+  // Chemin de secours uniquement — en pratique le profil est créé par le trigger DB
+  // handle_new_user() qui pose désormais aussi les versions (GYM-109). Versionnage réel =
+  // métadonnée legal_version (envoyée au signUp) + trigger. Cet INSERT ne s'exécute que si
+  // le trigger était absent.
   const fullName = (user.user_metadata?.full_name as string) ?? ''
   const [firstName, ...lastNameParts] = fullName.split(' ')
 
@@ -25,7 +30,9 @@ export async function ensureProfile(user: User): Promise<void> {
     gym_id: GYM_ID,
     preferred_language: 'fr',
     privacy_policy_accepted_at: new Date().toISOString(),
+    privacy_policy_version: LEGAL_VERSION,
     terms_accepted_at: new Date().toISOString(),
+    terms_version: LEGAL_VERSION,
   })
 }
 

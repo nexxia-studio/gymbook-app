@@ -21,7 +21,7 @@ export function LegalScreen({ title, markdown, version, updatedAt }: LegalScreen
   return (
     <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
       <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
-        <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} hitSlop={12}>
           <ChevronLeft size={24} color="#FFFFFF" />
         </Pressable>
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
