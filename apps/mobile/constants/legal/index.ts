@@ -1,4 +1,5 @@
-// GYM-46 — contenu légal PROVISOIRE. Contenu définitif : GYM-109.
+// Contenu légal v1 PUBLIABLE (privacy + CGV). Sources de vérité :
+// docs/legal/politique-confidentialite-v1.md et docs/legal/cgv-v1.md (corps publiables).
 //
 // Le markdown est exporté comme simple chaîne (modules `.ts`) et consommé en prop par
 // le composant générique `LegalScreen`. Metro (Expo) ne sait pas importer un `.md` comme
@@ -10,10 +11,9 @@ import { cguEn } from './cgu.en'
 import { privacyFr } from './privacy.fr'
 import { privacyEn } from './privacy.en'
 
-export const LEGAL_VERSION = '0.1-draft'
-// Date de version du TEXTE (pas la date courante) : figée tant que le contenu provisoire
-// n'a pas été remplacé (GYM-109).
-export const LEGAL_UPDATED_AT = '2026-07-06'
+// Version + date : ré-exportées depuis le module feuille `meta` (les textes l'importent
+// aussi — le sortir d'ici évite un cycle d'imports).
+export { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
 
 export type LegalKind = 'cgu' | 'privacy'
 export type LegalLang = 'fr' | 'en'

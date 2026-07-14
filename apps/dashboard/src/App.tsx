@@ -18,6 +18,10 @@ const PendingActivation = lazy(() => import('@/pages/PendingActivation'))
 const Revenue = lazy(() => import('@/pages/Revenue'))
 const Communications = lazy(() => import('@/pages/Communications'))
 const Plans = lazy(() => import('@/pages/Plans'))
+// Pages légales PUBLIQUES (accessibles hors session — Apple vérifie les URLs déconnecté).
+const PrivacyPolicy = lazy(() => import('@/pages/legal/PrivacyPolicy'))
+const Terms = lazy(() => import('@/pages/legal/Terms'))
+const Support = lazy(() => import('@/pages/Support'))
 
 function Loading() {
   return (
@@ -46,6 +50,10 @@ function AppRoutes() {
           element={session ? <Navigate to="/dashboard" replace /> : <Signup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        {/* Routes légales publiques — hors ProtectedRoute (rendues sans session). */}
+        <Route path="/legal/privacy" element={<PrivacyPolicy />} />
+        <Route path="/legal/terms" element={<Terms />} />
+        <Route path="/support" element={<Support />} />
         <Route path="/pending" element={session ? <PendingActivation /> : <Navigate to="/login" replace />} />
         <Route
           path="/dashboard"

@@ -1,13 +1,13 @@
-// Politique de confidentialité — v1 PUBLIABLE.
-// Source de vérité : docs/legal/politique-confidentialite-v1.md (corps publiable UNIQUEMENT ;
-// les annexes internes de la source ne sont JAMAIS reproduites ici).
-// Tableaux de la source (art. 3, art. 6) convertis en listes : le renderer MarkdownText ne
-// gère pas les tableaux.
-import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
+# Politique de confidentialité — v1 (GYM-109)
 
-export const privacyFr = `# Politique de confidentialité
+> **Statut** : v1 PUBLIABLE — les points en attente (Nico/avocat) sont formulés en défauts prudents, tracés dans l'annexe interne. Plus aucune balise visible dans le texte publiable.
+> **Périmètre** : app mobile membre (Dopamine, white-label Viniz) + dashboard gérant.
+> **Ancrage** : chaque article correspond à un traitement réellement présent dans le code/schéma (vérifié le 14/07/2026).
+> Version EN à produire après gel du texte FR (fait par Claude Code à l'intégration).
 
-**Dernière mise à jour : ${LEGAL_UPDATED_AT}** · Version ${LEGAL_VERSION}
+---
+
+**Dernière mise à jour : [DATE DE PUBLICATION]** · Version 1.0
 
 ## 1. Qui est responsable de vos données ?
 
@@ -32,13 +32,15 @@ Pour toute question relative à vos données : **support@viniz.app** ou directem
 
 ## 3. Pourquoi et sur quelle base légale ?
 
-- **Gestion du compte, réservations, listes d'attente, abonnements et crédits** — Exécution du contrat.
-- **Traitement des paiements et facturation** — Exécution du contrat + obligation légale (comptabilité).
-- **Notifications liées au service (place libérée, rappels de cours, confirmations)** — Exécution du contrat.
-- **Application des règles de la salle (no-show, pénalités, suspension)** — Intérêt légitime de la salle.
-- **Communications marketing** — Consentement (case dédiée, retirable à tout moment).
-- **Données de santé** — Consentement explicite (RGPD art. 9.2.a).
-- **Sécurité de la plateforme (journaux techniques)** — Intérêt légitime de l'éditeur.
+| Traitement | Base légale (RGPD art. 6) |
+|---|---|
+| Gestion du compte, réservations, listes d'attente, abonnements et crédits | Exécution du contrat |
+| Traitement des paiements et facturation | Exécution du contrat + obligation légale (comptabilité) |
+| Notifications liées au service (place libérée, rappels de cours, confirmations) | Exécution du contrat |
+| Application des règles de la salle (no-show, pénalités, suspension) | Intérêt légitime de la salle |
+| Communications marketing | **Consentement** (case dédiée, retirable à tout moment) |
+| Données de santé | **Consentement explicite** (RGPD art. 9.2.a) |
+| Sécurité de la plateforme (journaux techniques) | Intérêt légitime de l'éditeur |
 
 ## 4. Données de santé — protection renforcée
 
@@ -57,10 +59,12 @@ Les informations médicales sont une **catégorie particulière de données** (R
 
 **Nos sous-traitants techniques**, chacun limité à sa fonction :
 
-- **Supabase** — Hébergement de la base de données et de l'infrastructure · Union européenne (Paris, France).
-- **Mollie B.V.** — Traitement des paiements (Pays-Bas, agréé DNB) · UE.
-- **Resend** — Envoi des emails transactionnels · Union européenne (Irlande).
-- **Expo / Apple** — Acheminement des notifications push · UE/États-Unis (clauses contractuelles types).
+| Prestataire | Fonction | Localisation des données |
+|---|---|---|
+| Supabase | Hébergement de la base de données et de l'infrastructure | Union européenne (Paris, France) |
+| Mollie B.V. | Traitement des paiements (Pays-Bas, agréé DNB) | UE |
+| Resend | Envoi des emails transactionnels | Union européenne (Irlande) |
+| Expo / Apple | Acheminement des notifications push | UE/États-Unis (clauses contractuelles types) |
 
 Nous ne **vendons ni ne louons** vos données à personne. Aucune donnée n'est transmise à des tiers à des fins publicitaires.
 
@@ -96,6 +100,31 @@ Toute modification substantielle vous sera notifiée dans l'application avant so
 ## 12. Contact
 
 **Éditeur / sous-traitant** : Nexxia (Antoine Monie) — Rue Grande Bruyère 6 B1, 4840 Welkenraedt, Belgique — BCE BE 1024.997.119 — support@viniz.app
-
 **Responsable du traitement (votre salle)** : voir les informations de votre salle dans l'application.
-`
+
+---
+
+## Annexe interne (ne pas publier) — défauts prudents en attente de confirmation
+
+| Article | Défaut publié | En attente de |
+|---|---|---|
+| 1 | Identité de la salle renvoyée à "l'application / ses conditions" | NICO : entité légale exacte de Dopamine (BCE, adresse) → à afficher dans l'app (écran infos salle) et dans les CGV |
+| 4 | Certificat médical formulé en conditionnel ("si votre salle requiert") | NICO : politique certificat (obligatoire ? quelles activités ?) |
+| 10 | Mineurs : 16 ans min. + accord responsable légal + accord salle | NICO : politique mineurs réelle · AVOCAT : dispositif de consentement parental |
+| 3, 5, 7 | Qualifications juridiques standard (intérêt légitime no-show, 7 ans comptable, CCT/DPF push) | AVOCAT : relecture globale avant scaling (non bloquant pour la publication v1) |
+| 12 | Adresse siège Welkenraedt | ANTOINE : déménagement du siège prévu octobre 2026 → mise à jour de l'adresse + date de version à ce moment |
+
+## Annexe interne (ne pas publier) — mapping traitement ↔ code
+
+| Article | Ancrage technique |
+|---|---|
+| 2 — compte | `profiles` (identité, adresse, urgence, langue, avatar) |
+| 2 — usage | `bookings`, `member_credits`, `member_subscriptions`, `penalties`, `notifications`, `notification_preferences` |
+| 2 — paiement | `payments` (montants, mollie_payment_id — jamais de PAN/IBAN) |
+| 2 — technique | `profiles.push_token`, `last_seen_at` |
+| 4 — santé | `medical_notes` (`notes_encrypted`, `conditions_encrypted`, certificat + expiry, `restricted_activities`) — purge à la suppression (delete-account v1) |
+| 5 — suppression | delete-account (anonymisation + neutralisation auth + email libéré, GYM-46/118) ; guard engagement (GYM-113) |
+| 5 — comptable | conservation `payments`/`bookings` dissociés du profil anonymisé |
+| 8 — export | export-data v1 (mailto) — [évolution : export automatisé] |
+| 8 — consentements | `profiles.privacy_policy_accepted_at/version`, `terms_accepted_at/version`, `marketing_consent(_at)`, `data_processing_consent(_at)` |
+| 9 — sécurité | RLS multi-tenant, Vault (tokens Mollie, secrets), policy mots de passe (01/07), TLS |
