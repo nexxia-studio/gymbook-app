@@ -121,7 +121,7 @@ export function MollieConnectCard() {
     <section className="rounded-2xl border border-[#E8E6E0] bg-card p-6">
       <div className="mb-6 flex items-center gap-3">
         <CreditCard size={20} className="text-dark" />
-        <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">Paiements Mollie</h2>
+        <h2 className="font-display text-xl font-black tracking-tight text-dark">Paiements Mollie</h2>
         {connection?.is_test_mode && (
           <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-700">Mode test</span>
         )}

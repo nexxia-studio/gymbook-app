@@ -164,7 +164,7 @@ export default function Communications() {
           <div className="space-y-6 lg:col-span-2">
             {/* Section 1 — Composer */}
             <section className="rounded-2xl border border-border bg-card p-6">
-              <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
                 {t('communications.composer')}
               </h2>
 
@@ -282,7 +282,7 @@ export default function Communications() {
 
             {/* Section 3 — History */}
             <section className="rounded-2xl border border-border bg-card p-6">
-              <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
                 {t('communications.history')}
               </h2>
               {isLoadingHistory ? (
@@ -338,7 +338,7 @@ export default function Communications() {
           {/* Section 2 — Preview */}
           <aside className="lg:col-span-1">
             <section className="sticky top-6 rounded-2xl border border-border bg-card p-6">
-              <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-black tracking-tight text-dark">
                 <Eye className="h-4 w-4" />
                 {t('communications.preview')}
               </h2>

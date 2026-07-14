@@ -14,7 +14,7 @@ import {
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymStore } from '@/stores/useGymStore'
 import { useUIStore } from '@/stores/useUIStore'
-import vinizWordmark from '@/assets/brand/viniz-wordmark.svg'
+import vinizLogo from '@/assets/brand/viniz-logo-horizontal-lime.svg'
 
 const NAV_ITEMS = [
   { key: 'dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -58,19 +58,28 @@ export function Sidebar() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between px-5">
-          <div className="flex items-center gap-2">
-            <img src={vinizWordmark} alt="Viniz" className="h-9 w-9 rounded-lg" />
+        {/* Header — logo horizontal Viniz centré. Le SVG est exporté sur un canevas carré
+            (contenu horizontal centré, marges transparentes) : on recadre via un conteneur
+            à hauteur fixe + overflow-hidden avec l'image surdimensionnée et centrée, plutôt
+            que d'altérer l'asset. Lime lisible sur indigo (clair) comme sur #150D33 (sombre). */}
+        <div className="relative flex h-16 items-center justify-center px-4">
+          <div className="relative h-9 w-[180px] overflow-hidden">
+            <img
+              src={vinizLogo}
+              alt="Viniz"
+              className="absolute left-1/2 top-1/2 w-[180px] max-w-none -translate-x-1/2 -translate-y-1/2"
+            />
           </div>
-          <button onClick={toggleSidebar} className="text-sidebar-text/70 lg:hidden">
+          <button onClick={toggleSidebar} className="absolute right-4 text-sidebar-text/70 lg:hidden">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Gym name */}
-        <div className="px-5 pb-4">
-          <span className="font-body text-xs text-sidebar-text/50">{gymName}</span>
+        {/* Gym name — couleur var(--color-card) (blanc en clair) ; centré sous le logo.
+            NB : en mode sombre, color-card = #3A2585 (violet surface) sur sidebar #150D33
+            → contraste faible (signalé au compte-rendu, décision en attente). */}
+        <div className="px-5 pb-4 text-center">
+          <span className="font-body text-xs text-card">{gymName}</span>
         </div>
 
         <div className="mx-5 border-t border-white/10" />

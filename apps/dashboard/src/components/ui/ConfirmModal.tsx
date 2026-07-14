@@ -39,7 +39,7 @@ export function ConfirmModal({ open, title, message, onConfirm, onCancel, confir
           <AlertTriangle className="h-7 w-7 text-orange-500" />
         </div>
 
-        <h2 className="text-center font-display text-xl font-black uppercase tracking-tight text-dark">
+        <h2 className="text-center font-display text-xl font-black tracking-tight text-dark">
           {title}
         </h2>
 

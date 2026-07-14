@@ -288,7 +288,7 @@ export default function Revenue() {
           {/* Chart CA empilé */}
           <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-lg font-black uppercase tracking-tight text-dark">
+              <h2 className="font-display text-lg font-black tracking-tight text-dark">
                 {t('revenue.chart_title')}
               </h2>
               <div className="flex gap-1 rounded-xl bg-dark/5 p-1">

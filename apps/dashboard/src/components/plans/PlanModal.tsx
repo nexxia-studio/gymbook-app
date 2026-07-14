@@ -102,7 +102,7 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
     >
       <div className="flex h-full flex-col bg-card md:h-auto md:max-h-[90vh] md:rounded-2xl md:shadow-2xl">
         <div className="flex items-center justify-between border-b border-border p-5">
-          <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+          <h2 className="font-display text-xl font-black tracking-tight text-dark">
             {isEdit ? t('plans.edit_title') : t('plans.create_title')}
           </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-dark/5">

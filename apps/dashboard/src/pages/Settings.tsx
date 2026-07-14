@@ -192,7 +192,7 @@ export default function Settings() {
           <>
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+                <h2 className="font-display text-xl font-black tracking-tight text-dark">
                   {t('activities.title')}
                 </h2>
                 <p className="mt-1 font-body text-sm text-muted">{t('activities.subtitle')}</p>
@@ -230,7 +230,7 @@ export default function Settings() {
           <>
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+                <h2 className="font-display text-xl font-black tracking-tight text-dark">
                   {t('coaches.title')}
                 </h2>
                 <p className="mt-1 font-body text-sm text-muted">{t('coaches.subtitle')}</p>

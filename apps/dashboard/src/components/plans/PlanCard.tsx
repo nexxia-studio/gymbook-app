@@ -38,7 +38,7 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
 
       {/* Nom + populaire */}
       <div className="mt-2 flex min-w-0 items-center gap-1.5">
-        <h3 className="truncate font-display text-lg font-black uppercase tracking-tight text-dark">
+        <h3 className="truncate font-display text-lg font-black tracking-tight text-dark">
           {plan.name}
         </h3>
         {plan.isPopular && <Star className="h-4 w-4 shrink-0 fill-orange-500 text-orange-500" />}

@@ -87,7 +87,7 @@ export function CoachCard({ coach, activityColors, onEdit, onToggle, onDelete }:
         </div>
 
         {/* Name */}
-        <h3 className="font-display text-lg font-black uppercase tracking-tight text-dark">
+        <h3 className="font-display text-lg font-black tracking-tight text-dark">
           {fullName}
         </h3>
 

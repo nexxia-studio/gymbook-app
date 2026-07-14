@@ -56,7 +56,7 @@
   --text-secondary: #6B5E9C; /* Violet doux */
   --text-muted: #8E86B5;
   --border-color: #E4DEFB;
-  --sidebar-bg: #241553;     /* indigo profond (surface sombre → lime autorisé dessus) */
+  --sidebar-bg: #4827B4;     /* indigo vif de marque (mode clair) — lime autorisé dessus */
   --sidebar-text: #F3F0FF;
   --accent: #C8FF3D;         /* Neon Lime — fills OK partout, texte sur fond sombre seulement */
   --accent-dim: #4827B4;     /* accent utilisable en texte sur fond clair = indigo */

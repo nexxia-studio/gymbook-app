@@ -39,7 +39,7 @@ export function GymSettingsCard() {
 
   return (
     <section className="rounded-2xl border border-[#E8E6E0] bg-card p-6">
-      <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+      <h2 className="font-display text-xl font-black tracking-tight text-dark">
         {t('settings.gym.booking_rules_title')}
       </h2>
 

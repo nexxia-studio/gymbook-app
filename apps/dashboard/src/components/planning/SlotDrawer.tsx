@@ -55,7 +55,7 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
           <>
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border p-5">
-              <h2 className="font-display text-xl font-black uppercase tracking-tight text-dark">
+              <h2 className="font-display text-xl font-black tracking-tight text-dark">
                 {t('planning.slot_detail')}
               </h2>
               <button onClick={onClose} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-dark/5">
@@ -72,7 +72,7 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                   style={{ backgroundColor: `${slot.activity.color}30` }}
                 />
                 <div>
-                  <h3 className="font-display text-2xl font-black uppercase tracking-tight text-dark">
+                  <h3 className="font-display text-2xl font-black tracking-tight text-dark">
                     {slot.activity.name}
                   </h3>
                   {(() => {

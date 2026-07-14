@@ -110,7 +110,7 @@ export function TodayPlanning() {
 
   return (
     <div className="rounded-2xl bg-card p-5">
-      <h2 className="mb-4 font-display text-lg font-black uppercase tracking-tight text-dark">
+      <h2 className="mb-4 font-display text-lg font-black tracking-tight text-dark">
         {t('dashboard.today_planning')}
       </h2>
 

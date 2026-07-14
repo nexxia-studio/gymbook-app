@@ -82,7 +82,7 @@ export function ActivityCard({ activity, onEdit, onDuplicate, onDelete, onToggle
         </div>
 
         {/* Name */}
-        <h3 className="font-display text-lg font-black uppercase tracking-tight text-dark">
+        <h3 className="font-display text-lg font-black tracking-tight text-dark">
           {activity.name}
         </h3>
 
