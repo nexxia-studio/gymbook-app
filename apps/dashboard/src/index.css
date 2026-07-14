@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Le thème du dashboard est piloté par la CLASSE `.dark` (useTheme), pas par la
+   préférence OS. On aligne la variante Tailwind `dark:` sur cette classe (Tailwind v4
+   utilise sinon @media prefers-color-scheme par défaut → désync : les utilitaires `dark:`
+   suivraient l'OS pendant que les tokens suivent le toggle, faisant apparaître du lime en
+   thème clair sur un OS sombre). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* === Polices de marque Viniz (assets/brand, licence client) ===
    MuseoModerno : variable 100–900 (titres + wordmark).
    Helvetica Now Display : Bold uniquement (UI/CTA/titres courts). */

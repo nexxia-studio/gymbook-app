@@ -13,8 +13,9 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left panel — hidden on mobile */}
-      <div className="relative hidden w-[40%] flex-col justify-between bg-dark p-10 lg:flex">
+      {/* Left panel — indigo de marque FIXE (bg-primary), pas bg-dark qui s'inverse en
+          clair en mode sombre (bg-dark = token texte). Reste indigo dans les 2 modes. */}
+      <div className="relative hidden w-[40%] flex-col justify-between bg-primary p-10 lg:flex">
         <div className="flex items-center gap-2">
           <img src={vinizWordmark} alt="Viniz" className="h-11 w-11 rounded-xl" />
         </div>
@@ -43,7 +44,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
               onClick={() => i18n.changeLanguage(lng)}
               className={`rounded px-2.5 py-1 font-body text-xs font-semibold uppercase transition-colors ${
                 i18n.language === lng
-                  ? 'bg-accent text-dark'
+                  ? 'bg-[#4827B4] text-white'
                   : 'bg-dark/5 text-dark/40 hover:bg-dark/10'
               }`}
             >
