@@ -245,7 +245,7 @@ export default function Revenue() {
 
       {isLoading ? (
         <div className="mt-8 flex h-64 items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent-dim border-t-transparent" />
         </div>
       ) : (
         <>
@@ -367,7 +367,7 @@ export default function Revenue() {
                       {r.invoiceNumber && <div className="hidden truncate font-body text-[11px] text-muted sm:block">{r.invoiceNumber}</div>}
                     </div>
                     <div className="hidden self-center sm:block">
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.isOneTime ? 'bg-dark/10 text-dark' : 'bg-accent/20 text-accent-dim'}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.isOneTime ? 'bg-dark/10 text-dark' : 'bg-accent-dim/20 text-accent-dim'}`}>
                         {r.isOneTime ? t('revenue.type_one_time') : t('revenue.type_subscription')}
                       </span>
                     </div>

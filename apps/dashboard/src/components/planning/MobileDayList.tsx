@@ -52,7 +52,7 @@ export function MobileDayList({ weekDays, getSlotsByDay, onSlotClick, loading }:
                 active
                   ? 'bg-[#4827B4] text-[#C8FF3D] dark:bg-[#C8FF3D] dark:text-[#17102E]'
                   : today
-                    ? 'bg-accent/10 text-dark'
+                    ? 'bg-accent-dim/10 text-dark'
                     : 'text-muted hover:text-dark'
               }`}
             >

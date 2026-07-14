@@ -87,7 +87,7 @@ export default function Signup() {
     return (
       <AuthLayout>
         <div className="text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent-dim/10">
             <Mail className="h-8 w-8 text-accent-dim" />
           </div>
           <h1 className="font-display text-3xl font-black uppercase tracking-tight text-dark">

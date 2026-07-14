@@ -176,7 +176,7 @@ export default function Settings() {
             onClick={() => setActiveTab(tab)}
             className={`shrink-0 border-b-2 px-4 py-2.5 font-body text-sm font-medium transition-colors ${
               activeTab === tab
-                ? 'border-accent text-dark'
+                ? 'border-accent-dim text-dark'
                 : 'border-transparent text-muted hover:text-dark'
             }`}
           >

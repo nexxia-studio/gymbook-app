@@ -14,7 +14,7 @@ export function KpiCard({ icon: Icon, label, value, prefix, suffix }: KpiCardPro
 
   return (
     <div className="group rounded-2xl bg-card p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10">
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent-dim/10">
         <Icon className="h-5 w-5 text-accent-dim" />
       </div>
       <p className="font-display text-3xl font-black tracking-tight text-dark">

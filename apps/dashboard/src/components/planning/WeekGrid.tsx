@@ -138,7 +138,7 @@ export function WeekGrid({ weekDays, getSlotsByDay, onSlotClick, loading }: Week
             <div
               key={i}
               className={`border-r border-border px-2 py-3 text-center last:border-r-0 ${
-                today ? 'bg-accent/10' : ''
+                today ? 'bg-accent-dim/10' : ''
               }`}
             >
               <span className={`font-body text-xs font-semibold uppercase ${today ? 'text-accent-dim' : 'text-muted'}`}>
@@ -183,7 +183,7 @@ export function WeekGrid({ weekDays, getSlotsByDay, onSlotClick, loading }: Week
             <div
               key={dateStr}
               style={{ position: 'relative', width: '100%', overflow: 'visible' }}
-              className={`border-r border-border last:border-r-0 ${today ? 'bg-accent/[0.03]' : ''}`}
+              className={`border-r border-border last:border-r-0 ${today ? 'bg-accent-dim/[0.03]' : ''}`}
             >
               {/* Hour lines */}
               {HOURS.map((h) => (

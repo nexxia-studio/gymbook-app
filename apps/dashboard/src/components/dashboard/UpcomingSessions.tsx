@@ -91,7 +91,7 @@ export function UpcomingSessions() {
               key={slot.id}
               className="flex items-center gap-3 rounded-xl border border-border p-3"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-dim/10">
                 <Clock className="h-4 w-4 text-accent-dim" />
               </div>
               <div className="min-w-0 flex-1">

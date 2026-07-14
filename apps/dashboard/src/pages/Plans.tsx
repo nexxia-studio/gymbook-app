@@ -66,7 +66,7 @@ export default function Plans() {
           <p className="font-body text-sm text-red-500">{t('plans.load_error')}</p>
         ) : plans.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-dim/10">
               <CreditCard className="h-7 w-7 text-accent-dim" />
             </div>
             <p className="font-body text-sm text-muted">{t('plans.empty')}</p>

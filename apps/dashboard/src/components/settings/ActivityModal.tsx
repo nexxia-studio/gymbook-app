@@ -223,7 +223,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
                     onClick={() => setForm((f) => ({ ...f, icon: iconName }))}
                     className={`flex h-12 items-center justify-center rounded-xl transition-all ${
                       form.icon === iconName
-                        ? 'border-2 border-accent bg-accent/10'
+                        ? 'border-2 border-accent-dim bg-accent-dim/10'
                         : 'border border-border bg-card hover:bg-dark/5'
                     }`}
                   >

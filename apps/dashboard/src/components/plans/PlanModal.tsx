@@ -147,7 +147,7 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
                     onClick={() => setBillingType(bt)}
                     className={`flex-1 rounded-xl border px-4 py-3 font-body text-sm font-medium transition-colors ${
                       form.billingType === bt
-                        ? 'border-accent bg-accent/10 text-dark'
+                        ? 'border-accent-dim bg-accent-dim/10 text-dark'
                         : 'border-border text-muted hover:text-dark'
                     }`}
                   >

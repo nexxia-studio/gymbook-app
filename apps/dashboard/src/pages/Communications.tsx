@@ -181,7 +181,7 @@ export default function Communications() {
                       onClick={() => setTemplate(tpl)}
                       className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition ${
                         isActive
-                          ? 'border-accent bg-accent/10'
+                          ? 'border-accent-dim bg-accent-dim/10'
                           : 'border-border bg-background hover:border-muted'
                       }`}
                     >
@@ -202,7 +202,7 @@ export default function Communications() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent"
+                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent-dim"
               />
 
               {/* Body */}
@@ -214,7 +214,7 @@ export default function Communications() {
                 onChange={(e) => setBody(e.target.value)}
                 placeholder={t(`communications.templates.${template}.placeholder`)}
                 rows={6}
-                className="mb-3 w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent"
+                className="mb-3 w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent-dim"
               />
 
               {/* Segment */}
@@ -224,7 +224,7 @@ export default function Communications() {
               <select
                 value={segment}
                 onChange={(e) => setSegment(e.target.value as Segment)}
-                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent"
+                className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark outline-none focus:border-accent-dim"
               >
                 {SEGMENTS.map((seg) => (
                   <option key={seg} value={seg}>

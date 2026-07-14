@@ -350,7 +350,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
                       />
                     </div>
                     {repeatPreview && (
-                      <p className="rounded-lg bg-accent/10 px-3 py-2 font-body text-xs text-accent-dim">
+                      <p className="rounded-lg bg-accent-dim/10 px-3 py-2 font-body text-xs text-accent-dim">
                         {t('slots.repeat_preview', {
                           count: repeatPreview.count,
                           start: repeatPreview.start,

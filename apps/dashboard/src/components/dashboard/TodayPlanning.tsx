@@ -19,7 +19,7 @@ interface SlotRow {
 }
 
 const statusColors: Record<DisplayStatus, string> = {
-  scheduled: 'bg-accent/15 text-accent-dim',
+  scheduled: 'bg-accent-dim/15 text-accent-dim',
   completed: 'bg-dark/5 text-muted',
   cancelled: 'bg-red-50 text-red-500',
   in_progress: 'bg-green-500/15 text-green-600',

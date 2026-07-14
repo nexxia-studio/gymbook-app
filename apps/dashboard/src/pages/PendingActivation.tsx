@@ -18,7 +18,7 @@ export default function PendingActivation() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-accent/10">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-accent-dim/10">
           <Clock className="h-10 w-10 text-accent-dim" />
         </div>
 

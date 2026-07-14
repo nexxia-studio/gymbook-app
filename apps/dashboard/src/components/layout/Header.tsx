@@ -93,7 +93,7 @@ export function Header() {
       </button>
 
       {/* Avatar — header clair : accent en texte = indigo (accent-dim), lime interdit sur clair */}
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 font-body text-xs font-bold text-accent-dim">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-dim/20 font-body text-xs font-bold text-accent-dim">
         {firstName.charAt(0)}{lastName.charAt(0)}
       </div>
     </header>
