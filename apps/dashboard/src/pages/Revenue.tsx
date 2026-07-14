@@ -336,7 +336,7 @@ export default function Revenue() {
                 type="button"
                 onClick={exportCSV}
                 disabled={filtered.length === 0}
-                className="ml-auto flex items-center gap-2 rounded-xl bg-dark px-4 py-2 font-body text-sm font-semibold text-accent transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="ml-auto flex items-center gap-2 rounded-xl bg-accent px-4 py-2 font-body text-sm font-semibold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
               >
                 <Download className="h-4 w-4" />
                 {t('revenue.export_csv')}

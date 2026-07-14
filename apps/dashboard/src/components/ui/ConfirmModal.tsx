@@ -35,8 +35,10 @@ export function ConfirmModal({ open, title, message, onConfirm, onCancel, confir
       className="m-auto max-w-[420px] rounded-2xl bg-transparent p-0 backdrop:bg-black/40"
     >
       <div className="rounded-2xl bg-card p-6 shadow-2xl">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50">
-          <AlertTriangle className="h-7 w-7 text-orange-500" />
+        {/* Icône « Attention » mode-aware (accent-dim) : indigo sur card claire, lime en sombre
+            (orange hors palette). Le bouton de confirmation garde sa couleur sémantique. */}
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-dim/10">
+          <AlertTriangle className="h-7 w-7 text-accent-dim" />
         </div>
 
         <h2 className="text-center font-display text-xl font-black tracking-tight text-dark">

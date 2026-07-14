@@ -167,7 +167,7 @@ export default function Planning() {
                 onClick={() => handleViewChange(v)}
                 className={`rounded-lg px-3 py-1.5 font-body text-xs font-semibold transition-colors ${
                   view === v
-                    ? 'bg-accent text-dark'
+                    ? 'bg-accent text-[#17102E]'
                     : 'text-muted hover:bg-dark/5 hover:text-dark'
                 }`}
               >

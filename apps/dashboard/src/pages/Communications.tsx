@@ -272,7 +272,7 @@ export default function Communications() {
                 <button
                   onClick={handleSend}
                   disabled={!canSend || isSending || (recipientCount ?? 0) === 0}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-dark px-6 py-2.5 font-body font-bold text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 font-body font-bold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
                 >
                   <Send className="h-4 w-4" />
                   {isSending ? t('communications.sending') : t('communications.send')}
@@ -347,7 +347,7 @@ export default function Communications() {
               <div className="rounded-2xl bg-dark p-3">
                 <div className="rounded-xl bg-white px-3 py-3 shadow-sm">
                   <div className="mb-1 flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-dark text-xs font-bold text-accent">{gymName.charAt(0).toUpperCase()}</div>
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-[#17102E]">{gymName.charAt(0).toUpperCase()}</div>
                     <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-muted">{gymName}</span>
                     <span className="ml-auto font-body text-[10px] text-muted">{t('communications.preview_now')}</span>
                   </div>

@@ -185,7 +185,7 @@ export function MollieConnectCard() {
           <button
             onClick={handleConnect}
             disabled={isConnecting}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-dark px-6 py-3 font-body font-bold text-accent disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-body font-bold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
           >
             {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
             {isConnecting ? 'Redirection vers Mollie...' : 'Connecter Mollie'}

@@ -113,7 +113,7 @@ export function ActivityCard({ activity, onEdit, onDuplicate, onDelete, onToggle
             type="button"
             onClick={onToggle}
             className={`relative h-6 w-11 rounded-full transition-colors ${
-              activity.active ? 'bg-accent' : 'bg-dark/15'
+              activity.active ? 'bg-accent-dim' : 'bg-dark/15'
             }`}
           >
             <span
