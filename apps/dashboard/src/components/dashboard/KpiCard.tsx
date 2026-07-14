@@ -7,14 +7,13 @@ interface KpiCardProps {
   value: number
   prefix?: string
   suffix?: string
-  className?: string
 }
 
-export function KpiCard({ icon: Icon, label, value, prefix, suffix, className = '' }: KpiCardProps) {
+export function KpiCard({ icon: Icon, label, value, prefix, suffix }: KpiCardProps) {
   const animated = useAnimatedCounter(value)
 
   return (
-    <div className={`group rounded-2xl bg-card p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg ${className}`}>
+    <div className="group rounded-2xl bg-card p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
       <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent-dim/10">
         <Icon className="h-5 w-5 text-accent-dim" />
       </div>

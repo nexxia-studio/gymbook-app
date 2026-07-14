@@ -23,8 +23,6 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      {/* EXPÉRIMENTAL liquid-glass : fond décoratif derrière les cards (réversible) */}
-      <div className="glass-bg -m-4 p-4 lg:-m-6 lg:p-6">
       <h1 className="mb-6 font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('dashboard.greeting', { name: firstName })}
       </h1>
@@ -39,10 +37,10 @@ export default function Dashboard() {
           </>
         ) : (
           <>
-            <KpiCard className="glass-card" icon={Users} label={t('dashboard.kpi.active_members')} value={stats.activeMembers} />
-            <KpiCard className="glass-card" icon={Calendar} label={t('dashboard.kpi.today_sessions')} value={stats.todaySessions} />
-            <KpiCard className="glass-card" icon={TrendingUp} label={t('dashboard.kpi.fill_rate')} value={stats.fillRate} suffix="%" />
-            <KpiCard className="glass-card" icon={CreditCard} label={t('dashboard.kpi.month_revenue')} value={stats.monthRevenue ?? 0} prefix={stats.hasMollie ? "\u20ac" : ""} suffix={stats.hasMollie ? "" : " —"} />
+            <KpiCard icon={Users} label={t('dashboard.kpi.active_members')} value={stats.activeMembers} />
+            <KpiCard icon={Calendar} label={t('dashboard.kpi.today_sessions')} value={stats.todaySessions} />
+            <KpiCard icon={TrendingUp} label={t('dashboard.kpi.fill_rate')} value={stats.fillRate} suffix="%" />
+            <KpiCard icon={CreditCard} label={t('dashboard.kpi.month_revenue')} value={stats.monthRevenue ?? 0} prefix={stats.hasMollie ? "\u20ac" : ""} suffix={stats.hasMollie ? "" : " —"} />
           </>
         )}
       </div>
@@ -64,7 +62,6 @@ export default function Dashboard() {
           <WeeklyChart loading={loading} />
         </div>
       </div>
-      </div>{/* /glass-bg EXPÉRIMENTAL */}
     </DashboardLayout>
   )
 }

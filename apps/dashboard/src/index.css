@@ -218,37 +218,3 @@ body {
 }
 .dark .fc .fc-col-header-cell-cushion { color: #9CA3AF; }
 .dark .fc .fc-day-today .fc-col-header-cell-cushion { color: #FFFFFF; }
-
-/* ============================================================================
-   EXPÉRIMENTAL liquid-glass — test localhost, réversible (Antoine 14/07)
-   Zone unique et regroupée. Pour RETIRER l'effet : supprimer ce bloc + retirer
-   les classes `glass-card` (KpiCard via prop, TodayPlanning, UpcomingSessions,
-   RecentMembers, WeeklyChart, PlanCard) et `glass-bg` (pages Dashboard, Plans).
-   Uniquement /dashboard (Bento) et /plans (formules).
-   ============================================================================ */
-
-/* Fond décoratif (2 halos indigo/violet flous) — donne de la « matière » à
-   flouter derrière les cards (sinon le backdrop-filter est invisible sur fond plat).
-   Indigo/violet uniquement → respecte la règle lime-sur-sombre. */
-.glass-bg {
-  position: relative;
-  background:
-    radial-gradient(40rem 26rem at 6% -8%,
-      color-mix(in oklab, var(--color-primary) 16%, transparent), transparent 60%),
-    radial-gradient(36rem 24rem at 106% 110%,
-      color-mix(in oklab, var(--color-primary-2) 22%, transparent), transparent 62%);
-}
-
-/* Carte « verre dépoli » : fond card translucide + flou du backdrop + bordure
-   subtile + ombre douce. S'ajoute APRÈS bg-card (non-layered → override propre). */
-.glass-card {
-  background-color: color-mix(in oklab, var(--color-card) 62%, transparent);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.35); /* blanc translucide (mode clair) */
-  box-shadow: 0 8px 24px -14px rgba(23, 16, 46, 0.35);
-}
-.dark .glass-card {
-  border-color: color-mix(in oklab, var(--color-secondary) 30%, transparent); /* lavande translucide (mode sombre) */
-}
-/* Fin EXPÉRIMENTAL liquid-glass */
