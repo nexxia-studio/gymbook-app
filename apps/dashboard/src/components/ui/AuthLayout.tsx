@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
-import vinizWordmark from '@/assets/brand/viniz-wordmark.svg'
+import vinizLogo from '@/assets/brand/viniz-logo-horizontal-lime.svg'
+import vinizLogoIndigo from '@/assets/brand/viniz-logo-horizontal-indigo.svg'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -16,8 +17,15 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* Left panel — indigo de marque FIXE (bg-primary), pas bg-dark qui s'inverse en
           clair en mode sombre (bg-dark = token texte). Reste indigo dans les 2 modes. */}
       <div className="relative hidden w-[40%] flex-col justify-between bg-primary p-10 lg:flex">
-        <div className="flex items-center gap-2">
-          <img src={vinizWordmark} alt="Viniz" className="h-11 w-11 rounded-xl" />
+        {/* Logo horizontal Viniz (lime) sur le panneau indigo — CENTRÉ horizontalement
+            (self-center dans la colonne). L'asset est un canevas carré (contenu horizontal
+            centré) : recadré via conteneur à hauteur fixe + overflow-hidden (asset non altéré). */}
+        <div className="relative h-10 w-[200px] self-center overflow-hidden">
+          <img
+            src={vinizLogo}
+            alt="Viniz"
+            className="absolute left-1/2 top-1/2 w-[200px] max-w-none -translate-x-1/2 -translate-y-1/2"
+          />
         </div>
 
         <div>
@@ -53,9 +61,16 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           ))}
         </div>
 
-        {/* Mobile logo */}
-        <div className="flex items-center gap-2 p-6 lg:hidden">
-          <img src={vinizWordmark} alt="Viniz" className="h-9 w-9 rounded-lg" />
+        {/* Mobile logo — panneau CLAIR : logo horizontal INDIGO directement sur le fond
+            (indigo lisible sur clair, conforme à la règle ; plus de pastille). Centré. */}
+        <div className="flex justify-center p-6 lg:hidden">
+          <div className="relative h-7 w-[140px] overflow-hidden">
+            <img
+              src={vinizLogoIndigo}
+              alt="Viniz"
+              className="absolute left-1/2 top-1/2 w-[140px] max-w-none -translate-x-1/2 -translate-y-1/2"
+            />
+          </div>
         </div>
 
         {/* Form area */}
