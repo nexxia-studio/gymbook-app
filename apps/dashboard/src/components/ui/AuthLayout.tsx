@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import vinizLogo from '@/assets/brand/viniz-logo-horizontal-lime.svg'
+import vinizLogoIndigo from '@/assets/brand/viniz-logo-horizontal-indigo.svg'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -16,10 +17,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* Left panel — indigo de marque FIXE (bg-primary), pas bg-dark qui s'inverse en
           clair en mode sombre (bg-dark = token texte). Reste indigo dans les 2 modes. */}
       <div className="relative hidden w-[40%] flex-col justify-between bg-primary p-10 lg:flex">
-        {/* Logo horizontal Viniz sur le panneau indigo — lime lisible. L'asset est un
-            canevas carré (contenu horizontal centré) : recadré via conteneur à hauteur
-            fixe + overflow-hidden (asset non altéré), comme la sidebar. */}
-        <div className="relative h-10 w-[200px] overflow-hidden">
+        {/* Logo horizontal Viniz (lime) sur le panneau indigo — CENTRÉ horizontalement
+            (self-center dans la colonne). L'asset est un canevas carré (contenu horizontal
+            centré) : recadré via conteneur à hauteur fixe + overflow-hidden (asset non altéré). */}
+        <div className="relative h-10 w-[200px] self-center overflow-hidden">
           <img
             src={vinizLogo}
             alt="Viniz"
@@ -60,18 +61,15 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           ))}
         </div>
 
-        {/* Mobile logo — même logo horizontal, centré. Le panneau mobile est CLAIR : on
-            pose le logo sur une pastille indigo pour que le lime reste lisible
-            (règle : lime jamais sur fond clair). */}
+        {/* Mobile logo — panneau CLAIR : logo horizontal INDIGO directement sur le fond
+            (indigo lisible sur clair, conforme à la règle ; plus de pastille). Centré. */}
         <div className="flex justify-center p-6 lg:hidden">
-          <div className="rounded-xl bg-primary px-4 py-2.5">
-            <div className="relative h-7 w-[140px] overflow-hidden">
-              <img
-                src={vinizLogo}
-                alt="Viniz"
-                className="absolute left-1/2 top-1/2 w-[140px] max-w-none -translate-x-1/2 -translate-y-1/2"
-              />
-            </div>
+          <div className="relative h-7 w-[140px] overflow-hidden">
+            <img
+              src={vinizLogoIndigo}
+              alt="Viniz"
+              className="absolute left-1/2 top-1/2 w-[140px] max-w-none -translate-x-1/2 -translate-y-1/2"
+            />
           </div>
         </div>
 
