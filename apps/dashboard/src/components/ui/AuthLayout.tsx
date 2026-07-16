@@ -29,8 +29,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
 
         <div>
-          <h2 className="font-display text-4xl font-black uppercase leading-tight text-white">
-            {t('auth.tagline')}
+          {/* Baseline en casse de phrase, sur 2 lignes (saut après la virgule) —
+              clé scindée l1/l2 pour gérer fr et en proprement. Plus d'uppercase. */}
+          <h2 className="font-display text-4xl font-black leading-tight text-white">
+            {t('auth.tagline_l1')}<br />{t('auth.tagline_l2')}
           </h2>
           <p className="mt-4 max-w-xs font-body text-sm leading-relaxed text-white/50">
             {t('auth.quote')}

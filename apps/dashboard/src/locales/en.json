@@ -78,7 +78,8 @@
       "too_many_requests": "Too many attempts, please try again later",
       "generic": "An error occurred, please try again"
     },
-    "tagline": "Take the pulse, set the pace.",
+    "tagline_l1": "Take the pulse,",
+    "tagline_l2": "Set the pace.",
     "quote": "The all-in-one solution for gym managers"
   },
   "nav": {
