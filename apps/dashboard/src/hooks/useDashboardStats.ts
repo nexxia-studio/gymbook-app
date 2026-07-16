@@ -38,7 +38,8 @@ export function useDashboardStats() {
           .from('profiles')
           .select('*', { count: 'exact', head: true })
           .eq('gym_id', gymId)
-          .eq('role', 'member'),
+          .eq('role', 'member')
+          .is('deleted_at', null),
         supabase
           .from('time_slots')
           .select('*', { count: 'exact', head: true })
@@ -58,6 +59,7 @@ export function useDashboardStats() {
           .select('id, first_name, last_name, email, created_at')
           .eq('gym_id', gymId)
           .eq('role', 'member')
+          .is('deleted_at', null)
           .order('created_at', { ascending: false })
           .limit(5),
       ])
