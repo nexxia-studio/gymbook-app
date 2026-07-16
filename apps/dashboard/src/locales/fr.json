@@ -188,6 +188,7 @@
     "today_planning": "Planning du jour",
     "upcoming_sessions": "Séances à venir",
     "recent_members": "Membres récents",
+    "no_members": "Aucun membre pour l'instant",
     "weekly_stats": "Réservations cette semaine",
     "slot_status": {
       "scheduled": "Planifié",
