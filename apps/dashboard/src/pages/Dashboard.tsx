@@ -56,7 +56,7 @@ export default function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <RecentMembers loading={loading} />
+          <RecentMembers members={stats?.recentMembers ?? []} loading={loading} />
         </div>
         <div className="lg:col-span-7">
           <WeeklyChart loading={loading} />

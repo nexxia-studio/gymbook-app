@@ -188,6 +188,7 @@
     "today_planning": "Today's schedule",
     "upcoming_sessions": "Upcoming sessions",
     "recent_members": "Recent members",
+    "no_members": "No members yet",
     "weekly_stats": "Bookings this week",
     "slot_status": {
       "scheduled": "Scheduled",
