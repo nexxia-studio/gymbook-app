@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirmer ta place — Dopamine</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      Page confirm-waitlist (Universal Links infra — GYM-45).
+
+      DOUBLE RÔLE :
+      1. FALLBACK (aujourd'hui) : tant que les Universal Links du build iOS ne sont pas
+         livrés (Moitié B = Associated Domains dans le binaire), cette page s'affiche dans
+         le navigateur et tente d'ouvrir l'app via le custom scheme dopamine://bookings.
+      2. CIBLE Universal Link (après Moitié B) : iOS interceptera cette URL AVANT le
+         chargement de la page et ouvrira l'app directement (grâce à l'AASA + Associated
+         Domains). La page ne sera alors quasiment jamais rendue.
+
+      La confirmation réelle de la place se fait DANS l'app (onglet Réservations).
+      Cette page ne fait que rediriger : aucune donnée sensible, aucun appel API.
+    -->
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #111111;
+        color: #F5F4F0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: center;
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        background: #1A1A1A;
+        border: 1px solid #2A2A2A;
+        border-radius: 20px;
+        padding: 40px 28px;
+      }
+      .logo {
+        font-family: "Arial Black", Arial, sans-serif;
+        color: #C8FF3D;
+        font-size: 24px;
+        letter-spacing: 2px;
+        margin-bottom: 28px;
+      }
+      h1 { font-size: 22px; margin: 0 0 12px; color: #F5F4F0; }
+      p { font-size: 15px; line-height: 1.6; color: #9A9890; margin: 0 0 24px; }
+      .btn {
+        display: inline-block;
+        background: #C8FF3D;      /* lime sur fond sombre = OK contraste */
+        color: #17102E;           /* texte foncé sur lime */
+        font-weight: 700;
+        text-decoration: none;
+        padding: 14px 28px;
+        border-radius: 12px;
+        font-size: 15px;
+      }
+      .hint { margin-top: 20px; font-size: 12px; color: #6B6861; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo">DOPAMINE</div>
+      <h1>Place à confirmer</h1>
+      <p>
+        Ouvre l'app Dopamine, onglet Réservations, pour confirmer ta place
+        avant la fin du délai.
+      </p>
+      <a id="open-app" class="btn" href="dopamine://bookings">Ouvrir l'app Dopamine</a>
+      <p class="hint" id="hint"></p>
+    </main>
+
+    <script>
+      // Lit le param ?booking=... (transite mais la page ne fait que rediriger).
+      var params = new URLSearchParams(window.location.search)
+      var booking = params.get('booking')
+      if (booking) {
+        document.getElementById('hint').textContent = 'Réservation : ' + booking
+      }
+      // Au chargement : tente d'ouvrir l'app via le custom scheme (fallback tant que les
+      // Universal Links ne sont pas livrés). Si l'app est installée, iOS bascule dessus ;
+      // sinon la page reste affichée avec le bouton.
+      window.location.href = 'dopamine://bookings'
+    </script>
+  </body>
+</html>

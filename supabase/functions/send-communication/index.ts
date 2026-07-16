@@ -122,10 +122,12 @@ Deno.serve(async (req) => {
       let pushOk = false
       let emailOk = false
 
-      // 5a. Push
+      // 5a. Push — lit la RÉPONSE de send-notification (plus de faux positif).
+      // Succès réel = Expo 2xx (body.ok) ET au moins un ticket accepté (body.sent >= 1).
+      // Un token DeviceNotRegistered (nettoyé, body.sent=0) n'est donc PAS compté envoyé.
       if (c.send_push && r.push_token) {
         try {
-          await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+          const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
             body: JSON.stringify({
@@ -135,17 +137,19 @@ Deno.serve(async (req) => {
               data: { type: 'gym_communication', communication_id: c.id, template: c.template },
             }),
           })
-          pushOk = true
-          pushSent++
+          const result = await resp.json().catch(() => null)
+          pushOk = result?.ok === true && (result?.sent ?? 0) >= 1
+          if (pushOk) pushSent++
+          else console.error('[send-communication] push not delivered:', r.member_id, resp.status, result)
         } catch (e) {
-          console.error('[send-communication] push error:', e)
+          console.error('[send-communication] push error:', r.member_id, e)
         }
       }
 
-      // 5b. Email
+      // 5b. Email — lit response.ok de Resend (2xx = accepté).
       if (c.send_email && r.email && RESEND_KEY) {
         try {
-          await fetch('https://api.resend.com/emails', {
+          const resp = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
@@ -155,10 +159,11 @@ Deno.serve(async (req) => {
               html: buildEmailHtml(c.title, c.body, c.template, r.first_name),
             }),
           })
-          emailOk = true
-          emailSent++
+          emailOk = resp.ok
+          if (emailOk) emailSent++
+          else console.error('[send-communication] email failed:', r.member_id, resp.status, await resp.text())
         } catch (e) {
-          console.error('[send-communication] email error:', e)
+          console.error('[send-communication] email error:', r.member_id, e)
         }
       }
 
