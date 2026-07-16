@@ -1,16 +1,28 @@
 import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/Skeleton'
+import type { RecentMember } from '@/hooks/useDashboardStats'
 
-const mockMembers = [
-  { name: 'Sophie Janssens', email: 'sophie.j@mail.com', date: '12 mai 2026' },
-  { name: 'Lucas Dupont', email: 'lucas.d@mail.com', date: '11 mai 2026' },
-  { name: 'Emma Claes', email: 'emma.c@mail.com', date: '10 mai 2026' },
-  { name: 'Thomas Peeters', email: 'thomas.p@mail.com', date: '9 mai 2026' },
-  { name: 'Léa Maes', email: 'lea.m@mail.com', date: '8 mai 2026' },
-]
+// Initiales : prénom+nom si dispo, sinon repli sur l'initiale de l'email.
+function getInitials(m: RecentMember): string {
+  const first = m.firstName?.trim().charAt(0) ?? ''
+  const last = m.lastName?.trim().charAt(0) ?? ''
+  const initials = (first + last).toUpperCase()
+  return initials || m.email.trim().charAt(0).toUpperCase() || '?'
+}
 
-export function RecentMembers({ loading }: { loading: boolean }) {
-  const { t } = useTranslation()
+function getDisplayName(m: RecentMember): string {
+  const name = `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim()
+  return name || m.email
+}
+
+export function RecentMembers({ members, loading }: { members: RecentMember[]; loading: boolean }) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR'
+
+  const formatJoined = (iso: string | null): string | null => {
+    if (!iso) return null
+    return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })
+  }
 
   return (
     <div className="rounded-2xl bg-card p-5">
@@ -29,22 +41,29 @@ export function RecentMembers({ loading }: { loading: boolean }) {
               </div>
             </div>
           ))
+        ) : members.length === 0 ? (
+          <p className="py-6 text-center font-body text-sm text-muted">
+            {t('dashboard.no_members')}
+          </p>
         ) : (
-          mockMembers.map((member) => (
-            <div key={member.email} className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-dim/10 font-body text-xs font-bold text-accent-dim">
-                {member.name.split(' ').map((n) => n[0]).join('')}
+          members.map((member) => {
+            const joined = formatJoined(member.joinedAt)
+            return (
+              <div key={member.id} className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-dim/10 font-body text-xs font-bold text-accent-dim">
+                  {getInitials(member)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-body text-sm font-medium text-dark">
+                    {getDisplayName(member)}
+                  </p>
+                  <p className="truncate font-body text-xs text-muted">
+                    {joined ? t('dashboard.joined', { date: joined }) : member.email}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-body text-sm font-medium text-dark">
-                  {member.name}
-                </p>
-                <p className="font-body text-xs text-muted">
-                  {t('dashboard.joined', { date: member.date })}
-                </p>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

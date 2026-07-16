@@ -2,12 +2,21 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 
+export interface RecentMember {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  email: string
+  joinedAt: string | null // profiles.created_at (date d'inscription)
+}
+
 export interface DashboardStats {
   activeMembers: number
   todaySessions: number
   fillRate: number
   monthRevenue: number | null
   hasMollie: boolean
+  recentMembers: RecentMember[]
 }
 
 export function useDashboardStats() {
@@ -24,12 +33,13 @@ export function useDashboardStats() {
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-      const [membersRes, sessionsRes, bookingsRes] = await Promise.all([
+      const [membersRes, sessionsRes, bookingsRes, recentRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true })
           .eq('gym_id', gymId)
-          .eq('role', 'member'),
+          .eq('role', 'member')
+          .is('deleted_at', null),
         supabase
           .from('time_slots')
           .select('*', { count: 'exact', head: true })
@@ -43,11 +53,27 @@ export function useDashboardStats() {
           .eq('gym_id', gymId)
           .gte('booked_at', monthStart)
           .eq('status', 'confirmed'),
+        // 5 derniers membres inscrits (tri par date d'inscription DESC).
+        supabase
+          .from('profiles')
+          .select('id, first_name, last_name, email, created_at')
+          .eq('gym_id', gymId)
+          .eq('role', 'member')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(5),
       ])
 
       const activeMembers = membersRes.count ?? 0
       const todaySessions = sessionsRes.count ?? 0
       const monthBookings = bookingsRes.count ?? 0
+      const recentMembers: RecentMember[] = (recentRes.data ?? []).map((r) => ({
+        id: r.id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email,
+        joinedAt: r.created_at,
+      }))
 
       // Check Mollie connection
       const { data: mollieConn } = await supabase
@@ -65,10 +91,11 @@ export function useDashboardStats() {
         fillRate: fillRate || 0,
         monthRevenue: hasMollie ? monthBookings * 15 : null,
         hasMollie,
+        recentMembers,
       })
     } catch (e) {
       console.error('Failed to fetch dashboard stats', e)
-      setStats({ activeMembers: 0, todaySessions: 0, fillRate: 0, monthRevenue: null, hasMollie: false })
+      setStats({ activeMembers: 0, todaySessions: 0, fillRate: 0, monthRevenue: null, hasMollie: false, recentMembers: [] })
     } finally {
       setLoading(false)
     }
