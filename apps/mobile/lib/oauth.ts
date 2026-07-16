@@ -70,6 +70,18 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
   return { success: true }
 }
 
+/**
+ * Sign in with Apple — conforme App Store Guideline 4 (GYM-149).
+ *
+ * Verrou anti-2e-rejet : ce flux ne DOIT JAMAIS ouvrir un écran de complétion
+ * qui force la saisie du nom/email après Apple.
+ * - Apple ne renvoie `fullName` qu'au 1er login → on le capte ici et on le
+ *   fusionne dans user_metadata si absent (best effort, silencieux).
+ * - `checkRoleAndEnsureProfile` crée le profil sans champ obligatoire côté UI.
+ * - L'appelant (OAuthButtons.handleApple) redirige directement vers /(tabs).
+ * La complétion de profil reste OPTIONNELLE et user-initiated dans /(tabs)/profile
+ * et /profile/edit — ne pas la rendre bloquante.
+ */
 export async function signInWithApple(): Promise<void> {
   const credential = await AppleAuthentication.signInAsync({
     requestedScopes: [
