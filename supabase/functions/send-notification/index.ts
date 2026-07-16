@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
     if (validTokens.length === 0) {
       return new Response(
-        JSON.stringify({ sent: 0, skipped: recipients.length }),
+        JSON.stringify({ ok: true, sent: 0, failed: 0, skipped: recipients.length }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
@@ -55,10 +55,25 @@ Deno.serve(async (req) => {
       body: JSON.stringify(messages),
     })
 
+    // Expo a répondu non-2xx (rate-limit, panne, payload invalide…) → échec explicite
+    // avec le status HTTP, pas de faux positif.
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[send-notification] Expo non-2xx:', response.status, errorText)
+      return new Response(
+        JSON.stringify({ ok: false, error: errorText, status: response.status }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const result = await response.json()
 
-    // Clean invalid tokens
-    if (result.data) {
+    // Compte les tickets ok/error + nettoie les tokens morts (DeviceNotRegistered).
+    // `sent` = tickets réellement acceptés ('ok'). `failed` = tickets en erreur HORS
+    // DeviceNotRegistered (déjà nettoyé, considéré traité, pas un échec à alerter).
+    let sent = 0
+    let failed = 0
+    if (Array.isArray(result.data)) {
       const admin = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -66,22 +81,28 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < result.data.length; i++) {
         const item = result.data[i]
-        if (item.status === 'error' && item.details?.error === 'DeviceNotRegistered') {
-          await admin
-            .from('profiles')
-            .update({ push_token: null })
-            .eq('push_token', validTokens[i])
+        if (item.status === 'ok') {
+          sent++
+        } else if (item.status === 'error') {
+          if (item.details?.error === 'DeviceNotRegistered') {
+            await admin
+              .from('profiles')
+              .update({ push_token: null })
+              .eq('push_token', validTokens[i])
+          } else {
+            failed++
+          }
         }
       }
     }
 
     return new Response(
-      JSON.stringify({ sent: validTokens.length, results: result.data }),
+      JSON.stringify({ ok: true, sent, failed, results: result.data }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: (err as Error).message }),
+      JSON.stringify({ ok: false, error: (err as Error).message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
