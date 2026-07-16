@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "2B239M7MJL.be.dopamineclub.app",
+        "paths": ["/dopamine/*"]
+      }
+    ]
+  }
+}

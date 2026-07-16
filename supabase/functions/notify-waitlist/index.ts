@@ -71,38 +71,57 @@ Deno.serve(async (req) => {
       minutes = gym?.waitlist_confirmation_minutes ?? 30
     }
 
-    const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
+    // cast via unknown : la relation to-one `activities(name)` est typée en tableau par
+    // supabase-js mais renvoyée en objet au runtime (comportement inchangé, fix deno check).
+    const activityName = (slot.activities as unknown as { name: string } | null)?.name ?? 'Cours'
     const startDate = new Date(slot.starts_at)
     const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
     const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
+    // Feature critique waitlist : on lit le vrai statut d'envoi et on LOG explicitement
+    // tout échec (avec booking_id) pour le voir dans les logs.
+    let emailOk = false
     if (resendKey && profile.email) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: 'Dopamine <noreply@nexxia.net>',
-          to: profile.email,
-          subject: `Place disponible — ${activityName}`,
-          html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place disponible !</h2><p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${minutes} minutes pour confirmer.</p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Confirmer ma place</a></div></div></div>`,
-        }),
-      }).catch((e) => console.log('[notify-waitlist] email error:', e))
+      try {
+        const resp = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
+          body: JSON.stringify({
+            from: 'Dopamine <noreply@nexxia.net>',
+            to: profile.email,
+            subject: `Place disponible — ${activityName}`,
+            html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place disponible !</h2><p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${minutes} minutes pour confirmer.</p><a href="https://links.viniz.app/dopamine/confirm-waitlist?booking=${bookingId}" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Confirmer ma place</a></div></div></div>`,
+          }),
+        })
+        emailOk = resp.ok
+        if (!emailOk) console.error('[notify-waitlist] email FAILED — booking:', bookingId, 'status:', resp.status, await resp.text())
+      } catch (e) {
+        console.error('[notify-waitlist] email error — booking:', bookingId, e)
+      }
     }
 
+    let pushOk = false
     if (profile.push_token) {
-      await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          tokens: [profile.push_token],
-          title: 'Place disponible !',
-          body: `Vous avez ${minutes} min pour confirmer — ${activityName}`,
-          data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
-        }),
-      }).catch((e) => console.log('[notify-waitlist] push error:', e))
+      try {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            tokens: [profile.push_token],
+            title: 'Place disponible !',
+            body: `Vous avez ${minutes} min pour confirmer — ${activityName}`,
+            data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
+          }),
+        })
+        const result = await resp.json().catch(() => null)
+        pushOk = result?.ok === true && (result?.sent ?? 0) >= 1
+        if (!pushOk) console.error('[notify-waitlist] push NOT delivered — booking:', bookingId, 'status:', resp.status, result)
+      } catch (e) {
+        console.error('[notify-waitlist] push error — booking:', bookingId, e)
+      }
     }
 
-    return jsonResponse({ notified: true, booking_id: bookingId, minutes })
+    return jsonResponse({ notified: true, booking_id: bookingId, minutes, push_sent: pushOk, email_sent: emailOk })
   } catch (err) {
     console.error('[notify-waitlist] error:', err)
     return jsonResponse({ error: (err as Error).message }, 500)

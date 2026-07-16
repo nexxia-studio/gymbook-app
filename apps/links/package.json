@@ -1,0 +1,9 @@
+{
+  "name": "@viniz/links",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Infra de liens Universal Links multi-app (links.viniz.app) — statique pur, pas de build",
+  "scripts": {
+    "build": "echo 'static — nothing to build'"
+  }
+}
