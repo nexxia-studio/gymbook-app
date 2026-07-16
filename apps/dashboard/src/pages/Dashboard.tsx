@@ -28,11 +28,15 @@ function FillToggle({ period, onChange }: { period: FillPeriod; onChange: (p: Fi
           key={p}
           type="button"
           onClick={() => onChange(p)}
+          title={t(`dashboard.fill_${p}`)}
+          aria-label={t(`dashboard.fill_${p}`)}
           className={`rounded-md px-2 py-0.5 font-body text-[11px] font-semibold transition-all ${
             period === p ? 'bg-card text-dark shadow-sm' : 'text-muted hover:text-dark'
           }`}
         >
-          {t(`dashboard.fill_${p}`)}
+          {/* Initiales J/S/M — compact, ne déborde à aucune largeur (la grille passe à
+              4 colonnes étroites dès lg=1024) ; nom complet en title/aria. */}
+          {t(`dashboard.fill_${p}_short`)}
         </button>
       ))}
     </div>
