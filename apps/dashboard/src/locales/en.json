@@ -189,6 +189,12 @@
     "upcoming_sessions": "Upcoming sessions",
     "recent_members": "Recent members",
     "no_members": "No members yet",
+    "fill_day": "Day",
+    "fill_week": "Week",
+    "fill_month": "Month",
+    "fill_day_short": "D",
+    "fill_week_short": "W",
+    "fill_month_short": "M",
     "weekly_stats": "Bookings this week",
     "slot_status": {
       "scheduled": "Scheduled",

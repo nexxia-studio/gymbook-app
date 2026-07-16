@@ -32,6 +32,7 @@ export function useMembers() {
         .select('id, first_name, last_name, email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, created_at')
         .eq('gym_id', gymId)
         .eq('role', 'member')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
       if (error) throw error
