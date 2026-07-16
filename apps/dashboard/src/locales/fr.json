@@ -189,6 +189,9 @@
     "upcoming_sessions": "Séances à venir",
     "recent_members": "Membres récents",
     "no_members": "Aucun membre pour l'instant",
+    "fill_day": "Jour",
+    "fill_week": "Semaine",
+    "fill_month": "Mois",
     "weekly_stats": "Réservations cette semaine",
     "slot_status": {
       "scheduled": "Planifié",
