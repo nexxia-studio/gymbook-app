@@ -105,6 +105,10 @@ export default function Login() {
         >
           <View className="rounded-3xl bg-white p-6 shadow-sm">
             <View className="gap-5">
+              {/* OAuth en haut (fix rejet App Store Guideline 4 — GYM-149) :
+                  Sign in with Apple / Google au-dessus du formulaire email. */}
+              <OAuthButtons position="top" />
+
               <TextInput
                 label={t('auth.email')}
                 placeholder={t('auth.email_placeholder')}
@@ -134,8 +138,6 @@ export default function Login() {
                   {t('auth.forgot_password')}
                 </Text>
               </TouchableOpacity>
-
-              <OAuthButtons />
             </View>
           </View>
 

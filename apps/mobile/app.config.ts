@@ -16,6 +16,10 @@ export default {
       supportsTablet: false,
       bundleIdentifier: 'be.dopamineclub.app',
       usesAppleSignIn: true,
+      // Universal Links (GYM-45 moitié B) : les liens https://links.viniz.app/dopamine/*
+      // (ex. confirm-waitlist du mail waitlist) ouvrent l'app au lieu du fallback web.
+      // AASA servie par apps/links (/.well-known/apple-app-site-association, paths /dopamine/*).
+      associatedDomains: ['applinks:links.viniz.app'],
       infoPlist: {
         NSFaceIDUsageDescription: 'Dopamine utilise Face ID pour sécuriser ta connexion.',
         ITSAppUsesNonExemptEncryption: false,

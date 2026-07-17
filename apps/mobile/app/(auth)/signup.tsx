@@ -96,6 +96,10 @@ export default function Signup() {
         <ScrollView className="-mt-8 flex-1" contentContainerClassName="px-6 pb-8" keyboardShouldPersistTaps="handled">
           <View className="rounded-3xl bg-white p-6 shadow-sm">
             <View className="gap-4">
+              {/* OAuth en haut (fix rejet App Store Guideline 4 — GYM-149) :
+                  Sign in with Apple / Google au-dessus du formulaire d'inscription. */}
+              <OAuthButtons position="top" />
+
               {/* Name row */}
               <View className="flex-row gap-3">
                 <View className="flex-1">
@@ -200,8 +204,6 @@ export default function Signup() {
               </View>
 
               <Button title={t('auth.signup')} onPress={handleSubmit} isLoading={isLoading} />
-
-              <OAuthButtons />
             </View>
           </View>
 
