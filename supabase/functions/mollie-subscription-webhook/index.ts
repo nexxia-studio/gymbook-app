@@ -2,6 +2,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
+import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
+
+const FN = 'mollie-subscription-webhook'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
@@ -65,8 +68,12 @@ Deno.serve(async (req) => {
     }
 
     if (!accessToken) {
-      console.error('[sub-webhook] no access token available')
-      return new Response('OK', { status: 200 })
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+        gymId: gymIdForToken, stage: 'token',
+        detail: { reason: 'no Mollie access token available' },
+      })
+      return new Response('no token', { status: 503 })
     }
 
     const mollieRes = await fetch(`https://api.mollie.com/v2/payments/${molliePaymentId}`, {
@@ -75,8 +82,12 @@ Deno.serve(async (req) => {
 
     if (!mollieRes.ok) {
       const err = await mollieRes.text()
-      console.error('[sub-webhook] fetch failed:', err)
-      return new Response('OK', { status: 200 })
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+        gymId: gymIdForToken, stage: 'mollie_fetch',
+        detail: { httpStatus: mollieRes.status, body: err.slice(0, 500) },
+      })
+      return new Response('mollie fetch failed', { status: 503 })
     }
 
     const molliePayment = await mollieRes.json() as {
@@ -95,8 +106,16 @@ Deno.serve(async (req) => {
     const type = metadata.type ?? null
 
     if (!memberId || !gymId) {
-      console.error('[sub-webhook] missing memberId/gymId')
-      return new Response('OK', { status: 200 })
+      // Paiement Mollie réel mais impossible à attribuer (metadata + ligne payments absentes).
+      // Classé échec de traitement (dead-letter + 503) plutôt qu'avalé. ⚠️ Voir POINT AMBIGU :
+      // la metadata Mollie étant immuable, un retry ne s'auto-résout pas — le dead-letter sert
+      // au triage manuel; Mollie cesse de retenter après ses tentatives.
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+        gymId, stage: 'metadata',
+        detail: { reason: 'missing member_id/gym_id', memberId, gymId },
+      })
+      return new Response('missing metadata', { status: 503 })
     }
 
     if (!IS_TEST_MODE && !gymIdForToken && gymId) {
@@ -119,11 +138,19 @@ Deno.serve(async (req) => {
         const mandateId = molliePayment.mandateId ?? null
         const customerId = molliePayment.customerId ?? null
 
-        await supabase.from('mollie_customers').update({
+        const { error: mandateError } = await supabase.from('mollie_customers').update({
           has_valid_mandate: true,
           mollie_mandate_id: mandateId,
           updated_at: new Date().toISOString(),
         }).eq('member_id', memberId).eq('gym_id', gymId)
+
+        if (mandateError) {
+          await recordWebhookFailure(supabase, {
+            functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+            gymId, stage: 'mandate_update', detail: { error: mandateError.message },
+          })
+          return new Response('mandate update failed', { status: 503 })
+        }
 
         const plan = planId ? await resolvePlan(supabase, gymId, planId) : null
         if (plan && customerId) {
@@ -148,19 +175,46 @@ Deno.serve(async (req) => {
               description: 'GymBook commission',
             }
           }
-          const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(subPayload),
-          })
+          // IDEMPOTENCE (GYM-71) : ne JAMAIS recréer un abonnement Mollie sur retry —
+          // sinon double abo = double débit récurrent. On considère l'abo déjà créé si
+          // une ligne member_subscriptions active existe pour (member, gym, plan) ET porte
+          // déjà un mollie_subscription_id.
+          const { data: existingSub } = await supabase
+            .from('member_subscriptions')
+            .select('id, mollie_subscription_id')
+            .eq('member_id', memberId)
+            .eq('gym_id', gymId)
+            .eq('plan_id', planId)
+            .eq('status', 'active')
+            .not('mollie_subscription_id', 'is', null)
+            .maybeSingle()
 
-          if (subRes.ok) {
+          if (existingSub?.mollie_subscription_id) {
+            console.log('[sub-webhook] subscription already exists — skip Mollie create (idempotent):', existingSub.mollie_subscription_id)
+          } else {
+            const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify(subPayload),
+            })
+
+            if (!subRes.ok) {
+              // Échec critique : sans cet appel, le membre serait débité une fois sans
+              // renouvellement ni trace. On NE marque PAS le paiement paid → 503 pour retry.
+              await recordWebhookFailure(supabase, {
+                functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+                gymId, stage: 'subscription_create',
+                detail: { httpStatus: subRes.status, body: (await subRes.text()).slice(0, 500), customerId },
+              })
+              return new Response('subscription create failed', { status: 503 })
+            }
+
             const subscription = await subRes.json() as { id: string; nextPaymentDate?: string }
             const startsAt = new Date()
             const endsAt = new Date(startsAt)
             endsAt.setMonth(endsAt.getMonth() + durationMonths)
 
-            await supabase.from('member_subscriptions').insert({
+            const { error: subInsertError } = await supabase.from('member_subscriptions').insert({
               gym_id: gymId, member_id: memberId, plan_id: planId,
               plan_name: plan.name, status: 'active',
               mollie_subscription_id: subscription.id, mollie_customer_id: customerId,
@@ -169,8 +223,20 @@ Deno.serve(async (req) => {
               max_payments: plan.duration_months, payments_count: 1,
               next_payment_at: subscription.nextPaymentDate ?? null,
             })
-          } else {
-            console.error('[sub-webhook] subscription creation failed:', await subRes.text())
+
+            if (subInsertError) {
+              // ⚠️ FENÊTRE ÉTROITE (POINT AMBIGU) : l'abo Mollie EST créé mais son
+              // enregistrement DB a échoué. On dead-letter AVEC le mollie_subscription_id
+              // pour triage manuel. On renvoie 503 : le retry re-tentera, et l'idempotence
+              // ci-dessus ne l'attrapera PAS (aucune ligne insérée) → risque de double abo.
+              // Mitigation future : pré-réserver la ligne avant l'appel Mollie.
+              await recordWebhookFailure(supabase, {
+                functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+                gymId, stage: 'subscription_create',
+                detail: { error: subInsertError.message, mollie_subscription_id: subscription.id, note: 'Mollie sub created but DB insert failed' },
+              })
+              return new Response('subscription insert failed', { status: 503 })
+            }
           }
         }
 
@@ -190,8 +256,12 @@ Deno.serve(async (req) => {
         // (clé de conflit mollie_payment_id, UNIQUE). credits_granted=0 → classé "abonnement"
         // côté /revenus (critère credits_granted>0 ⇒ à l'unité). invoice_number laissé NULL :
         // aucun mécanisme (ni trigger ni code) ne le génère pour les one_time non plus.
+        // Écriture critique (marque le 1er paiement paid) : erreur → dead-letter + 503.
+        // Sûr vis-à-vis de l'idempotence : l'abo étant déjà créé et enregistré au-dessus,
+        // un retry le retrouvera (existingSub) et ne recréera pas d'abo Mollie.
+        let firstPaymentError: string | null = null
         if (planId) {
-          await supabase.from('payments').upsert({
+          const { error } = await supabase.from('payments').upsert({
             gym_id: gymId,
             member_id: memberId,
             mollie_payment_id: molliePaymentId,
@@ -206,14 +276,24 @@ Deno.serve(async (req) => {
             nexxia_fee: firstNexxiaFee,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'mollie_payment_id' })
+          firstPaymentError = error?.message ?? null
         } else {
           // Sécurité : plan_id absent (colonne NOT NULL) — on ne peut pas créer la ligne.
           // On conserve l'ancien comportement (update ciblé, no-op si aucune ligne).
-          await supabase.from('payments').update({
+          const { error } = await supabase.from('payments').update({
             status: 'paid', paid_at: molliePayment.paidAt ?? null,
             payment_method: molliePayment.method ?? null,
             updated_at: new Date().toISOString(),
           }).eq('mollie_payment_id', molliePaymentId)
+          firstPaymentError = error?.message ?? null
+        }
+
+        if (firstPaymentError) {
+          await recordWebhookFailure(supabase, {
+            functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+            gymId, stage: 'payment_upsert', detail: { error: firstPaymentError },
+          })
+          return new Response('payment write failed', { status: 503 })
         }
 
         const { data: profile } = await supabase
@@ -249,6 +329,31 @@ Deno.serve(async (req) => {
         console.log('[sub-webhook] recurring payment paid')
         const mollieSubscriptionId = molliePayment.subscriptionId ?? null
 
+        const renewalPlan = planId ? await resolvePlan(supabase, gymId, planId) : null
+        const planName = renewalPlan?.name ?? 'Renouvellement'
+
+        // Écriture critique (euro encaissé) EN PREMIER — upsert idempotent (onConflict
+        // mollie_payment_id). Erreur → dead-letter + 503. On la place avant le compteur pour
+        // qu'un retry sur échec de paiement ne rejoue pas l'increment non idempotent ci-dessous.
+        const { error: renewalPayError } = await supabase.from('payments').upsert({
+          gym_id: gymId, member_id: memberId, mollie_payment_id: molliePaymentId,
+          plan_id: planId, plan_name: `Renouvellement — ${planName}`,
+          amount: molliePayment.amount ? parseFloat(molliePayment.amount.value) : 0,
+          status: 'paid', payment_method: molliePayment.method ?? null,
+          paid_at: molliePayment.paidAt ?? null, credits_granted: 0,
+        }, { onConflict: 'mollie_payment_id' })
+
+        if (renewalPayError) {
+          await recordWebhookFailure(supabase, {
+            functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+            gymId, stage: 'payment_upsert', detail: { branch: 'recurring', error: renewalPayError.message },
+          })
+          return new Response('renewal payment write failed', { status: 503 })
+        }
+
+        // Compteur d'échéances : increment NON idempotent → mis à jour APRÈS le paiement et
+        // journalisé sans 503 en cas d'erreur (un 503 ici rejouerait l'increment au retry =
+        // double comptage). ⚠️ POINT AMBIGU documenté (voir compte-rendu).
         if (mollieSubscriptionId) {
           const { data: sub } = await supabase
             .from('member_subscriptions').select('id, payments_count, max_payments')
@@ -257,36 +362,55 @@ Deno.serve(async (req) => {
           if (sub) {
             const nextCount = (sub.payments_count ?? 0) + 1
             const isFinal = sub.max_payments != null && nextCount >= sub.max_payments
-            await supabase.from('member_subscriptions').update({
+            const { error: subUpdError } = await supabase.from('member_subscriptions').update({
               payments_count: nextCount,
               status: isFinal ? 'completed' : 'active',
               updated_at: new Date().toISOString(),
             }).eq('id', sub.id)
+            if (subUpdError) {
+              // Surfacé mais non bloquant. NB : status='completed' n'est PAS dans le CHECK
+              // member_subscriptions_status_check (active/suspended/expired/cancelled/paused)
+              // → bug préexistant qui fera échouer l'update sur la DERNIÈRE échéance (voir CR).
+              await recordWebhookFailure(supabase, {
+                functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+                gymId, stage: 'subscription_counter', detail: { error: subUpdError.message, isFinal },
+              })
+            }
           }
         }
-
-        const renewalPlan = planId ? await resolvePlan(supabase, gymId, planId) : null
-        const planName = renewalPlan?.name ?? 'Renouvellement'
-
-        await supabase.from('payments').upsert({
-          gym_id: gymId, member_id: memberId, mollie_payment_id: molliePaymentId,
-          plan_id: planId, plan_name: `Renouvellement — ${planName}`,
-          amount: molliePayment.amount ? parseFloat(molliePayment.amount.value) : 0,
-          status: 'paid', payment_method: molliePayment.method ?? null,
-          paid_at: molliePayment.paidAt ?? null, credits_granted: 0,
-        }, { onConflict: 'mollie_payment_id' })
       }
     } else if (['failed', 'expired', 'canceled'].includes(molliePayment.status)) {
       const statusMap: Record<string, string> = { failed: 'failed', expired: 'expired', canceled: 'canceled' }
-      await supabase.from('payments').update({
+      const { error: statusError } = await supabase.from('payments').update({
         status: statusMap[molliePayment.status],
         updated_at: new Date().toISOString(),
       }).eq('mollie_payment_id', molliePaymentId)
+
+      if (statusError) {
+        await recordWebhookFailure(supabase, {
+          functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+          gymId, stage: 'status_update', detail: { newStatus: statusMap[molliePayment.status], error: statusError.message },
+        })
+        return new Response('status update failed', { status: 503 })
+      }
     }
 
     return new Response('OK', { status: 200 })
   } catch (err) {
+    // Erreur non rattrapée = échec de traitement → dead-letter + 503 pour retry Mollie.
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: null, stage: 'uncaught',
+        detail: { error: err instanceof Error ? err.message : String(err) },
+      })
+    } catch (e) {
+      console.error('[sub-webhook] uncaught + failed to record:', e)
+    }
     console.error('[sub-webhook] uncaught:', err)
-    return new Response('OK', { status: 200 })
+    return new Response('internal error', { status: 503 })
   }
 })
