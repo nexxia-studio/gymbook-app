@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import { signInWithGoogle, signInWithApple, isAppleSignInCancelled } from '../../lib/oauth'
 import { ADMIN_ACCOUNT_ERROR } from '../../lib/ensureProfile'
+import { GoogleLogo } from './GoogleLogo'
 
 interface OAuthButtonsProps {
   /**
@@ -81,12 +82,7 @@ export function OAuthButtons({ position = 'bottom' }: OAuthButtonsProps) {
       onPress={handleGoogle}
       className="flex-row items-center justify-center gap-3 rounded-xl border border-move-border bg-white px-6 py-3.5"
     >
-      <View
-        className="h-5 w-5 items-center justify-center rounded"
-        style={{ backgroundColor: '#FFFFFF' }}
-      >
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#4285F4' }}>G</Text>
-      </View>
+      <GoogleLogo size={20} />
       <Text className="font-dmsans-medium text-base text-move-dark">
         {t('auth.continue_with_google')}
       </Text>
