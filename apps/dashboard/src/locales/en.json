@@ -382,6 +382,7 @@
       "activities": "Activities",
       "coaches": "Coaches",
       "gym": "Gym",
+      "payments": "Payments",
       "plans": "Plans"
     },
     "gym": {
@@ -392,6 +393,10 @@
       "waitlist_delay_range_error": "Must be between 10 and 120 minutes",
       "save": "Save",
       "saved": "Settings saved"
+    },
+    "payments": {
+      "title": "Payments",
+      "subtitle": "Connect your Mollie account to collect payments."
     }
   },
   "activities": {
