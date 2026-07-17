@@ -19,7 +19,7 @@ import type { CoachItem, CoachFormData } from '@/types/coach'
 import { MollieConnectCard } from '@/components/settings/MollieConnectCard'
 
 // GYM-56 — l'onglet "plans" est retiré : le CRUD des formules vit sur la page /plans.
-const TABS = ['activities', 'coaches', 'gym'] as const
+const TABS = ['activities', 'coaches', 'gym', 'payments'] as const
 type Tab = (typeof TABS)[number]
 
 export default function Settings() {
@@ -285,11 +285,21 @@ export default function Settings() {
         {activeTab === 'gym' && (
           <div className="flex flex-col gap-4">
             <GymSettingsCard />
-            <MollieConnectCard />
           </div>
         )}
 
-        {/* ========= PLACEHOLDER TABS ========= */}
+        {/* ========= PAYMENTS TAB ========= */}
+        {activeTab === 'payments' && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <h2 className="font-display text-xl font-black tracking-tight text-dark">
+                {t('settings.payments.title')}
+              </h2>
+              <p className="mt-1 font-body text-sm text-muted">{t('settings.payments.subtitle')}</p>
+            </div>
+            <MollieConnectCard />
+          </div>
+        )}
       </div>
 
       {/* Confirm modal for toggles */}
