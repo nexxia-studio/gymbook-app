@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
+
+const FN = 'mollie-webhook'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
@@ -53,23 +56,36 @@ Deno.serve(async (req) => {
       .single()
 
     if (!payment) {
-      console.error('[mollie-webhook] payment not found:', molliePaymentId)
-      return new Response('OK', { status: 200 })
+      // Échec de traitement (et non rejet légitime) : un paiement Mollie sans ligne
+      // payments correspondante ne doit pas être avalé silencieusement → retry.
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, stage: 'payment_lookup',
+        detail: { reason: 'payment not found for mollie_payment_id' },
+      })
+      return new Response('payment not found', { status: 503 })
     }
 
     let accessToken: string | null = null
     if (IS_TEST_MODE) {
       if (!MOLLIE_TEST_API_KEY) {
-        console.error('[mollie-webhook] MOLLIE_TEST_API_KEY not set')
-        return new Response('OK', { status: 200 })
+        await recordWebhookFailure(supabase, {
+          functionName: FN, mollieId: molliePaymentId, paymentId: payment.id,
+          gymId: payment.gym_id, stage: 'token',
+          detail: { reason: 'MOLLIE_TEST_API_KEY not set (test mode)' },
+        })
+        return new Response('missing api key', { status: 503 })
       }
       accessToken = MOLLIE_TEST_API_KEY
       console.log('[mollie-webhook] Using TEST API KEY')
     } else {
       accessToken = await getValidMollieToken(supabase, payment.gym_id)
       if (!accessToken) {
-        console.error('[mollie-webhook] no Mollie token for gym:', payment.gym_id)
-        return new Response('OK', { status: 200 })
+        await recordWebhookFailure(supabase, {
+          functionName: FN, mollieId: molliePaymentId, paymentId: payment.id,
+          gymId: payment.gym_id, stage: 'token',
+          detail: { reason: 'no valid Mollie OAuth token / refresh failed' },
+        })
+        return new Response('no token', { status: 503 })
       }
       console.log('[mollie-webhook] Using OAuth token (live)')
     }
@@ -80,8 +96,12 @@ Deno.serve(async (req) => {
 
     if (!mollieResponse.ok) {
       const err = await mollieResponse.text()
-      console.error('[mollie-webhook] fetch failed:', err)
-      return new Response('OK', { status: 200 })
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, paymentId: payment.id,
+        gymId: payment.gym_id, stage: 'mollie_fetch',
+        detail: { httpStatus: mollieResponse.status, body: err.slice(0, 500) },
+      })
+      return new Response('mollie fetch failed', { status: 503 })
     }
 
     const molliePayment = await mollieResponse.json() as {
@@ -98,44 +118,56 @@ Deno.serve(async (req) => {
     }
     const newStatus = statusMap[molliePayment.status] ?? 'pending'
 
-    await supabase
-      .from('payments')
-      .update({
-        status: newStatus,
-        payment_method: molliePayment.method ?? null,
-        paid_at: molliePayment.paidAt ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', payment.id)
-
-    if (molliePayment.status === 'paid' && payment.status !== 'paid') {
-      console.log('[mollie-webhook] granting', payment.credits_granted, 'credits to', payment.member_id)
-
-      const { data: existing } = await supabase
-        .from('member_credits')
-        .select('id, credits_total')
-        .eq('member_id', payment.member_id)
-        .eq('gym_id', payment.gym_id)
-        .eq('plan_id', payment.plan_id)
-        .maybeSingle()
-
-      if (existing) {
-        await supabase
-          .from('member_credits')
-          .update({
-            credits_total: existing.credits_total + payment.credits_granted,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id)
-      } else {
-        await supabase.from('member_credits').insert({
-          gym_id: payment.gym_id,
-          member_id: payment.member_id,
-          plan_id: payment.plan_id,
-          credits_total: payment.credits_granted,
-          credits_used: 0,
+    if (molliePayment.status !== 'paid') {
+      // Statuts failed/expired/canceled/pending : simple update de statut (pas de crédits).
+      // MAIS on vérifie désormais l'erreur → un échec d'écriture n'est plus silencieux.
+      const { error: updateError } = await supabase
+        .from('payments')
+        .update({
+          status: newStatus,
+          payment_method: molliePayment.method ?? null,
+          paid_at: molliePayment.paidAt ?? null,
+          updated_at: new Date().toISOString(),
         })
+        .eq('id', payment.id)
+
+      if (updateError) {
+        await recordWebhookFailure(supabase, {
+          functionName: FN, mollieId: molliePaymentId, paymentId: payment.id,
+          gymId: payment.gym_id, stage: 'status_update',
+          detail: { newStatus, error: updateError.message },
+        })
+        return new Response('status update failed', { status: 503 })
       }
+
+      return new Response('OK', { status: 200 })
+    }
+
+    // ── Statut 'paid' : passage à paid + crédits dans UNE transaction (RPC atomique) ──
+    const { data: applyResult, error: applyError } = await supabase.rpc('apply_paid_payment', {
+      p_payment_id: payment.id,
+      p_payment_method: molliePayment.method ?? null,
+      p_paid_at: molliePayment.paidAt ?? null,
+    })
+
+    if (applyError || applyResult === 'not_found') {
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, paymentId: payment.id,
+        gymId: payment.gym_id, stage: 'apply_paid',
+        detail: { applyResult: applyResult ?? null, error: applyError?.message ?? null },
+      })
+      return new Response('apply_paid failed', { status: 503 })
+    }
+
+    if (applyResult === 'already_applied') {
+      // Retry idempotent d'un paiement déjà traité : pas de re-crédit ni re-notification.
+      console.log('[mollie-webhook] payment already applied — idempotent skip:', molliePaymentId)
+      return new Response('OK', { status: 200 })
+    }
+
+    // applyResult === 'applied' → crédits accordés, on notifie (email + push, inchangés).
+    {
+      console.log('[mollie-webhook] applied', payment.credits_granted, 'credits to', payment.member_id)
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -179,7 +211,21 @@ Deno.serve(async (req) => {
 
     return new Response('OK', { status: 200 })
   } catch (err) {
+    // Erreur non rattrapée = échec de traitement → dead-letter + 503 pour retry Mollie.
+    // Best-effort : on tente d'enregistrer, mais on renvoie 503 quoi qu'il arrive.
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: null, stage: 'uncaught',
+        detail: { error: err instanceof Error ? err.message : String(err) },
+      })
+    } catch (e) {
+      console.error('[mollie-webhook] uncaught + failed to record:', e)
+    }
     console.error('[mollie-webhook] uncaught:', err)
-    return new Response('OK', { status: 200 })
+    return new Response('internal error', { status: 503 })
   }
 })
