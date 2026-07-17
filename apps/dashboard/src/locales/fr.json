@@ -215,6 +215,10 @@
     "title": "En attente d'activation",
     "message": "Votre compte est en cours d'activation. L'equipe Nexxia vous contactera sous 24h pour configurer votre espace."
   },
+  "restricted": {
+    "title": "Espace réservé aux gérants",
+    "message": "Ce tableau de bord est réservé aux gérants de salle. Votre compte n'a pas les droits nécessaires."
+  },
   "placeholder": {
     "title": "{{page}}",
     "subtitle": "Cette section arrive bientôt."

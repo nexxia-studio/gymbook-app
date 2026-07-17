@@ -215,6 +215,10 @@
     "title": "Pending activation",
     "message": "Your account is being activated. The Nexxia team will contact you within 24h to set up your space."
   },
+  "restricted": {
+    "title": "Managers only",
+    "message": "This dashboard is restricted to gym managers. Your account doesn't have the required permissions."
+  },
   "placeholder": {
     "title": "{{page}}",
     "subtitle": "This section is coming soon."
