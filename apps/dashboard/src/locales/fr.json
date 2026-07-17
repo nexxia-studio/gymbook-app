@@ -215,6 +215,10 @@
     "title": "En attente d'activation",
     "message": "Votre compte est en cours d'activation. L'equipe Nexxia vous contactera sous 24h pour configurer votre espace."
   },
+  "restricted": {
+    "title": "Espace réservé aux gérants",
+    "message": "Ce tableau de bord est réservé aux gérants de salle. Votre compte n'a pas les droits nécessaires."
+  },
   "placeholder": {
     "title": "{{page}}",
     "subtitle": "Cette section arrive bientôt."
@@ -591,6 +595,7 @@
     "title": "Revenus",
     "subtitle": "Suivez le chiffre d'affaires, les abonnements et les paiements de votre salle.",
     "unknown_member": "Inconnu",
+    "deleted_member": "Membre supprimé",
     "kpi_month": "CA du mois",
     "kpi_month_sub": "Paiements encaissés ce mois-ci",
     "kpi_growth": "Évolution",
