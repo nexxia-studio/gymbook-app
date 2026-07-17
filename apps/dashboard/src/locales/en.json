@@ -595,6 +595,7 @@
     "title": "Revenue",
     "subtitle": "Track your gym's revenue, subscriptions and payments.",
     "unknown_member": "Unknown",
+    "deleted_member": "Deleted member",
     "kpi_month": "This month's revenue",
     "kpi_month_sub": "Payments collected this month",
     "kpi_growth": "Growth",

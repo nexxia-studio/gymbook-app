@@ -595,6 +595,7 @@
     "title": "Revenus",
     "subtitle": "Suivez le chiffre d'affaires, les abonnements et les paiements de votre salle.",
     "unknown_member": "Inconnu",
+    "deleted_member": "Membre supprimé",
     "kpi_month": "CA du mois",
     "kpi_month_sub": "Paiements encaissés ce mois-ci",
     "kpi_growth": "Évolution",

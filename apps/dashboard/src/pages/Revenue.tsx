@@ -108,7 +108,7 @@ export default function Revenue() {
     setIsLoading(true)
     const [paymentsRes, subsRes] = await Promise.all([
       supabase.from('payments')
-        .select('id, plan_name, amount, status, payment_method, credits_granted, paid_at, created_at, invoice_number, member:profiles!payments_member_id_fkey(first_name, last_name, email)')
+        .select('id, plan_name, amount, status, payment_method, credits_granted, paid_at, created_at, invoice_number, member:profiles!payments_member_id_fkey(first_name, last_name, email, deleted_at)')
         .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(1000),
@@ -117,12 +117,15 @@ export default function Revenue() {
     ])
 
     const mapped: PaymentRow[] = (paymentsRes.data ?? []).map((p) => {
-      const member = p.member as unknown as { first_name?: string; last_name?: string; email?: string } | null
+      const member = p.member as unknown as { first_name?: string; last_name?: string; email?: string; deleted_at?: string | null } | null
+      // GYM-146 — le CA d'un membre supprimé reste réel (on garde le paiement), mais on
+      // affiche un nom de repli au lieu de ses données. Membre absent = idem.
+      const isDeleted = !member || member.deleted_at != null
       const name = member ? `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() : ''
       return {
         id: p.id as string,
-        memberName: name || t('revenue.unknown_member'),
-        memberEmail: member?.email ?? '',
+        memberName: isDeleted ? t('revenue.deleted_member') : (name || t('revenue.unknown_member')),
+        memberEmail: isDeleted ? '' : (member?.email ?? ''),
         planName: (p.plan_name as string) ?? '—',
         amount: Number(p.amount),
         status: (p.status as PaymentStatus) ?? 'pending',
