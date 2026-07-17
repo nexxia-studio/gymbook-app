@@ -35,6 +35,7 @@ interface DbMember {
   email: string | null
   noshow_count: number | null
   avatar_url: string | null
+  deleted_at: string | null
 }
 
 interface DbBooking {
@@ -78,8 +79,10 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
     booked: row.bookings_count ?? row.bookings?.filter((b) => b.status === 'confirmed').length ?? 0,
     capacity: row.capacity,
     status: (row.status as SlotStatus) ?? 'scheduled',
+    // GYM-146 — ne pas afficher un inscrit dont le compte est supprimé (soft-delete).
+    // Filtrage JS (PostgREST ne filtre pas proprement une relation imbriquée via .is()).
     members: (row.bookings ?? [])
-      .filter((b) => b.status === 'confirmed')
+      .filter((b) => b.status === 'confirmed' && !b.member?.deleted_at)
       .map((b) => ({
         id: b.member?.id ?? b.member_id,
         bookingId: b.id,
@@ -171,7 +174,7 @@ export function usePlanning() {
           coaches(id, name, active),
           bookings(
             id, member_id, status,
-            member:profiles(id, first_name, last_name, email, noshow_count, avatar_url)
+            member:profiles(id, first_name, last_name, email, noshow_count, avatar_url, deleted_at)
           )
         `)
         .eq('gym_id', gymId)
