@@ -48,7 +48,7 @@ export async function recordWebhookFailure(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
       body: JSON.stringify({
-        from: 'Viniz Alerts <noreply@nexxia.net>',
+        from: 'Viniz Alerts <noreply@viniz.app>',
         to: alertEmail,
         subject: `[Viniz] Webhook failure — ${functionName}/${stage}`,
         text: `Webhook failure détecté.\n\n`

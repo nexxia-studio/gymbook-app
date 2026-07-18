@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
               body: JSON.stringify({
-                from: 'Dopamine <noreply@nexxia.net>', to: profile.email,
+                from: 'Dopamine <noreply@viniz.app>', to: profile.email,
                 subject: `Abonnement activé — ${plan.name}`,
                 html: `<p>Votre abonnement ${plan.name} est activé. ${(plan.price_cents / 100).toFixed(2)}€/mois × ${plan.duration_months ?? 1} mois.</p>`,
               }),

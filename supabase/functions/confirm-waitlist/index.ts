@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
-          from: 'Dopamine <noreply@nexxia.net>',
+          from: 'Dopamine <noreply@viniz.app>',
           to: profile.email,
           subject: `Place confirmée — ${activityName}`,
           html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place confirmée !</h2><p style="color:#6B6861;">Vous êtes inscrit à <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px;">Voir ma réservation</a></div></div></div>`,

@@ -42,7 +42,7 @@ async function sendEmail(resendKey: string, to: string, subject: string, html: s
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-      body: JSON.stringify({ from: 'Dopamine <noreply@nexxia.net>', to, subject, html }),
+      body: JSON.stringify({ from: 'Dopamine <noreply@viniz.app>', to, subject, html }),
     })
   } catch {
     // Non-blocking
