@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${resendKey}`,
           },
           body: JSON.stringify({
-            from: 'Dopamine <noreply@nexxia.net>',
+            from: 'Dopamine <noreply@viniz.app>',
             to: profile.email,
             subject: `Réservation confirmée — ${activityName}`,
             html: `

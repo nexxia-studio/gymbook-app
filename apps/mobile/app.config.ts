@@ -53,6 +53,20 @@ export default {
       'expo-web-browser',
       'expo-localization',
       'expo-font',
+      // GYM-152 — purpose strings explicites (rejet Apple #2). Le plugin écrit
+      // NSPhotoLibraryUsageDescription / NSCameraUsageDescription dans Info.plist.
+      // Seul usage réel : app/profile/edit.tsx (photo de profil, pickFromLibrary + caméra).
+      // microphonePermission: false → retire NSMicrophoneUsageDescription (pas de vidéo).
+      [
+        'expo-image-picker',
+        {
+          photosPermission:
+            'Dopamine accède à ta photothèque pour te permettre de choisir une photo de profil, affichée sur ton compte membre.',
+          cameraPermission:
+            "Dopamine utilise l'appareil photo pour te permettre de prendre une photo de profil, affichée sur ton compte membre.",
+          microphonePermission: false,
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

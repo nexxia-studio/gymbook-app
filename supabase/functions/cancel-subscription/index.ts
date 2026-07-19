@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
           body: JSON.stringify({
-            from: 'Dopamine <noreply@nexxia.net>',
+            from: 'Dopamine <noreply@viniz.app>',
             to: profile.email,
             subject: `Résiliation confirmée — ${sub.plan_name ?? ''}`,
             html: `<p>Votre abonnement ${sub.plan_name ?? ''} a été résilié.${endsAtFormatted ? ` Il reste actif jusqu'au ${endsAtFormatted}.` : ''}</p>`,

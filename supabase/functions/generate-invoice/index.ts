@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
       body: JSON.stringify({
-        from: 'Dopamine <noreply@nexxia.net>',
+        from: 'Dopamine <noreply@viniz.app>',
         to: [profile.email],
         subject: `Facture ${invoiceNumber} — ${payment.plan_name ?? 'Dopamine'}`,
         html: invoiceHtml,

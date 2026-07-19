@@ -1,5 +1,17 @@
 import { create } from 'zustand'
+import * as Sentry from '@sentry/react-native'
 import { supabase } from '../lib/supabase'
+import { captureEvent } from '../lib/analytics'
+
+// GYM-153 — remontée d'erreur best-effort vers Sentry. Jamais bloquant :
+// une panne du monitoring ne doit pas casser un flux de réservation.
+function reportError(error: unknown): void {
+  try {
+    Sentry.captureException(error)
+  } catch {
+    /* monitoring best-effort */
+  }
+}
 
 export type BookingStatus = 'confirmed' | 'waitlisted' | 'cancelled' | 'attended' | 'noshow'
 
@@ -88,15 +100,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   justPromoted: false,
 
   createBooking: async (slotId: string) => {
-    console.log('[Store] createBooking invoked, slotId:', slotId)
     set({ isLoading: true })
     try {
-      console.log('[Store] Calling supabase.functions.invoke("create-booking")')
       const { data, error } = await supabase.functions.invoke('create-booking', {
         body: { slot_id: slotId },
       })
-      console.log('[Store] Response data:', JSON.stringify(data))
-      console.log('[Store] Response error:', JSON.stringify(error))
 
       // Handle HTTP errors from Edge Function
       if (error) {
@@ -105,7 +113,6 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         try {
           if ((error as { context?: Response }).context) {
             errorBody = await (error as { context: Response }).context.json()
-            console.log('[Store] Error body:', JSON.stringify(errorBody))
           }
         } catch { /* body already consumed or not JSON */ }
 
@@ -120,6 +127,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         if (code === 'PAYMENT_REQUIRED') {
           return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
         }
+        reportError(error)
         return { status: 'error' as const, code: 'ERROR', position: undefined }
       }
 
@@ -142,6 +150,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
+      captureEvent('booking_created', { status: data.status as string })
       return { status: data.status as string, position: data.position as number | undefined }
     } finally {
       set({ isLoading: false })
@@ -157,11 +166,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     })
 
     if (error) {
+      reportError(error)
       throw new Error(error.message ?? 'Cancel failed')
     }
 
     if (data?.error) {
-      throw new Error(data.code ?? data.message ?? 'Cancel failed')
+      const cancelError = new Error(data.code ?? data.message ?? 'Cancel failed')
+      reportError(cancelError)
+      throw cancelError
     }
 
     const noshowResult = data?.noshow
@@ -181,6 +193,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       useAuthStore.getState().refreshProfile()
     }
 
+    captureEvent('booking_cancelled')
     return { noshow: noshowResult }
   },
 
@@ -218,13 +231,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   fetchBookings: async (userId: string) => {
     try {
       // Step 1: fetch bookings (no join — avoids RLS issues on time_slots)
-      const { data: rawBookings, error: bErr } = await supabase
+      const { data: rawBookings } = await supabase
         .from('bookings')
         .select('id, slot_id, status, booked_at, waitlist_position, waitlist_notified_at, waitlist_confirmation_deadline')
         .eq('member_id', userId)
         .order('booked_at', { ascending: false })
-
-      console.log('[Bookings] Raw:', rawBookings?.length, 'error:', bErr?.message)
 
       if (!rawBookings || rawBookings.length === 0) {
         set({ bookings: [], pastBookings: [] })
@@ -237,8 +248,6 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         .from('time_slots')
         .select('id, starts_at, ends_at, capacity, bookings_count, activities(name, color), coaches(name)')
         .in('id', slotIds)
-
-      console.log('[Bookings] Slots fetched:', rawSlots?.length)
 
       // Step 3: combine and split
       const now = new Date()
@@ -284,8 +293,6 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         })
         .slice(0, 20)
         .map(mapRow)
-
-      console.log('[Bookings] Upcoming:', bookings.length, 'Past:', pastBookings.length)
 
       // GYM-96 — détection de promotion AVANT le set, contre l'état PRÉCÉDENT du store
       // (et non un useRef d'écran qui se réinitialise au remontage). promote_waitlist_atomic

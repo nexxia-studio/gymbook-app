@@ -111,6 +111,45 @@ export async function signInWithApple(): Promise<void> {
       })
     }
     await checkRoleAndEnsureProfile(data.user)
+    await healAppleProfileName(data.user.id, fullName)
+  }
+}
+
+/**
+ * GYM-150 volet B — heal du profil Apple.
+ *
+ * Apple ne fournit `fullName` (givenName/familyName) qu'à la 1re authentification,
+ * et JAMAIS dans l'id_token — seul le client le reçoit via `credential.fullName`.
+ * Le trigger DB handle_new_user() a donc pu créer le profil avec first_name/last_name
+ * vides. Ici, une fois le profil garanti existant, si Apple nous a donné le nom ET
+ * que la ligne `profiles` est vide → on complète directement la table.
+ * Best-effort : ne bloque jamais le login (log silencieux si l'UPDATE échoue).
+ * RLS `id = auth.uid()` autorise cet UPDATE par l'utilisateur lui-même.
+ */
+async function healAppleProfileName(
+  userId: string,
+  fullName: AppleAuthentication.AppleAuthenticationFullName | null,
+): Promise<void> {
+  if (!fullName?.givenName && !fullName?.familyName) return
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('first_name')
+      .eq('id', userId)
+      .maybeSingle()
+
+    // On ne heal que si le profil existe et que first_name est vide/null.
+    if (!profile || (profile.first_name && profile.first_name.trim() !== '')) return
+
+    await supabase
+      .from('profiles')
+      .update({
+        first_name: fullName.givenName ?? '',
+        last_name: fullName.familyName ?? '',
+      })
+      .eq('id', userId)
+  } catch (e) {
+    console.error('[OAuth] healAppleProfileName failed (non-blocking)', e)
   }
 }
 

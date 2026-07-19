@@ -3,6 +3,7 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { GYM_ID } from '../constants/dopamine'
 import { LEGAL_VERSION } from '../constants/legal/meta'
+import { identifyUser, resetAnalytics } from '../lib/analytics'
 
 function mapError(msg: string): string {
   if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
@@ -147,6 +148,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data } = await supabase.auth.getSession()
     if (data.session) {
       set({ user: data.session.user, session: data.session, gym_id: GYM_ID })
+      // PostHog identify avec l'UUID interne Supabase (jamais l'email — RGPD).
+      identifyUser(data.session.user.id)
     }
     supabase.auth.onAuthStateChange((_event, session) => {
       set({
@@ -154,6 +157,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         session,
         gym_id: session ? GYM_ID : null,
       })
+      if (session?.user) identifyUser(session.user.id)
+      else resetAnalytics()
     })
   },
 }))
