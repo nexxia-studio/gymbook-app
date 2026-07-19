@@ -82,6 +82,21 @@
     "tagline_l2": "Donne le rythme.",
     "quote": "La solution tout-en-un pour les gérants de salles de sport"
   },
+  "reset": {
+    "checking": "Vérification du lien...",
+    "title": "Définir ton mot de passe",
+    "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
+    "new_password": "Nouveau mot de passe",
+    "submit": "Définir mon mot de passe",
+    "min_length": "Minimum {{count}} caractères",
+    "error_generic": "Une erreur est survenue. Réessaie.",
+    "success_title": "Mot de passe défini !",
+    "success_message": "Tu peux maintenant te connecter dans l'app Dopamine.",
+    "invalid_title": "Lien invalide ou expiré",
+    "invalid_message": "Ce lien n'est plus valide. Entre ton email pour en recevoir un nouveau.",
+    "resend_submit": "Renvoyer le lien",
+    "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien."
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "planning": "Planning",

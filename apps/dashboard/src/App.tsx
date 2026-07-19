@@ -10,6 +10,7 @@ import PaymentCancel from '@/pages/PaymentCancel'
 const Login = lazy(() => import('@/pages/Login'))
 const Signup = lazy(() => import('@/pages/Signup'))
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Planning = lazy(() => import('@/pages/Planning'))
 const Settings = lazy(() => import('@/pages/Settings'))
@@ -50,6 +51,10 @@ function AppRoutes() {
           element={session ? <Navigate to="/dashboard" replace /> : <Signup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        {/* GYM-157 — page publique de reset/définition MDP (MEMBRES). HORS ProtectedRoute et
+            SANS redirection de session : le lien recovery établit une session member qui ne
+            doit pas être interceptée vers /dashboard (bloquée par l'écran gérant GYM-145). */}
+        <Route path="/reset-password" element={<ResetPassword />} />
         {/* Routes légales publiques — hors ProtectedRoute (rendues sans session). */}
         <Route path="/legal/privacy" element={<PrivacyPolicy />} />
         <Route path="/legal/terms" element={<Terms />} />

@@ -82,6 +82,21 @@
     "tagline_l2": "Set the pace.",
     "quote": "The all-in-one solution for gym managers"
   },
+  "reset": {
+    "checking": "Verifying link...",
+    "title": "Set your password",
+    "subtitle": "Choose a new password for your Dopamine account.",
+    "new_password": "New password",
+    "submit": "Set my password",
+    "min_length": "Minimum {{count}} characters",
+    "error_generic": "Something went wrong. Please try again.",
+    "success_title": "Password set!",
+    "success_message": "You can now log in to the Dopamine app.",
+    "invalid_title": "Invalid or expired link",
+    "invalid_message": "This link is no longer valid. Enter your email to get a new one.",
+    "resend_submit": "Resend link",
+    "resend_success": "If an account exists with this email, you will receive a new link."
+  },
   "nav": {
     "dashboard": "Dashboard",
     "planning": "Planning",
