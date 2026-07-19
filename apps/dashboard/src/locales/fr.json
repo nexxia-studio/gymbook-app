@@ -376,6 +376,40 @@
     "toast_push_sent": "Notification envoyee",
     "push_default_message": "Message de Dopamine Performance Club"
   },
+  "member_drawer": {
+    "title": "Fiche membre",
+    "edit": "Modifier",
+    "first_name": "Prénom",
+    "last_name": "Nom",
+    "phone": "Téléphone",
+    "phone_optional": "Optionnel",
+    "email": "Email",
+    "email_readonly": "Email non modifiable",
+    "language": "Langue",
+    "member_since": "Membre depuis",
+    "credits": "Crédits",
+    "credits_remaining": "Solde restant",
+    "credits_used_total": "{{used}}/{{total}} utilisés",
+    "subscription": "Abonnement",
+    "no_subscription": "Aucun abonnement",
+    "sub_status": {
+      "active": "Actif",
+      "paused": "En pause",
+      "suspended": "Suspendu"
+    },
+    "recent_bookings": "Dernières réservations",
+    "no_bookings": "Aucune réservation",
+    "booking_status": {
+      "confirmed": "Confirmée",
+      "cancelled": "Annulée",
+      "attended": "Présent",
+      "no_show": "Absent",
+      "waitlisted": "Liste d'attente"
+    },
+    "error_names_required": "Le prénom et le nom sont requis",
+    "error_save": "La modification a échoué",
+    "toast_saved": "Membre mis à jour"
+  },
   "settings": {
     "title": "Paramètres",
     "tabs": {
