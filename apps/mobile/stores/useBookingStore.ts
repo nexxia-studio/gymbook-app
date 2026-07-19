@@ -1,5 +1,16 @@
 import { create } from 'zustand'
+import * as Sentry from '@sentry/react-native'
 import { supabase } from '../lib/supabase'
+
+// GYM-153 — remontée d'erreur best-effort vers Sentry. Jamais bloquant :
+// une panne du monitoring ne doit pas casser un flux de réservation.
+function reportError(error: unknown): void {
+  try {
+    Sentry.captureException(error)
+  } catch {
+    /* monitoring best-effort */
+  }
+}
 
 export type BookingStatus = 'confirmed' | 'waitlisted' | 'cancelled' | 'attended' | 'noshow'
 
@@ -120,6 +131,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         if (code === 'PAYMENT_REQUIRED') {
           return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
         }
+        reportError(error)
         return { status: 'error' as const, code: 'ERROR', position: undefined }
       }
 
@@ -157,11 +169,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     })
 
     if (error) {
+      reportError(error)
       throw new Error(error.message ?? 'Cancel failed')
     }
 
     if (data?.error) {
-      throw new Error(data.code ?? data.message ?? 'Cancel failed')
+      const cancelError = new Error(data.code ?? data.message ?? 'Cancel failed')
+      reportError(cancelError)
+      throw cancelError
     }
 
     const noshowResult = data?.noshow
