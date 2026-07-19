@@ -73,7 +73,15 @@ async function sendInviteEmail(
   firstName: string | null,
 ): Promise<boolean> {
   try {
-    const { data, error } = await admin.auth.admin.generateLink({ type: 'recovery', email })
+    // redirectTo explicite vers la page publique /reset-password du dashboard (GYM-157),
+    // sinon le lien retombe sur la Site URL par défaut du projet Supabase. Aucune constante
+    // partagée d'URL dashboard n'existe côté functions → env DASHBOARD_URL avec fallback.
+    const dashboardUrl = Deno.env.get('DASHBOARD_URL') ?? 'https://gymbook-app.vercel.app'
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo: `${dashboardUrl}/reset-password` },
+    })
     if (error || !data) {
       console.error('[admin-create-member] generateLink failed:', error)
       return false
