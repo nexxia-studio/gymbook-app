@@ -169,15 +169,17 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                   </Button>
                 </div>
                 <div className="flex gap-3">
-                  {/* Cancel button — always visible */}
-                  <Button
-                    variant="ghost"
-                    className="flex-1 text-orange-500 hover:bg-orange-50 hover:text-orange-600"
-                    onClick={() => onCancel(slot)}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    {t('planning.cancel_slot')}
-                  </Button>
+                  {/* Cancel button — GYM-143 : uniquement pour les créneaux futurs (non commencés) */}
+                  {getDisplayStatus(slot) === 'scheduled' && (
+                    <Button
+                      variant="ghost"
+                      className="flex-1 text-orange-500 hover:bg-orange-50 hover:text-orange-600"
+                      onClick={() => onCancel(slot)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      {t('planning.cancel_slot')}
+                    </Button>
+                  )}
 
                   {/* Delete button — only if 0 members */}
                   <div className="group relative flex-1">
