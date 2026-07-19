@@ -8,6 +8,8 @@ import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { PostHogProvider } from 'posthog-react-native'
+import { posthog } from '../lib/analytics'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
@@ -137,13 +139,23 @@ function RootLayout() {
 
   if (!fontsLoaded) return null
 
-  return (
+  const tree = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="light" />
         <Slot />
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  )
+
+  // PostHog : provider monté seulement si la clé est présente (no-op total sinon).
+  // autocapture des écrans activé (suivi de navigation Expo Router automatique).
+  return posthog ? (
+    <PostHogProvider client={posthog} autocapture={{ captureScreens: true }}>
+      {tree}
+    </PostHogProvider>
+  ) : (
+    tree
   )
 }
 

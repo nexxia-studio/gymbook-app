@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import * as Sentry from '@sentry/react-native'
 import { supabase } from '../lib/supabase'
+import { captureEvent } from '../lib/analytics'
 
 // GYM-153 — remontée d'erreur best-effort vers Sentry. Jamais bloquant :
 // une panne du monitoring ne doit pas casser un flux de réservation.
@@ -154,6 +155,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
+      captureEvent('booking_created', { status: data.status as string })
       return { status: data.status as string, position: data.position as number | undefined }
     } finally {
       set({ isLoading: false })
@@ -196,6 +198,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       useAuthStore.getState().refreshProfile()
     }
 
+    captureEvent('booking_cancelled')
     return { noshow: noshowResult }
   },
 
