@@ -48,3 +48,8 @@ verify_jwt = true
 # le paiement doit appartenir à la salle de l'appelant, jamais du body).
 [functions.create-refund]
 verify_jwt = true
+
+# GYM-129 — édition identité membre par le gérant (JWT gym_admin requis ;
+# la cible doit être un membre de la salle de l'appelant, jamais du body).
+[functions.admin-update-member]
+verify_jwt = true

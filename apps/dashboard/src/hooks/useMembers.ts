@@ -14,6 +14,8 @@ export interface Member {
   memberSince: string | null
   lastSeenAt: string | null
   pushToken: string | null
+  avatarUrl: string | null
+  preferredLanguage: string | null
 }
 
 export function useMembers() {
@@ -29,7 +31,7 @@ export function useMembers() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, created_at')
+        .select('id, first_name, last_name, email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, avatar_url, preferred_language, created_at')
         .eq('gym_id', gymId)
         .eq('role', 'member')
         .is('deleted_at', null)
@@ -48,6 +50,8 @@ export function useMembers() {
         memberSince: r.member_since ?? r.created_at,
         lastSeenAt: r.last_seen_at,
         pushToken: r.push_token,
+        avatarUrl: r.avatar_url,
+        preferredLanguage: r.preferred_language,
       })))
     } catch (e) {
       console.error('Failed to fetch members', e)
