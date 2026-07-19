@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
+import * as Sentry from '@sentry/react-native'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useFonts, BarlowCondensed_900Black } from '@expo-google-fonts/barlow-condensed'
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans'
@@ -7,6 +8,8 @@ import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { PostHogProvider } from 'posthog-react-native'
+import { posthog } from '../lib/analytics'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
@@ -14,6 +17,14 @@ import '../lib/i18n'
 import '../global.css'
 
 SplashScreen.preventAutoHideAsync()
+
+// GYM-153 — Monitoring erreurs (init minimale, erreurs uniquement).
+// DSN fourni par Antoine via variable d'env EAS ; no-op si absent (le build/dev
+// doit tourner sans). tracesSampleRate: 0 → pas de performance/tracing.
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN
+if (sentryDsn) {
+  Sentry.init({ dsn: sentryDsn, tracesSampleRate: 0 })
+}
 
 function useRegisterServiceWorker() {
   useEffect(() => {
@@ -75,7 +86,7 @@ function useInjectPwaHead() {
   }, [])
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     BarlowCondensed_900Black,
     DMSans_400Regular,
@@ -128,7 +139,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded) return null
 
-  return (
+  const tree = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="light" />
@@ -136,4 +147,17 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )
+
+  // PostHog : provider monté seulement si la clé est présente (no-op total sinon).
+  // autocapture des écrans activé (suivi de navigation Expo Router automatique).
+  return posthog ? (
+    <PostHogProvider client={posthog} autocapture={{ captureScreens: true }}>
+      {tree}
+    </PostHogProvider>
+  ) : (
+    tree
+  )
 }
+
+// GYM-153 — wrap racine Sentry (capture des erreurs de rendu de l'arbre).
+export default Sentry.wrap(RootLayout)

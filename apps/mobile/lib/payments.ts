@@ -5,6 +5,7 @@
 import * as WebBrowser from 'expo-web-browser'
 import { supabase } from './supabase'
 import i18n from './i18n'
+import { captureEvent } from './analytics'
 
 // GYM-89 — Les paiements MEMBRES (one-time + abonnement) reviennent sur la page membre
 // dédiée /payment/success, et NON sur /mollie/callback (réservé au flux OAuth gérant).
@@ -103,6 +104,9 @@ async function invokeCheckout(fn: string, body: Record<string, unknown>): Promis
   try {
     const { data, error } = await supabase.functions.invoke(fn, { body })
     if (!error && data?.success && data?.checkout_url) {
+      // payment_initiated — chokepoint unique des 2 flux (create-payment / create-subscription),
+      // émis à l'obtention du checkout Mollie (achat effectivement lancé).
+      captureEvent('payment_initiated', { kind: fn })
       return { ok: true, checkoutUrl: data.checkout_url as string, paymentId: data.payment_id }
     }
     return { ok: false, code: await extractErrorCode(data, error) }
