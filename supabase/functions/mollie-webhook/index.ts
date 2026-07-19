@@ -8,6 +8,41 @@ const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 const MOLLIE_TEST_API_KEY = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
 
+// GYM-112 — Détection refund / chargeback. La vérité arrive par ce webhook : si Mollie
+// signale un montant remboursé (ou rétrofacturé) cumulé > 0, on applique apply_refund_atomic
+// (idempotent sur le cumul). Best-effort transactionnel : un échec suit le même chemin
+// d'erreur que le reste (dead-letter + 503 → retry Mollie). Le chargeback prime (escalade).
+async function applyRefundsIfAny(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  // deno-lint-ignore no-explicit-any
+  payment: any,
+  molliePayment: { amountRefunded?: { value: string }; amountChargedBack?: { value: string } },
+): Promise<boolean> {
+  const refunded = Number.parseFloat(molliePayment.amountRefunded?.value ?? '0') || 0
+  const chargedBack = Number.parseFloat(molliePayment.amountChargedBack?.value ?? '0') || 0
+  if (refunded <= 0 && chargedBack <= 0) return true // rien à traiter
+
+  const isChargeback = chargedBack > 0
+  const amount = isChargeback ? chargedBack : refunded
+
+  const { data: result, error } = await supabase.rpc('apply_refund_atomic', {
+    p_payment_id: payment.id,
+    p_refunded_amount: amount,
+    p_is_chargeback: isChargeback,
+  })
+
+  if (error || result?.status === 'not_found') {
+    await recordWebhookFailure(supabase, {
+      functionName: FN, mollieId: payment.mollie_payment_id, paymentId: payment.id,
+      gymId: payment.gym_id, stage: 'apply_refund',
+      detail: { isChargeback, amount, result: result ?? null, error: error?.message ?? null },
+    })
+    return false
+  }
+  return true
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
@@ -108,6 +143,10 @@ Deno.serve(async (req) => {
       status: string
       method?: string
       paidAt?: string
+      // GYM-112 — PIÈGE MOLLIE : sur un refund, le payment garde status='paid' ;
+      // le remboursement se lit via amountRefunded (cumul), le chargeback via amountChargedBack.
+      amountRefunded?: { value: string; currency: string }
+      amountChargedBack?: { value: string; currency: string }
     }
 
     console.log('[mollie-webhook] Mollie status:', molliePayment.status)
@@ -140,6 +179,11 @@ Deno.serve(async (req) => {
         return new Response('status update failed', { status: 503 })
       }
 
+      // GYM-112 — un refund/chargeback peut aussi arriver sur ces statuts (no-op sinon).
+      if (!await applyRefundsIfAny(supabase, payment, molliePayment)) {
+        return new Response('apply_refund failed', { status: 503 })
+      }
+
       return new Response('OK', { status: 200 })
     }
 
@@ -157,6 +201,14 @@ Deno.serve(async (req) => {
         detail: { applyResult: applyResult ?? null, error: applyError?.message ?? null },
       })
       return new Response('apply_paid failed', { status: 503 })
+    }
+
+    // GYM-112 — détecter refund/chargeback AVANT le retour idempotent : un webhook de
+    // refund garde status='paid', donc apply_paid_payment répond 'already_applied' ; sans
+    // ce point de contrôle le remboursement ne serait jamais appliqué. Les deux branches
+    // (paid + refund) coexistent sans exclusion mutuelle.
+    if (!await applyRefundsIfAny(supabase, payment, molliePayment)) {
+      return new Response('apply_refund failed', { status: 503 })
     }
 
     if (applyResult === 'already_applied') {
