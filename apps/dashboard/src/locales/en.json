@@ -629,6 +629,9 @@
     "status_expired": "Expired",
     "status_canceled": "Canceled",
     "status_failed_pending": "Unpaid",
+    "status_refunded": "Refunded",
+    "status_partially_refunded": "Part. refunded",
+    "status_charged_back": "Chargeback",
     "export_csv": "Export CSV",
     "col_member": "Member",
     "col_plan": "Plan",
@@ -638,6 +641,27 @@
     "col_status_date": "Status / Date",
     "empty_list": "No payments for these filters.",
     "summary_count": "{{count}} payments",
-    "summary_total": "Total collected:"
+    "summary_total": "Total collected:",
+    "refund": {
+      "action": "Refund",
+      "manual_short": "Offline",
+      "manual_tooltip": "Offline payment — refund in person at the gym",
+      "title": "Refund this payment",
+      "paid_amount": "Amount paid",
+      "already_refunded": "Already refunded",
+      "remaining": "Refundable",
+      "mode_total": "Full",
+      "mode_partial": "Partial",
+      "amount_label": "Amount to refund",
+      "warning": "Unused credits will be removed from the member's account. The refund is taken from your Mollie balance.",
+      "confirm": "Refund",
+      "toast_requested": "Refund requested — it will appear in a few moments",
+      "error_invalid_amount": "Invalid amount",
+      "error_amount_too_high": "Amount exceeds the remaining refundable",
+      "error_insufficient_balance": "Insufficient Mollie balance for this refund",
+      "error_manual": "Offline payment — refund in person at the gym",
+      "error_subscription": "Refunding a subscription is not handled here",
+      "error_generic": "The refund failed"
+    }
   }
 }

@@ -629,6 +629,9 @@
     "status_expired": "Expiré",
     "status_canceled": "Annulé",
     "status_failed_pending": "Impayés",
+    "status_refunded": "Remboursé",
+    "status_partially_refunded": "Part. remboursé",
+    "status_charged_back": "Chargeback",
     "export_csv": "Exporter CSV",
     "col_member": "Membre",
     "col_plan": "Formule",
@@ -638,6 +641,27 @@
     "col_status_date": "Statut / Date",
     "empty_list": "Aucun paiement sur ces filtres.",
     "summary_count": "{{count}} paiements",
-    "summary_total": "Total encaissé :"
+    "summary_total": "Total encaissé :",
+    "refund": {
+      "action": "Rembourser",
+      "manual_short": "Hors-ligne",
+      "manual_tooltip": "Paiement hors-ligne — à rembourser en salle",
+      "title": "Rembourser ce paiement",
+      "paid_amount": "Montant payé",
+      "already_refunded": "Déjà remboursé",
+      "remaining": "Remboursable",
+      "mode_total": "Total",
+      "mode_partial": "Partiel",
+      "amount_label": "Montant à rembourser",
+      "warning": "Les crédits non utilisés seront retirés du compte du membre. Le remboursement part de votre solde Mollie.",
+      "confirm": "Rembourser",
+      "toast_requested": "Remboursement demandé — il apparaîtra sous quelques instants",
+      "error_invalid_amount": "Montant invalide",
+      "error_amount_too_high": "Montant supérieur au remboursable restant",
+      "error_insufficient_balance": "Solde Mollie insuffisant pour ce remboursement",
+      "error_manual": "Paiement hors-ligne — à rembourser en salle",
+      "error_subscription": "Le remboursement d'un abonnement n'est pas géré ici",
+      "error_generic": "Le remboursement a échoué"
+    }
   }
 }

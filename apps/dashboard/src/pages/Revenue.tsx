@@ -1,13 +1,15 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CreditCard, TrendingUp, RefreshCcw, AlertCircle, Download } from 'lucide-react'
+import { CreditCard, TrendingUp, RefreshCcw, AlertCircle, Download, RotateCcw } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { RevenueChart, type RevenueBucket } from '@/components/revenue/RevenueChart'
+import { RefundModal, type RefundTarget } from '@/components/revenue/RefundModal'
 
 const GYM_TZ = 'Europe/Brussels'
 type PaymentStatus = 'paid' | 'pending' | 'failed' | 'expired' | 'canceled'
+  | 'refunded' | 'partially_refunded' | 'charged_back'
 type ChartMode = '12m' | '8w'
 type TypeFilter = 'all' | 'one_time' | 'subscription'
 type StatusFilter = 'all' | PaymentStatus | 'failed_pending'
@@ -19,6 +21,9 @@ interface PaymentRow {
   memberEmail: string
   planName: string
   amount: number
+  refundedAmount: number
+  currency: string
+  molliePaymentId: string | null
   status: PaymentStatus
   method: string | null
   isOneTime: boolean
@@ -54,6 +59,9 @@ const STATUS_STYLES: Record<PaymentStatus, string> = {
   failed: 'bg-red-100 text-red-700',
   expired: 'bg-gray-100 text-gray-500',
   canceled: 'bg-gray-100 text-gray-500',
+  refunded: 'bg-gray-200 text-gray-700',
+  partially_refunded: 'bg-orange-100 text-orange-700',
+  charged_back: 'bg-rose-200 text-rose-800',
 }
 
 const FMT_DATE = (iso: string | null): string =>
@@ -102,13 +110,14 @@ export default function Revenue() {
   const [period, setPeriod] = useState<PeriodFilter>('30d')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [refundTarget, setRefundTarget] = useState<RefundTarget | null>(null)
 
   const loadData = useCallback(async () => {
     if (!gymId) return
     setIsLoading(true)
     const [paymentsRes, subsRes] = await Promise.all([
       supabase.from('payments')
-        .select('id, plan_name, amount, status, payment_method, credits_granted, paid_at, created_at, invoice_number, member:profiles!payments_member_id_fkey(first_name, last_name, email, deleted_at)')
+        .select('id, plan_name, amount, refunded_amount, currency, mollie_payment_id, status, payment_method, credits_granted, paid_at, created_at, invoice_number, member:profiles!payments_member_id_fkey(first_name, last_name, email, deleted_at)')
         .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(1000),
@@ -128,6 +137,9 @@ export default function Revenue() {
         memberEmail: isDeleted ? '' : (member?.email ?? ''),
         planName: (p.plan_name as string) ?? '—',
         amount: Number(p.amount),
+        refundedAmount: Number(p.refunded_amount ?? 0),
+        currency: (p.currency as string) ?? 'EUR',
+        molliePaymentId: (p.mollie_payment_id as string | null) ?? null,
         status: (p.status as PaymentStatus) ?? 'pending',
         method: (p.payment_method as string | null) ?? null,
         // Critère abo/one_time : credits_granted > 0 = à l'unité ; sinon = abonnement.
@@ -333,6 +345,9 @@ export default function Revenue() {
                 <option value="failed">{t('revenue.status_failed')}</option>
                 <option value="expired">{t('revenue.status_expired')}</option>
                 <option value="canceled">{t('revenue.status_canceled')}</option>
+                <option value="partially_refunded">{t('revenue.status_partially_refunded')}</option>
+                <option value="refunded">{t('revenue.status_refunded')}</option>
+                <option value="charged_back">{t('revenue.status_charged_back')}</option>
                 <option value="failed_pending">{t('revenue.status_failed_pending')}</option>
               </select>
               <button
@@ -375,12 +390,41 @@ export default function Revenue() {
                       </span>
                     </div>
                     <div className="hidden self-center font-body text-sm text-muted sm:block">{r.method ?? '—'}</div>
-                    <div className="self-center font-body text-sm font-bold text-dark">{FMT_EUR(r.amount)}</div>
+                    <div className="self-center font-body text-sm font-bold text-dark">
+                      {FMT_EUR(r.amount)}
+                      {r.refundedAmount > 0 && (
+                        <span className="block font-body text-[11px] font-normal text-red-500">
+                          −{FMT_EUR(r.refundedAmount)}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex flex-col gap-1 self-center">
                       <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[r.status]}`}>
                         {t(`revenue.status_${r.status}`)}
                       </span>
                       <span className="font-body text-[11px] text-muted">{FMT_DATE(r.paidAt ?? r.createdAt)}</span>
+                      {/* GYM-112 — action remboursement : Mollie payé/partiellement remboursé */}
+                      {r.molliePaymentId && (r.status === 'paid' || r.status === 'partially_refunded') ? (
+                        <button
+                          type="button"
+                          onClick={() => setRefundTarget({
+                            id: r.id,
+                            planName: r.planName,
+                            memberName: r.memberName,
+                            amount: r.amount,
+                            refundedAmount: r.refundedAmount,
+                            currency: r.currency,
+                          })}
+                          className="flex w-fit items-center gap-1 font-body text-[11px] font-semibold text-red-600 hover:underline"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          {t('revenue.refund.action')}
+                        </button>
+                      ) : (!r.molliePaymentId && r.status === 'paid' && (r.method === 'cash' || r.method === 'card_terminal')) ? (
+                        <span title={t('revenue.refund.manual_tooltip')} className="w-fit cursor-help font-body text-[11px] text-muted">
+                          {t('revenue.refund.manual_short')}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -394,6 +438,12 @@ export default function Revenue() {
           </div>
         </>
       )}
+
+      <RefundModal
+        payment={refundTarget}
+        onClose={() => setRefundTarget(null)}
+        onDone={loadData}
+      />
     </DashboardLayout>
   )
 }
