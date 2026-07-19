@@ -34,6 +34,21 @@ verify_jwt = true
 [functions.delete-account]
 verify_jwt = true
 
+# GYM-144 — création d'un membre au comptoir par le gérant (JWT gym_admin requis ;
+# gym_id pris sur le profil de l'appelant, jamais du body).
+[functions.admin-create-member]
+verify_jwt = true
+
+# GYM-143 — annulation d'un cours par le gérant (JWT gym_admin requis ;
+# le slot doit appartenir à la salle de l'appelant, gym_id jamais pris du body).
+[functions.cancel-slot]
+verify_jwt = true
+
+# GYM-112 — remboursement Mollie par le gérant (JWT gym_admin requis ;
+# le paiement doit appartenir à la salle de l'appelant, jamais du body).
+[functions.create-refund]
+verify_jwt = true
+
 # GYM-129 — édition identité membre par le gérant (JWT gym_admin requis ;
 # la cible doit être un membre de la salle de l'appelant, jamais du body).
 [functions.admin-update-member]

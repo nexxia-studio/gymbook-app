@@ -94,9 +94,9 @@ Deno.serve(async (req) => {
     if (profile.gym_id !== gymId) return errorResponse(403, 'Accès interdit à ce gym', 'GYM_FORBIDDEN')
 
     const planLimits = await getGymPlanLimits(supabaseAdmin, gymId)
-    if (!planLimits) return errorResponse(404, 'Plan GymBook introuvable', 'PLAN_NOT_FOUND')
+    if (!planLimits) return errorResponse(404, 'Plan Viniz introuvable', 'PLAN_NOT_FOUND')
     if (!planLimits.payments_enabled) {
-      return errorResponse(403, 'Paiements non disponibles sur votre plan GymBook', 'PAYMENTS_DISABLED')
+      return errorResponse(403, 'Paiements non disponibles sur votre plan Viniz', 'PAYMENTS_DISABLED')
     }
 
     // Résolution autoritative du plan (gym_plans = source de vérité).
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
     if (!isTestMode && applicationFeeCents > 0) {
       firstPaymentPayload.applicationFee = {
         amount: { currency: plan.currency ?? 'EUR', value: formatAmount(feeValue) },
-        description: 'GymBook commission',
+        description: 'Viniz commission',
       }
     }
 
