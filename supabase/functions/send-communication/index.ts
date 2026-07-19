@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
-              from: 'Dopamine <noreply@nexxia.net>',
+              from: 'Dopamine <noreply@viniz.app>',
               to: r.email,
               subject: c.title,
               html: buildEmailHtml(c.title, c.body, c.template, r.first_name),

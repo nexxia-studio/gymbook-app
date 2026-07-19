@@ -43,7 +43,7 @@ async function sendReminderEmail(reminder: PendingReminder, dateStr: string, tim
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
     body: JSON.stringify({
-      from: 'Dopamine <noreply@nexxia.net>',
+      from: 'Dopamine <noreply@viniz.app>',
       to: reminder.member_email,
       subject: `Rappel — ${activityName} demain à ${timeStr}`,
       html,
