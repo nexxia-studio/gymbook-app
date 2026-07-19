@@ -100,7 +100,7 @@ function renderInvoiceHtml(args: {
       <div style="font-size:12px;color:#6B7280;line-height:1.8">
         <strong style="color:#111">Dopamine Performance Club</strong><br>
         Neupré, Belgique<br>
-        <span style="color:#9CA3AF;font-size:11px">Document généré par GymBook — ${esc(a.formattedDate)}</span>
+        <span style="color:#9CA3AF;font-size:11px">Document généré par Dopamine Performance Club — ${esc(a.formattedDate)}</span>
       </div>
     </div>
   </div>

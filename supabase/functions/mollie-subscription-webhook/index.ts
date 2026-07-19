@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
           if (!IS_TEST_MODE && feeCents > 0) {
             subPayload.applicationFee = {
               amount: { currency: plan.currency, value: (feeCents / 100).toFixed(2) },
-              description: 'GymBook commission',
+              description: 'Viniz commission',
             }
           }
           // IDEMPOTENCE (GYM-71) : ne JAMAIS recréer un abonnement Mollie sur retry —
