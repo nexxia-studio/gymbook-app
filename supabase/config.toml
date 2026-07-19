@@ -33,3 +33,8 @@ verify_jwt = true
 # GYM-46 — suppression de compte in-app (JWT membre requis ; member_id = JWT, jamais body).
 [functions.delete-account]
 verify_jwt = true
+
+# GYM-129 — édition identité membre par le gérant (JWT gym_admin requis ;
+# la cible doit être un membre de la salle de l'appelant, jamais du body).
+[functions.admin-update-member]
+verify_jwt = true
