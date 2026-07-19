@@ -374,7 +374,35 @@
     "empty": "Aucun membre",
     "toast_suspension_lifted": "Suspension levee",
     "toast_push_sent": "Notification envoyee",
-    "push_default_message": "Message de Dopamine Performance Club"
+    "push_default_message": "Message de Dopamine Performance Club",
+    "add_member": "Ajouter un membre",
+    "add": {
+      "title": "Nouveau membre",
+      "first_name": "Prénom",
+      "last_name": "Nom",
+      "email": "Email",
+      "phone": "Téléphone",
+      "phone_optional": "Optionnel",
+      "card_section": "Carte de séances payée sur place",
+      "plan": "Formule",
+      "plan_placeholder": "Choisir une formule",
+      "no_plans": "Aucune formule à l'unité active",
+      "price": "Prix",
+      "payment_method": "Méthode de paiement",
+      "method_cash": "Espèces",
+      "method_card": "Terminal carte",
+      "submit": "Créer le membre",
+      "error_email_exists": "Un compte existe déjà avec cet email",
+      "error_generic": "La création du membre a échoué",
+      "toast_success": "Membre créé — invitation envoyée à {{email}}",
+      "toast_success_no_email": "Membre créé, mais l'email d'invitation n'a pas pu partir",
+      "validation": {
+        "first_name_required": "Le prénom est requis",
+        "last_name_required": "Le nom est requis",
+        "email_required": "L'email est requis",
+        "email_invalid": "Email invalide"
+      }
+    }
   },
   "settings": {
     "title": "Paramètres",

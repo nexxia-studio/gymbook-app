@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, ShieldOff, Bell, MoreVertical } from 'lucide-react'
+import { Search, ShieldOff, Bell, MoreVertical, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { useMembers, type Member } from '@/hooks/useMembers'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { useGymStore } from '@/stores/useGymStore'
@@ -112,10 +114,11 @@ export default function Members() {
   const addToast = useToastStore((s) => s.addToast)
   const {
     members, totalCount, activeCount, isLoading,
-    search, setSearch, statusFilter, setStatusFilter,
+    search, setSearch, statusFilter, setStatusFilter, refetch,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
   const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
+  const [addOpen, setAddOpen] = useState(false)
 
   async function handleLiftSuspension(member: Member) {
     await liftSuspension(member.id, 'Lifted by admin')
@@ -144,6 +147,10 @@ export default function Members() {
             {t('members.count', { total: totalCount })} &middot; {t('members.count_active', { active: activeCount })}
           </p>
         </div>
+        <Button onClick={() => setAddOpen(true)} className="self-start sm:self-auto">
+          <Plus className="h-4 w-4" />
+          {t('members.add_member')}
+        </Button>
       </div>
 
       {/* Search + filters */}
@@ -207,6 +214,8 @@ export default function Members() {
           </tbody>
         </table>
       </div>
+
+      <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onCreated={refetch} />
     </DashboardLayout>
   )
 }

@@ -374,7 +374,35 @@
     "empty": "No members",
     "toast_suspension_lifted": "Suspension lifted",
     "toast_push_sent": "Notification sent",
-    "push_default_message": "Message from Dopamine Performance Club"
+    "push_default_message": "Message from Dopamine Performance Club",
+    "add_member": "Add a member",
+    "add": {
+      "title": "New member",
+      "first_name": "First name",
+      "last_name": "Last name",
+      "email": "Email",
+      "phone": "Phone",
+      "phone_optional": "Optional",
+      "card_section": "Session pass paid on site",
+      "plan": "Plan",
+      "plan_placeholder": "Choose a plan",
+      "no_plans": "No active one-off plan",
+      "price": "Price",
+      "payment_method": "Payment method",
+      "method_cash": "Cash",
+      "method_card": "Card terminal",
+      "submit": "Create member",
+      "error_email_exists": "An account already exists with this email",
+      "error_generic": "Member creation failed",
+      "toast_success": "Member created — invitation sent to {{email}}",
+      "toast_success_no_email": "Member created, but the invitation email could not be sent",
+      "validation": {
+        "first_name_required": "First name is required",
+        "last_name_required": "Last name is required",
+        "email_required": "Email is required",
+        "email_invalid": "Invalid email"
+      }
+    }
   },
   "settings": {
     "title": "Settings",
