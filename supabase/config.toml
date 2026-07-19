@@ -43,3 +43,8 @@ verify_jwt = true
 # le slot doit appartenir à la salle de l'appelant, gym_id jamais pris du body).
 [functions.cancel-slot]
 verify_jwt = true
+
+# GYM-112 — remboursement Mollie par le gérant (JWT gym_admin requis ;
+# le paiement doit appartenir à la salle de l'appelant, jamais du body).
+[functions.create-refund]
+verify_jwt = true
