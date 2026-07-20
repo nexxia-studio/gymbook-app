@@ -95,6 +95,22 @@
       "offer_enable": "Activer"
     }
   },
+  "reset": {
+    "checking": "Vérification du lien…",
+    "title": "Définir ton mot de passe",
+    "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
+    "new_password": "Nouveau mot de passe",
+    "confirm_password": "Confirmer le mot de passe",
+    "submit": "Définir mon mot de passe",
+    "min_length": "Minimum {{count}} caractères",
+    "mismatch": "Les mots de passe ne correspondent pas",
+    "error_generic": "Une erreur est survenue. Réessaie.",
+    "success_title": "Mot de passe défini !",
+    "success_message": "Tu peux maintenant te reconnecter à ton compte Dopamine.",
+    "go_login": "Se connecter",
+    "invalid_title": "Lien invalide ou expiré",
+    "invalid_message": "Ce lien n'est plus valide. Refais une demande depuis l'écran de connexion."
+  },
   "tabs": {
     "home": "Accueil",
     "schedule": "Planning",

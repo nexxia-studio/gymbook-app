@@ -95,6 +95,22 @@
       "offer_enable": "Enable"
     }
   },
+  "reset": {
+    "checking": "Verifying link…",
+    "title": "Set your password",
+    "subtitle": "Choose a new password for your Dopamine account.",
+    "new_password": "New password",
+    "confirm_password": "Confirm password",
+    "submit": "Set my password",
+    "min_length": "Minimum {{count}} characters",
+    "mismatch": "Passwords do not match",
+    "error_generic": "Something went wrong. Please try again.",
+    "success_title": "Password set!",
+    "success_message": "You can now log back in to your Dopamine account.",
+    "go_login": "Log in",
+    "invalid_title": "Invalid or expired link",
+    "invalid_message": "This link is no longer valid. Request a new one from the login screen."
+  },
   "tabs": {
     "home": "Home",
     "schedule": "Schedule",
