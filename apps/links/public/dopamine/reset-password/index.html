@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Réinitialiser ton mot de passe — Dopamine</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      Page reset-password (Universal Links infra — GYM-158).
+
+      DOUBLE RÔLE :
+      1. CIBLE Universal Link (iPhone, app installée, build ≥ 13) : iOS intercepte
+         https://links.viniz.app/dopamine/reset-password AVANT le chargement de la page
+         (AASA paths /dopamine/* + Associated Domains) et ouvre l'écran natif de reset.
+         La page n'est alors PAS rendue.
+      2. FALLBACK (Android / desktop / app absente / UL non actif) : la page se charge et
+         REDIRIGE vers la page web /reset-password du dashboard (GYM-157), en PRÉSERVANT le
+         fragment (#access_token=…&type=recovery) et la query.
+
+      ⚠️ Le fragment (#...) porte les tokens de recovery et n'est JAMAIS transmis à un
+      redirect serveur (301/302) → la redirection DOIT être faite en JS côté client.
+    -->
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #111111;
+        color: #F5F4F0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: center;
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        background: #1A1A1A;
+        border: 1px solid #2A2A2A;
+        border-radius: 20px;
+        padding: 40px 28px;
+      }
+      .logo {
+        font-family: "Arial Black", Arial, sans-serif;
+        color: #C8FF3D;
+        font-size: 24px;
+        letter-spacing: 2px;
+        margin-bottom: 28px;
+      }
+      h1 { font-size: 22px; margin: 0 0 12px; color: #F5F4F0; }
+      p { font-size: 15px; line-height: 1.6; color: #9A9890; margin: 0 0 24px; }
+      .btn {
+        display: inline-block;
+        background: #C8FF3D;
+        color: #17102E;
+        font-weight: 700;
+        text-decoration: none;
+        padding: 14px 28px;
+        border-radius: 12px;
+        font-size: 15px;
+      }
+      .hint { margin-top: 20px; font-size: 12px; color: #6B6861; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo">DOPAMINE</div>
+      <h1>Redirection…</h1>
+      <p>On t'emmène définir ton nouveau mot de passe.</p>
+      <a id="continue" class="btn" href="#">Continuer</a>
+      <p class="hint">Si rien ne se passe, tape le bouton ci-dessus.</p>
+    </main>
+
+    <script>
+      // Base web de la page reset du dashboard (GYM-157). Le projet links est un site
+      // STATIQUE pur (pas de build, pas d'injection d'env) → constante unique et documentée.
+      // Le cockpit doit la garder alignée sur le domaine réel du dashboard (cf. redirect_to /
+      // Redirect URLs Supabase au déploiement).
+      var WEB_RESET_BASE = 'https://gymbook-app.vercel.app/reset-password'
+
+      // Préserve query + fragment intacts (les tokens de recovery vivent dans le fragment).
+      var dest = WEB_RESET_BASE + window.location.search + window.location.hash
+      document.getElementById('continue').setAttribute('href', dest)
+      window.location.replace(dest)
+    </script>
+  </body>
+</html>
