@@ -30,6 +30,8 @@ const SUB_BADGE: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   paused: 'bg-amber-100 text-amber-700',
   suspended: 'bg-red-100 text-red-700',
+  // GYM-151 — engagement arrivé à son terme : état neutre (ni positif « actif », ni rouge).
+  completed: 'bg-gray-200 text-gray-700',
 }
 
 function nameToColor(name: string): string {
