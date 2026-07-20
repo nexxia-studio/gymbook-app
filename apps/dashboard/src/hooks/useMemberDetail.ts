@@ -30,8 +30,10 @@ export interface RecentBooking {
   activity: string
 }
 
-// Statuts d'abonnement considérés "courants" (à afficher). expired/cancelled → "aucun".
-const LIVE_SUB_STATUSES = ['active', 'paused', 'suspended']
+// Statuts d'abonnement affichés dans la fiche. expired/cancelled → "aucun abonnement".
+// GYM-151 — 'completed' (engagement arrivé à son terme) est affiché avec un badge « Terminé »
+// (info utile au gérant) plutôt que masqué comme « aucun abonnement ».
+const LIVE_SUB_STATUSES = ['active', 'paused', 'suspended', 'completed']
 
 export function useMemberDetail(memberId: string | null) {
   const gymId = useAuthStore((s) => s.gym_id)

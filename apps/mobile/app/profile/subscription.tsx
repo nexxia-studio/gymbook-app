@@ -14,6 +14,11 @@ import {
   startOneTimeCheckout,
   startSubscriptionCheckout,
 } from '../../lib/payments'
+import {
+  DISPLAYABLE_SUBSCRIPTION_STATUSES,
+  isSubscriptionActive,
+  isSubscriptionCompleted,
+} from '../../lib/subscription'
 
 interface ActiveSub {
   id: string
@@ -40,7 +45,7 @@ function formatDate(iso: string | null): string {
 
 // GYM-113 — engagement ferme (miroir client du prédicat serveur _shared/subscription-engagement).
 function isEngaged(status: string, endsAt: string | null): boolean {
-  return (status === 'active' || status === 'canceling') && !!endsAt && new Date(endsAt).getTime() > Date.now()
+  return isSubscriptionActive(status) && !!endsAt && new Date(endsAt).getTime() > Date.now()
 }
 // Terme d'engagement en heure locale gym (Europe/Brussels), format long fr-BE.
 function formatEngagedDate(iso: string): string {
@@ -146,12 +151,13 @@ export default function SubscriptionScreen() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    // 1. Abonnement récurrent (member_subscriptions)
+    // 1. Abonnement récurrent (member_subscriptions). On charge aussi 'completed' (GYM-151)
+    //    pour afficher l'état « Terminé » — il ne donne PAS accès (cf. hasActiveSub).
     const { data: sub } = await supabase
       .from('member_subscriptions')
       .select('id, status, starts_at, ends_at, next_payment_at, plan_name, amount')
       .eq('member_id', user.id)
-      .in('status', ['active', 'canceling'])
+      .in('status', DISPLAYABLE_SUBSCRIPTION_STATUSES)
       .order('starts_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -283,7 +289,9 @@ export default function SubscriptionScreen() {
   // GYM-94 — règles d'achat :
   //  - one_time (cumul LIBRE) : toujours achetable, SAUF abonnement actif (accès illimité).
   //  - recurring : achetable SAUF abonnement déjà actif (→ upsell futur). Les crédits ne bloquent RIEN.
-  const hasActiveSub = activeSub?.status === 'active' || activeSub?.status === 'canceling'
+  // 'completed' est chargé pour l'affichage mais N'EST PAS actif → n'ouvre aucun droit et
+  // ne bloque aucun achat (GYM-151). Seuls active/canceling comptent comme abonnement actif.
+  const hasActiveSub = isSubscriptionActive(activeSub?.status)
 
   const activeCreditsName = activeCredits
     ? (oneTime.find((p) => p.id === activeCredits.planId)?.name ?? t('subscription.credits_generic_name'))
@@ -353,7 +361,7 @@ export default function SubscriptionScreen() {
         )}
 
         {/* Carte abonnement récurrent */}
-        {loading ? null : activeSub ? (
+        {loading ? null : activeSub && isSubscriptionActive(activeSub.status) ? (
           <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} bg-move-card p-5`}>
             <View className="mb-3 flex-row items-center justify-between">
               <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
@@ -415,6 +423,32 @@ export default function SubscriptionScreen() {
                 </Pressable>
               )
             )}
+          </View>
+        ) : activeSub && isSubscriptionCompleted(activeSub.status) ? (
+          /* GYM-151 — engagement arrivé à son terme : état NEUTRE/positif (pas une erreur).
+             N'ouvre aucun droit ; les formules ci-dessous restent achetables (réabonnement). */
+          <View className="rounded-2xl border-2 border-move-border bg-move-card p-5">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+                {activeSub.planName.toUpperCase()}
+              </Text>
+              <View className="rounded-full bg-move-border px-3 py-1">
+                <Text className="font-dmsans-bold text-[11px] text-move-text-secondary">
+                  {t('subscription.completed_badge')}
+                </Text>
+              </View>
+            </View>
+            {activeSub.endsAt && (
+              <View className="flex-row items-center gap-1.5">
+                <Calendar size={14} color="#6B6861" />
+                <Text className="font-dmsans text-sm text-move-text-secondary">
+                  {t('subscription.completed_ended_on', { date: formatDate(activeSub.endsAt) })}
+                </Text>
+              </View>
+            )}
+            <Text className="mt-2 font-dmsans text-sm text-move-text-muted">
+              {t('subscription.completed_subtitle')}
+            </Text>
           </View>
         ) : activeCredits ? null : (
           <View className="items-center rounded-2xl bg-move-card p-8">

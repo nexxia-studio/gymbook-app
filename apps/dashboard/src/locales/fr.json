@@ -445,7 +445,8 @@
     "sub_status": {
       "active": "Actif",
       "paused": "En pause",
-      "suspended": "Suspendu"
+      "suspended": "Suspendu",
+      "completed": "Terminé"
     },
     "recent_bookings": "Dernières réservations",
     "no_bookings": "Aucune réservation",

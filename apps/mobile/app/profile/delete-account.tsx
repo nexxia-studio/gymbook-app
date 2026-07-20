@@ -7,6 +7,7 @@ import { ChevronLeft, AlertTriangle, Check, X } from 'lucide-react-native'
 import { TextInput } from '../../components/ui/TextInput'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { ACTIVE_SUBSCRIPTION_STATUSES } from '../../lib/subscription'
 
 /** Lit le corps d'erreur d'une réponse Edge Function (JSON dans error.context) : code + ends_at. */
 async function readErrorBody(
@@ -57,7 +58,7 @@ export default function DeleteAccountScreen() {
         .from('member_subscriptions')
         .select('ends_at')
         .eq('member_id', userId)
-        .in('status', ['active', 'canceling'])
+        .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
         .gt('ends_at', new Date().toISOString())
         .order('ends_at', { ascending: false })
         .limit(1)
