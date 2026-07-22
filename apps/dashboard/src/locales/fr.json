@@ -745,7 +745,7 @@
     "refund": {
       "action": "Rembourser",
       "manual_short": "Hors-ligne",
-      "manual_tooltip": "Paiement hors-ligne — à rembourser en salle",
+      "manual_tooltip": "Paiement encaissé en salle, hors plateforme — non remboursable via Mollie",
       "title": "Rembourser ce paiement",
       "paid_amount": "Montant payé",
       "already_refunded": "Déjà remboursé",
@@ -769,7 +769,7 @@
     "invoice": {
       "action": "Facture",
       "download": "Télécharger",
-      "email": "Envoyer par email au membre",
+      "email": "Envoyer par email",
       "email_sent": "Facture envoyée par email au membre",
       "error": "La facture n'a pas pu être générée"
     }

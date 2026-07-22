@@ -745,7 +745,7 @@
     "refund": {
       "action": "Refund",
       "manual_short": "Offline",
-      "manual_tooltip": "Offline payment — refund in person at the gym",
+      "manual_tooltip": "Collected on-site, off-platform — not refundable via Mollie",
       "title": "Refund this payment",
       "paid_amount": "Amount paid",
       "already_refunded": "Already refunded",
@@ -769,7 +769,7 @@
     "invoice": {
       "action": "Invoice",
       "download": "Download",
-      "email": "Email to member",
+      "email": "Send by email",
       "email_sent": "Invoice emailed to member",
       "error": "The invoice could not be generated"
     }
