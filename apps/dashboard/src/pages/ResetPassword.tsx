@@ -14,7 +14,7 @@ import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Button } from '@/components/ui/Button'
-import { supabase } from '@/lib/supabase'
+import { supabase, initialUrlHash } from '@/lib/supabase'
 
 const MIN_PASSWORD = 8
 
@@ -45,9 +45,14 @@ export default function ResetPassword() {
   const [isResending, setIsResending] = useState(false)
 
   // ── Détection du contexte recovery ──
+  // GYM-164 — On lit initialUrlHash (capturé au chargement du module supabase, AVANT que
+  // detectSessionInUrl ne nettoie window.location.hash) et non window.location.hash, qui est
+  // déjà vide au montage. On ne conclut JAMAIS 'invalid' de façon synchrone quand un token
+  // était présent : l'échange de token peut être encore en vol → on laisse l'événement
+  // PASSWORD_RECOVERY / SIGNED_IN (ou le timeout long) décider.
   useEffect(() => {
-    const hash = window.location.hash || ''
-    // Lien expiré / erreur renvoyée par Supabase dans le fragment.
+    const hash = initialUrlHash || ''
+    // Lien expiré / erreur explicite renvoyée par Supabase dans le fragment → invalide direct.
     if (hash.includes('error')) {
       setStatus('invalid')
       return
@@ -61,16 +66,18 @@ export default function ResetPassword() {
     })
 
     // L'événement a pu partir avant le montage → on relit la session courante.
+    // On ne passe JAMAIS 'invalid' ici : si pas de session encore, on attend (token en vol).
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) setStatus('ready')
-      else if (!hasRecoveryToken) setStatus('invalid')
-      // sinon : token présent mais session pas encore établie → on attend l'événement / le timeout.
     })
 
-    // Filet de sécurité : si rien ne s'établit, on bascule sur "lien invalide".
+    // Filet de sécurité :
+    //  - token présent → laisser à PASSWORD_RECOVERY le temps d'arriver (échange en vol) : 8s.
+    //  - aucun token (arrivée directe) → court délai (~1s) pour laisser getSession répondre,
+    //    puis afficher le formulaire de renvoi sans faire attendre 8s.
     const timer = setTimeout(() => {
       setStatus((s) => (s === 'checking' ? 'invalid' : s))
-    }, 4000)
+    }, hasRecoveryToken ? 8000 : 1000)
 
     return () => {
       sub.subscription.unsubscribe()
