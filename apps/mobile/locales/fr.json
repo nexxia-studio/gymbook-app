@@ -75,6 +75,21 @@
       "user_already_registered": "Un compte existe déjà avec cet email",
       "generic": "Une erreur est survenue, réessayez"
     },
+    "password_rules": {
+      "length": "Au moins {{count}} caractères",
+      "lowercase": "Une minuscule",
+      "uppercase": "Une majuscule",
+      "digit": "Un chiffre",
+      "special": "Un caractère spécial"
+    },
+    "password_errors": {
+      "missing_prefix": "Il manque :",
+      "weak": "Mot de passe trop faible — respecte toutes les règles ci-dessous.",
+      "too_short": "Mot de passe trop court — respecte la longueur minimale.",
+      "same_as_old": "Choisis un mot de passe différent de l'ancien.",
+      "expired": "Lien ou session expiré. Redemande un lien de réinitialisation.",
+      "generic": "Une erreur est survenue. Réessaie."
+    },
     "or": "ou",
     "continue_with_google": "Continuer avec Google",
     "google_error": "Connexion Google impossible. Réessayez.",

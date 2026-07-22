@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { TextInput } from '../../components/ui/TextInput'
 import { PasswordInput } from '../../components/ui/PasswordInput'
-import { PasswordStrength } from '../../components/ui/PasswordStrength'
+import { PasswordRules } from '../../components/ui/PasswordRules'
 import { Button } from '../../components/ui/Button'
+import { validatePassword } from '../../lib/passwordPolicy'
 import { Checkbox } from '../../components/ui/Checkbox'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
@@ -21,6 +22,10 @@ interface FormErrors {
   terms?: string
   privacy?: string
 }
+
+// Le compte membre conserve le minimum plus élevé (12) déjà imposé à l'inscription —
+// mêmes règles de caractères (miroir de la politique serveur).
+const SIGNUP_MIN_LENGTH = 12
 
 export default function Signup() {
   const { t } = useTranslation()
@@ -44,10 +49,11 @@ export default function Signup() {
     if (!firstName.trim()) e.firstName = t('auth.validation.first_name_required')
     if (!lastName.trim()) e.lastName = t('auth.validation.last_name_required')
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = t('auth.validation.email_invalid')
-    if (password.length < 12) e.password = t('auth.validation.password_min')
-    else if (!/[A-Z]/.test(password)) e.password = t('auth.validation.password_uppercase')
-    else if (!/[0-9]/.test(password)) e.password = t('auth.validation.password_number')
-    else if (!/[^A-Za-z0-9]/.test(password)) e.password = t('auth.validation.password_special')
+    const pw = validatePassword(password, SIGNUP_MIN_LENGTH)
+    if (!pw.valid) {
+      const missing = pw.failed.map((id) => t(`auth.password_rules.${id}`, { count: SIGNUP_MIN_LENGTH })).join(' · ')
+      e.password = `${t('auth.password_errors.missing_prefix')} ${missing}`
+    }
     if (password !== passwordConfirm) e.passwordConfirm = t('auth.validation.password_mismatch')
     if (!terms) e.terms = t('auth.terms_required')
     if (!privacy) e.privacy = t('auth.privacy_required')
@@ -153,7 +159,7 @@ export default function Signup() {
                   onChangeText={setPassword}
                   error={errors.password}
                 />
-                <PasswordStrength password={password} />
+                <PasswordRules password={password} minLength={SIGNUP_MIN_LENGTH} />
               </View>
 
               <PasswordInput

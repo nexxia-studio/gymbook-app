@@ -78,6 +78,21 @@
       "too_many_requests": "Trop de tentatives, veuillez réessayer plus tard",
       "generic": "Une erreur est survenue, veuillez réessayer"
     },
+    "password_rules": {
+      "length": "Au moins {{count}} caractères",
+      "lowercase": "Une minuscule",
+      "uppercase": "Une majuscule",
+      "digit": "Un chiffre",
+      "special": "Un caractère spécial"
+    },
+    "password_errors": {
+      "missing_prefix": "Il manque :",
+      "weak": "Mot de passe trop faible — respecte toutes les règles ci-dessous.",
+      "too_short": "Mot de passe trop court — respecte la longueur minimale.",
+      "same_as_old": "Choisis un mot de passe différent de l'ancien.",
+      "expired": "Lien ou session expiré. Redemande un lien de réinitialisation.",
+      "generic": "Une erreur est survenue. Réessaie."
+    },
     "tagline_l1": "Prends le pouls,",
     "tagline_l2": "Donne le rythme.",
     "quote": "La solution tout-en-un pour les gérants de salles de sport"

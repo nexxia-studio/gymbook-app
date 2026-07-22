@@ -5,7 +5,9 @@ import { useRouter } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useTranslation } from 'react-i18next'
 import { TextInput } from '../../components/ui/TextInput'
+import { PasswordRules } from '../../components/ui/PasswordRules'
 import { supabase } from '../../lib/supabase'
+import { validatePassword, mapPasswordError } from '../../lib/passwordPolicy'
 
 /**
  * Route Universal Link : cible de https://links.viniz.app/dopamine/reset-password#access_token=…
@@ -105,8 +107,10 @@ export default function ResetPassword() {
   async function handleSubmit() {
     if (saving) return
     setError(null)
-    if (password.length < MIN_PASSWORD) {
-      setError(t('reset.min_length', { count: MIN_PASSWORD }))
+    const pw = validatePassword(password, MIN_PASSWORD)
+    if (!pw.valid) {
+      const missing = pw.failed.map((id) => t(`auth.password_rules.${id}`, { count: MIN_PASSWORD })).join(' · ')
+      setError(`${t('auth.password_errors.missing_prefix')} ${missing}`)
       return
     }
     if (password !== confirm) {
@@ -117,7 +121,7 @@ export default function ResetPassword() {
     try {
       const { error: updErr } = await supabase.auth.updateUser({ password })
       if (updErr) {
-        setError(t('reset.error_generic'))
+        setError(t(mapPasswordError(updErr.message)))
         return
       }
       setStatus('done')
@@ -163,15 +167,18 @@ export default function ResetPassword() {
             )}
 
             <View className="gap-4">
-              <TextInput
-                label={t('reset.new_password')}
-                secureTextEntry
-                autoCapitalize="none"
-                autoComplete="password-new"
-                textContentType="newPassword"
-                value={password}
-                onChangeText={setPassword}
-              />
+              <View className="gap-2">
+                <TextInput
+                  label={t('reset.new_password')}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoComplete="password-new"
+                  textContentType="newPassword"
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <PasswordRules password={password} minLength={MIN_PASSWORD} />
+              </View>
               <TextInput
                 label={t('reset.confirm_password')}
                 secureTextEntry

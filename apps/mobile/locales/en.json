@@ -75,6 +75,21 @@
       "user_already_registered": "An account already exists with this email",
       "generic": "An error occurred, please try again"
     },
+    "password_rules": {
+      "length": "At least {{count}} characters",
+      "lowercase": "One lowercase letter",
+      "uppercase": "One uppercase letter",
+      "digit": "One digit",
+      "special": "One special character"
+    },
+    "password_errors": {
+      "missing_prefix": "Missing:",
+      "weak": "Password too weak — meet all the rules below.",
+      "too_short": "Password too short — meet the minimum length.",
+      "same_as_old": "Choose a password different from the old one.",
+      "expired": "Link or session expired. Request a new reset link.",
+      "generic": "Something went wrong. Please try again."
+    },
     "or": "or",
     "continue_with_google": "Continue with Google",
     "google_error": "Google sign-in failed. Try again.",
