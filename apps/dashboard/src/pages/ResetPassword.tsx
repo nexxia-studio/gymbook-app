@@ -13,8 +13,10 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
+import { PasswordRules } from '@/components/ui/PasswordRules'
 import { Button } from '@/components/ui/Button'
 import { supabase, initialUrlHash } from '@/lib/supabase'
+import { validatePassword, mapPasswordError } from '@/lib/passwordPolicy'
 
 const MIN_PASSWORD = 8
 
@@ -90,8 +92,10 @@ export default function ResetPassword() {
     if (isSaving) return
     setFormError(null)
 
-    if (password.length < MIN_PASSWORD) {
-      setFormError(t('reset.min_length', { count: MIN_PASSWORD }))
+    const { valid, failed } = validatePassword(password, MIN_PASSWORD)
+    if (!valid) {
+      const missing = failed.map((id) => t(`auth.password_rules.${id}`, { count: MIN_PASSWORD })).join(' · ')
+      setFormError(`${t('auth.password_errors.missing_prefix')} ${missing}`)
       return
     }
     if (password !== confirm) {
@@ -103,7 +107,7 @@ export default function ResetPassword() {
     try {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) {
-        setFormError(t('reset.error_generic'))
+        setFormError(t(mapPasswordError(error.message)))
         return
       }
       setStatus('done')
@@ -155,15 +159,18 @@ export default function ResetPassword() {
                 <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{formError}</div>
               )}
 
-              <PasswordInput
-                label={t('reset.new_password')}
-                name="new-password"
-                autoComplete="new-password"
-                placeholder={t('auth.password_placeholder')}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="flex flex-col gap-2">
+                <PasswordInput
+                  label={t('reset.new_password')}
+                  name="new-password"
+                  autoComplete="new-password"
+                  placeholder={t('auth.password_placeholder')}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <PasswordRules password={password} minLength={MIN_PASSWORD} />
+              </div>
               <PasswordInput
                 label={t('auth.password_confirm')}
                 name="confirm-password"
