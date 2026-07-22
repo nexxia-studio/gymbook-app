@@ -72,6 +72,21 @@ const FMT_DATE = (iso: string | null): string =>
   iso ? new Date(iso).toLocaleDateString('fr-BE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const FMT_EUR = (n: number): string => `${n.toFixed(2)}€`
 
+// GYM-167 — moyen de paiement humanisé. cash → Espèces, card_terminal → Terminal carte ;
+// sinon la valeur brute (méthode Mollie : creditcard, bancontact…) ou « — ».
+function methodLabel(method: string | null, t: (k: string) => string): string {
+  if (method === 'cash') return t('revenue.method_cash')
+  if (method === 'card_terminal') return t('revenue.method_card_terminal')
+  return method || '—'
+}
+// Libellé pour le tag d'un paiement HORS-LIGNE : cash/card_terminal humanisés, sinon
+// « Hors-ligne » en repli (remplace l'ancien libellé générique unique).
+function offlineMethodLabel(method: string | null, t: (k: string) => string): string {
+  if (method === 'cash') return t('revenue.method_cash')
+  if (method === 'card_terminal') return t('revenue.method_card_terminal')
+  return t('revenue.method_offline')
+}
+
 interface KpiCardProps {
   label: string
   value: string
@@ -393,7 +408,7 @@ export default function Revenue() {
                         {r.isOneTime ? t('revenue.type_one_time') : t('revenue.type_subscription')}
                       </span>
                     </div>
-                    <div className="hidden self-center font-body text-sm text-muted sm:block">{r.method ?? '—'}</div>
+                    <div className="hidden self-center font-body text-sm text-muted sm:block">{methodLabel(r.method, t)}</div>
                     <div className="self-center font-body text-sm font-bold text-dark">
                       {FMT_EUR(r.amount)}
                       {r.refundedAmount > 0 && (
@@ -426,7 +441,7 @@ export default function Revenue() {
                         </button>
                       ) : (!r.molliePaymentId && r.status === 'paid' && (r.method === 'cash' || r.method === 'card_terminal')) ? (
                         <span title={t('revenue.refund.manual_tooltip')} className="w-fit cursor-help font-body text-[11px] text-muted">
-                          {t('revenue.refund.manual_short')}
+                          {offlineMethodLabel(r.method, t)}
                         </span>
                       ) : null}
                       {/* GYM-167 — facture (téléchargement / envoi) sur tout encaissement réel. */}
