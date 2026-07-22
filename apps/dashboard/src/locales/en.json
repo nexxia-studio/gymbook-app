@@ -762,6 +762,16 @@
       "error_manual": "Offline payment — refund in person at the gym",
       "error_subscription": "Refunding a subscription is not handled here",
       "error_generic": "The refund failed"
+    },
+    "method_cash": "Cash",
+    "method_card_terminal": "Card terminal",
+    "method_offline": "Offline",
+    "invoice": {
+      "action": "Invoice",
+      "download": "Download",
+      "email": "Email to member",
+      "email_sent": "Invoice emailed to member",
+      "error": "The invoice could not be generated"
     }
   }
 }

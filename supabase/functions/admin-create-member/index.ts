@@ -114,6 +114,27 @@ async function sendInviteEmail(
   }
 }
 
+// GYM-167 — facture auto à l'encaissement hors-ligne. Appelle generate-invoice en INTERNE
+// (X-Internal-Secret → contourne le contrôle de rôle membre/gym_admin). Best-effort : un
+// échec ne doit JAMAIS faire échouer la création du membre ni le crédit.
+async function sendInvoiceEmail(admin: SupabaseClient, paymentId: string): Promise<boolean> {
+  try {
+    const secret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
+    const { data, error } = await admin.functions.invoke('generate-invoice', {
+      body: { payment_id: paymentId, mode: 'email' },
+      headers: secret ? { 'X-Internal-Secret': secret } : undefined,
+    })
+    if (error) {
+      console.error('[admin-create-member] invoice send failed:', error)
+      return false
+    }
+    return (data as { success?: boolean } | null)?.success === true
+  } catch (e) {
+    console.error('[admin-create-member] invoice send threw:', e)
+    return false
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -205,6 +226,7 @@ Deno.serve(async (req) => {
     // 6. Carte de séances payée sur place (optionnelle).
     let paymentInfo: { id: string; status: string; credits: number } | undefined
     let warning: string | undefined
+    let invoiceSent = false
 
     if (plan) {
       const paymentRowId = crypto.randomUUID()
@@ -238,6 +260,9 @@ Deno.serve(async (req) => {
           paymentInfo = { id: paymentRowId, status: 'pending', credits: 0 }
         } else {
           paymentInfo = { id: paymentRowId, status: 'paid', credits: plan.credit_count ?? 0 }
+          // GYM-167 — génération + envoi de la facture au membre (best-effort). Le membre
+          // reçoit donc deux emails : invitation + facture. Un échec → invoice_sent:false.
+          invoiceSent = await sendInvoiceEmail(supabaseAdmin, paymentRowId)
         }
       }
     }
@@ -247,6 +272,7 @@ Deno.serve(async (req) => {
       user_id: userId,
       email_sent: emailSent,
       ...(paymentInfo ? { payment: paymentInfo } : {}),
+      ...(paymentInfo?.status === 'paid' ? { invoice_sent: invoiceSent } : {}),
       ...(warning ? { warning } : {}),
     })
   } catch (err) {
