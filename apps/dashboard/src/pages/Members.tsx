@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, ShieldOff, Bell, MoreVertical } from 'lucide-react'
+import { Search, ShieldOff, Bell, MoreVertical, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { MemberDrawer } from '@/components/members/MemberDrawer'
+import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { useMembers, type Member } from '@/hooks/useMembers'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { useGymStore } from '@/stores/useGymStore'
@@ -15,8 +18,9 @@ function nameToColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-function MemberRow({ member, onLiftSuspension, onSendPush }: {
+function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
   member: Member
+  onSelect: () => void
   onLiftSuspension: () => void
   onSendPush: () => void
 }) {
@@ -27,7 +31,7 @@ function MemberRow({ member, onLiftSuspension, onSendPush }: {
   const isSuspended = member.suspendedUntil && new Date(member.suspendedUntil) > new Date()
 
   return (
-    <tr className="border-b border-border transition-colors hover:bg-dark/[0.02]">
+    <tr onClick={onSelect} className="cursor-pointer border-b border-border transition-colors hover:bg-dark/[0.02]">
       {/* Avatar + name */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
@@ -73,18 +77,18 @@ function MemberRow({ member, onLiftSuspension, onSendPush }: {
       <td className="px-4 py-3">
         <div className="relative">
           <button
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v) }}
             className="rounded-lg p-1.5 text-muted hover:bg-dark/5"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
           {menuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }} />
               <div className="absolute bottom-full right-0 z-20 mb-1 w-52 rounded-xl border border-border bg-card py-1 shadow-lg">
                 {isSuspended && (
                   <button
-                    onClick={() => { setMenuOpen(false); onLiftSuspension() }}
+                    onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onLiftSuspension() }}
                     className="flex w-full items-center gap-2 px-3 py-2 font-body text-sm text-dark hover:bg-dark/5"
                   >
                     <ShieldOff className="h-3.5 w-3.5" />
@@ -92,7 +96,7 @@ function MemberRow({ member, onLiftSuspension, onSendPush }: {
                   </button>
                 )}
                 <button
-                  onClick={() => { setMenuOpen(false); onSendPush() }}
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onSendPush() }}
                   className="flex w-full items-center gap-2 px-3 py-2 font-body text-sm text-dark hover:bg-dark/5"
                 >
                   <Bell className="h-3.5 w-3.5" />
@@ -112,10 +116,12 @@ export default function Members() {
   const addToast = useToastStore((s) => s.addToast)
   const {
     members, totalCount, activeCount, isLoading,
-    search, setSearch, statusFilter, setStatusFilter,
+    search, setSearch, statusFilter, setStatusFilter, refetch,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
   const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
+  const [selected, setSelected] = useState<Member | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   async function handleLiftSuspension(member: Member) {
     await liftSuspension(member.id, 'Lifted by admin')
@@ -144,6 +150,10 @@ export default function Members() {
             {t('members.count', { total: totalCount })} &middot; {t('members.count_active', { active: activeCount })}
           </p>
         </div>
+        <Button onClick={() => setAddOpen(true)} className="self-start sm:self-auto">
+          <Plus className="h-4 w-4" />
+          {t('members.add_member')}
+        </Button>
       </div>
 
       {/* Search + filters */}
@@ -199,6 +209,7 @@ export default function Members() {
                 <MemberRow
                   key={member.id}
                   member={member}
+                  onSelect={() => setSelected(member)}
                   onLiftSuspension={() => handleLiftSuspension(member)}
                   onSendPush={() => handleSendPush(member)}
                 />
@@ -207,6 +218,14 @@ export default function Members() {
           </tbody>
         </table>
       </div>
+
+      <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onCreated={refetch} />
+
+      <MemberDrawer
+        member={selected}
+        onClose={() => setSelected(null)}
+        onUpdated={() => refetch()}
+      />
     </DashboardLayout>
   )
 }

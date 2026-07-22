@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
+import { ACTIVE_SUBSCRIPTION_STATUSES } from '../lib/subscription'
 
 export interface SubscriptionSummary {
   isActive: boolean
@@ -49,7 +50,7 @@ export function useSubscriptionSummary() {
       .from('member_subscriptions')
       .select('id, status, plan_name, plan:gym_plans(name)')
       .eq('member_id', user.id)
-      .in('status', ['active', 'canceling'])
+      .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
       .order('starts_at', { ascending: false })
       .limit(1)
       .maybeSingle()

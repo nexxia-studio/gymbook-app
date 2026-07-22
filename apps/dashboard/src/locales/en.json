@@ -78,9 +78,39 @@
       "too_many_requests": "Too many attempts, please try again later",
       "generic": "An error occurred, please try again"
     },
+    "password_rules": {
+      "length": "At least {{count}} characters",
+      "lowercase": "One lowercase letter",
+      "uppercase": "One uppercase letter",
+      "digit": "One digit",
+      "special": "One special character"
+    },
+    "password_errors": {
+      "missing_prefix": "Missing:",
+      "weak": "Password too weak — meet all the rules below.",
+      "too_short": "Password too short — meet the minimum length.",
+      "same_as_old": "Choose a password different from the old one.",
+      "expired": "Link or session expired. Request a new reset link.",
+      "generic": "Something went wrong. Please try again."
+    },
     "tagline_l1": "Take the pulse,",
     "tagline_l2": "Set the pace.",
     "quote": "The all-in-one solution for gym managers"
+  },
+  "reset": {
+    "checking": "Verifying link...",
+    "title": "Set your password",
+    "subtitle": "Choose a new password for your Dopamine account.",
+    "new_password": "New password",
+    "submit": "Set my password",
+    "min_length": "Minimum {{count}} characters",
+    "error_generic": "Something went wrong. Please try again.",
+    "success_title": "Password set!",
+    "success_message": "You can now log in to the Dopamine app.",
+    "invalid_title": "Invalid or expired link",
+    "invalid_message": "This link is no longer valid. Enter your email to get a new one.",
+    "resend_submit": "Resend link",
+    "resend_success": "If an account exists with this email, you will receive a new link."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -341,7 +371,14 @@
     "toast_updated": "Slot updated successfully",
     "toast_cancelled": "Slot cancelled — {{count}} members notified",
     "toast_cancelled_empty": "Slot cancelled",
+    "toast_cancelled_summary": "Class cancelled — {{cancelled}} booking(s) cancelled, {{refunded}} credit(s) refunded",
+    "toast_cancel_error": "Class cancellation failed",
     "toast_deleted": "Slot permanently deleted",
+    "cancel_reason": "Reason (optional)",
+    "cancel_reason_placeholder": "E.g. coach sick, unexpected event…",
+    "cancel_recap_enrolled": "{{count}} enrolled",
+    "cancel_recap_waitlist": "{{count}} on waitlist",
+    "cancel_warning": "Members will be notified and automatically refunded.",
     "validation": {
       "activity_required": "Select an activity",
       "coach_required": "Select a coach",
@@ -374,7 +411,70 @@
     "empty": "No members",
     "toast_suspension_lifted": "Suspension lifted",
     "toast_push_sent": "Notification sent",
-    "push_default_message": "Message from Dopamine Performance Club"
+    "push_default_message": "Message from Dopamine Performance Club",
+    "add_member": "Add a member",
+    "add": {
+      "title": "New member",
+      "first_name": "First name",
+      "last_name": "Last name",
+      "email": "Email",
+      "phone": "Phone",
+      "phone_optional": "Optional",
+      "card_section": "Session pass paid on site",
+      "plan": "Plan",
+      "plan_placeholder": "Choose a plan",
+      "no_plans": "No active one-off plan",
+      "price": "Price",
+      "payment_method": "Payment method",
+      "method_cash": "Cash",
+      "method_card": "Card terminal",
+      "submit": "Create member",
+      "error_email_exists": "An account already exists with this email",
+      "error_generic": "Member creation failed",
+      "toast_success": "Member created — invitation sent to {{email}}",
+      "toast_success_no_email": "Member created, but the invitation email could not be sent",
+      "validation": {
+        "first_name_required": "First name is required",
+        "last_name_required": "Last name is required",
+        "email_required": "Email is required",
+        "email_invalid": "Invalid email"
+      }
+    }
+  },
+  "member_drawer": {
+    "title": "Member profile",
+    "edit": "Edit",
+    "first_name": "First name",
+    "last_name": "Last name",
+    "phone": "Phone",
+    "phone_optional": "Optional",
+    "email": "Email",
+    "email_readonly": "Email cannot be changed",
+    "language": "Language",
+    "member_since": "Member since",
+    "credits": "Credits",
+    "credits_remaining": "Remaining balance",
+    "credits_used_total": "{{used}}/{{total}} used",
+    "subscription": "Subscription",
+    "no_subscription": "No subscription",
+    "sub_status": {
+      "active": "Active",
+      "paused": "Paused",
+      "suspended": "Suspended",
+      "completed": "Completed"
+    },
+    "recent_bookings": "Recent bookings",
+    "no_bookings": "No bookings",
+    "booking_status": {
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled",
+      "attended": "Attended",
+      "no_show": "No-show",
+      "waitlisted": "Waitlisted"
+    },
+    "error_names_required": "First name and last name are required",
+    "error_save": "Update failed",
+    "toast_saved": "Member updated"
   },
   "settings": {
     "title": "Settings",
@@ -629,6 +729,9 @@
     "status_expired": "Expired",
     "status_canceled": "Canceled",
     "status_failed_pending": "Unpaid",
+    "status_refunded": "Refunded",
+    "status_partially_refunded": "Part. refunded",
+    "status_charged_back": "Chargeback",
     "export_csv": "Export CSV",
     "col_member": "Member",
     "col_plan": "Plan",
@@ -638,6 +741,37 @@
     "col_status_date": "Status / Date",
     "empty_list": "No payments for these filters.",
     "summary_count": "{{count}} payments",
-    "summary_total": "Total collected:"
+    "summary_total": "Total collected:",
+    "refund": {
+      "action": "Refund",
+      "manual_short": "Offline",
+      "manual_tooltip": "Offline payment — refund in person at the gym",
+      "title": "Refund this payment",
+      "paid_amount": "Amount paid",
+      "already_refunded": "Already refunded",
+      "remaining": "Refundable",
+      "mode_total": "Full",
+      "mode_partial": "Partial",
+      "amount_label": "Amount to refund",
+      "warning": "Unused credits will be removed from the member's account. The refund is taken from your Mollie balance.",
+      "confirm": "Refund",
+      "toast_requested": "Refund requested — it will appear in a few moments",
+      "error_invalid_amount": "Invalid amount",
+      "error_amount_too_high": "Amount exceeds the remaining refundable",
+      "error_insufficient_balance": "Insufficient Mollie balance for this refund",
+      "error_manual": "Offline payment — refund in person at the gym",
+      "error_subscription": "Refunding a subscription is not handled here",
+      "error_generic": "The refund failed"
+    },
+    "method_cash": "Cash",
+    "method_card_terminal": "Card terminal",
+    "method_offline": "Offline",
+    "invoice": {
+      "action": "Invoice",
+      "download": "Download",
+      "email": "Email to member",
+      "email_sent": "Invoice emailed to member",
+      "error": "The invoice could not be generated"
+    }
   }
 }

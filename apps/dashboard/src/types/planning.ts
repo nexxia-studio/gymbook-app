@@ -23,6 +23,7 @@ export interface TimeSlot {
   activity: Activity
   coach: Coach
   booked: number
+  waitlisted: number
   capacity: number
   status: SlotStatus
   members: SlotMember[]

@@ -5,9 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Shield, Lock, Fingerprint, ChevronLeft, ChevronRight } from 'lucide-react-native'
 import { PasswordInput } from '../../components/ui/PasswordInput'
+import { PasswordRules } from '../../components/ui/PasswordRules'
 import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
+import { validatePassword, mapPasswordError } from '../../lib/passwordPolicy'
 import { useBiometrics } from '../../hooks/useBiometrics'
+
+const CHANGE_PW_MIN_LENGTH = 8
 
 function ChangePasswordForm({ onPasswordChanged }: { onPasswordChanged: (newPassword: string) => void }) {
   const { t } = useTranslation()
@@ -29,8 +33,10 @@ function ChangePasswordForm({ onPasswordChanged }: { onPasswordChanged: (newPass
       Alert.alert(t('auth.errors.generic'), t('security.passwords_dont_match'))
       return
     }
-    if (next.length < 8) {
-      Alert.alert(t('auth.errors.generic'), t('security.password_too_short'))
+    const pw = validatePassword(next, CHANGE_PW_MIN_LENGTH)
+    if (!pw.valid) {
+      const missing = pw.failed.map((id) => t(`auth.password_rules.${id}`, { count: CHANGE_PW_MIN_LENGTH })).join(' · ')
+      Alert.alert(t('auth.errors.generic'), `${t('auth.password_errors.missing_prefix')} ${missing}`)
       return
     }
     setIsLoading(true)
@@ -56,7 +62,7 @@ function ChangePasswordForm({ onPasswordChanged }: { onPasswordChanged: (newPass
         { text: 'OK', onPress: reset },
       ])
     } catch (err) {
-      Alert.alert(t('auth.errors.generic'), (err as Error).message)
+      Alert.alert(t('auth.errors.generic'), t(mapPasswordError((err as Error).message)))
     } finally {
       setIsLoading(false)
     }
@@ -85,11 +91,14 @@ function ChangePasswordForm({ onPasswordChanged }: { onPasswordChanged: (newPass
         value={current}
         onChangeText={setCurrent}
       />
-      <PasswordInput
-        label={t('security.new_password')}
-        value={next}
-        onChangeText={setNext}
-      />
+      <View className="gap-2">
+        <PasswordInput
+          label={t('security.new_password')}
+          value={next}
+          onChangeText={setNext}
+        />
+        <PasswordRules password={next} minLength={CHANGE_PW_MIN_LENGTH} />
+      </View>
       <PasswordInput
         label={t('security.confirm_password')}
         value={confirm}

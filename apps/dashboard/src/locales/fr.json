@@ -78,9 +78,39 @@
       "too_many_requests": "Trop de tentatives, veuillez réessayer plus tard",
       "generic": "Une erreur est survenue, veuillez réessayer"
     },
+    "password_rules": {
+      "length": "Au moins {{count}} caractères",
+      "lowercase": "Une minuscule",
+      "uppercase": "Une majuscule",
+      "digit": "Un chiffre",
+      "special": "Un caractère spécial"
+    },
+    "password_errors": {
+      "missing_prefix": "Il manque :",
+      "weak": "Mot de passe trop faible — respecte toutes les règles ci-dessous.",
+      "too_short": "Mot de passe trop court — respecte la longueur minimale.",
+      "same_as_old": "Choisis un mot de passe différent de l'ancien.",
+      "expired": "Lien ou session expiré. Redemande un lien de réinitialisation.",
+      "generic": "Une erreur est survenue. Réessaie."
+    },
     "tagline_l1": "Prends le pouls,",
     "tagline_l2": "Donne le rythme.",
     "quote": "La solution tout-en-un pour les gérants de salles de sport"
+  },
+  "reset": {
+    "checking": "Vérification du lien...",
+    "title": "Définir ton mot de passe",
+    "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
+    "new_password": "Nouveau mot de passe",
+    "submit": "Définir mon mot de passe",
+    "min_length": "Minimum {{count}} caractères",
+    "error_generic": "Une erreur est survenue. Réessaie.",
+    "success_title": "Mot de passe défini !",
+    "success_message": "Tu peux maintenant te connecter dans l'app Dopamine.",
+    "invalid_title": "Lien invalide ou expiré",
+    "invalid_message": "Ce lien n'est plus valide. Entre ton email pour en recevoir un nouveau.",
+    "resend_submit": "Renvoyer le lien",
+    "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien."
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -341,7 +371,14 @@
     "toast_updated": "Créneau modifié avec succès",
     "toast_cancelled": "Créneau annulé — {{count}} membres notifiés",
     "toast_cancelled_empty": "Créneau annulé",
+    "toast_cancelled_summary": "Cours annulé — {{cancelled}} réservation(s) annulée(s), {{refunded}} crédit(s) rendu(s)",
+    "toast_cancel_error": "L'annulation du cours a échoué",
     "toast_deleted": "Créneau supprimé définitivement",
+    "cancel_reason": "Motif (optionnel)",
+    "cancel_reason_placeholder": "Ex. : coach malade, imprévu…",
+    "cancel_recap_enrolled": "{{count}} inscrit(s)",
+    "cancel_recap_waitlist": "{{count}} en liste d'attente",
+    "cancel_warning": "Les membres seront prévenus et recrédités automatiquement.",
     "validation": {
       "activity_required": "Sélectionnez une activité",
       "coach_required": "Sélectionnez un coach",
@@ -374,7 +411,70 @@
     "empty": "Aucun membre",
     "toast_suspension_lifted": "Suspension levee",
     "toast_push_sent": "Notification envoyee",
-    "push_default_message": "Message de Dopamine Performance Club"
+    "push_default_message": "Message de Dopamine Performance Club",
+    "add_member": "Ajouter un membre",
+    "add": {
+      "title": "Nouveau membre",
+      "first_name": "Prénom",
+      "last_name": "Nom",
+      "email": "Email",
+      "phone": "Téléphone",
+      "phone_optional": "Optionnel",
+      "card_section": "Carte de séances payée sur place",
+      "plan": "Formule",
+      "plan_placeholder": "Choisir une formule",
+      "no_plans": "Aucune formule à l'unité active",
+      "price": "Prix",
+      "payment_method": "Méthode de paiement",
+      "method_cash": "Espèces",
+      "method_card": "Terminal carte",
+      "submit": "Créer le membre",
+      "error_email_exists": "Un compte existe déjà avec cet email",
+      "error_generic": "La création du membre a échoué",
+      "toast_success": "Membre créé — invitation envoyée à {{email}}",
+      "toast_success_no_email": "Membre créé, mais l'email d'invitation n'a pas pu partir",
+      "validation": {
+        "first_name_required": "Le prénom est requis",
+        "last_name_required": "Le nom est requis",
+        "email_required": "L'email est requis",
+        "email_invalid": "Email invalide"
+      }
+    }
+  },
+  "member_drawer": {
+    "title": "Fiche membre",
+    "edit": "Modifier",
+    "first_name": "Prénom",
+    "last_name": "Nom",
+    "phone": "Téléphone",
+    "phone_optional": "Optionnel",
+    "email": "Email",
+    "email_readonly": "Email non modifiable",
+    "language": "Langue",
+    "member_since": "Membre depuis",
+    "credits": "Crédits",
+    "credits_remaining": "Solde restant",
+    "credits_used_total": "{{used}}/{{total}} utilisés",
+    "subscription": "Abonnement",
+    "no_subscription": "Aucun abonnement",
+    "sub_status": {
+      "active": "Actif",
+      "paused": "En pause",
+      "suspended": "Suspendu",
+      "completed": "Terminé"
+    },
+    "recent_bookings": "Dernières réservations",
+    "no_bookings": "Aucune réservation",
+    "booking_status": {
+      "confirmed": "Confirmée",
+      "cancelled": "Annulée",
+      "attended": "Présent",
+      "no_show": "Absent",
+      "waitlisted": "Liste d'attente"
+    },
+    "error_names_required": "Le prénom et le nom sont requis",
+    "error_save": "La modification a échoué",
+    "toast_saved": "Membre mis à jour"
   },
   "settings": {
     "title": "Paramètres",
@@ -629,6 +729,9 @@
     "status_expired": "Expiré",
     "status_canceled": "Annulé",
     "status_failed_pending": "Impayés",
+    "status_refunded": "Remboursé",
+    "status_partially_refunded": "Part. remboursé",
+    "status_charged_back": "Chargeback",
     "export_csv": "Exporter CSV",
     "col_member": "Membre",
     "col_plan": "Formule",
@@ -638,6 +741,37 @@
     "col_status_date": "Statut / Date",
     "empty_list": "Aucun paiement sur ces filtres.",
     "summary_count": "{{count}} paiements",
-    "summary_total": "Total encaissé :"
+    "summary_total": "Total encaissé :",
+    "refund": {
+      "action": "Rembourser",
+      "manual_short": "Hors-ligne",
+      "manual_tooltip": "Paiement hors-ligne — à rembourser en salle",
+      "title": "Rembourser ce paiement",
+      "paid_amount": "Montant payé",
+      "already_refunded": "Déjà remboursé",
+      "remaining": "Remboursable",
+      "mode_total": "Total",
+      "mode_partial": "Partiel",
+      "amount_label": "Montant à rembourser",
+      "warning": "Les crédits non utilisés seront retirés du compte du membre. Le remboursement part de votre solde Mollie.",
+      "confirm": "Rembourser",
+      "toast_requested": "Remboursement demandé — il apparaîtra sous quelques instants",
+      "error_invalid_amount": "Montant invalide",
+      "error_amount_too_high": "Montant supérieur au remboursable restant",
+      "error_insufficient_balance": "Solde Mollie insuffisant pour ce remboursement",
+      "error_manual": "Paiement hors-ligne — à rembourser en salle",
+      "error_subscription": "Le remboursement d'un abonnement n'est pas géré ici",
+      "error_generic": "Le remboursement a échoué"
+    },
+    "method_cash": "Espèces",
+    "method_card_terminal": "Terminal carte",
+    "method_offline": "Hors-ligne",
+    "invoice": {
+      "action": "Facture",
+      "download": "Télécharger",
+      "email": "Envoyer par email au membre",
+      "email_sent": "Facture envoyée par email au membre",
+      "error": "La facture n'a pas pu être générée"
+    }
   }
 }

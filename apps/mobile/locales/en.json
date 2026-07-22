@@ -75,6 +75,21 @@
       "user_already_registered": "An account already exists with this email",
       "generic": "An error occurred, please try again"
     },
+    "password_rules": {
+      "length": "At least {{count}} characters",
+      "lowercase": "One lowercase letter",
+      "uppercase": "One uppercase letter",
+      "digit": "One digit",
+      "special": "One special character"
+    },
+    "password_errors": {
+      "missing_prefix": "Missing:",
+      "weak": "Password too weak — meet all the rules below.",
+      "too_short": "Password too short — meet the minimum length.",
+      "same_as_old": "Choose a password different from the old one.",
+      "expired": "Link or session expired. Request a new reset link.",
+      "generic": "Something went wrong. Please try again."
+    },
     "or": "or",
     "continue_with_google": "Continue with Google",
     "google_error": "Google sign-in failed. Try again.",
@@ -94,6 +109,22 @@
       "offer_later": "Later",
       "offer_enable": "Enable"
     }
+  },
+  "reset": {
+    "checking": "Verifying link…",
+    "title": "Set your password",
+    "subtitle": "Choose a new password for your Dopamine account.",
+    "new_password": "New password",
+    "confirm_password": "Confirm password",
+    "submit": "Set my password",
+    "min_length": "Minimum {{count}} characters",
+    "mismatch": "Passwords do not match",
+    "error_generic": "Something went wrong. Please try again.",
+    "success_title": "Password set!",
+    "success_message": "You can now log back in to your Dopamine account.",
+    "go_login": "Log in",
+    "invalid_title": "Invalid or expired link",
+    "invalid_message": "This link is no longer valid. Request a new one from the login screen."
   },
   "tabs": {
     "home": "Home",
@@ -512,6 +543,9 @@
     "activated_message": "{{plan}}\nNext charge: {{date}}",
     "ends_on": "Until {{date}}",
     "canceling_badge": "Canceled",
+    "completed_badge": "Subscription completed",
+    "completed_ended_on": "Ended on {{date}}",
+    "completed_subtitle": "Your commitment ran its course. You can resubscribe anytime.",
     "cancel_action": "Cancel my subscription",
     "cancel_title": "Cancel my subscription",
     "cancel_message": "Your {{plan}} subscription will remain active until {{date}}. No further charges will be made after that date.",

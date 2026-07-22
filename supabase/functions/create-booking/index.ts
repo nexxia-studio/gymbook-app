@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     // 4b. Freemium member quota guard
     const quotaCheck = await checkMemberQuota(supabaseAdmin, slot.gym_id)
     if (!quotaCheck.allowed) {
-      return errorResponse(403, 'Limite de membres atteinte sur ce plan GymBook', quotaCheck.reason)
+      return errorResponse(403, 'Limite de membres atteinte sur ce plan Viniz', quotaCheck.reason)
     }
 
     // 5. Check if already booked (any status)

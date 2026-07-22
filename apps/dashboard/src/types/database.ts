@@ -181,6 +181,7 @@ export type Database = {
           cancelled_at: string | null
           checked_in_at: string | null
           checked_in_method: string | null
+          debited_credit_id: string | null
           gym_id: string
           id: string
           idempotency_key: string | null
@@ -203,6 +204,7 @@ export type Database = {
           cancelled_at?: string | null
           checked_in_at?: string | null
           checked_in_method?: string | null
+          debited_credit_id?: string | null
           gym_id: string
           id?: string
           idempotency_key?: string | null
@@ -225,6 +227,7 @@ export type Database = {
           cancelled_at?: string | null
           checked_in_at?: string | null
           checked_in_method?: string | null
+          debited_credit_id?: string | null
           gym_id?: string
           id?: string
           idempotency_key?: string | null
@@ -242,6 +245,13 @@ export type Database = {
           waitlist_position?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_debited_credit_id_fkey"
+            columns: ["debited_credit_id"]
+            isOneToOne: false
+            referencedRelation: "member_credits"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_gym_id_fkey"
             columns: ["gym_id"]
@@ -402,27 +412,40 @@ export type Database = {
       }
       favorites: {
         Row: {
-          added_at: string | null
+          activity_id: string
+          added_at: string
+          day_of_week: number
           gym_id: string
           id: string
+          local_time: string
           member_id: string
-          slot_id: string
         }
         Insert: {
-          added_at?: string | null
+          activity_id: string
+          added_at?: string
+          day_of_week: number
           gym_id: string
           id?: string
+          local_time: string
           member_id: string
-          slot_id: string
         }
         Update: {
-          added_at?: string | null
+          activity_id?: string
+          added_at?: string
+          day_of_week?: number
           gym_id?: string
           id?: string
+          local_time?: string
           member_id?: string
-          slot_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "favorites_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "favorites_gym_id_fkey"
             columns: ["gym_id"]
@@ -435,13 +458,6 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "favorites_slot_id_fkey"
-            columns: ["slot_id"]
-            isOneToOne: false
-            referencedRelation: "time_slots"
             referencedColumns: ["id"]
           },
         ]
@@ -1506,6 +1522,8 @@ export type Database = {
         Row: {
           address: string | null
           city: string | null
+          commission_cb_rate_override: number | null
+          commission_sepa_rate_override: number | null
           company_name: string | null
           country: string | null
           created_at: string | null
@@ -1541,6 +1559,8 @@ export type Database = {
         Insert: {
           address?: string | null
           city?: string | null
+          commission_cb_rate_override?: number | null
+          commission_sepa_rate_override?: number | null
           company_name?: string | null
           country?: string | null
           created_at?: string | null
@@ -1576,6 +1596,8 @@ export type Database = {
         Update: {
           address?: string | null
           city?: string | null
+          commission_cb_rate_override?: number | null
+          commission_sepa_rate_override?: number | null
           company_name?: string | null
           country?: string | null
           created_at?: string | null
@@ -1985,6 +2007,8 @@ export type Database = {
           payment_method: string | null
           plan_id: string
           plan_name: string
+          refunded_amount: number
+          refunded_at: string | null
           status: string
           updated_at: string | null
         }
@@ -2005,6 +2029,8 @@ export type Database = {
           payment_method?: string | null
           plan_id: string
           plan_name: string
+          refunded_amount?: number
+          refunded_at?: string | null
           status?: string
           updated_at?: string | null
         }
@@ -2025,6 +2051,8 @@ export type Database = {
           payment_method?: string | null
           plan_id?: string
           plan_name?: string
+          refunded_amount?: number
+          refunded_at?: string | null
           status?: string
           updated_at?: string | null
         }
@@ -2396,6 +2424,7 @@ export type Database = {
           activity_id: string
           bookings_count: number | null
           cancellation_reason: string | null
+          cancelled_at: string | null
           capacity: number
           coach_id: string | null
           created_at: string | null
@@ -2414,6 +2443,7 @@ export type Database = {
           activity_id: string
           bookings_count?: number | null
           cancellation_reason?: string | null
+          cancelled_at?: string | null
           capacity: number
           coach_id?: string | null
           created_at?: string | null
@@ -2432,6 +2462,7 @@ export type Database = {
           activity_id?: string
           bookings_count?: number | null
           cancellation_reason?: string | null
+          cancelled_at?: string | null
           capacity?: number
           coach_id?: string | null
           created_at?: string | null
@@ -2527,6 +2558,50 @@ export type Database = {
           },
         ]
       }
+      webhook_failures: {
+        Row: {
+          created_at: string
+          detail: Json
+          function_name: string
+          gym_id: string | null
+          id: string
+          mollie_id: string | null
+          payment_id: string | null
+          resolved_at: string | null
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          function_name: string
+          gym_id?: string | null
+          id?: string
+          mollie_id?: string | null
+          payment_id?: string | null
+          resolved_at?: string | null
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          function_name?: string
+          gym_id?: string | null
+          id?: string
+          mollie_id?: string | null
+          payment_id?: string | null
+          resolved_at?: string | null
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_failures_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2535,6 +2610,26 @@ export type Database = {
       allocate_invoice_number: {
         Args: { p_payment_id: string }
         Returns: string
+      }
+      apply_paid_payment: {
+        Args: {
+          p_paid_at: string
+          p_payment_id: string
+          p_payment_method: string
+        }
+        Returns: string
+      }
+      apply_refund_atomic: {
+        Args: {
+          p_is_chargeback?: boolean
+          p_payment_id: string
+          p_refunded_amount: number
+        }
+        Returns: Json
+      }
+      cancel_slot_atomic: {
+        Args: { p_reason?: string; p_slot_id: string }
+        Returns: Json
       }
       check_rate_limit: {
         Args: {
@@ -2554,8 +2649,17 @@ export type Database = {
         }
         Returns: boolean
       }
-      cleanup_expired_favorites: { Args: never; Returns: undefined }
       cleanup_oauth_states: { Args: never; Returns: undefined }
+      create_booking_atomic: {
+        Args: {
+          p_existing_booking_id?: string
+          p_gym_id: string
+          p_has_subscription: boolean
+          p_member_id: string
+          p_slot_id: string
+        }
+        Returns: Json
+      }
       create_mollie_vault_tokens: {
         Args: {
           p_access_token: string
@@ -2566,6 +2670,10 @@ export type Database = {
           access_vault_id: string
           refresh_vault_id: string
         }[]
+      }
+      debit_credit_fifo: {
+        Args: { p_booking_id: string; p_gym_id: string; p_member_id: string }
+        Returns: string
       }
       decrypt_medical: {
         Args: { ciphertext: string; secret_id: string }
@@ -2622,6 +2730,7 @@ export type Database = {
         Args: { p_booking_id: string; p_reminder_type: string }
         Returns: undefined
       }
+      notify_next_in_waitlist: { Args: { p_slot_id: string }; Returns: Json }
       process_no_shows: {
         Args: never
         Returns: {
@@ -2632,8 +2741,23 @@ export type Database = {
           processed_booking_id: string
         }[]
       }
+      promote_waitlist_atomic: { Args: { p_booking_id: string }; Returns: Json }
       reorder_waitlist: { Args: { p_slot_id: string }; Returns: undefined }
       request_account_deletion: { Args: { p_user_id: string }; Returns: string }
+      resolve_plan_for_payment: {
+        Args: { p_gym_id: string; p_plan_id: string }
+        Returns: {
+          billing_type: string
+          credit_count: number
+          currency: string
+          duration_months: number
+          gym_id: string
+          is_one_time: boolean
+          name: string
+          plan_id: string
+          price_cents: number
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       update_mollie_vault_token: {

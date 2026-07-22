@@ -77,6 +77,7 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
       active: row.coaches?.active ?? true,
     },
     booked: row.bookings_count ?? row.bookings?.filter((b) => b.status === 'confirmed').length ?? 0,
+    waitlisted: row.bookings?.filter((b) => b.status === 'waitlisted').length ?? 0,
     capacity: row.capacity,
     status: (row.status as SlotStatus) ?? 'scheduled',
     // GYM-146 — ne pas afficher un inscrit dont le compte est supprimé (soft-delete).
@@ -93,6 +94,13 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
         avatarUrl: b.member?.avatar_url ?? undefined,
       })),
   }
+}
+
+export interface CancelSlotSummary {
+  bookingsCancelled: number
+  creditsRefunded: number
+  waitlistCleared: number
+  notified: number
 }
 
 export interface CreateSlotInput {
@@ -354,9 +362,21 @@ export function usePlanning() {
     fetchSlots()
   }
 
-  async function cancelSlot(id: string) {
-    await supabase.from('time_slots').update({ status: 'cancelled' }).eq('id', id)
-    fetchSlots()
+  // GYM-143 — l'annulation passe par l'Edge Function cancel-slot (annulation atomique
+  // + recrédit exact des membres + purge waitlist + notifications), JAMAIS par un simple
+  // UPDATE de statut (qui n'aurait ni recrédité ni notifié). Retourne le résumé pour le toast.
+  async function cancelSlot(id: string, reason?: string): Promise<CancelSlotSummary> {
+    const { data, error } = await supabase.functions.invoke('cancel-slot', {
+      body: { slot_id: id, reason: reason?.trim() || undefined },
+    })
+    if (error) throw error
+    await fetchSlots()
+    return {
+      bookingsCancelled: (data?.bookings_cancelled as number) ?? 0,
+      creditsRefunded: (data?.credits_refunded as number) ?? 0,
+      waitlistCleared: (data?.waitlist_cleared as number) ?? 0,
+      notified: (data?.notified as number) ?? 0,
+    }
   }
 
   async function removeSlot(id: string) {

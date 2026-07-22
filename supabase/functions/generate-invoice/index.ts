@@ -100,13 +100,17 @@ function renderInvoiceHtml(args: {
       <div style="font-size:12px;color:#6B7280;line-height:1.8">
         <strong style="color:#111">Dopamine Performance Club</strong><br>
         Neupré, Belgique<br>
-        <span style="color:#9CA3AF;font-size:11px">Document généré par GymBook — ${esc(a.formattedDate)}</span>
+        <span style="color:#9CA3AF;font-size:11px">Document généré par Dopamine Performance Club — ${esc(a.formattedDate)}</span>
       </div>
     </div>
   </div>
 </body>
 </html>`
 }
+
+// GYM-167 — statuts pour lesquels une facture (justificatif de vente encaissée) est émise.
+// paid + remboursements : la vente a bien eu lieu ; un avoir éventuel est un autre document.
+const INVOICEABLE_STATUSES = ['paid', 'partially_refunded', 'refunded']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -117,27 +121,55 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
-    const { data: { user } } = await supabase.auth.getUser(token)
-    if (!user) return json({ error: true, code: 'UNAUTHORIZED' }, 401)
-
-    const body = await req.json() as { payment_id?: string }
+    const body = await req.json() as { payment_id?: string; mode?: string }
     const paymentId = body.payment_id ?? ''
+    // 'email' (défaut, historique : envoi au membre) | 'download' (retour du document, gérant).
+    const mode = body.mode === 'download' ? 'download' : 'email'
     if (!paymentId) return json({ error: true, code: 'MISSING_PAYMENT_ID' }, 400)
 
     const { data: payment } = await supabase
       .from('payments')
-      .select('id, member_id, plan_id, plan_name, amount, status, paid_at, created_at, mollie_payment_id, invoice_number')
+      .select('id, member_id, gym_id, plan_id, plan_name, amount, status, paid_at, created_at, mollie_payment_id, invoice_number')
       .eq('id', paymentId)
       .single()
 
     if (!payment) return json({ error: true, code: 'NOT_FOUND' }, 404)
-    if (payment.member_id !== user.id) return json({ error: true, code: 'FORBIDDEN' }, 403)
-    if (payment.status !== 'paid') return json({ error: true, code: 'NOT_PAID' }, 400)
 
-    const isOneTime = payment.plan_id === 'drop_in' || payment.plan_id === 'pack_10'
-    if (!isOneTime) return json({ error: true, code: 'NOT_ONE_TIME' }, 400)
+    // ── Autorisation (GYM-167) ── trois voies :
+    //  1. Interne (envoi auto serveur, ex. admin-create-member) via X-Internal-Secret.
+    //  2. Le membre propriétaire du paiement (comportement historique app mobile).
+    //  3. Un gym_admin / super_admin DU GYM du paiement (nouveau : dashboard /revenus).
+    const internalSecret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
+    const providedSecret = req.headers.get('X-Internal-Secret') ?? ''
+    const isInternal = internalSecret.length > 0 && providedSecret === internalSecret
 
+    if (!isInternal) {
+      const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
+      const { data: { user } } = await supabase.auth.getUser(token)
+      if (!user) return json({ error: true, code: 'UNAUTHORIZED' }, 401)
+
+      let allowed = user.id === payment.member_id
+      if (!allowed) {
+        const { data: caller } = await supabase
+          .from('profiles')
+          .select('role, gym_id')
+          .eq('id', user.id)
+          .single()
+        allowed = !!caller
+          && (caller.role === 'gym_admin' || caller.role === 'super_admin')
+          && caller.gym_id === payment.gym_id
+      }
+      if (!allowed) return json({ error: true, code: 'FORBIDDEN' }, 403)
+    }
+
+    // ── Éligibilité ── (GYM-167) l'ancienne restriction aux plans legacy 'drop_in'/'pack_10'
+    // est retirée : les paiements modernes (plan_id UUID) et hors-ligne (cash/terminal) doivent
+    // aussi être facturables. On facture tout encaissement réel.
+    if (!INVOICEABLE_STATUSES.includes(payment.status as string)) {
+      return json({ error: true, code: 'NOT_PAID' }, 400)
+    }
+
+    // Numéro idempotent : réutilise l'existant, n'alloue (nextval) que si absent.
     let invoiceNumber = payment.invoice_number as string | null
     if (!invoiceNumber) {
       const { data: alloc } = await supabase.rpc('allocate_invoice_number', { p_payment_id: payment.id })
@@ -150,9 +182,7 @@ Deno.serve(async (req) => {
       .eq('id', payment.member_id)
       .single()
 
-    if (!profile?.email) return json({ error: true, code: 'NO_EMAIL' }, 400)
-
-    const memberName = `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || profile.email
+    const memberName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || (profile?.email ?? '—')
     const issueDate = new Date(payment.paid_at ?? payment.created_at ?? Date.now())
     const formattedDate = issueDate.toLocaleDateString('fr-BE', { day: '2-digit', month: 'long', year: 'numeric' })
     const amountStr = `${Number(payment.amount).toFixed(2)}€`
@@ -161,15 +191,23 @@ Deno.serve(async (req) => {
       invoiceNumber: invoiceNumber!,
       formattedDate,
       memberName,
-      memberEmail: profile.email,
-      addressLine: profile.address_line ?? '',
-      cityLine: [profile.postal_code, profile.city].filter(Boolean).join(' '),
+      memberEmail: profile?.email ?? '',
+      addressLine: profile?.address_line ?? '',
+      cityLine: [profile?.postal_code, profile?.city].filter(Boolean).join(' '),
       planName: payment.plan_name ?? '—',
       amountStr,
       unitPrice: amountStr,
       reference: payment.mollie_payment_id ?? payment.id,
     })
 
+    // ── Mode téléchargement : retourne le document (pas d'email). Le dashboard l'ouvre
+    //    pour impression / enregistrement PDF (justificatif remis au comptoir). ──
+    if (mode === 'download') {
+      return json({ success: true, invoice_number: invoiceNumber, html: invoiceHtml })
+    }
+
+    // ── Mode email (défaut) : envoi de la facture au membre. ──
+    if (!profile?.email) return json({ error: true, code: 'NO_EMAIL' }, 400)
     if (!RESEND_KEY) return json({ error: true, code: 'RESEND_NOT_CONFIGURED' }, 500)
 
     const resendRes = await fetch('https://api.resend.com/emails', {

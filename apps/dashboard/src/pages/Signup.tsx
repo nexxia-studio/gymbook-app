@@ -5,9 +5,13 @@ import { Mail } from 'lucide-react'
 import { AuthLayout } from '@/components/ui/AuthLayout'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
-import { PasswordStrength } from '@/components/ui/PasswordStrength'
+import { PasswordRules } from '@/components/ui/PasswordRules'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { validatePassword } from '@/lib/passwordPolicy'
+
+// Le compte gérant conserve un minimum plus élevé (12) — mêmes règles de caractères.
+const SIGNUP_MIN_LENGTH = 12
 
 interface FormErrors {
   firstName?: string
@@ -17,14 +21,6 @@ interface FormErrors {
   passwordConfirm?: string
   terms?: string
   privacy?: string
-}
-
-function validatePassword(password: string, t: (key: string) => string): string | undefined {
-  if (password.length < 12) return t('auth.validation.password_min')
-  if (!/[A-Z]/.test(password)) return t('auth.validation.password_uppercase')
-  if (!/[0-9]/.test(password)) return t('auth.validation.password_number')
-  if (!/[^A-Za-z0-9]/.test(password)) return t('auth.validation.password_special')
-  return undefined
 }
 
 export default function Signup() {
@@ -50,8 +46,12 @@ export default function Signup() {
     if (!lastName.trim()) next.lastName = t('auth.validation.last_name_required')
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = t('auth.validation.email_invalid')
 
-    const pwError = validatePassword(password, t)
-    if (pwError) next.password = pwError
+    const { valid, failed } = validatePassword(password, SIGNUP_MIN_LENGTH)
+    if (!valid) {
+      // Message listant précisément les règles manquantes (la checklist reste visible en dessous).
+      const missing = failed.map((id) => t(`auth.password_rules.${id}`, { count: SIGNUP_MIN_LENGTH })).join(' · ')
+      next.password = `${t('auth.password_errors.missing_prefix')} ${missing}`
+    }
 
     if (password !== passwordConfirm) next.passwordConfirm = t('auth.validation.password_mismatch')
     if (!terms) next.terms = t('auth.terms_required')
@@ -183,7 +183,7 @@ export default function Signup() {
             error={errors.password}
             required
           />
-          <PasswordStrength password={password} />
+          <PasswordRules password={password} minLength={SIGNUP_MIN_LENGTH} />
         </div>
 
         <PasswordInput

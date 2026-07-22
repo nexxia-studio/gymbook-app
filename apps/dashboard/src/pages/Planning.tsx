@@ -9,7 +9,8 @@ import { PlanningCalendar, type PlanningCalendarHandle, type CalendarView } from
 import { MobileDayList } from '@/components/planning/MobileDayList'
 import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
-import { SlotDeleteModal, type SlotDeleteMode } from '@/components/planning/SlotDeleteModal'
+import { SlotDeleteModal } from '@/components/planning/SlotDeleteModal'
+import { CancelSlotModal } from '@/components/planning/CancelSlotModal'
 import { usePlanning } from '@/hooks/usePlanning'
 import { useToastStore } from '@/hooks/useToast'
 import type { TimeSlot } from '@/types/planning'
@@ -56,8 +57,9 @@ export default function Planning() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editSlot, setEditSlot] = useState<TimeSlot | null>(null)
-  const [confirmSlot, setConfirmSlot] = useState<TimeSlot | null>(null)
-  const [confirmMode, setConfirmMode] = useState<SlotDeleteMode>('cancel')
+  const [deleteSlot, setDeleteSlot] = useState<TimeSlot | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<TimeSlot | null>(null)
+  const [cancelSubmitting, setCancelSubmitting] = useState(false)
 
   const calendarRef = useRef<PlanningCalendarHandle>(null)
   const [view, setView] = useState<'day' | 'week' | 'month'>('week')
@@ -109,22 +111,33 @@ export default function Planning() {
     addToast(t('slots.toast_updated'))
   }
 
-  function handleConfirm() {
-    if (!confirmSlot) return
-    if (confirmMode === 'delete') {
-      planning.removeSlot(confirmSlot.id)
-      addToast(t('slots.toast_deleted'), 'warning')
-    } else {
-      planning.cancelSlot(confirmSlot.id)
+  function handleDeleteConfirm() {
+    if (!deleteSlot) return
+    planning.removeSlot(deleteSlot.id)
+    addToast(t('slots.toast_deleted'), 'warning')
+    setDeleteSlot(null)
+    planning.setSelectedSlot(null)
+  }
+
+  async function handleCancelConfirm(reason: string) {
+    if (!cancelTarget || cancelSubmitting) return
+    setCancelSubmitting(true)
+    try {
+      const summary = await planning.cancelSlot(cancelTarget.id, reason)
       addToast(
-        confirmSlot.booked > 0
-          ? t('slots.toast_cancelled', { count: confirmSlot.booked })
-          : t('slots.toast_cancelled_empty'),
+        t('slots.toast_cancelled_summary', {
+          cancelled: summary.bookingsCancelled,
+          refunded: summary.creditsRefunded,
+        }),
         'warning',
       )
+      setCancelTarget(null)
+      planning.setSelectedSlot(null)
+    } catch {
+      addToast(t('slots.toast_cancel_error'), 'error')
+    } finally {
+      setCancelSubmitting(false)
     }
-    setConfirmSlot(null)
-    planning.setSelectedSlot(null)
   }
 
   function handleDrawerEdit(slot: TimeSlot) {
@@ -134,14 +147,12 @@ export default function Planning() {
 
   function handleDrawerCancel(slot: TimeSlot) {
     planning.setSelectedSlot(null)
-    setConfirmMode('cancel')
-    setConfirmSlot(slot)
+    setCancelTarget(slot)
   }
 
   function handleDrawerDelete(slot: TimeSlot) {
     planning.setSelectedSlot(null)
-    setConfirmMode('delete')
-    setConfirmSlot(slot)
+    setDeleteSlot(slot)
   }
 
   return (
@@ -288,12 +299,20 @@ export default function Planning() {
         checkOverlap={planning.checkOverlap}
       />
 
-      {/* Delete/Cancel confirmation */}
+      {/* Delete confirmation (suppression définitive, slots sans inscrit) */}
       <SlotDeleteModal
-        slot={confirmSlot}
-        mode={confirmMode}
-        onClose={() => setConfirmSlot(null)}
-        onConfirm={handleConfirm}
+        slot={deleteSlot}
+        mode="delete"
+        onClose={() => setDeleteSlot(null)}
+        onConfirm={handleDeleteConfirm}
+      />
+
+      {/* Cancel confirmation (GYM-143 : recrédit + notifications via cancel-slot) */}
+      <CancelSlotModal
+        slot={cancelTarget}
+        isSubmitting={cancelSubmitting}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={handleCancelConfirm}
       />
 
       {/* Mobile FAB */}

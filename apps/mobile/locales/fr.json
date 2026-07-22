@@ -75,6 +75,21 @@
       "user_already_registered": "Un compte existe déjà avec cet email",
       "generic": "Une erreur est survenue, réessayez"
     },
+    "password_rules": {
+      "length": "Au moins {{count}} caractères",
+      "lowercase": "Une minuscule",
+      "uppercase": "Une majuscule",
+      "digit": "Un chiffre",
+      "special": "Un caractère spécial"
+    },
+    "password_errors": {
+      "missing_prefix": "Il manque :",
+      "weak": "Mot de passe trop faible — respecte toutes les règles ci-dessous.",
+      "too_short": "Mot de passe trop court — respecte la longueur minimale.",
+      "same_as_old": "Choisis un mot de passe différent de l'ancien.",
+      "expired": "Lien ou session expiré. Redemande un lien de réinitialisation.",
+      "generic": "Une erreur est survenue. Réessaie."
+    },
     "or": "ou",
     "continue_with_google": "Continuer avec Google",
     "google_error": "Connexion Google impossible. Réessayez.",
@@ -94,6 +109,22 @@
       "offer_later": "Plus tard",
       "offer_enable": "Activer"
     }
+  },
+  "reset": {
+    "checking": "Vérification du lien…",
+    "title": "Définir ton mot de passe",
+    "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
+    "new_password": "Nouveau mot de passe",
+    "confirm_password": "Confirmer le mot de passe",
+    "submit": "Définir mon mot de passe",
+    "min_length": "Minimum {{count}} caractères",
+    "mismatch": "Les mots de passe ne correspondent pas",
+    "error_generic": "Une erreur est survenue. Réessaie.",
+    "success_title": "Mot de passe défini !",
+    "success_message": "Tu peux maintenant te reconnecter à ton compte Dopamine.",
+    "go_login": "Se connecter",
+    "invalid_title": "Lien invalide ou expiré",
+    "invalid_message": "Ce lien n'est plus valide. Refais une demande depuis l'écran de connexion."
   },
   "tabs": {
     "home": "Accueil",
@@ -512,6 +543,9 @@
     "activated_message": "{{plan}}\nProchain paiement : {{date}}",
     "ends_on": "Jusqu'au {{date}}",
     "canceling_badge": "Résilié",
+    "completed_badge": "Abonnement terminé",
+    "completed_ended_on": "Terminé le {{date}}",
+    "completed_subtitle": "Ton engagement est allé au bout. Tu peux te réabonner quand tu veux.",
     "cancel_action": "Résilier mon abonnement",
     "cancel_title": "Résilier mon abonnement",
     "cancel_message": "Votre abonnement {{plan}} continuera jusqu'au {{date}}. Aucun nouveau prélèvement ne sera effectué après cette date.",
