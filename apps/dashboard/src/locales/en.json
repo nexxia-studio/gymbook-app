@@ -762,6 +762,13 @@
       "error_manual": "Offline payment — refund in person at the gym",
       "error_subscription": "Refunding a subscription is not handled here",
       "error_generic": "The refund failed"
+    },
+    "invoice": {
+      "action": "Invoice",
+      "download": "Download",
+      "email": "Email to member",
+      "email_sent": "Invoice emailed to member",
+      "error": "The invoice could not be generated"
     }
   }
 }

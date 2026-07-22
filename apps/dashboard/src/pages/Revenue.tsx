@@ -6,6 +6,10 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { RevenueChart, type RevenueBucket } from '@/components/revenue/RevenueChart'
 import { RefundModal, type RefundTarget } from '@/components/revenue/RefundModal'
+import { InvoiceMenu } from '@/components/revenue/InvoiceMenu'
+
+// GYM-167 — statuts pour lesquels une facture est disponible (encaissement réel).
+const INVOICEABLE = new Set(['paid', 'partially_refunded', 'refunded'])
 
 const GYM_TZ = 'Europe/Brussels'
 type PaymentStatus = 'paid' | 'pending' | 'failed' | 'expired' | 'canceled'
@@ -425,6 +429,8 @@ export default function Revenue() {
                           {t('revenue.refund.manual_short')}
                         </span>
                       ) : null}
+                      {/* GYM-167 — facture (téléchargement / envoi) sur tout encaissement réel. */}
+                      {INVOICEABLE.has(r.status) && <InvoiceMenu paymentId={r.id} />}
                     </div>
                   </div>
                 ))

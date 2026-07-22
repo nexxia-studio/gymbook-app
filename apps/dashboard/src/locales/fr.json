@@ -762,6 +762,13 @@
       "error_manual": "Paiement hors-ligne — à rembourser en salle",
       "error_subscription": "Le remboursement d'un abonnement n'est pas géré ici",
       "error_generic": "Le remboursement a échoué"
+    },
+    "invoice": {
+      "action": "Facture",
+      "download": "Télécharger",
+      "email": "Envoyer par email au membre",
+      "email_sent": "Facture envoyée par email au membre",
+      "error": "La facture n'a pas pu être générée"
     }
   }
 }
