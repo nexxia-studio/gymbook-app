@@ -72,12 +72,14 @@ export function InvoiceMenu({ paymentId }: { paymentId: string }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 z-20 mb-1 w-60 rounded-xl border border-border bg-card py-1 shadow-lg">
+          {/* GYM-168 — ancré à droite : la colonne est la plus à droite du tableau ;
+              un menu ancré à gauche débordait et était rogné par l'overflow-x-auto du tableau. */}
+          <div className="absolute bottom-full right-0 z-20 mb-1 w-60 rounded-xl border border-border bg-card py-1 shadow-lg">
             <button
               type="button"
               onClick={handleDownload}
               disabled={!!busy}
-              className="flex w-full items-center gap-2 px-3 py-2 font-body text-sm text-dark hover:bg-dark/5 disabled:opacity-50"
+              className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left font-body text-sm text-dark hover:bg-dark/5 disabled:opacity-50"
             >
               {busy === 'download' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               {t('revenue.invoice.download')}
@@ -86,7 +88,7 @@ export function InvoiceMenu({ paymentId }: { paymentId: string }) {
               type="button"
               onClick={handleEmail}
               disabled={!!busy}
-              className="flex w-full items-center gap-2 px-3 py-2 font-body text-sm text-dark hover:bg-dark/5 disabled:opacity-50"
+              className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left font-body text-sm text-dark hover:bg-dark/5 disabled:opacity-50"
             >
               {busy === 'email' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
               {t('revenue.invoice.email')}
