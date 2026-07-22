@@ -23,6 +23,10 @@ const corsHeaders = {
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 
+// GYM-170 — lien de téléchargement de l'app membre (invitation → activation).
+// TestFlight pour l'instant ; BASCULER vers l'URL App Store à la validation du build.
+const APP_DOWNLOAD_URL = 'https://testflight.apple.com/join/Pcbv4MRz'
+
 type PaymentMethod = 'cash' | 'card_terminal'
 
 interface CreateMemberRequest {
@@ -62,7 +66,7 @@ function isDuplicateEmailError(err: { code?: string; status?: number; message?: 
 // wordmark DOPAMINE en #C8F000, footer Neupré). Aligné sur send-communication.
 function buildInviteEmailHtml(firstName: string | null, actionLink: string): string {
   const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Bienvenue chez Dopamine 💪</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 24px;">Ton compte Dopamine a été créé par la salle. Définis ton mot de passe pour accéder à l'app et retrouver tes réservations et ta carte de séances.</p><div style="text-align:center;margin:0 0 8px;"><a href="${actionLink}" style="display:inline-block;background:#C8F000;color:#111111;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">Définir mon mot de passe →</a></div></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
+  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Bienvenue chez Dopamine 💪</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 24px;">Ton compte Dopamine a été créé par la salle. Définis ton mot de passe pour accéder à l'app et retrouver tes réservations et ta carte de séances.</p><div style="text-align:center;margin:0 0 8px;"><a href="${actionLink}" style="display:inline-block;background:#C8F000;color:#111111;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">Définir mon mot de passe →</a></div><div style="border-top:1px solid #E8E6E0;margin:24px 0 0;padding-top:20px;"><p style="color:#111111;font-size:14px;font-weight:bold;margin:0 0 6px;">Prochaine étape</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Réserve tes cours depuis l'application Dopamine.</p><div style="text-align:center;"><a href="${APP_DOWNLOAD_URL}" style="display:inline-block;background:#111111;color:#C8F000;font-weight:bold;font-size:14px;text-decoration:none;padding:12px 24px;border-radius:12px;">Télécharger l'app Dopamine →</a></div></div></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
 }
 
 // Génère le lien de définition de mot de passe (type recovery) et l'envoie via Resend.

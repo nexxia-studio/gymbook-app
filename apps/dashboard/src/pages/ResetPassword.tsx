@@ -20,6 +20,10 @@ import { validatePassword, mapPasswordError } from '@/lib/passwordPolicy'
 
 const MIN_PASSWORD = 8
 
+// GYM-170 — lien de téléchargement de l'app membre. TestFlight pour l'instant ;
+// BASCULER vers l'URL App Store à la validation du build.
+const APP_DOWNLOAD_URL = 'https://testflight.apple.com/join/Pcbv4MRz'
+
 type Status = 'checking' | 'ready' | 'invalid' | 'done'
 
 function DopamineWordmark() {
@@ -200,6 +204,18 @@ export default function ResetPassword() {
             <p className="mt-3 font-body text-sm leading-relaxed text-dark/50">
               {t('reset.success_message')}
             </p>
+
+            {/* GYM-170 — inviter au téléchargement de l'app (moment clé d'activation). */}
+            <div className="mt-8 border-t border-[#E8E6E0] pt-6">
+              <p className="font-body text-sm font-bold text-dark">{t('reset.next_step_title')}</p>
+              <p className="mt-1 font-body text-sm text-dark/50">{t('reset.next_step_text')}</p>
+              <a
+                href={APP_DOWNLOAD_URL}
+                className="mt-4 inline-block rounded-xl bg-[#111111] px-6 py-3 font-ui text-sm font-bold text-[#C8F000] transition-opacity hover:opacity-90"
+              >
+                {t('reset.download_app')}
+              </a>
+            </div>
           </div>
         )}
 
