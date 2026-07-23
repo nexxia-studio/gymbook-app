@@ -3,13 +3,14 @@
 // directes (RLS gym_admin) ; email non modifiable (hors périmètre v1).
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw } from 'lucide-react'
+import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { useMemberDetail } from '@/hooks/useMemberDetail'
+import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
+import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
 import type { Member } from '@/hooks/useMembers'
 
 interface MemberDrawerProps {
@@ -47,8 +48,9 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const { t } = useTranslation()
   const tz = useGymTimezone()
   const addToast = useToastStore((s) => s.addToast)
-  const { credits, creditsRemaining, subscription, bookings, loading } = useMemberDetail(member?.id ?? null)
+  const { credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, subscription, bookings, loading, adjustCredits } = useMemberDetail(member?.id ?? null)
 
+  const [adjustOpen, setAdjustOpen] = useState(false)
   const [identity, setIdentity] = useState({ firstName: '', lastName: '', phone: '' as string | null })
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '' })
@@ -211,17 +213,53 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                     <span className="font-body text-sm text-muted">{t('member_drawer.credits_remaining')}</span>
                     <span className="font-display text-2xl font-black tracking-tight text-dark">{creditsRemaining}</span>
                   </div>
+                  {/* GYM-182 — décomposition acheté / offert quand il y a des crédits offerts. */}
+                  {giftedRemaining > 0 && (
+                    <p className="mt-1 text-right font-body text-xs text-muted">
+                      {t('member_drawer.credits_breakdown', { purchased: purchasedRemaining, gifted: giftedRemaining })}
+                    </p>
+                  )}
                   {credits.filter((c) => c.total > 0).length > 0 && (
                     <div className="mt-3 flex flex-col gap-1.5 border-t border-border pt-3">
                       {credits.filter((c) => c.total > 0).map((c) => (
                         <div key={c.planId} className="flex justify-between font-body text-xs">
-                          <span className="truncate text-dark">{c.planName}</span>
+                          <span className="truncate text-dark">
+                            {c.planId === MANUAL_GRANT_PLAN_ID ? t('member_drawer.credits_gifted_label') : c.planName}
+                          </span>
                           <span className="text-muted">{t('member_drawer.credits_used_total', { used: c.used, total: c.total })}</span>
                         </div>
                       ))}
                     </div>
                   )}
+                  {/* GYM-182 — bouton d'ajustement manuel. */}
+                  <Button variant="secondary" className="mt-3 w-full" onClick={() => setAdjustOpen(true)}>
+                    <Gift className="h-4 w-4" />
+                    {t('member_drawer.adjust.button')}
+                  </Button>
                 </div>
+
+                {/* GYM-182 — historique des ajustements de crédits. */}
+                {adjustments.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-border p-4">
+                    <h4 className="mb-2 flex items-center gap-1.5 font-body text-xs font-semibold text-dark">
+                      <History className="h-3.5 w-3.5 text-muted" />
+                      {t('member_drawer.adjust.history_title')}
+                    </h4>
+                    <div className="flex flex-col gap-2">
+                      {adjustments.map((a) => (
+                        <div key={a.id} className="flex items-start justify-between gap-3 font-body text-xs">
+                          <div className="min-w-0">
+                            <p className="truncate text-dark">{a.reason}</p>
+                            <p className="text-muted">{fmtDate(a.createdAt, true)} · {a.grantedByName}</p>
+                          </div>
+                          <span className={`shrink-0 font-semibold ${a.appliedDelta >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {a.appliedDelta >= 0 ? '+' : ''}{a.appliedDelta}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Section>
 
               {/* ── Abonnement ── */}
@@ -266,6 +304,16 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                 )}
               </Section>
             </div>
+
+            {/* GYM-182 — modale d'ajustement manuel de crédits. */}
+            <AdjustCreditsModal
+              open={adjustOpen}
+              onClose={() => setAdjustOpen(false)}
+              memberName={fullName}
+              currentRemaining={creditsRemaining}
+              giftedRemaining={giftedRemaining}
+              onAdjust={adjustCredits}
+            />
           </>
         )}
       </aside>

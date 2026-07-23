@@ -2073,6 +2073,61 @@ export type Database = {
           },
         ]
       }
+      credit_adjustments: {
+        Row: {
+          applied_delta: number
+          created_at: string | null
+          delta: number
+          granted_by: string
+          gym_id: string
+          id: string
+          member_id: string
+          reason: string
+        }
+        Insert: {
+          applied_delta: number
+          created_at?: string | null
+          delta: number
+          granted_by: string
+          gym_id: string
+          id?: string
+          member_id: string
+          reason: string
+        }
+        Update: {
+          applied_delta?: number
+          created_at?: string | null
+          delta?: number
+          granted_by?: string
+          gym_id?: string
+          id?: string
+          member_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_adjustments_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_adjustments_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_adjustments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       penalties: {
         Row: {
           applied_at: string | null
