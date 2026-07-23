@@ -58,3 +58,8 @@ verify_jwt = true
 # la réservation / le membre doivent appartenir à la salle de l'appelant, gym_id jamais du body).
 [functions.mark-attendance]
 verify_jwt = true
+
+# GYM-182 — ajustement manuel de crédits par le gérant (JWT gym_admin requis ;
+# le membre doit appartenir à la salle de l'appelant, gym_id jamais du body).
+[functions.adjust-credits]
+verify_jwt = true
