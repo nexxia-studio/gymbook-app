@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Pencil, Trash2, XCircle } from 'lucide-react'
-import type { TimeSlot, DisplayStatus } from '@/types/planning'
-import { getDisplayStatus } from '@/types/planning'
+import type { TimeSlot, DisplayStatus, AttendanceStatus } from '@/types/planning'
+import { getDisplayStatus, canTrackAttendance } from '@/types/planning'
 import { Button } from '@/components/ui/Button'
+import { AttendanceSection } from '@/components/planning/AttendanceSection'
+import type { MarkAttendanceResult, MemberSearchResult } from '@/hooks/usePlanning'
 
 interface SlotDrawerProps {
   slot: TimeSlot | null
@@ -11,6 +13,11 @@ interface SlotDrawerProps {
   onEdit: (slot: TimeSlot) => void
   onCancel: (slot: TimeSlot) => void
   onDelete: (slot: TimeSlot) => void
+  // GYM-174 — pointage des présences.
+  onMarkAttendance: (bookingId: string, status: AttendanceStatus) => Promise<MarkAttendanceResult>
+  onWalkIn: (slotId: string, memberId: string) => Promise<void>
+  searchMembers: (query: string, excludeIds: string[]) => Promise<MemberSearchResult[]>
+  onOpenAddMember: () => void
 }
 
 const statusColors: Record<DisplayStatus, string> = {
@@ -20,7 +27,10 @@ const statusColors: Record<DisplayStatus, string> = {
   in_progress: 'bg-green-500/15 text-green-600',
 }
 
-export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDrawerProps) {
+export function SlotDrawer({
+  slot, onClose, onEdit, onCancel, onDelete,
+  onMarkAttendance, onWalkIn, searchMembers, onOpenAddMember,
+}: SlotDrawerProps) {
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -124,39 +134,50 @@ export function SlotDrawer({ slot, onClose, onEdit, onCancel, onDelete }: SlotDr
                 />
               </div>
 
-              {/* Members list */}
-              <div>
-                <h4 className="mb-3 font-body text-sm font-semibold text-dark">
-                  {t('planning.members_enrolled')}
-                </h4>
-                {slot.members.length === 0 ? (
-                  <p className="font-body text-sm text-muted">{t('planning.no_members')}</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {slot.members.map((member) => {
-                      const fullName = `${member.firstName} ${member.lastName}`.trim() || member.email || '—'
-                      const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase() || (member.email[0] ?? '?').toUpperCase()
-                      return (
-                        <div key={member.bookingId} className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-dim/10 font-body text-xs font-bold text-accent-dim">
-                            {member.avatarUrl ? (
-                              <img src={member.avatarUrl} alt={fullName} className="h-full w-full object-cover" />
-                            ) : (
-                              initials
+              {/* GYM-174 — Pointage des présences (cours du jour + passés) ou, pour un
+                  cours futur, liste des inscrits en lecture seule. */}
+              {canTrackAttendance(slot) ? (
+                <AttendanceSection
+                  slot={slot}
+                  onMark={onMarkAttendance}
+                  onWalkIn={(memberId) => onWalkIn(slot.id, memberId)}
+                  searchMembers={searchMembers}
+                  onOpenAddMember={onOpenAddMember}
+                />
+              ) : (
+                <div>
+                  <h4 className="mb-3 font-body text-sm font-semibold text-dark">
+                    {t('planning.members_enrolled')}
+                  </h4>
+                  {slot.members.length === 0 ? (
+                    <p className="font-body text-sm text-muted">{t('planning.no_members')}</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {slot.members.map((member) => {
+                        const fullName = `${member.firstName} ${member.lastName}`.trim() || member.email || '—'
+                        const initials = `${member.firstName[0] ?? ''}${member.lastName[0] ?? ''}`.toUpperCase() || (member.email[0] ?? '?').toUpperCase()
+                        return (
+                          <div key={member.bookingId} className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-dim/10 font-body text-xs font-bold text-accent-dim">
+                              {member.avatarUrl ? (
+                                <img src={member.avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+                              ) : (
+                                initials
+                              )}
+                            </div>
+                            <span className="flex-1 font-body text-sm text-dark">{fullName}</span>
+                            {member.noshowCount > 0 && (
+                              <span className="rounded-md bg-red-50 px-1.5 py-0.5 font-body text-[10px] font-semibold text-red-500">
+                                {t('planning.noshow_count', { count: member.noshowCount })}
+                              </span>
                             )}
                           </div>
-                          <span className="flex-1 font-body text-sm text-dark">{fullName}</span>
-                          {member.noshowCount > 0 && (
-                            <span className="rounded-md bg-red-50 px-1.5 py-0.5 font-body text-[10px] font-semibold text-red-500">
-                              {t('planning.noshow_count', { count: member.noshowCount })}
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Actions */}

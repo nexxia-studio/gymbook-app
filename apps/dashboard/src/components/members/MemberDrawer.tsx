@@ -24,6 +24,8 @@ const BOOKING_BADGE: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
   no_show: 'bg-red-100 text-red-700',
   waitlisted: 'bg-amber-100 text-amber-700',
+  // GYM-174 — absent sans perte de crédit (orange neutre).
+  excused: 'bg-orange-100 text-orange-700',
 }
 
 const SUB_BADGE: Record<string, string> = {

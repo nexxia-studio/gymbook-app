@@ -473,11 +473,32 @@
       "cancelled": "Cancelled",
       "attended": "Attended",
       "no_show": "No-show",
-      "waitlisted": "Waitlisted"
+      "waitlisted": "Waitlisted",
+      "excused": "Excused"
     },
     "error_names_required": "First name and last name are required",
     "error_save": "Update failed",
     "toast_saved": "Member updated"
+  },
+  "attendance": {
+    "title": "Attendance",
+    "counter": "{{present}} present · {{absent}} absent · {{excused}} excused / {{total}} enrolled",
+    "no_enrolled": "No one enrolled in this class",
+    "marked_badge": "Marked",
+    "saving": "Saving…",
+    "status": {
+      "present": "Present",
+      "absent": "Absent",
+      "excused": "Excused"
+    },
+    "walkin_placeholder": "Add a present member…",
+    "walkin_no_result": "No member found",
+    "walkin_new_member": "New member?",
+    "toast_suspension_applied": "Absence recorded — the member was suspended and notified.",
+    "toast_mark_error": "Marking failed. Please retry.",
+    "toast_walkin_added": "{{name}} added and marked present.",
+    "toast_walkin_error": "Failed to add the member.",
+    "toast_member_created": "Member created. Search for them to add to the class."
   },
   "settings": {
     "title": "Settings",

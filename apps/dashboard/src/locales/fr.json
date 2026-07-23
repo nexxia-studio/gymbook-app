@@ -473,11 +473,32 @@
       "cancelled": "Annulée",
       "attended": "Présent",
       "no_show": "Absent",
-      "waitlisted": "Liste d'attente"
+      "waitlisted": "Liste d'attente",
+      "excused": "Excusé"
     },
     "error_names_required": "Le prénom et le nom sont requis",
     "error_save": "La modification a échoué",
     "toast_saved": "Membre mis à jour"
+  },
+  "attendance": {
+    "title": "Présences",
+    "counter": "{{present}} présents · {{absent}} absents · {{excused}} excusés / {{total}} inscrits",
+    "no_enrolled": "Aucun inscrit à ce cours",
+    "marked_badge": "Pointé",
+    "saving": "Enregistrement…",
+    "status": {
+      "present": "Présent",
+      "absent": "Absent",
+      "excused": "Excusé"
+    },
+    "walkin_placeholder": "Ajouter un membre présent…",
+    "walkin_no_result": "Aucun membre trouvé",
+    "walkin_new_member": "Nouveau membre ?",
+    "toast_suspension_applied": "Absence enregistrée — le membre a été suspendu et notifié.",
+    "toast_mark_error": "Le pointage a échoué. Réessaie.",
+    "toast_walkin_added": "{{name}} ajouté et pointé présent.",
+    "toast_walkin_error": "L'ajout du membre a échoué.",
+    "toast_member_created": "Membre créé. Recherche-le pour l'ajouter au cours."
   },
   "settings": {
     "title": "Paramètres",

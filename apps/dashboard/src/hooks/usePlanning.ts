@@ -3,7 +3,10 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus } from '@/types/planning'
+import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
+
+// GYM-174 — statuts d'une réservation "inscrite" (pointable), hors cancelled/waitlisted.
+const ATTENDANCE_STATUSES = ['confirmed', 'attended', 'no_show', 'excused']
 
 function getMonday(d: Date, tz: string): Date {
   const zoned = toZonedTime(d, tz)
@@ -82,8 +85,10 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
     status: (row.status as SlotStatus) ?? 'scheduled',
     // GYM-146 — ne pas afficher un inscrit dont le compte est supprimé (soft-delete).
     // Filtrage JS (PostgREST ne filtre pas proprement une relation imbriquée via .is()).
+    // GYM-174 — on inclut désormais confirmed/attended/no_show/excused (les inscrits
+    // pointables), plus seulement 'confirmed', pour permettre le pointage des présences.
     members: (row.bookings ?? [])
-      .filter((b) => b.status === 'confirmed' && !b.member?.deleted_at)
+      .filter((b) => ATTENDANCE_STATUSES.includes(b.status ?? '') && !b.member?.deleted_at)
       .map((b) => ({
         id: b.member?.id ?? b.member_id,
         bookingId: b.id,
@@ -92,6 +97,7 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
         email: b.member?.email ?? '',
         noshowCount: b.member?.noshow_count ?? 0,
         avatarUrl: b.member?.avatar_url ?? undefined,
+        status: (b.status as AttendanceStatus) ?? 'confirmed',
       })),
   }
 }
@@ -101,6 +107,18 @@ export interface CancelSlotSummary {
   creditsRefunded: number
   waitlistCleared: number
   notified: number
+}
+
+export interface MemberSearchResult {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+}
+
+export interface MarkAttendanceResult {
+  status: string
+  penalty: { action?: string; type?: string; expires_at?: string | null } | null
 }
 
 export interface CreateSlotInput {
@@ -379,6 +397,68 @@ export function usePlanning() {
     }
   }
 
+  // GYM-174 — pointage d'une réservation via l'Edge Function mark-attendance
+  // (mark_attendance_atomic : crédit + pénalités atomiques ; notification de sanction).
+  // JAMAIS un simple UPDATE de statut (qui ne gérerait ni crédit ni pénalité ni notif).
+  async function markAttendance(bookingId: string, status: AttendanceStatus): Promise<MarkAttendanceResult> {
+    const { data, error } = await supabase.functions.invoke('mark-attendance', {
+      body: { action: 'mark', booking_id: bookingId, status },
+    })
+    if (error) throw error
+    await fetchSlots()
+    return {
+      status: (data?.status as string) ?? 'updated',
+      penalty: (data?.penalty ?? null) as MarkAttendanceResult['penalty'],
+    }
+  }
+
+  // GYM-174 — inscription à la volée d'un membre présent au comptoir puis pointé présent.
+  async function walkIn(slotId: string, memberId: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('mark-attendance', {
+      body: { action: 'walkin', slot_id: slotId, member_id: memberId },
+    })
+    if (error) throw error
+    await fetchSlots()
+  }
+
+  // GYM-174 / GYM-179 (fix 3) — recherche de membres de la salle pour le walk-in.
+  // Multi-mots : « QA Train3 » doit matcher (prénom "QA", nom "Train3"). On découpe la saisie
+  // en mots et on exige que CHAQUE mot matche l'une des colonnes → AND entre les mots (des
+  // .or() successifs se combinent en AND côté PostgREST), OR entre first_name/last_name/email.
+  // « QA Train3 », « Train3 QA » et « Train3 » fonctionnent alors indifféremment.
+  async function searchGymMembers(query: string, excludeIds: string[]): Promise<MemberSearchResult[]> {
+    if (!gymId) return []
+    const trimmed = query.trim()
+    if (trimmed.length < 2) return []
+    // Neutraliser les métacaractères qui casseraient la syntaxe du filtre .or() de PostgREST.
+    const words = trimmed.split(/\s+/).map((w) => w.replace(/[,()*]/g, '')).filter(Boolean)
+    if (words.length === 0) return []
+
+    let q = supabase
+      .from('profiles')
+      .select('id, first_name, last_name, email')
+      .eq('gym_id', gymId)
+      .eq('role', 'member')
+      .is('deleted_at', null)
+    for (const w of words) {
+      q = q.or(`first_name.ilike.%${w}%,last_name.ilike.%${w}%,email.ilike.%${w}%`)
+    }
+
+    const { data, error } = await q.limit(8)
+    if (error) {
+      console.error('searchGymMembers failed', error)
+      return []
+    }
+    return (data ?? [])
+      .filter((m) => !excludeIds.includes(m.id))
+      .map((m) => ({
+        id: m.id,
+        firstName: m.first_name ?? '',
+        lastName: m.last_name ?? '',
+        email: m.email ?? '',
+      }))
+  }
+
   async function removeSlot(id: string) {
     await supabase.from('time_slots').delete().eq('id', id)
     fetchSlots()
@@ -409,6 +489,9 @@ export function usePlanning() {
     cancelSlot,
     removeSlot,
     checkOverlap,
+    markAttendance,
+    walkIn,
+    searchGymMembers,
   }
 }
 

@@ -13,7 +13,10 @@ function reportError(error: unknown): void {
   }
 }
 
-export type BookingStatus = 'confirmed' | 'waitlisted' | 'cancelled' | 'attended' | 'noshow'
+// GYM-178 — valeurs RÉELLES de bookings.status en base (mapRow caste le statut brut).
+// L'ancienne valeur 'noshow' (sans underscore) était morte : la DB écrit 'no_show', jamais
+// 'noshow'. Ajout de 'excused' (GYM-174, posé par le gérant).
+export type BookingStatus = 'confirmed' | 'waitlisted' | 'cancelled' | 'attended' | 'no_show' | 'excused'
 
 export interface Booking {
   id: string
