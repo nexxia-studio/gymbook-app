@@ -458,6 +458,30 @@
     "credits": "Credits",
     "credits_remaining": "Remaining balance",
     "credits_used_total": "{{used}}/{{total}} used",
+    "credits_gifted_label": "Gifted sessions",
+    "credits_breakdown": "{{purchased}} purchased · {{gifted}} gifted",
+    "adjust": {
+      "button": "Adjust",
+      "title": "Adjust credits",
+      "add": "Add",
+      "remove": "Remove",
+      "preview": "Balance after change",
+      "clamp_hint": "Only {{n}} gifted credits can be removed",
+      "reason_label": "Reason",
+      "reason_placeholder": "Specify the reason…",
+      "reason": {
+        "referral": "Referral",
+        "commercial": "Goodwill gesture",
+        "compensation": "Compensation",
+        "correction": "Correction",
+        "other": "Other"
+      },
+      "confirm": "Confirm",
+      "toast_success": "Credits adjusted",
+      "toast_clamped": "Only {{n}} gifted credits could be removed",
+      "toast_error": "Adjustment failed",
+      "history_title": "Adjustment history"
+    },
     "subscription": "Subscription",
     "no_subscription": "No subscription",
     "sub_status": {
