@@ -3,7 +3,10 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus } from '@/types/planning'
+import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
+
+// GYM-174 — statuts d'une réservation "inscrite" (pointable), hors cancelled/waitlisted.
+const ATTENDANCE_STATUSES = ['confirmed', 'attended', 'no_show', 'excused']
 
 function getMonday(d: Date, tz: string): Date {
   const zoned = toZonedTime(d, tz)
@@ -82,8 +85,10 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
     status: (row.status as SlotStatus) ?? 'scheduled',
     // GYM-146 — ne pas afficher un inscrit dont le compte est supprimé (soft-delete).
     // Filtrage JS (PostgREST ne filtre pas proprement une relation imbriquée via .is()).
+    // GYM-174 — on inclut désormais confirmed/attended/no_show/excused (les inscrits
+    // pointables), plus seulement 'confirmed', pour permettre le pointage des présences.
     members: (row.bookings ?? [])
-      .filter((b) => b.status === 'confirmed' && !b.member?.deleted_at)
+      .filter((b) => ATTENDANCE_STATUSES.includes(b.status ?? '') && !b.member?.deleted_at)
       .map((b) => ({
         id: b.member?.id ?? b.member_id,
         bookingId: b.id,
@@ -92,6 +97,7 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
         email: b.member?.email ?? '',
         noshowCount: b.member?.noshow_count ?? 0,
         avatarUrl: b.member?.avatar_url ?? undefined,
+        status: (b.status as AttendanceStatus) ?? 'confirmed',
       })),
   }
 }
@@ -101,6 +107,18 @@ export interface CancelSlotSummary {
   creditsRefunded: number
   waitlistCleared: number
   notified: number
+}
+
+export interface MemberSearchResult {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+}
+
+export interface MarkAttendanceResult {
+  status: string
+  penalty: { action?: string; type?: string; expires_at?: string | null } | null
 }
 
 export interface CreateSlotInput {
@@ -379,6 +397,57 @@ export function usePlanning() {
     }
   }
 
+  // GYM-174 — pointage d'une réservation via l'Edge Function mark-attendance
+  // (mark_attendance_atomic : crédit + pénalités atomiques ; notification de sanction).
+  // JAMAIS un simple UPDATE de statut (qui ne gérerait ni crédit ni pénalité ni notif).
+  async function markAttendance(bookingId: string, status: AttendanceStatus): Promise<MarkAttendanceResult> {
+    const { data, error } = await supabase.functions.invoke('mark-attendance', {
+      body: { action: 'mark', booking_id: bookingId, status },
+    })
+    if (error) throw error
+    await fetchSlots()
+    return {
+      status: (data?.status as string) ?? 'updated',
+      penalty: (data?.penalty ?? null) as MarkAttendanceResult['penalty'],
+    }
+  }
+
+  // GYM-174 — inscription à la volée d'un membre présent au comptoir puis pointé présent.
+  async function walkIn(slotId: string, memberId: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('mark-attendance', {
+      body: { action: 'walkin', slot_id: slotId, member_id: memberId },
+    })
+    if (error) throw error
+    await fetchSlots()
+  }
+
+  // GYM-174 — recherche de membres de la salle pour le walk-in (hors déjà-inscrits).
+  async function searchGymMembers(query: string, excludeIds: string[]): Promise<MemberSearchResult[]> {
+    if (!gymId) return []
+    const term = query.trim()
+    if (term.length < 2) return []
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, email')
+      .eq('gym_id', gymId)
+      .eq('role', 'member')
+      .is('deleted_at', null)
+      .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`)
+      .limit(8)
+    if (error) {
+      console.error('searchGymMembers failed', error)
+      return []
+    }
+    return (data ?? [])
+      .filter((m) => !excludeIds.includes(m.id))
+      .map((m) => ({
+        id: m.id,
+        firstName: m.first_name ?? '',
+        lastName: m.last_name ?? '',
+        email: m.email ?? '',
+      }))
+  }
+
   async function removeSlot(id: string) {
     await supabase.from('time_slots').delete().eq('id', id)
     fetchSlots()
@@ -409,6 +478,9 @@ export function usePlanning() {
     cancelSlot,
     removeSlot,
     checkOverlap,
+    markAttendance,
+    walkIn,
+    searchGymMembers,
   }
 }
 

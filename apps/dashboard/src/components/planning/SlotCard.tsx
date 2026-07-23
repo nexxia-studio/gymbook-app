@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CheckCheck } from 'lucide-react'
 import type { TimeSlot, DisplayStatus } from '@/types/planning'
-import { getDisplayStatus } from '@/types/planning'
+import { getDisplayStatus, hasAttendanceMarked } from '@/types/planning'
 
 interface SlotCardProps {
   slot: TimeSlot
@@ -26,6 +27,9 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
   const isActivitySuspended = slot.activity.active === false
   const isCoachUnavailable = slot.coach.active === false
   const isFrozen = isActivitySuspended || isCoachUnavailable
+
+  // GYM-174 — marqueur discret "Pointé" : au moins une réservation a un statut ≠ confirmed.
+  const isMarked = hasAttendanceMarked(slot)
 
   return (
     <button
@@ -57,14 +61,25 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
           )}
         </div>
-        {displayStatus !== 'scheduled' && !isFrozen && (
-          <span className={`inline-flex shrink-0 items-center gap-1 rounded px-1 py-0.5 font-semibold ${statusBadge[displayStatus]} ${compact ? 'text-[7px]' : 'text-[9px]'}`}>
-            {isLive && (
-              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-            )}
-            {t(`planning.status.${displayStatus}`)}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {isMarked && !isFrozen && (
+            <span
+              title={t('attendance.marked_badge')}
+              className={`inline-flex items-center gap-0.5 rounded bg-green-500/90 px-1 py-0.5 font-semibold text-white ${compact ? 'text-[7px]' : 'text-[9px]'}`}
+            >
+              <CheckCheck className={compact ? 'h-2 w-2' : 'h-2.5 w-2.5'} />
+              {!compact && t('attendance.marked_badge')}
+            </span>
+          )}
+          {displayStatus !== 'scheduled' && !isFrozen && (
+            <span className={`inline-flex items-center gap-1 rounded px-1 py-0.5 font-semibold ${statusBadge[displayStatus]} ${compact ? 'text-[7px]' : 'text-[9px]'}`}>
+              {isLive && (
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              )}
+              {t(`planning.status.${displayStatus}`)}
+            </span>
+          )}
+        </div>
       </div>
 
       {!compact && !isFrozen && (
