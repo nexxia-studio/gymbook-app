@@ -458,6 +458,30 @@
     "credits": "Crédits",
     "credits_remaining": "Solde restant",
     "credits_used_total": "{{used}}/{{total}} utilisés",
+    "credits_gifted_label": "Séances offertes",
+    "credits_breakdown": "{{purchased}} achetées · {{gifted}} offertes",
+    "adjust": {
+      "button": "Ajuster",
+      "title": "Ajuster les crédits",
+      "add": "Ajouter",
+      "remove": "Retirer",
+      "preview": "Solde après opération",
+      "clamp_hint": "Seuls {{n}} crédits offerts sont retirables",
+      "reason_label": "Motif",
+      "reason_placeholder": "Préciser le motif…",
+      "reason": {
+        "referral": "Parrainage",
+        "commercial": "Geste commercial",
+        "compensation": "Compensation",
+        "correction": "Correction",
+        "other": "Autre"
+      },
+      "confirm": "Valider",
+      "toast_success": "Crédits ajustés",
+      "toast_clamped": "Seuls {{n}} crédits offerts pouvaient être retirés",
+      "toast_error": "L'ajustement a échoué",
+      "history_title": "Historique des ajustements"
+    },
     "subscription": "Abonnement",
     "no_subscription": "Aucun abonnement",
     "sub_status": {

@@ -30,6 +30,30 @@ export interface RecentBooking {
   activity: string
 }
 
+// GYM-182 — une ligne du journal d'ajustements de crédits offerts.
+export interface CreditAdjustment {
+  id: string
+  delta: number
+  appliedDelta: number
+  reason: string
+  createdAt: string
+  grantedByName: string
+}
+
+// GYM-182 — retour de l'Edge adjust-credits (miroir du jsonb de la RPC).
+export interface AdjustResult {
+  requested_delta: number
+  applied_delta: number
+  new_total: number
+  new_used: number
+  new_remaining: number
+  adjustment_id: string
+  clamped: boolean
+}
+
+// GYM-182 — plan_id sentinelle des crédits offerts manuellement (texte libre, pas une FK).
+export const MANUAL_GRANT_PLAN_ID = 'manual_grant'
+
 // Statuts d'abonnement affichés dans la fiche. expired/cancelled → "aucun abonnement".
 // GYM-151 — 'completed' (engagement arrivé à son terme) est affiché avec un badge « Terminé »
 // (info utile au gérant) plutôt que masqué comme « aucun abonnement ».
@@ -39,6 +63,9 @@ export function useMemberDetail(memberId: string | null) {
   const gymId = useAuthStore((s) => s.gym_id)
   const [credits, setCredits] = useState<CreditLine[]>([])
   const [creditsRemaining, setCreditsRemaining] = useState(0)
+  const [giftedRemaining, setGiftedRemaining] = useState(0)
+  const [purchasedRemaining, setPurchasedRemaining] = useState(0)
+  const [adjustments, setAdjustments] = useState<CreditAdjustment[]>([])
   const [subscription, setSubscription] = useState<MemberSubscription | null>(null)
   const [bookings, setBookings] = useState<RecentBooking[]>([])
   const [loading, setLoading] = useState(false)
@@ -47,7 +74,7 @@ export function useMemberDetail(memberId: string | null) {
     if (!memberId || !gymId) return
     setLoading(true)
     try {
-      const [creditsRes, plansRes, subRes, bookingsRes] = await Promise.all([
+      const [creditsRes, plansRes, subRes, bookingsRes, adjustmentsRes] = await Promise.all([
         supabase
           .from('member_credits')
           .select('plan_id, credits_total, credits_used, credits_remaining')
@@ -66,6 +93,14 @@ export function useMemberDetail(memberId: string | null) {
           .eq('member_id', memberId)
           .order('booked_at', { ascending: false })
           .limit(5),
+        // GYM-182 — journal des ajustements de crédits (RLS gym_admin). Le granter est embarqué
+        // via la FK granted_by (désambiguïsée : deux FK vers profiles sur cette table).
+        supabase
+          .from('credit_adjustments')
+          .select('id, delta, applied_delta, reason, created_at, granter:profiles!credit_adjustments_granted_by_fkey(first_name, last_name)')
+          .eq('member_id', memberId)
+          .order('created_at', { ascending: false })
+          .limit(20),
       ])
 
       const planNames = new Map<string, string>()
@@ -82,6 +117,25 @@ export function useMemberDetail(memberId: string | null) {
       }))
       setCredits(creditLines)
       setCreditsRemaining(creditLines.reduce((s, c) => s + c.remaining, 0))
+      // Décomposition offert (manual_grant) vs acheté (tout le reste).
+      const gifted = creditLines.filter((c) => c.planId === MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0)
+      setGiftedRemaining(gifted)
+      setPurchasedRemaining(creditLines.filter((c) => c.planId !== MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0))
+
+      const adjLines: CreditAdjustment[] = ((adjustmentsRes.data ?? []) as Array<Record<string, unknown>>).map((a) => {
+        const g = a.granter as { first_name?: string; last_name?: string } | Array<{ first_name?: string; last_name?: string }> | null
+        const granter = Array.isArray(g) ? g[0] : g
+        const name = `${granter?.first_name ?? ''} ${granter?.last_name ?? ''}`.trim()
+        return {
+          id: a.id as string,
+          delta: (a.delta as number) ?? 0,
+          appliedDelta: (a.applied_delta as number) ?? 0,
+          reason: (a.reason as string) ?? '',
+          createdAt: a.created_at as string,
+          grantedByName: name || '—',
+        }
+      })
+      setAdjustments(adjLines)
 
       const sub = subRes.data as Record<string, unknown> | null
       if (sub && LIVE_SUB_STATUSES.includes(sub.status as string)) {
@@ -121,5 +175,21 @@ export function useMemberDetail(memberId: string | null) {
     if (memberId) load()
   }, [memberId, load])
 
-  return { credits, creditsRemaining, subscription, bookings, loading, reload: load }
+  // GYM-182 — ajustement manuel via l'Edge adjust-credits (clamp + journal côté RPC).
+  // Retourne le résultat (dont `clamped`) pour que l'appelant affiche le bon toast. Recharge
+  // la fiche à la fin. Lève en cas d'erreur d'autorisation/validation.
+  const adjustCredits = useCallback(async (delta: number, reason: string): Promise<AdjustResult> => {
+    if (!memberId) throw new Error('NO_MEMBER')
+    const { data, error } = await supabase.functions.invoke('adjust-credits', {
+      body: { member_id: memberId, delta, reason },
+    })
+    if (error) throw error
+    await load()
+    return data as AdjustResult
+  }, [memberId, load])
+
+  return {
+    credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments,
+    subscription, bookings, loading, reload: load, adjustCredits,
+  }
 }
