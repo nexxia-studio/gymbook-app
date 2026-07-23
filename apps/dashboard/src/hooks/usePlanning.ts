@@ -421,19 +421,30 @@ export function usePlanning() {
     await fetchSlots()
   }
 
-  // GYM-174 — recherche de membres de la salle pour le walk-in (hors déjà-inscrits).
+  // GYM-174 / GYM-179 (fix 3) — recherche de membres de la salle pour le walk-in.
+  // Multi-mots : « QA Train3 » doit matcher (prénom "QA", nom "Train3"). On découpe la saisie
+  // en mots et on exige que CHAQUE mot matche l'une des colonnes → AND entre les mots (des
+  // .or() successifs se combinent en AND côté PostgREST), OR entre first_name/last_name/email.
+  // « QA Train3 », « Train3 QA » et « Train3 » fonctionnent alors indifféremment.
   async function searchGymMembers(query: string, excludeIds: string[]): Promise<MemberSearchResult[]> {
     if (!gymId) return []
-    const term = query.trim()
-    if (term.length < 2) return []
-    const { data, error } = await supabase
+    const trimmed = query.trim()
+    if (trimmed.length < 2) return []
+    // Neutraliser les métacaractères qui casseraient la syntaxe du filtre .or() de PostgREST.
+    const words = trimmed.split(/\s+/).map((w) => w.replace(/[,()*]/g, '')).filter(Boolean)
+    if (words.length === 0) return []
+
+    let q = supabase
       .from('profiles')
       .select('id, first_name, last_name, email')
       .eq('gym_id', gymId)
       .eq('role', 'member')
       .is('deleted_at', null)
-      .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`)
-      .limit(8)
+    for (const w of words) {
+      q = q.or(`first_name.ilike.%${w}%,last_name.ilike.%${w}%,email.ilike.%${w}%`)
+    }
+
+    const { data, error } = await q.limit(8)
     if (error) {
       console.error('searchGymMembers failed', error)
       return []
