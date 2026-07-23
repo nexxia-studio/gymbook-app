@@ -11,6 +11,7 @@ import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
 import { SlotDeleteModal } from '@/components/planning/SlotDeleteModal'
 import { CancelSlotModal } from '@/components/planning/CancelSlotModal'
+import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { usePlanning } from '@/hooks/usePlanning'
 import { useToastStore } from '@/hooks/useToast'
 import type { TimeSlot } from '@/types/planning'
@@ -60,6 +61,13 @@ export default function Planning() {
   const [deleteSlot, setDeleteSlot] = useState<TimeSlot | null>(null)
   const [cancelTarget, setCancelTarget] = useState<TimeSlot | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
+  const [addMemberOpen, setAddMemberOpen] = useState(false)
+
+  // GYM-174 — le drawer doit refléter les pointages / walk-ins après refetch : on relie
+  // le slot sélectionné à sa version fraîche dans la liste (selectedSlot n'est qu'un snapshot).
+  const selectedSlot = planning.selectedSlot
+    ? planning.filteredSlots.find((s) => s.id === planning.selectedSlot!.id) ?? planning.selectedSlot
+    : null
 
   const calendarRef = useRef<PlanningCalendarHandle>(null)
   const [view, setView] = useState<'day' | 'week' | 'month'>('week')
@@ -271,11 +279,15 @@ export default function Planning() {
 
       {/* Detail drawer */}
       <SlotDrawer
-        slot={planning.selectedSlot}
+        slot={selectedSlot}
         onClose={() => planning.setSelectedSlot(null)}
         onEdit={handleDrawerEdit}
         onCancel={handleDrawerCancel}
         onDelete={handleDrawerDelete}
+        onMarkAttendance={planning.markAttendance}
+        onWalkIn={planning.walkIn}
+        searchMembers={planning.searchGymMembers}
+        onOpenAddMember={() => setAddMemberOpen(true)}
       />
 
       {/* Create modal */}
@@ -313,6 +325,14 @@ export default function Planning() {
         isSubmitting={cancelSubmitting}
         onClose={() => setCancelTarget(null)}
         onConfirm={handleCancelConfirm}
+      />
+
+      {/* GYM-174 — création d'un membre au comptoir (GYM-144) depuis le pointage walk-in.
+          Le membre créé est ensuite retrouvable via la recherche walk-in du drawer. */}
+      <AddMemberModal
+        open={addMemberOpen}
+        onClose={() => setAddMemberOpen(false)}
+        onCreated={() => addToast(t('attendance.toast_member_created'))}
       />
 
       {/* Mobile FAB */}

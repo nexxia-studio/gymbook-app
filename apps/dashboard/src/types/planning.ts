@@ -15,6 +15,11 @@ export interface Activity {
 export type SlotStatus = 'scheduled' | 'completed' | 'cancelled'
 export type DisplayStatus = 'scheduled' | 'completed' | 'cancelled' | 'in_progress'
 
+// GYM-174 — statuts de pointage d'une réservation (non pointé = présent).
+// 'confirmed' = inscrit, présent par défaut ; 'attended' = présent confirmé par le gérant ;
+// 'no_show' = absent (pénalité) ; 'excused' = absent sans perte de crédit.
+export type AttendanceStatus = 'confirmed' | 'attended' | 'no_show' | 'excused'
+
 export interface TimeSlot {
   id: string
   date: string // YYYY-MM-DD
@@ -37,6 +42,18 @@ export interface SlotMember {
   email: string
   noshowCount: number
   avatarUrl?: string
+  // GYM-174 — statut de pointage courant de la réservation.
+  status: AttendanceStatus
+}
+
+// GYM-174 — un membre "présent" visuellement = inscrit (confirmed) ou pointé présent (attended).
+export function isPresent(status: AttendanceStatus): boolean {
+  return status === 'confirmed' || status === 'attended'
+}
+
+// GYM-174 — au moins une réservation a été pointée (statut ≠ confirmed) → badge "Pointé".
+export function hasAttendanceMarked(slot: TimeSlot): boolean {
+  return slot.members.some((m) => m.status !== 'confirmed')
 }
 
 /**
@@ -66,4 +83,18 @@ export function getDisplayStatus(slot: TimeSlot): DisplayStatus {
   if (endMs < now) return 'completed'
   if (startMs <= now && now <= endMs) return 'in_progress'
   return 'scheduled'
+}
+
+/**
+ * GYM-174 — Le pointage des présences est disponible pour les cours du jour ET les cours
+ * passés (un pointage se corrige après coup), jamais pour un cours futur (autre jour à venir)
+ * ni pour un créneau annulé. La comparaison se fait au niveau du JOUR local.
+ */
+export function canTrackAttendance(slot: TimeSlot): boolean {
+  if (slot.status === 'cancelled') return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const slotDay = buildLocalDate(slot.date, '00:00')
+  if (isNaN(slotDay.getTime())) return false
+  return slotDay.getTime() <= today.getTime()
 }
