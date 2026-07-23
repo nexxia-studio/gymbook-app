@@ -485,6 +485,7 @@
     "counter": "{{present}} présents · {{absent}} absents · {{excused}} excusés / {{total}} inscrits",
     "no_enrolled": "Aucun inscrit à ce cours",
     "marked_badge": "Pointé",
+    "saving": "Enregistrement…",
     "status": {
       "present": "Présent",
       "absent": "Absent",

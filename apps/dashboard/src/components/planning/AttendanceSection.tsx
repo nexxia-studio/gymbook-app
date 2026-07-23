@@ -4,6 +4,14 @@
 // sur une ligne cycle Présent → Absent → Excusé → Présent, avec mise à jour OPTIMISTE et
 // rollback si l'Edge échoue. Un champ de recherche permet d'ajouter un membre au comptoir
 // (walk-in), pointé présent immédiatement. Mobile-first : lignes hautes, zones tactiles larges.
+//
+// GYM-179 (fix 2) — DEBOUNCE ~5 s PAR RÉSERVATION de la persistance. L'UI reste optimiste et
+// instantanée, mais seul l'ÉTAT FINAL est envoyé à l'Edge après 5 s d'inactivité sur la ligne.
+// Un passage éclair Présent→Absent→Excusé n'écrit donc qu'UNE fois (l'état final), évitant les
+// écritures crédit/pénalité successives et surtout une fausse notification de suspension sur un
+// passage transitoire par « Absent ». Si l'état final == l'état en base, aucun appel. Les
+// changements en attente sont FLUSHÉS immédiatement à la fermeture / au changement de créneau /
+// au démontage (un pointage n'est jamais perdu).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, X as XIcon, CircleSlash, Search, UserPlus, Loader2 } from 'lucide-react'
@@ -20,6 +28,9 @@ interface AttendanceSectionProps {
   onOpenAddMember: () => void
 }
 
+// Délai d'inactivité avant persistance d'une ligne (GYM-179).
+const DEBOUNCE_MS = 5000
+
 // Cycle Présent → Absent → Excusé → Présent.
 function nextStatus(current: AttendanceStatus): AttendanceStatus {
   if (isPresent(current)) return 'no_show'
@@ -31,23 +42,94 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
   const { t } = useTranslation()
   const addToast = useToastStore((s) => s.addToast)
 
-  // Statuts optimistes en attente de confirmation serveur, indexés par bookingId.
+  // Statuts optimistes affichés (indexés par bookingId), en attente de persistance/confirmation.
   const [optimistic, setOptimistic] = useState<Record<string, AttendanceStatus>>({})
-  const [pending, setPending] = useState<Record<string, boolean>>({})
+  // Lignes avec une écriture en attente (timer) ou en vol → indicateur « Enregistrement… ».
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
 
-  // Réinitialiser l'état optimiste quand on change de créneau.
+  // Refs pour le debounce : survivent aux re-renders et sont lisibles depuis les timeouts
+  // et les cleanups (flush au démontage) sans dépendre de closures obsolètes.
+  const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const pendingTargetRef = useRef<Record<string, AttendanceStatus>>({}) // état final visé par ligne
+  const pendingBaseRef = useRef<Record<string, AttendanceStatus>>({})   // état en base au 1er clic
+  const onMarkRef = useRef(onMark)
+  const mountedRef = useRef(true)
+  useEffect(() => { onMarkRef.current = onMark }, [onMark])
+
+  // Persiste (ou annule) l'état en attente d'une ligne. Ne fait AUCUN appel si l'état final
+  // égale l'état en base. `interactive` = false lors d'un flush de cleanup (pas de setState).
+  function flush(bookingId: string, interactive: boolean) {
+    const timer = timersRef.current[bookingId]
+    if (timer) { clearTimeout(timer); delete timersRef.current[bookingId] }
+
+    const target = pendingTargetRef.current[bookingId]
+    const base = pendingBaseRef.current[bookingId]
+    delete pendingTargetRef.current[bookingId]
+    delete pendingBaseRef.current[bookingId]
+    if (target === undefined) return
+
+    // État final identique à la base → rien à écrire (annulation nette).
+    if (target === base) {
+      if (interactive && mountedRef.current) {
+        setOptimistic((prev) => { const n = { ...prev }; delete n[bookingId]; return n })
+        setSaving((prev) => { const n = { ...prev }; delete n[bookingId]; return n })
+      }
+      return
+    }
+
+    const done = () => {
+      if (interactive && mountedRef.current) {
+        setSaving((prev) => { const n = { ...prev }; delete n[bookingId]; return n })
+      }
+    }
+    onMarkRef.current(bookingId, target)
+      .then((res) => {
+        if (res.penalty?.action === 'applied' && res.penalty.expires_at && interactive && mountedRef.current) {
+          addToast(t('attendance.toast_suspension_applied'), 'warning')
+        }
+      })
+      .catch(() => {
+        // Rollback : on retire l'entrée optimiste → retour au statut réel des props.
+        if (interactive && mountedRef.current) {
+          setOptimistic((prev) => { const n = { ...prev }; delete n[bookingId]; return n })
+          addToast(t('attendance.toast_mark_error'), 'error')
+        }
+      })
+      .finally(done)
+  }
+
+  // Démontage : marquer non monté (les flushs de cleanup ne doivent pas setState).
   useEffect(() => {
-    setOptimistic({})
-    setPending({})
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  // Flush garanti au CHANGEMENT DE CRÉNEAU et au DÉMONTAGE (fermeture du panneau /
+  // navigation) : le cleanup de cet effet s'exécute avant tout reset, sans rien perdre.
+  useEffect(() => {
+    return () => {
+      for (const id of Object.keys(pendingTargetRef.current)) {
+        flush(id, false)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slot.id])
 
-  // Réconcilier : dès que les props reflètent un statut optimiste, on purge l'entrée.
+  // Nouveau créneau → repartir d'un affichage propre (les pendings de l'ancien ont été flushés
+  // par le cleanup ci-dessus, qui s'exécute avant ce body).
+  useEffect(() => {
+    setOptimistic({})
+    setSaving({})
+  }, [slot.id])
+
+  // Réconcilier : dès que les props reflètent un statut optimiste, on purge l'entrée
+  // (sauf si une écriture est encore en attente sur cette ligne).
   useEffect(() => {
     setOptimistic((prev) => {
       let changed = false
       const next = { ...prev }
       for (const m of slot.members) {
-        if (next[m.bookingId] !== undefined && next[m.bookingId] === m.status) {
+        if (next[m.bookingId] !== undefined && next[m.bookingId] === m.status && pendingTargetRef.current[m.bookingId] === undefined) {
           delete next[m.bookingId]
           changed = true
         }
@@ -70,34 +152,25 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slot.members, optimistic])
 
-  async function handleCycle(m: SlotMember) {
-    if (pending[m.bookingId]) return
+  function handleCycle(m: SlotMember) {
     const current = statusOf(m)
     const target = nextStatus(current)
 
+    // Affichage optimiste immédiat.
     setOptimistic((prev) => ({ ...prev, [m.bookingId]: target }))
-    setPending((prev) => ({ ...prev, [m.bookingId]: true }))
-    try {
-      const res = await onMark(m.bookingId, target)
-      // Notifier le gérant si une sanction (suspension) vient d'être appliquée.
-      if (res.penalty?.action === 'applied' && res.penalty.expires_at) {
-        addToast(t('attendance.toast_suspension_applied'), 'warning')
-      }
-    } catch {
-      // Rollback : on retire l'entrée optimiste → retour au statut réel des props.
-      setOptimistic((prev) => {
-        const next = { ...prev }
-        delete next[m.bookingId]
-        return next
-      })
-      addToast(t('attendance.toast_mark_error'), 'error')
-    } finally {
-      setPending((prev) => {
-        const next = { ...prev }
-        delete next[m.bookingId]
-        return next
-      })
+    setSaving((prev) => ({ ...prev, [m.bookingId]: true }))
+
+    // État en base capturé au PREMIER clic du cycle (jamais écrasé par les clics suivants),
+    // pour détecter un retour net à l'état initial.
+    if (pendingBaseRef.current[m.bookingId] === undefined) {
+      pendingBaseRef.current[m.bookingId] = m.status
     }
+    pendingTargetRef.current[m.bookingId] = target
+
+    // (Re)armer le debounce de CETTE ligne : un nouveau clic réinitialise son timer.
+    const existing = timersRef.current[m.bookingId]
+    if (existing) clearTimeout(existing)
+    timersRef.current[m.bookingId] = setTimeout(() => flush(m.bookingId, true), DEBOUNCE_MS)
   }
 
   // ── Walk-in ────────────────────────────────────────────────────────────────
@@ -165,7 +238,7 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
             const status = statusOf(m)
             const fullName = `${m.firstName} ${m.lastName}`.trim() || m.email || '—'
             const initials = `${m.firstName[0] ?? ''}${m.lastName[0] ?? ''}`.toUpperCase() || (m.email[0] ?? '?').toUpperCase()
-            const isBusy = !!pending[m.bookingId]
+            const isSaving = !!saving[m.bookingId]
 
             const rowStyles = isPresent(status)
               ? 'border-green-200 bg-green-50'
@@ -184,8 +257,7 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
                 key={m.bookingId}
                 type="button"
                 onClick={() => handleCycle(m)}
-                disabled={isBusy}
-                className={`flex min-h-[52px] items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors active:scale-[0.99] disabled:opacity-60 ${rowStyles}`}
+                className={`flex min-h-[52px] items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors active:scale-[0.99] ${rowStyles}`}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/70 font-body text-xs font-bold text-dark">
                   {m.avatarUrl ? (
@@ -196,14 +268,21 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
                 </div>
                 <div className="min-w-0 flex-1">
                   <span className="block truncate font-body text-sm font-medium text-dark">{fullName}</span>
-                  {m.noshowCount > 0 && (
-                    <span className="font-body text-[10px] font-semibold text-red-500">
-                      {t('planning.noshow_count', { count: m.noshowCount })}
+                  {isSaving ? (
+                    <span className="inline-flex items-center gap-1 font-body text-[10px] font-medium text-muted">
+                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                      {t('attendance.saving')}
                     </span>
+                  ) : (
+                    m.noshowCount > 0 && (
+                      <span className="font-body text-[10px] font-semibold text-red-500">
+                        {t('planning.noshow_count', { count: m.noshowCount })}
+                      </span>
+                    )
                   )}
                 </div>
                 <span className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-body text-xs font-semibold ${badge.cls}`}>
-                  {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : badge.icon}
+                  {badge.icon}
                   {badge.label}
                 </span>
               </button>

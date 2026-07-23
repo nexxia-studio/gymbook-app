@@ -485,6 +485,7 @@
     "counter": "{{present}} present · {{absent}} absent · {{excused}} excused / {{total}} enrolled",
     "no_enrolled": "No one enrolled in this class",
     "marked_badge": "Marked",
+    "saving": "Saving…",
     "status": {
       "present": "Present",
       "absent": "Absent",
