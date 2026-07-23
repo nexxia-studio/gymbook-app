@@ -53,3 +53,8 @@ verify_jwt = true
 # la cible doit être un membre de la salle de l'appelant, jamais du body).
 [functions.admin-update-member]
 verify_jwt = true
+
+# GYM-174 — pointage des présences par le gérant (JWT gym_admin requis ;
+# la réservation / le membre doivent appartenir à la salle de l'appelant, gym_id jamais du body).
+[functions.mark-attendance]
+verify_jwt = true
