@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
-import { ACTIVE_SUBSCRIPTION_STATUSES } from '../lib/subscription'
+import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../lib/subscription'
 
 export interface SubscriptionSummary {
   isActive: boolean
@@ -46,16 +46,21 @@ export function useSubscriptionSummary() {
 
     // 2. Recurring subscription — read plan_name TEXT directly (Mollie subs have plan_id=null).
     // Fallback to gym_plans.name when only the legacy plan_id (uuid) FK is set.
+    //
+    // GYM-191 — le filtre de statut n'est qu'un PRÉ-FILTRE de requête : le verdict revient à
+    // isSubscriptionActive(), qui vérifie aussi le terme. D'où le chargement de `ends_at`.
+    // Sans lui, un abonnement échu depuis moins d'une heure (cron horaire pas encore passé)
+    // s'afficherait comme actif dans le résumé du profil.
     const { data: sub } = await supabase
       .from('member_subscriptions')
-      .select('id, status, plan_name, plan:gym_plans(name)')
+      .select('id, status, ends_at, plan_name, plan:gym_plans(name)')
       .eq('member_id', user.id)
       .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
       .order('starts_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (sub) {
+    if (sub && isSubscriptionActive(sub.status, sub.ends_at)) {
       const joined = sub.plan as unknown as { name?: string } | null
       const detail = sub.plan_name ?? joined?.name ?? null
       setSummary({ isActive: true, detail })
