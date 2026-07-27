@@ -63,6 +63,16 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
         {isCredits ? t('plans.type.credits') : t('plans.type.unlimited')}
       </p>
 
+      {/* GYM-193 — offre de découverte : un achat par membre. */}
+      {plan.oncePerMember && (
+        <span
+          title={t('plans.once_per_member_helper')}
+          className="mt-2 w-fit cursor-help rounded-full bg-dark/[0.06] px-2 py-0.5 font-body text-[11px] font-semibold text-muted"
+        >
+          {t('plans.once_per_member_badge')}
+        </span>
+      )}
+
       {/* Prix mis en avant */}
       <div className="mt-3 flex items-baseline gap-1">
         <span className="font-display text-2xl font-black tracking-tight text-dark sm:text-3xl">

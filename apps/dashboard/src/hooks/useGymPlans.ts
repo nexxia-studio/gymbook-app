@@ -17,6 +17,8 @@ function mapRow(row: Record<string, unknown>): PlanItem {
     priceCents: row.price_cents as number,
     currency: (row.currency as string) ?? 'EUR',
     isPopular: (row.is_popular as boolean) ?? false,
+    // GYM-193 — offre limitée à un achat par membre (attribut du plan, jamais son nom).
+    oncePerMember: (row.once_per_member as boolean) ?? false,
     active: (row.active as boolean) ?? true,
     sortOrder: (row.sort_order as number) ?? 0,
   }
@@ -48,6 +50,7 @@ function toRow(data: PlanFormData) {
     duration_months: isCredits ? null : data.durationMonths,
     price_cents: Math.round(data.priceEuros * 100),
     is_popular: data.isPopular,
+    once_per_member: data.oncePerMember,
     active: data.active,
     sort_order: data.sortOrder,
   }
