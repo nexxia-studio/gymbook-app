@@ -22,6 +22,7 @@ const EMPTY: PlanFormData = {
   durationMonths: null,
   priceEuros: 0,
   isPopular: false,
+  oncePerMember: false,
   active: true,
   sortOrder: 0,
 }
@@ -51,6 +52,7 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
         durationMonths: editPlan.durationMonths,
         priceEuros: editPlan.priceCents / 100,
         isPopular: editPlan.isPopular,
+        oncePerMember: editPlan.oncePerMember,
         active: editPlan.active,
         sortOrder: editPlan.sortOrder,
       })
@@ -255,7 +257,7 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
               />
             </div>
 
-            {/* Popular + Active */}
+            {/* Popular + Once per member + Active */}
             <label className="flex items-center gap-3 rounded-xl border border-border p-4">
               <input
                 type="checkbox"
@@ -264,6 +266,21 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
                 className="h-4 w-4 rounded accent-accent"
               />
               <span className={labelClass}>{t('plans.is_popular')}</span>
+            </label>
+            {/* GYM-193 — offre de découverte : un achat par membre. */}
+            <label className="flex items-start gap-3 rounded-xl border border-border p-4">
+              <input
+                type="checkbox"
+                checked={form.oncePerMember}
+                onChange={(e) => setForm((f) => ({ ...f, oncePerMember: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded accent-accent"
+              />
+              <span>
+                <span className={labelClass}>{t('plans.once_per_member')}</span>
+                <span className="mt-0.5 block font-body text-xs text-muted">
+                  {t('plans.once_per_member_helper')}
+                </span>
+              </span>
             </label>
             <label className="flex items-center gap-3 rounded-xl border border-border p-4">
               <input

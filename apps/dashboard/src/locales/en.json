@@ -787,7 +787,10 @@
       "one_time": "paid in full"
     },
     "unlimited_duration_one": "Unlimited {{count}} month",
-    "unlimited_duration_other": "Unlimited {{count}} months"
+    "unlimited_duration_other": "Unlimited {{count}} months",
+    "once_per_member": "Limited to one purchase per member",
+    "once_per_member_helper": "For a trial offer: each member can only buy it once from the app. You can still sell it at the front desk whenever you see fit.",
+    "once_per_member_badge": "1 per member"
   },
   "revenue": {
     "title": "Revenue",

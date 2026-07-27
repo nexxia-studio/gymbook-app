@@ -30,6 +30,12 @@ export interface PlanItem {
   priceCents: number
   currency: string
   isPopular: boolean
+  /**
+   * GYM-193 — limite l'achat à un par membre en libre-service (offre de découverte).
+   * Attribut du plan, jamais son nom : aucun code ne doit reconnaître une offre à son
+   * libellé, chaque salle nomme la sienne comme elle veut.
+   */
+  oncePerMember: boolean
   active: boolean
   sortOrder: number
 }
@@ -45,6 +51,7 @@ export interface PlanFormData {
   durationMonths: number | null
   priceEuros: number // saisie en euros ; stockée en cents
   isPopular: boolean
+  oncePerMember: boolean
   active: boolean
   sortOrder: number
 }

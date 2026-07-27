@@ -787,7 +787,10 @@
       "one_time": "payé en une fois"
     },
     "unlimited_duration_one": "Illimité {{count}} mois",
-    "unlimited_duration_other": "Illimité {{count}} mois"
+    "unlimited_duration_other": "Illimité {{count}} mois",
+    "once_per_member": "Limité à un achat par membre",
+    "once_per_member_helper": "Pour une offre de découverte : chaque membre ne peut l'acheter qu'une fois depuis l'app. Vous pouvez toujours la vendre au comptoir si vous le jugez utile.",
+    "once_per_member_badge": "1 par membre"
   },
   "revenue": {
     "title": "Revenus",
