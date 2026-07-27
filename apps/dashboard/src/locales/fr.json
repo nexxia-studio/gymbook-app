@@ -545,6 +545,38 @@
     "payments": {
       "title": "Paiements",
       "subtitle": "Connecte ton compte Mollie pour encaisser les paiements."
+    },
+    "legal": {
+      "title": "Informations légales & facturation",
+      "subtitle": "Ces informations apparaissent sur les factures envoyées à vos membres.",
+      "identity_title": "Identité",
+      "commercial_name_label": "Dénomination commerciale",
+      "commercial_name_helper": "L'enseigne affichée sur la facture (ex. « Dopamine by EMS95 »)",
+      "legal_name_label": "Raison sociale",
+      "legal_name_helper": "Le nom légal de la société exploitante (ex. « EMS 95 »)",
+      "legal_form_label": "Forme juridique",
+      "legal_form_helper": "Ex. SRL, SA, ASBL — facultatif",
+      "vat_number_label": "N° de TVA / d'entreprise",
+      "vat_number_helper": "Ex. BE 1020.241.644",
+      "registered_office_title": "Siège social",
+      "registered_office_helper": "L'adresse juridique de la société. C'est elle qui figure sur les factures.",
+      "venue_title": "Adresse de l'établissement",
+      "venue_helper": "L'adresse physique de la salle : celle que vos membres voient dans l'app et utilisent pour venir.",
+      "street_label": "Rue et numéro",
+      "postal_code_label": "Code postal",
+      "city_label": "Commune",
+      "vat_title": "Régime TVA",
+      "vat_exempt_label": "Exonéré de TVA",
+      "vat_exempt_helper": "Cochez uniquement si votre activité est réellement exonérée. La mention légale remplacera le détail de TVA sur la facture.",
+      "vat_rate_label": "Taux de TVA (%)",
+      "vat_rate_helper": "Le montant payé par le membre est TTC : la TVA en est extraite pour l'affichage (0 à 100)",
+      "vat_rate_error": "Le taux doit être compris entre 0 et 100",
+      "vat_mention_label": "Mention légale d'exonération",
+      "vat_mention_helper": "Ex. « TVA non applicable — Art. 44 du Code TVA »",
+      "save": "Enregistrer",
+      "saved": "Informations légales enregistrées",
+      "save_forbidden": "Vous n'avez pas les droits pour modifier ces informations",
+      "save_error": "Impossible d'enregistrer les informations légales"
     }
   },
   "activities": {
