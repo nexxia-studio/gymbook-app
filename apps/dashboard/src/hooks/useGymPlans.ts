@@ -8,7 +8,10 @@ function mapRow(row: Record<string, unknown>): PlanItem {
     id: row.id as string,
     name: row.name as string,
     description: (row.description as string) ?? '',
+    // GYM-188 — `type` est lu TEL QUEL, jamais recalculé depuis billing_type.
+    planType: (row.type as PlanItem['planType']) ?? 'credits',
     billingType: (row.billing_type as PlanItem['billingType']) ?? 'one_time',
+    // NULL reste NULL : un plan illimité n'a pas de credit_count, et inversement.
     creditCount: (row.credit_count as number | null) ?? null,
     durationMonths: (row.duration_months as number | null) ?? null,
     priceCents: row.price_cents as number,
@@ -19,17 +22,30 @@ function mapRow(row: Record<string, unknown>): PlanItem {
   }
 }
 
-// GYM-56 — `type` (NOT NULL + CHECK) dérivé de billing_type. La contrainte gym_plans_check
-// impose : type='credits' ⟺ credit_count ; type='unlimited' ⟺ duration_months.
+// GYM-188 — `type` vient du formulaire, il n'est PLUS dérivé de billing_type : les deux
+// axes sont indépendants, d'où les 4 combinaisons (dont « illimité payé en une fois »).
+//
+// C'est ici, et nulle part ailleurs, qu'on décide ce qui part en base : la colonne qui n'a
+// pas de sens pour le type choisi est forcée à NULL. Le formulaire peut donc conserver une
+// saisie devenue hors-sujet (l'utilisateur bascule d'un type à l'autre sans rien perdre)
+// sans qu'elle puisse jamais être persistée.
+//
+// La contrainte gym_plans_check (type='credits' ⟺ credit_count NOT NULL ;
+// type='unlimited' ⟺ duration_months NOT NULL) est satisfaite par construction, la
+// validation du formulaire garantissant que le champ pertinent est renseigné.
+//
+// duration_months reste NULL pour les plans de crédits : apply_paid_payment ne lit pas
+// cette colonne et ne pose aucune expiration — introduire une durée de validité des
+// crédits serait un changement de comportement, hors périmètre GYM-188.
 function toRow(data: PlanFormData) {
-  const isOneTime = data.billingType === 'one_time'
+  const isCredits = data.planType === 'credits'
   return {
     name: data.name.trim(),
     description: data.description.trim() || null,
     billing_type: data.billingType,
-    type: isOneTime ? 'credits' : 'unlimited',
-    credit_count: isOneTime ? data.creditCount : null,
-    duration_months: isOneTime ? null : data.durationMonths,
+    type: data.planType,
+    credit_count: isCredits ? data.creditCount : null,
+    duration_months: isCredits ? null : data.durationMonths,
     price_cents: Math.round(data.priceEuros * 100),
     is_popular: data.isPopular,
     active: data.active,

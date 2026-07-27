@@ -140,8 +140,12 @@ export default function Revenue() {
         .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(1000),
-      // MRR = somme des montants des abonnements actifs du gym
-      supabase.from('member_subscriptions').select('amount').eq('gym_id', gymId).eq('status', 'active'),
+      // MRR = somme des montants des abonnements actifs du gym.
+      // GYM-189 — on EXCLUT les abonnements payés en une fois (source_payment_id non NULL) :
+      // leur `amount` est le prix TOTAL de l'engagement (ex. 1000 € pour 12 mois), pas une
+      // mensualité. Les inclure gonflerait le MRR du montant complet dès la vente.
+      supabase.from('member_subscriptions').select('amount')
+        .eq('gym_id', gymId).eq('status', 'active').is('source_payment_id', null),
     ])
 
     const mapped: PaymentRow[] = (paymentsRes.data ?? []).map((p) => {
@@ -422,8 +426,20 @@ export default function Revenue() {
                         {t(`revenue.status_${r.status}`)}
                       </span>
                       <span className="font-body text-[11px] text-muted">{FMT_DATE(r.paidAt ?? r.createdAt)}</span>
-                      {/* GYM-112 — action remboursement : Mollie payé/partiellement remboursé */}
-                      {r.molliePaymentId && (r.status === 'paid' || r.status === 'partially_refunded') ? (
+                      {/* GYM-112 — action remboursement : Mollie payé/partiellement remboursé.
+                          GYM-189 — DÉCISION PRODUIT : un abonnement n'est PAS remboursable
+                          (le tarif réduit est la contrepartie d'un engagement ferme). On
+                          s'appuie sur isOneTime (credits_granted > 0), qui est EXACTEMENT le
+                          critère appliqué par create-refund : l'UI ne peut donc pas proposer
+                          une action que l'Edge refuserait en 422 SUBSCRIPTION_PAYMENT. */}
+                      {!r.isOneTime && (r.status === 'paid' || r.status === 'partially_refunded') ? (
+                        <span
+                          title={t('revenue.refund.subscription_tooltip')}
+                          className="w-fit cursor-help font-body text-[11px] text-muted"
+                        >
+                          {t('revenue.refund.not_refundable')}
+                        </span>
+                      ) : r.molliePaymentId && (r.status === 'paid' || r.status === 'partially_refunded') ? (
                         <button
                           type="button"
                           onClick={() => setRefundTarget({

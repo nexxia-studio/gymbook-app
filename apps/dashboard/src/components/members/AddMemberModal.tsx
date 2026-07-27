@@ -50,7 +50,11 @@ export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps
   const addToast = useToastStore((s) => s.addToast)
   const { plans } = useGymPlans()
 
-  // Cartes de séances vendables au comptoir = plans one_time actifs uniquement.
+  // Formules vendables au comptoir = tout ce qui se paie EN UNE FOIS (espèces / terminal).
+  // GYM-189 — cela inclut désormais l'abonnement payé en une fois : admin-create-member
+  // l'accepte (il exige duration_months au lieu de credit_count) et apply_paid_payment
+  // ouvre l'abonnement au lieu de créditer des séances. Les deux natures cohabitent donc
+  // dans ce sélecteur, d'où l'étiquetage explicite ci-dessous.
   const oneTimePlans = plans.filter((p) => p.active && p.billingType === 'one_time')
 
   const [firstName, setFirstName] = useState('')
@@ -236,9 +240,15 @@ export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps
                           className={inputClass}
                         >
                           <option value="">{t('members.add.plan_placeholder')}</option>
+                          {/* GYM-189 — la nature est explicitée dans le libellé : le gérant
+                              ne doit jamais confondre « Abonnement 12 mois — paiement
+                              unique » avec une carte de séances. */}
                           {oneTimePlans.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name} — {formatPrice(p.priceCents, p.currency)}
+                              {p.name} — {p.planType === 'unlimited'
+                                ? t('members.add.plan_kind_unlimited', { count: p.durationMonths ?? 0 })
+                                : t('members.add.plan_kind_credits', { count: p.creditCount ?? 0 })
+                              } — {formatPrice(p.priceCents, p.currency)}
                             </option>
                           ))}
                         </select>

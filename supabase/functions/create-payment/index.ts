@@ -101,7 +101,16 @@ Deno.serve(async (req) => {
     if (!plan.is_one_time) {
       return errorResponse(400, 'Cette formule n\'est pas un paiement unique — utiliser create-subscription', 'PLAN_NOT_ONE_TIME')
     }
-    if (plan.credit_count == null || plan.credit_count <= 0) {
+    // GYM-189 — « mal configuré » dépend de la NATURE du plan, plus de la seule présence
+    // de crédits : un abonnement payé en une fois n'a légitimement pas de credit_count.
+    // Côté Mollie rien ne change (paiement simple, aucun mandat) ; seule la contrepartie
+    // délivrée par apply_paid_payment diffère.
+    const isUnlimited = plan.plan_type === 'unlimited'
+    if (isUnlimited) {
+      if (plan.duration_months == null || plan.duration_months <= 0) {
+        return errorResponse(422, 'Formule mal configurée (durée invalide)', 'PLAN_MISCONFIGURED')
+      }
+    } else if (plan.credit_count == null || plan.credit_count <= 0) {
       return errorResponse(422, 'Formule mal configurée (crédits invalides)', 'PLAN_MISCONFIGURED')
     }
 
@@ -119,11 +128,22 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (activeSub) {
-      return errorResponse(409, 'Accès illimité déjà actif — achat de crédits inutile', 'SUBSCRIPTION_ACTIVE')
+      // GYM-189 — la garde vaut pour les DEUX contreparties : des crédits seraient inutiles
+      // sous accès illimité, et un second abonnement ne doit pas pouvoir être ouvert.
+      // Code inchangé (SUBSCRIPTION_ACTIVE) : l'app mobile mappe déjà ce code.
+      return errorResponse(
+        409,
+        isUnlimited
+          ? 'Un abonnement est déjà actif'
+          : 'Accès illimité déjà actif — achat de crédits inutile',
+        'SUBSCRIPTION_ACTIVE',
+      )
     }
 
     const amount = plan.price_cents / 100
-    const creditsGranted = plan.credit_count
+    // NULL pour un abonnement : c'est la convention du code (credits_granted > 0 ⇒ vente à
+    // l'unité) sur laquelle s'appuient /revenus et create-refund pour distinguer les deux.
+    const creditsGranted = isUnlimited ? null : plan.credit_count
     const currency = plan.currency
 
     const isTestMode = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
