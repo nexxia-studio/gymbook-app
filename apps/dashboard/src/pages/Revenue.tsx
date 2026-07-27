@@ -422,8 +422,20 @@ export default function Revenue() {
                         {t(`revenue.status_${r.status}`)}
                       </span>
                       <span className="font-body text-[11px] text-muted">{FMT_DATE(r.paidAt ?? r.createdAt)}</span>
-                      {/* GYM-112 — action remboursement : Mollie payé/partiellement remboursé */}
-                      {r.molliePaymentId && (r.status === 'paid' || r.status === 'partially_refunded') ? (
+                      {/* GYM-112 — action remboursement : Mollie payé/partiellement remboursé.
+                          GYM-189 — DÉCISION PRODUIT : un abonnement n'est PAS remboursable
+                          (le tarif réduit est la contrepartie d'un engagement ferme). On
+                          s'appuie sur isOneTime (credits_granted > 0), qui est EXACTEMENT le
+                          critère appliqué par create-refund : l'UI ne peut donc pas proposer
+                          une action que l'Edge refuserait en 422 SUBSCRIPTION_PAYMENT. */}
+                      {!r.isOneTime && (r.status === 'paid' || r.status === 'partially_refunded') ? (
+                        <span
+                          title={t('revenue.refund.subscription_tooltip')}
+                          className="w-fit cursor-help font-body text-[11px] text-muted"
+                        >
+                          {t('revenue.refund.not_refundable')}
+                        </span>
+                      ) : r.molliePaymentId && (r.status === 'paid' || r.status === 'partially_refunded') ? (
                         <button
                           type="button"
                           onClick={() => setRefundTarget({

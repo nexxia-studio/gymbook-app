@@ -441,7 +441,11 @@
         "last_name_required": "Le nom est requis",
         "email_required": "L'email est requis",
         "email_invalid": "Email invalide"
-      }
+      },
+      "plan_kind_credits_one": "carte {{count}} séance",
+      "plan_kind_credits_other": "carte {{count}} séances",
+      "plan_kind_unlimited_one": "abonnement {{count}} mois, paiement unique",
+      "plan_kind_unlimited_other": "abonnement {{count}} mois, paiement unique"
     }
   },
   "member_drawer": {
@@ -850,7 +854,9 @@
       "error_insufficient_balance": "Solde Mollie insuffisant pour ce remboursement",
       "error_manual": "Paiement hors-ligne — à rembourser en salle",
       "error_subscription": "Le remboursement d'un abonnement n'est pas géré ici",
-      "error_generic": "Le remboursement a échoué"
+      "error_generic": "Le remboursement a échoué",
+      "not_refundable": "Non remboursable",
+      "subscription_tooltip": "Les abonnements ne sont pas remboursables — engagement ferme"
     },
     "method_cash": "Espèces",
     "method_card_terminal": "Terminal carte",
