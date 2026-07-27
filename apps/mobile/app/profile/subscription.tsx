@@ -44,8 +44,10 @@ function formatDate(iso: string | null): string {
 }
 
 // GYM-113 — engagement ferme (miroir client du prédicat serveur _shared/subscription-engagement).
+// Le `!!endsAt` reste indispensable : un abonnement SANS terme est actif (isSubscriptionActive
+// le dit) mais n'engage à rien — il n'y a pas de date jusqu'à laquelle le membre serait tenu.
 function isEngaged(status: string, endsAt: string | null): boolean {
-  return isSubscriptionActive(status) && !!endsAt && new Date(endsAt).getTime() > Date.now()
+  return isSubscriptionActive(status, endsAt) && !!endsAt
 }
 // Terme d'engagement en heure locale gym (Europe/Brussels), format long fr-BE.
 function formatEngagedDate(iso: string): string {
@@ -76,7 +78,14 @@ function PlanCard({
   unavailableReason?: string | null
 }) {
   const { t } = useTranslation()
-  const isRecurring = plan.billingType !== 'one_time'
+  // GYM-189 — DEUX AXES INDÉPENDANTS, à ne pas confondre :
+  //   isUnlimited (type)          → CE QU'ON REÇOIT : pilote la ligne de détail
+  //                                 (durée d'accès vs nombre de séances).
+  //   isRecurringBilling (billing) → COMMENT ON PAIE : pilote la mention « /mois ».
+  // Un « Illimité 12 mois — paiement unique » est unlimited SANS être récurrent : il doit
+  // afficher sa durée, mais son prix est un total, surtout pas un montant mensuel.
+  const isUnlimited = plan.planType === 'unlimited'
+  const isRecurringBilling = plan.billingType !== 'one_time'
   // GYM-94 — indisponible pour raison métier (abonnement actif) : bouton désactivé + libellé explicite.
   const isBlocked = !!unavailableReason
   const isDisabled = disabled || isBlocked
@@ -96,7 +105,9 @@ function PlanCard({
         <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#FFFFFF' }}>{plan.name}</Text>
         <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 20, color: '#FFFFFF' }}>
           {formatPrice(plan.priceCents, plan.currency)}
-          {isRecurring && <Text style={{ fontSize: 13 }}>{t('subscription.per_month')}</Text>}
+          {/* « /mois » suit le MODE DE PAIEMENT : un abonnement payé en une fois affiche
+              un prix total, pas une mensualité. */}
+          {isRecurringBilling && <Text style={{ fontSize: 13 }}>{t('subscription.per_month')}</Text>}
         </Text>
       </View>
 
@@ -105,13 +116,16 @@ function PlanCard({
           <Text className="font-dmsans text-sm text-move-text-secondary">{plan.description}</Text>
         ) : null}
 
-        {!isRecurring && plan.creditCount ? (
+        {/* Ligne de détail : pilotée par le TYPE. Auparavant conditionnée au mode de
+            paiement, un unlimited+one_time n'affichait NI séances (creditCount NULL)
+            NI durée — donc aucune information. */}
+        {!isUnlimited && plan.creditCount ? (
           <Text className="font-dmsans text-xs text-move-text-muted">
             {t('subscription.sessions_count', { count: plan.creditCount })}
           </Text>
         ) : null}
 
-        {isRecurring && plan.durationMonths ? (
+        {isUnlimited && plan.durationMonths ? (
           <Text className="font-dmsans text-xs text-move-text-muted">
             {t('subscription.commitment', { count: plan.durationMonths })}
           </Text>
@@ -140,7 +154,7 @@ export default function SubscriptionScreen() {
   const router = useRouter()
   const gymId = useAuthStore((s) => s.gym_id)
   const userId = useAuthStore((s) => s.user?.id)
-  const { oneTime, recurring, loading: plansLoading, error: plansError, refetch } = useGymPlans()
+  const { creditPlans, unlimitedPlans, loading: plansLoading, error: plansError, refetch } = useGymPlans()
 
   const [activeSub, setActiveSub] = useState<ActiveSub | null>(null)
   const [activeCredits, setActiveCredits] = useState<ActiveCredits | null>(null)
@@ -291,16 +305,21 @@ export default function SubscriptionScreen() {
   //  - recurring : achetable SAUF abonnement déjà actif (→ upsell futur). Les crédits ne bloquent RIEN.
   // 'completed' est chargé pour l'affichage mais N'EST PAS actif → n'ouvre aucun droit et
   // ne bloque aucun achat (GYM-151). Seuls active/canceling comptent comme abonnement actif.
-  const hasActiveSub = isSubscriptionActive(activeSub?.status)
+  // GYM-191 — un abonnement échu n'ouvre plus aucun droit et ne bloque plus aucun achat,
+  // même si le cron horaire ne l'a pas encore passé à 'expired'.
+  const hasActiveSub = isSubscriptionActive(activeSub?.status, activeSub?.endsAt)
 
   const activeCreditsName = activeCredits
-    ? (oneTime.find((p) => p.id === activeCredits.planId)?.name ?? t('subscription.credits_generic_name'))
+    ? (creditPlans.find((p) => p.id === activeCredits.planId)?.name ?? t('subscription.credits_generic_name'))
     : ''
 
   // Raison d'indisponibilité d'un plan (null = achetable).
+  // GYM-189 — la raison dépend de la CONTREPARTIE, pas du mode de paiement : « accès
+  // illimité déjà actif » n'a de sens que face à une carte de séances. Un plan unlimited
+  // (récurrent OU payé en une fois) relève du message d'abonnement en cours / upsell.
   const unavailableReason = (plan: GymPlan): string | null => {
     if (!hasActiveSub) return null
-    if (plan.billingType === 'one_time') return t('subscription.unavailable_unlimited_active')
+    if (plan.planType === 'credits') return t('subscription.unavailable_unlimited_active')
     return plan.name === activeSub?.planName
       ? t('subscription.current_subscription')
       : t('subscription.upsell_unavailable')
@@ -361,7 +380,7 @@ export default function SubscriptionScreen() {
         )}
 
         {/* Carte abonnement récurrent */}
-        {loading ? null : activeSub && isSubscriptionActive(activeSub.status) ? (
+        {loading ? null : activeSub && isSubscriptionActive(activeSub.status, activeSub.endsAt) ? (
           <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} bg-move-card p-5`}>
             <View className="mb-3 flex-row items-center justify-between">
               <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
@@ -479,24 +498,24 @@ export default function SubscriptionScreen() {
         ) : (
           <>
             {/* À l'unité — GYM-94 : cumul libre, toujours visible. Désactivé si abonnement illimité actif. */}
-            {oneTime.length > 0 && (
+            {creditPlans.length > 0 && (
               <>
                 <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
                   {t('subscription.section_one_time')}
                 </Text>
-                {renderPlans(oneTime)}
+                {renderPlans(creditPlans)}
               </>
             )}
 
             {/* Abonnements — visibles ; en upsell (désactivés) si un abonnement est déjà actif. */}
-            {recurring.length > 0 && (
+            {unlimitedPlans.length > 0 && (
               <>
                 <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
                   {hasActiveSub
                     ? t('subscription.upsell_switch_title')
                     : t('subscription.section_recurring')}
                 </Text>
-                {renderPlans(recurring)}
+                {renderPlans(unlimitedPlans)}
               </>
             )}
           </>
