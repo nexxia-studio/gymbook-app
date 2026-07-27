@@ -20,9 +20,16 @@ import { validatePassword, mapPasswordError } from '@/lib/passwordPolicy'
 
 const MIN_PASSWORD = 8
 
-// GYM-170 — lien de téléchargement de l'app membre. TestFlight pour l'instant ;
-// BASCULER vers l'URL App Store à la validation du build.
-const APP_DOWNLOAD_URL = 'https://testflight.apple.com/join/Pcbv4MRz'
+// GYM-170 — lien de téléchargement de l'app membre.
+// GYM-173 — URL publique App Store depuis l'approbation Apple : un membre ne doit plus
+// passer par TestFlight (bêta fermée, places limitées, app tierce à installer).
+//
+// Le segment /be/ est OBLIGATOIRE, NE PAS le retirer en le croyant superflu : la
+// distribution de l'app est limitée aux 42 pays européens. Sans code pays, Apple retombe
+// sur la boutique US — où l'app n'existe pas — et renvoie une 404. L'erreur est invisible
+// sur iPhone (la boutique du compte, belge, est utilisée) mais frappe tout membre qui
+// ouvre cette page depuis un navigateur desktop.
+const APP_DOWNLOAD_URL = 'https://apps.apple.com/be/app/dopamine-performance-club/id6781670485'
 
 type Status = 'checking' | 'ready' | 'invalid' | 'done'
 
