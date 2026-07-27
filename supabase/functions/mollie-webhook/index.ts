@@ -187,12 +187,20 @@ Deno.serve(async (req) => {
       return new Response('OK', { status: 200 })
     }
 
-    // ── Statut 'paid' : passage à paid + crédits dans UNE transaction (RPC atomique) ──
-    const { data: applyResult, error: applyError } = await supabase.rpc('apply_paid_payment', {
+    // ── Statut 'paid' : passage à paid + contrepartie dans UNE transaction (RPC atomique) ──
+    // GYM-189 — la contrepartie dépend de la nature du plan : crédits ('credits') ou
+    // ouverture d'abonnement ('unlimited'). Le RPC renvoie du jsonb décrivant ce qui a été
+    // délivré ; `result` garde les valeurs de l'ancien retour texte.
+    const { data: applyRaw, error: applyError } = await supabase.rpc('apply_paid_payment', {
       p_payment_id: payment.id,
       p_payment_method: molliePayment.method ?? null,
       p_paid_at: molliePayment.paidAt ?? null,
     })
+
+    const apply = (applyRaw ?? {}) as {
+      result?: string; delivered?: string; credits_granted?: number; subscription_id?: string
+    }
+    const applyResult = apply.result
 
     if (applyError || applyResult === 'not_found') {
       await recordWebhookFailure(supabase, {
@@ -217,9 +225,21 @@ Deno.serve(async (req) => {
       return new Response('OK', { status: 200 })
     }
 
-    // applyResult === 'applied' → crédits accordés, on notifie (email + push, inchangés).
+    // applyResult === 'applied' → contrepartie délivrée, on notifie (email + push).
     {
-      console.log('[mollie-webhook] applied', payment.credits_granted, 'credits to', payment.member_id)
+      // GYM-189 — le libellé suit ce qui a RÉELLEMENT été délivré : annoncer
+      // « N séance(s) ajoutée(s) » à qui vient d'acheter un abonnement serait faux
+      // (credits_granted est NULL sur ce paiement).
+      const isSubscription = apply.delivered === 'subscription'
+      const deliveredLine = isSubscription
+        ? 'Votre abonnement est actif'
+        : `Crédits ajoutés : <strong>${payment.credits_granted} séance(s)</strong>`
+      const deliveredPush = isSubscription
+        ? 'Votre abonnement est actif'
+        : `${payment.credits_granted} séance(s) ajoutée(s)`
+
+      console.log('[mollie-webhook] applied', apply.delivered ?? 'credits', 'to', payment.member_id,
+        isSubscription ? `(subscription ${apply.subscription_id})` : `(${payment.credits_granted} credits)`)
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -236,7 +256,7 @@ Deno.serve(async (req) => {
               from: 'Dopamine <noreply@viniz.app>',
               to: profile.email,
               subject: `Paiement confirmé — ${payment.plan_name}`,
-              html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">✅ Paiement confirmé !</h2><p style="color:#6B6861;margin:0 0 8px;"><strong>${payment.plan_name}</strong></p><p style="color:#6B6861;margin:0 0 8px;">Montant : <strong>${payment.amount}€</strong></p><p style="color:#6B6861;margin:0 0 24px;">Crédits ajoutés : <strong>${payment.credits_granted} séance(s)</strong></p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Réserver un cours</a></div></div></div>`,
+              html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">✅ Paiement confirmé !</h2><p style="color:#6B6861;margin:0 0 8px;"><strong>${payment.plan_name}</strong></p><p style="color:#6B6861;margin:0 0 8px;">Montant : <strong>${payment.amount}€</strong></p><p style="color:#6B6861;margin:0 0 24px;">${deliveredLine}</p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Réserver un cours</a></div></div></div>`,
             }),
           })
           console.log('[mollie-webhook] email sent to:', profile.email)
@@ -251,7 +271,7 @@ Deno.serve(async (req) => {
             body: {
               tokens: [profile.push_token],
               title: '✅ Paiement confirmé !',
-              body: `${payment.plan_name} — ${payment.credits_granted} séance(s) ajoutée(s)`,
+              body: `${payment.plan_name} — ${deliveredPush}`,
               data: { type: 'payment_confirmed', payment_id: payment.id },
             },
           })
