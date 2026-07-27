@@ -165,7 +165,17 @@ Deno.serve(async (req) => {
       // le rouvre pas : le membre a bien bénéficié de l'offre de découverte.
       // 'pending' / 'failed' / 'expired' / 'canceled' ne consomment RIEN — un membre qui
       // a abandonné son paiement doit pouvoir réessayer.
-      const CONSUMING_STATUSES = ['paid', 'partially_refunded', 'refunded']
+      //
+      // 'charged_back' CONSOMME le droit — décision produit, NE PAS le retirer en le
+      // prenant pour une erreur : une rétrofacturation n'est pas un achat annulé mais un
+      // litige exceptionnel, et la prestation a bien été délivrée (le membre est venu).
+      // La règle automatique reste stricte ; les cas légitimes (carte volée…) se traitent
+      // par la dérogation comptoir, qui n'applique pas cette limite (admin-create-member).
+      //
+      // ⚠️ Liste dupliquée dans apps/mobile/hooks/useGymPlans.ts
+      //    (CONSUMING_PAYMENT_STATUSES) — les deux runtimes ne peuvent pas partager de
+      //    code. Toute modification ici doit y être reportée.
+      const CONSUMING_STATUSES = ['paid', 'partially_refunded', 'refunded', 'charged_back']
 
       // payments.plan_id est un TEXT : comparaison texte↔texte, aucun cast.
       const { data: priorPurchase } = await supabaseAdmin

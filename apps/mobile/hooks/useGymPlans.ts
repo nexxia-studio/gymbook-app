@@ -21,11 +21,19 @@ export interface GymPlan {
 }
 
 // GYM-193 — statuts de paiement qui CONSOMMENT le droit à une offre limitée.
-// ⚠️ Doit rester aligné sur la garde serveur (create-payment → 409 PLAN_ALREADY_USED),
-// qui seule fait foi. Un remboursement ne rouvre pas le droit : le membre a bénéficié de
-// l'offre. 'pending' / 'failed' / 'expired' / 'canceled' ne consomment rien — un paiement
+// ⚠️ Doit rester aligné sur la garde serveur (supabase/functions/create-payment →
+// 409 PLAN_ALREADY_USED, constante CONSUMING_STATUSES), qui seule fait foi. Les deux
+// runtimes ne peuvent pas partager de code, d'où la duplication.
+//
+// Un remboursement ne rouvre pas le droit : le membre a bénéficié de l'offre.
+// 'pending' / 'failed' / 'expired' / 'canceled' ne consomment rien — un paiement
 // abandonné doit pouvoir être réessayé.
-const CONSUMING_PAYMENT_STATUSES = ['paid', 'partially_refunded', 'refunded']
+//
+// 'charged_back' CONSOMME le droit — décision produit, NE PAS le retirer en le prenant
+// pour une erreur : une rétrofacturation n'est pas un achat annulé mais un litige
+// exceptionnel, et la prestation a bien été délivrée (le membre est venu). Les cas
+// légitimes (carte volée…) se traitent par la dérogation comptoir du gérant.
+const CONSUMING_PAYMENT_STATUSES = ['paid', 'partially_refunded', 'refunded', 'charged_back']
 
 interface UseGymPlansState {
   oneTime: GymPlan[]
