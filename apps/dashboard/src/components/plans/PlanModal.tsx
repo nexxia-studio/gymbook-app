@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import type { PlanItem, PlanFormData, BillingType } from '@/types/plan'
+import type { PlanItem, PlanFormData, BillingType, PlanType } from '@/types/plan'
 
 interface PlanModalProps {
   open: boolean
@@ -16,6 +16,7 @@ type FormErrors = Partial<Record<keyof PlanFormData, string>>
 const EMPTY: PlanFormData = {
   name: '',
   description: '',
+  planType: 'credits',
   billingType: 'one_time',
   creditCount: 10,
   durationMonths: null,
@@ -36,12 +37,18 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
   useEffect(() => {
     if (!open) return
     if (editPlan) {
+      // GYM-188 — ÉDITION SANS CORRUPTION : tout est repris TEL QUEL depuis la base.
+      // Les anciens replis `?? 10` / `?? 3` installaient une valeur à la simple ouverture
+      // de la modale : ouvrir un plan illimité (credit_count NULL) puis enregistrer sans
+      // rien toucher le transformait en carte de 10 séances. Un NULL signifie « sans objet
+      // pour ce type » et doit le rester — le champ s'affiche vide, jamais pré-rempli.
       setForm({
         name: editPlan.name,
         description: editPlan.description,
+        planType: editPlan.planType,
         billingType: editPlan.billingType,
-        creditCount: editPlan.creditCount ?? 10,
-        durationMonths: editPlan.durationMonths ?? 3,
+        creditCount: editPlan.creditCount,
+        durationMonths: editPlan.durationMonths,
         priceEuros: editPlan.priceCents / 100,
         isPopular: editPlan.isPopular,
         active: editPlan.active,
@@ -60,22 +67,27 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
     if (!open && dialog.open) dialog.close()
   }, [open])
 
-  const isOneTime = form.billingType === 'one_time'
+  // Les deux axes sont indépendants : le mode de paiement ne dit RIEN du type de formule.
+  const isCredits = form.planType === 'credits'
+  const isRecurring = form.billingType === 'recurring_fixed'
+
+  // Changer un sélecteur ne réécrit JAMAIS un autre champ : le formulaire conserve ce que
+  // l'utilisateur a saisi s'il fait un aller-retour entre deux types. C'est toRow() qui
+  // décide seul quelle colonne part en base et laquelle est forcée à NULL.
+  function setPlanType(pt: PlanType) {
+    setForm((f) => ({ ...f, planType: pt }))
+  }
 
   function setBillingType(bt: BillingType) {
-    setForm((f) => ({
-      ...f,
-      billingType: bt,
-      creditCount: bt === 'one_time' ? (f.creditCount ?? 10) : null,
-      durationMonths: bt === 'recurring_fixed' ? (f.durationMonths ?? 3) : null,
-    }))
+    setForm((f) => ({ ...f, billingType: bt }))
   }
 
   function validate(): boolean {
     const e: FormErrors = {}
     if (!form.name.trim()) e.name = t('plans.validation.name_required')
     if (!(form.priceEuros > 0)) e.priceEuros = t('plans.validation.price_positive')
-    if (isOneTime) {
+    // La validation suit le TYPE de formule, pas le mode de paiement.
+    if (isCredits) {
       if (!form.creditCount || form.creditCount < 1) e.creditCount = t('plans.validation.credits_min')
     } else {
       if (!form.durationMonths || form.durationMonths < 1) e.durationMonths = t('plans.validation.duration_min')
@@ -136,7 +148,28 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
               />
             </div>
 
-            {/* Billing type */}
+            {/* GYM-188 — Axe 1 : ce que le membre obtient. */}
+            <div>
+              <label className={labelClass}>{t('plans.plan_type')}</label>
+              <div className="mt-1 flex gap-2">
+                {(['credits', 'unlimited'] as PlanType[]).map((pt) => (
+                  <button
+                    key={pt}
+                    type="button"
+                    onClick={() => setPlanType(pt)}
+                    className={`flex-1 rounded-xl border px-4 py-3 font-body text-sm font-medium transition-colors ${
+                      form.planType === pt
+                        ? 'border-accent-dim bg-accent-dim/10 text-dark'
+                        : 'border-border text-muted hover:text-dark'
+                    }`}
+                  >
+                    {t(`plans.type.${pt}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* GYM-188 — Axe 2 : comment il le paie. Indépendant de l'axe 1. */}
             <div>
               <label className={labelClass}>{t('plans.billing_type')}</label>
               <div className="mt-1 flex gap-2">
@@ -155,10 +188,11 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
                   </button>
                 ))}
               </div>
+              <p className="mt-1.5 font-body text-xs text-muted">{t('plans.billing_type_helper')}</p>
             </div>
 
-            {/* Conditional: credits (one_time) OR duration (recurring) */}
-            {isOneTime ? (
+            {/* Champ conditionnel piloté par le TYPE de formule (plus par le mode de paiement). */}
+            {isCredits ? (
               <div>
                 <label className={labelClass}>{t('plans.credit_count')}</label>
                 <input
@@ -199,8 +233,10 @@ export function PlanModal({ open, onClose, onSubmit, editPlan }: PlanModalProps)
                 <span className="font-body text-sm text-muted">€</span>
               </div>
               {errors.priceEuros && <p className={errClass}>{errors.priceEuros}</p>}
-              {/* GYM-56 — avertissement édition prix d'un abonnement en cours */}
-              {isEdit && !isOneTime && (
+              {/* GYM-56 — avertissement édition prix d'un abonnement en cours.
+                  GYM-188 : conditionné au MODE DE PAIEMENT (seul un prélèvement récurrent
+                  a des souscriptions en cours à ne pas perturber), plus au type de formule. */}
+              {isEdit && isRecurring && (
                 <div className="mt-2 flex items-start gap-2 rounded-xl border border-orange-300 bg-orange-50 p-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
                   <p className="font-body text-xs text-orange-700">{t('plans.price_warning_recurring')}</p>

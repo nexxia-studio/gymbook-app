@@ -742,10 +742,10 @@
     "name": "Name",
     "name_placeholder": "e.g. 10-session pack",
     "description": "Description",
-    "billing_type": "Plan type",
+    "billing_type": "Payment mode",
     "billing": {
-      "one_time": "Pay per session",
-      "recurring_fixed": "Subscription"
+      "one_time": "One-off payment",
+      "recurring_fixed": "Monthly recurring"
     },
     "credit_count": "Number of sessions",
     "duration_months": "Duration (months)",
@@ -762,8 +762,6 @@
     "deactivate": "Deactivate",
     "credits_count_one": "{{count}} session",
     "credits_count_other": "{{count}} sessions",
-    "duration_count_one": "{{count}} month",
-    "duration_count_other": "{{count}} months",
     "validation": {
       "name_required": "Name is required.",
       "price_positive": "Price must be greater than 0.",
@@ -774,7 +772,18 @@
     "toast_updated": "Plan updated.",
     "toast_activated": "Plan activated.",
     "toast_deactivated": "Plan deactivated.",
-    "toast_error": "Something went wrong."
+    "toast_error": "Something went wrong.",
+    "plan_type": "Plan type",
+    "type": {
+      "credits": "Credits (sessions)",
+      "unlimited": "Unlimited (duration)"
+    },
+    "billing_type_helper": "Independent of the plan type: unlimited access can be paid in one go.",
+    "billing_short": {
+      "one_time": "paid in full"
+    },
+    "unlimited_duration_one": "Unlimited {{count}} month",
+    "unlimited_duration_other": "Unlimited {{count}} months"
   },
   "revenue": {
     "title": "Revenue",

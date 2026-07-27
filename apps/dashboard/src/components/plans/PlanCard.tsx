@@ -19,6 +19,18 @@ function formatPrice(cents: number, currency: string): string {
 export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
   const { t } = useTranslation()
   const isOneTime = plan.billingType === 'one_time'
+  const isCredits = plan.planType === 'credits'
+
+  // GYM-188 — les deux axes sont désormais indépendants : la carte doit dire d'un coup
+  // d'œil CE QU'ON OBTIENT puis COMMENT ON LE PAIE, sinon « Illimité 12 mois payé en une
+  // fois » et « Illimité 12 mois à 90 €/mois » seraient indiscernables.
+  const whatYouGet = isCredits
+    ? t('plans.credits_count', { count: plan.creditCount ?? 0 })
+    : t('plans.unlimited_duration', { count: plan.durationMonths ?? 0 })
+
+  const howYouPay = isOneTime
+    ? t('plans.billing_short.one_time')
+    : `${formatPrice(plan.priceCents, plan.currency)}${t('plans.per_month')}`
 
   return (
     <div
@@ -46,9 +58,9 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
         {plan.isPopular && <Star className="h-4 w-4 shrink-0 fill-accent-dim text-accent-dim" />}
       </div>
 
-      {/* Type lisible */}
+      {/* Type de formule (ce que le membre obtient) */}
       <p className="mt-1 font-body text-xs uppercase tracking-wide text-muted">
-        {isOneTime ? t('plans.billing.one_time') : t('plans.billing.recurring_fixed')}
+        {isCredits ? t('plans.type.credits') : t('plans.type.unlimited')}
       </p>
 
       {/* Prix mis en avant */}
@@ -59,11 +71,9 @@ export function PlanCard({ plan, onEdit, onToggleActive }: PlanCardProps) {
         {!isOneTime && <span className="font-body text-sm text-muted">{t('plans.per_month')}</span>}
       </div>
 
-      {/* Séances ou durée */}
+      {/* Combinaison lisible : « Illimité 12 mois · payé en une fois » */}
       <p className="mt-1 font-body text-sm text-muted">
-        {isOneTime
-          ? t('plans.credits_count', { count: plan.creditCount ?? 0 })
-          : t('plans.duration_count', { count: plan.durationMonths ?? 0 })}
+        {whatYouGet} &middot; {howYouPay}
       </p>
 
       {/* Description tronquée (2 lignes) — flex-1 pousse les actions en bas */}
