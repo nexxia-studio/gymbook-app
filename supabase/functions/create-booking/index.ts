@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -157,12 +158,15 @@ Deno.serve(async (req) => {
     // ============================================================
     // GYM-63 — Guard paiement : abonnement OU crédit obligatoire
     // ============================================================
+    // GYM-191 — le terme compte autant que le statut : un abonnement échu ne doit plus
+    // ouvrir de réservation sans débit de crédit, même si le cron d'expiration a du retard.
     const { data: activeSubscription } = await supabaseAdmin
       .from('member_subscriptions')
       .select('id')
       .eq('member_id', user.id)
       .eq('gym_id', slot.gym_id)
       .eq('status', 'active')
+      .or(notExpiredFilter())
       .maybeSingle()
 
     // GYM-94 — dispo crédit = MÊME sélection que la RPC : au moins une ligne avec

@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
+import { notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -109,12 +110,16 @@ Deno.serve(async (req) => {
     // GYM-94 — un seul abonnement actif à la fois (futur upsell de changement de durée).
     // Définition "actif" = status='active' UNIQUEMENT (voir note create-payment : pas d'état en vol).
     // Les crédits existants ne bloquent JAMAIS un achat d'abonnement (conversion drop-in → illimité).
+    // GYM-191 — idem create-payment : un abonnement échu ne doit pas bloquer le
+    // réabonnement. Seul ce prédicat change ; le cycle de vie récurrent (webhook
+    // Mollie) n'est pas touché.
     const { data: activeSub } = await supabaseAdmin
       .from('member_subscriptions')
       .select('id')
       .eq('member_id', memberId)
       .eq('gym_id', gymId)
       .eq('status', 'active')
+      .or(notExpiredFilter())
       .limit(1)
       .maybeSingle()
 
