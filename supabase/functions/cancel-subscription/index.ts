@@ -46,7 +46,12 @@ Deno.serve(async (req) => {
     if (!sub) return json({ error: true, code: 'NOT_FOUND' }, 404)
     if (sub.member_id !== user.id) return json({ error: true, code: 'FORBIDDEN' }, 403)
     // Early return existant : déjà en cours / résilié → idempotent (AVANT le guard engagement).
-    if (sub.status === 'canceling' || sub.status === 'canceled') {
+    // GYM-195 — l'orthographe était MORTE : le CHECK de member_subscriptions porte
+    // 'cancelled' (deux L), la comparaison à 'canceled' ne matchait donc JAMAIS et le
+    // court-circuit d'idempotence ne s'armait pas pour un abonnement déjà résilié.
+    // ⚠️ Ne pas « harmoniser » avec payments.status, qui utilise bien 'canceled' (un L,
+    //    orthographe Mollie) : les deux tables divergent volontairement.
+    if (sub.status === 'canceling' || sub.status === 'cancelled') {
       return json({ ok: true, already: true })
     }
 
@@ -95,7 +100,7 @@ Deno.serve(async (req) => {
     }
 
     // Écriture DB : UNIQUEMENT après un succès (ou 404) Mollie → la DB ne ment jamais.
-    await supabase
+    const { error: updateError } = await supabase
       .from('member_subscriptions')
       .update({
         status: 'canceling',
@@ -104,7 +109,37 @@ Deno.serve(async (req) => {
       })
       .eq('id', subscriptionId)
 
-    // ── Email de confirmation : NON bloquant, APRÈS l'écriture DB.
+    // ── GYM-195 — AUCUN ÉCHEC SILENCIEUX SUR UN CHEMIN D'ARGENT ────────────────
+    // Le résultat de cet UPDATE n'était pas vérifié : quand il échouait (statut
+    // 'canceling' absent du CHECK jusqu'à GYM-195), la fonction répondait ok:true et
+    // envoyait « Résiliation confirmée » alors que la base restait 'active'.
+    //
+    // À ce stade, Mollie a DÉJÀ annulé le mandat : l'état est DIVERGENT (plus aucun
+    // prélèvement à venir, mais la base croit l'abonnement actif). On le dit tel quel
+    // au membre plutôt que de prétendre que rien ne s'est passé — et surtout on
+    // n'envoie PAS l'email de confirmation, qui serait un second mensonge.
+    if (updateError) {
+      console.error(
+        '[cancel-subscription] DB WRITE FAILED AFTER MOLLIE CANCEL — DIVERGENT STATE',
+        JSON.stringify({
+          subscription_id: subscriptionId,
+          member_id: sub.member_id,
+          gym_id: sub.gym_id,
+          mollie_subscription_id: sub.mollie_subscription_id,
+          mollie_customer_id: sub.mollie_customer_id,
+          db_status_still: sub.status,
+          error: updateError.message,
+        }),
+      )
+      return json({
+        error: true,
+        code: 'CANCEL_NOT_PERSISTED',
+        message: 'La résiliation a été enregistrée chez le prestataire de paiement mais '
+          + 'n\'a pas pu être finalisée — contactez la salle.',
+      }, 500)
+    }
+
+    // ── Email de confirmation : NON bloquant, APRÈS une écriture DB RÉUSSIE.
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, first_name, push_token')

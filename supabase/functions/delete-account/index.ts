@@ -146,8 +146,13 @@ Deno.serve(async (req) => {
             return errorResponse(502, 'Annulation de l\'abonnement échouée — réessayez plus tard', 'MOLLIE_CANCEL_FAILED')
           }
         }
+        // GYM-195 — 'cancelled' (deux L) : 'canceled' est ABSENT du CHECK de
+        // member_subscriptions, cet UPDATE échouait donc en base, silencieusement.
+        // Résiliation définitive (le compte disparaît) → état TERMINAL 'cancelled',
+        // surtout pas 'canceling' qui maintiendrait des droits jusqu'au terme.
+        // ⚠️ Ne pas aligner sur payments.status, qui utilise bien 'canceled' (un L).
         await admin.from('member_subscriptions').update({
-          status: 'canceled',
+          status: 'cancelled',
           cancelled_at: nowIso,
           cancellation_reason: 'account_deleted',
           updated_at: nowIso,
