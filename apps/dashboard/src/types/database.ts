@@ -1522,6 +1522,7 @@ export type Database = {
         Row: {
           address: string | null
           city: string | null
+          commercial_name: string | null
           commission_cb_rate_override: number | null
           commission_sepa_rate_override: number | null
           company_name: string | null
@@ -1534,6 +1535,11 @@ export type Database = {
           dpo_name: string | null
           email: string | null
           id: string
+          legal_address: string | null
+          legal_city: string | null
+          legal_form: string | null
+          legal_name: string | null
+          legal_postal_code: string | null
           logo_url: string | null
           mollie_profile_id: string | null
           mollie_vault_secret_id: string | null
@@ -1553,7 +1559,10 @@ export type Database = {
           trial_ends_at: string | null
           trial_started_at: string | null
           updated_at: string | null
+          vat_exempt: boolean
+          vat_exempt_mention: string | null
           vat_number: string | null
+          vat_rate: number
           waitlist_confirmation_minutes: number
         }
         Insert: {
@@ -1571,6 +1580,11 @@ export type Database = {
           dpo_name?: string | null
           email?: string | null
           id?: string
+          legal_address?: string | null
+          legal_city?: string | null
+          legal_form?: string | null
+          legal_name?: string | null
+          legal_postal_code?: string | null
           logo_url?: string | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
@@ -1590,12 +1604,16 @@ export type Database = {
           trial_ends_at?: string | null
           trial_started_at?: string | null
           updated_at?: string | null
+          vat_exempt?: boolean
+          vat_exempt_mention?: string | null
           vat_number?: string | null
+          vat_rate?: number
           waitlist_confirmation_minutes?: number
         }
         Update: {
           address?: string | null
           city?: string | null
+          commercial_name?: string | null
           commission_cb_rate_override?: number | null
           commission_sepa_rate_override?: number | null
           company_name?: string | null
@@ -1608,6 +1626,11 @@ export type Database = {
           dpo_name?: string | null
           email?: string | null
           id?: string
+          legal_address?: string | null
+          legal_city?: string | null
+          legal_form?: string | null
+          legal_name?: string | null
+          legal_postal_code?: string | null
           logo_url?: string | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
@@ -1627,7 +1650,10 @@ export type Database = {
           trial_ends_at?: string | null
           trial_started_at?: string | null
           updated_at?: string | null
+          vat_exempt?: boolean
+          vat_exempt_mention?: string | null
           vat_number?: string | null
+          vat_rate?: number
           waitlist_confirmation_minutes?: number
         }
         Relationships: []
