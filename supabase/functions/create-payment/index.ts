@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
+import { notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -118,12 +119,16 @@ Deno.serve(async (req) => {
     // Définition "actif" = status='active' UNIQUEMENT : le schéma member_subscriptions n'a pas
     // d'état en vol ('pending'/'past_due'), et la ligne n'est créée qu'au webhook de confirmation.
     // Le cumul one_time reste LIBRE quand des crédits existent (aucun blocage lié aux crédits).
+    // GYM-191 — la garde ne doit mordre que sur un abonnement RÉELLEMENT en cours :
+    // un abonnement échu (pas encore passé 'expired' par le cron) bloquerait sinon le
+    // rachat, exactement au moment où le membre veut se réabonner.
     const { data: activeSub } = await supabaseAdmin
       .from('member_subscriptions')
       .select('id')
       .eq('member_id', profile.id)
       .eq('gym_id', gymId)
       .eq('status', 'active')
+      .or(notExpiredFilter())
       .limit(1)
       .maybeSingle()
 

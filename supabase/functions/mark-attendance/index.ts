@@ -10,6 +10,7 @@
 //
 // gym_id n'est JAMAIS pris du body : il vient du profil de l'appelant (isolation multi-tenant).
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -250,12 +251,14 @@ Deno.serve(async (req) => {
       }
 
       // 4. Abonnement actif ? (détermine le débit crédit dans la RPC).
+      //    GYM-191 — un abonnement échu ne dispense plus du débit de crédit.
       const { data: activeSub } = await admin
         .from('member_subscriptions')
         .select('id')
         .eq('member_id', memberId)
         .eq('gym_id', gymId)
         .eq('status', 'active')
+        .or(notExpiredFilter())
         .maybeSingle()
 
       // 5. Création atomique (capacité + débit crédit).
