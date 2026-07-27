@@ -790,6 +790,7 @@ export type Database = {
           id: string
           is_popular: boolean | null
           name: string
+          once_per_member: boolean
           price_cents: number
           site_access: string | null
           sort_order: number | null
@@ -809,6 +810,7 @@ export type Database = {
           id?: string
           is_popular?: boolean | null
           name: string
+          once_per_member?: boolean
           price_cents: number
           site_access?: string | null
           sort_order?: number | null
@@ -828,6 +830,7 @@ export type Database = {
           id?: string
           is_popular?: boolean | null
           name?: string
+          once_per_member?: boolean
           price_cents?: number
           site_access?: string | null
           sort_order?: number | null

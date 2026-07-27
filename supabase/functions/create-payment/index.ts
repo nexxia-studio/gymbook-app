@@ -145,6 +145,58 @@ Deno.serve(async (req) => {
       )
     }
 
+    // ── GYM-193 — formule limitée à un achat par membre ────────────────────────
+    // Placée APRÈS la garde GYM-94 (un abonnement actif prime : le message « accès
+    // illimité déjà actif » est plus utile que « offre déjà utilisée ») et AVANT tout
+    // appel à Mollie : on ne crée jamais un paiement qu'on refusera ensuite.
+    //
+    // La limite est un ATTRIBUT DU PLAN, jamais son nom : chaque salle nomme son offre
+    // de découverte comme elle veut. once_per_member n'est pas exposé par
+    // resolve_plan_for_payment (dont la signature a déjà été refaite en GYM-189) — un
+    // SELECT ciblé sur la PK évite une nouvelle rupture de signature pour un booléen.
+    const { data: planFlags } = await supabaseAdmin
+      .from('gym_plans')
+      .select('once_per_member')
+      .eq('id', plan.plan_id)
+      .maybeSingle()
+
+    if (planFlags?.once_per_member) {
+      // Seul un encaissement RÉELLEMENT survenu consomme le droit. Un remboursement ne
+      // le rouvre pas : le membre a bien bénéficié de l'offre de découverte.
+      // 'pending' / 'failed' / 'expired' / 'canceled' ne consomment RIEN — un membre qui
+      // a abandonné son paiement doit pouvoir réessayer.
+      //
+      // 'charged_back' CONSOMME le droit — décision produit, NE PAS le retirer en le
+      // prenant pour une erreur : une rétrofacturation n'est pas un achat annulé mais un
+      // litige exceptionnel, et la prestation a bien été délivrée (le membre est venu).
+      // La règle automatique reste stricte ; les cas légitimes (carte volée…) se traitent
+      // par la dérogation comptoir, qui n'applique pas cette limite (admin-create-member).
+      //
+      // ⚠️ Liste dupliquée dans apps/mobile/hooks/useGymPlans.ts
+      //    (CONSUMING_PAYMENT_STATUSES) — les deux runtimes ne peuvent pas partager de
+      //    code. Toute modification ici doit y être reportée.
+      const CONSUMING_STATUSES = ['paid', 'partially_refunded', 'refunded', 'charged_back']
+
+      // payments.plan_id est un TEXT : comparaison texte↔texte, aucun cast.
+      const { data: priorPurchase } = await supabaseAdmin
+        .from('payments')
+        .select('id')
+        .eq('member_id', profile.id)
+        .eq('gym_id', gymId)
+        .eq('plan_id', plan.plan_id)
+        .in('status', CONSUMING_STATUSES)
+        .limit(1)
+        .maybeSingle()
+
+      if (priorPurchase) {
+        return errorResponse(
+          409,
+          'Cette offre est limitée à un achat par personne — vous en avez déjà bénéficié',
+          'PLAN_ALREADY_USED',
+        )
+      }
+    }
+
     const amount = plan.price_cents / 100
     // NULL pour un abonnement : c'est la convention du code (credits_granted > 0 ⇒ vente à
     // l'unité) sur laquelle s'appuient /revenus et create-refund pour distinguer les deux.

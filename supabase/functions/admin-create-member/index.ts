@@ -205,6 +205,14 @@ Deno.serve(async (req) => {
       } else if (plan.credit_count == null || plan.credit_count <= 0) {
         return errorResponse(422, 'PLAN_MISCONFIGURED', 'Formule mal configurée (crédits invalides)')
       }
+
+      // GYM-193 — OMISSION VOLONTAIRE, NE PAS « CORRIGER ».
+      // La limite gym_plans.once_per_member (offre de découverte : un achat par membre)
+      // N'EST PAS appliquée ici, et c'est le comportement voulu. Elle encadre le
+      // LIBRE-SERVICE (app membre, cf. create-payment → 409 PLAN_ALREADY_USED) ; au
+      // comptoir, c'est le gérant qui est juge : geste commercial, offre refaite à un
+      // proche, séance d'essai offerte une seconde fois après une longue absence…
+      // Ajouter la garde ici retirerait au gérant une décision qui lui revient.
     }
 
     // 4. Création du compte via Auth Admin API. Le trigger handle_new_user()
