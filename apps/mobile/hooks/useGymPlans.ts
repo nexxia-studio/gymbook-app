@@ -15,8 +15,17 @@ export interface GymPlan {
   billingType: string
   features: string[] | null
   isPopular: boolean
+  /** GYM-193 — offre limitée à un achat par membre (attribut du plan, jamais son nom). */
+  oncePerMember: boolean
   sortOrder: number | null
 }
+
+// GYM-193 — statuts de paiement qui CONSOMMENT le droit à une offre limitée.
+// ⚠️ Doit rester aligné sur la garde serveur (create-payment → 409 PLAN_ALREADY_USED),
+// qui seule fait foi. Un remboursement ne rouvre pas le droit : le membre a bénéficié de
+// l'offre. 'pending' / 'failed' / 'expired' / 'canceled' ne consomment rien — un paiement
+// abandonné doit pouvoir être réessayé.
+const CONSUMING_PAYMENT_STATUSES = ['paid', 'partially_refunded', 'refunded']
 
 interface UseGymPlansState {
   oneTime: GymPlan[]
@@ -60,7 +69,7 @@ export function useGymPlans() {
 
     const { data: plans, error } = await supabase
       .from('gym_plans')
-      .select('id, name, description, price_cents, currency, credit_count, duration_months, billing_type, features, is_popular, sort_order')
+      .select('id, name, description, price_cents, currency, credit_count, duration_months, billing_type, features, is_popular, once_per_member, sort_order')
       .eq('gym_id', gymId)
       .eq('active', true)
       .order('sort_order', { ascending: true })
@@ -93,13 +102,45 @@ export function useGymPlans() {
         billingType: p.billing_type ?? '',
         features: tr?.features ?? p.features,
         isPopular: p.is_popular ?? false,
+        oncePerMember: p.once_per_member ?? false,
         sortOrder: p.sort_order,
       }
     })
 
+    // ── GYM-193 — masquer une offre déjà consommée ─────────────────────────────
+    // Une seule requête, et UNIQUEMENT s'il existe au moins un plan limité : tant
+    // qu'aucune salle n'active l'option, le coût est nul. Le filtre `in('plan_id', …)`
+    // borne le résultat aux seuls plans concernés (quelques lignes au plus).
+    // ⚠️ payments.plan_id est un TEXT : comparaison texte↔texte, aucun cast.
+    //
+    // COMPORTEMENT SÛR PAR DÉFAUT : en cas d'échec de la requête, `consumed` reste vide
+    // et TOUT est affiché. Mieux vaut proposer une offre que le serveur refusera (409)
+    // que de masquer à tort une offre à un membre qui y a droit.
+    //
+    // On ne traite PAS ici le cas « abonnement actif » : il est déjà couvert côté
+    // serveur par la garde GYM-94.
+    const limitedPlanIds = mapped.filter((p) => p.oncePerMember).map((p) => p.id)
+    const consumed = new Set<string>()
+
+    if (user && limitedPlanIds.length > 0) {
+      const { data: prior, error: priorError } = await supabase
+        .from('payments')
+        .select('plan_id')
+        .eq('member_id', user.id)
+        .eq('gym_id', gymId)
+        .in('plan_id', limitedPlanIds)
+        .in('status', CONSUMING_PAYMENT_STATUSES)
+
+      if (!priorError && prior) {
+        for (const row of prior) if (row.plan_id) consumed.add(row.plan_id as string)
+      }
+    }
+
+    const visible = consumed.size > 0 ? mapped.filter((p) => !consumed.has(p.id)) : mapped
+
     setState({
-      oneTime: mapped.filter((p) => p.billingType === 'one_time'),
-      recurring: mapped.filter((p) => p.billingType !== 'one_time'),
+      oneTime: visible.filter((p) => p.billingType === 'one_time'),
+      recurring: visible.filter((p) => p.billingType !== 'one_time'),
       loading: false,
       error: false,
     })
