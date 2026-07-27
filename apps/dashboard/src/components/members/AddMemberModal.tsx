@@ -50,8 +50,13 @@ export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps
   const addToast = useToastStore((s) => s.addToast)
   const { plans } = useGymPlans()
 
-  // Cartes de séances vendables au comptoir = plans one_time actifs uniquement.
-  const oneTimePlans = plans.filter((p) => p.active && p.billingType === 'one_time')
+  // Cartes de séances vendables au comptoir : one_time ET de type 'credits'.
+  // GYM-188 — le filtre ne peut plus se contenter de billing_type : depuis le découplage,
+  // « illimité payé en une fois » est aussi un one_time, mais admin-create-member le rejette
+  // (422 PLAN_MISCONFIGURED, il exige un credit_count). On ne le propose donc pas ici.
+  const oneTimePlans = plans.filter(
+    (p) => p.active && p.billingType === 'one_time' && p.planType === 'credits',
+  )
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')

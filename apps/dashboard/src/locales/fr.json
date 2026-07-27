@@ -742,10 +742,10 @@
     "name": "Nom",
     "name_placeholder": "Ex. Carte 10 séances",
     "description": "Description",
-    "billing_type": "Type de formule",
+    "billing_type": "Mode de paiement",
     "billing": {
-      "one_time": "À l'unité",
-      "recurring_fixed": "Abonnement"
+      "one_time": "Paiement unique",
+      "recurring_fixed": "Mensuel récurrent"
     },
     "credit_count": "Nombre de séances",
     "duration_months": "Durée (mois)",
@@ -762,8 +762,6 @@
     "deactivate": "Désactiver",
     "credits_count_one": "{{count}} séance",
     "credits_count_other": "{{count}} séances",
-    "duration_count_one": "{{count}} mois",
-    "duration_count_other": "{{count}} mois",
     "validation": {
       "name_required": "Le nom est requis.",
       "price_positive": "Le prix doit être supérieur à 0.",
@@ -774,7 +772,18 @@
     "toast_updated": "Formule mise à jour.",
     "toast_activated": "Formule activée.",
     "toast_deactivated": "Formule désactivée.",
-    "toast_error": "Une erreur est survenue."
+    "toast_error": "Une erreur est survenue.",
+    "plan_type": "Type de formule",
+    "type": {
+      "credits": "Crédits (séances)",
+      "unlimited": "Illimité (durée)"
+    },
+    "billing_type_helper": "Indépendant du type de formule : un accès illimité peut être payé en une fois.",
+    "billing_short": {
+      "one_time": "payé en une fois"
+    },
+    "unlimited_duration_one": "Illimité {{count}} mois",
+    "unlimited_duration_other": "Illimité {{count}} mois"
   },
   "revenue": {
     "title": "Revenus",
