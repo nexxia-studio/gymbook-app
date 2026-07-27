@@ -34,20 +34,25 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   const gymId = useAuthStore((s) => s.gym_id)
   const memberId = useAuthStore((s) => s.user?.id)
   const { createBooking } = useBookingStore()
-  const { oneTime, recurring, loading: plansLoading, refetch } = useGymPlans()
+  const { creditPlans, unlimitedPlans, loading: plansLoading, refetch } = useGymPlans()
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Plans dérivés de gym_plans (fini les prix en dur)
-  const dropInPlan = oneTime
+  const dropInPlan = creditPlans
     .filter((p) => p.creditCount === 1)
     .sort((a, b) => a.priceCents - b.priceCents)[0] ?? null
-  const packPlan = oneTime
+  const packPlan = creditPlans
     .filter((p) => (p.creditCount ?? 0) > 1)
     .sort((a, b) => a.priceCents - b.priceCents)[0] ?? null
-  const cheapestRecurring = recurring.length
-    ? [...recurring].sort((a, b) => a.priceCents - b.priceCents)[0]
+  // GYM-189 — le libellé associé est « À partir de {prix}/mois » : on ne retient donc que
+  // les abonnements réellement PRÉLEVÉS MENSUELLEMENT. Un « Illimité 12 mois — paiement
+  // unique » (1000 € au total) est bien un plan unlimited, mais annoncer « à partir de
+  // 1000 €/mois » serait faux. Filtre sur le mode de paiement, à dessein.
+  const monthlyPlans = unlimitedPlans.filter((p) => p.billingType !== 'one_time')
+  const cheapestRecurring = monthlyPlans.length
+    ? [...monthlyPlans].sort((a, b) => a.priceCents - b.priceCents)[0]
     : null
 
   useEffect(() => {

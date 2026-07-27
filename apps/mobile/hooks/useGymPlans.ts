@@ -12,6 +12,17 @@ export interface GymPlan {
   currency: string
   creditCount: number | null
   durationMonths: number | null
+  /**
+   * GYM-189 — CE QUE LE MEMBRE REÇOIT : 'credits' (N séances) | 'unlimited' (accès
+   * illimité pendant N mois). Pilote tout l'AFFICHAGE.
+   */
+  planType: string
+  /**
+   * COMMENT LE MEMBRE PAIE : 'one_time' | 'recurring_fixed' | 'recurring_infinite'.
+   * Pilote le CHECKOUT (create-payment vs create-subscription) et la mention « /mois ».
+   * ⚠️ Ne dit RIEN de la contrepartie : depuis GYM-188/189 un plan 'unlimited' peut être
+   * payé en une fois (« Illimité 12 mois — paiement unique »). Ne jamais déduire l'un de l'autre.
+   */
   billingType: string
   features: string[] | null
   isPopular: boolean
@@ -36,29 +47,35 @@ export interface GymPlan {
 const CONSUMING_PAYMENT_STATUSES = ['paid', 'partially_refunded', 'refunded', 'charged_back']
 
 interface UseGymPlansState {
-  oneTime: GymPlan[]
-  recurring: GymPlan[]
+  /** Formules de type 'credits' (cartes de séances). */
+  creditPlans: GymPlan[]
+  /** Formules de type 'unlimited' (abonnements), quel que soit leur mode de paiement. */
+  unlimitedPlans: GymPlan[]
   loading: boolean
   error: boolean
 }
 
 /**
  * Récupère les formules actives de la gym courante, traduites selon
- * profiles.preferred_language (fallback langue i18n puis colonnes de base),
- * et les sépare en `oneTime` (billing_type = 'one_time') vs `recurring`.
+ * profiles.preferred_language (fallback langue i18n puis colonnes de base).
+ *
+ * GYM-189 — la répartition se fait sur `type` (ce que le membre REÇOIT), plus sur
+ * billing_type (comment il PAIE). Les deux axes sont indépendants depuis GYM-188 : un
+ * « Illimité 12 mois — paiement unique » est un abonnement, et se rangeait auparavant
+ * dans la liste des cartes de séances.
  */
 export function useGymPlans() {
   const gymId = useAuthStore((s) => s.gym_id)
   const [state, setState] = useState<UseGymPlansState>({
-    oneTime: [],
-    recurring: [],
+    creditPlans: [],
+    unlimitedPlans: [],
     loading: true,
     error: false,
   })
 
   const load = useCallback(async () => {
     if (!gymId) {
-      setState({ oneTime: [], recurring: [], loading: false, error: false })
+      setState({ creditPlans: [], unlimitedPlans: [], loading: false, error: false })
       return
     }
     setState((s) => ({ ...s, loading: true, error: false }))
@@ -77,13 +94,13 @@ export function useGymPlans() {
 
     const { data: plans, error } = await supabase
       .from('gym_plans')
-      .select('id, name, description, price_cents, currency, credit_count, duration_months, billing_type, features, is_popular, once_per_member, sort_order')
+      .select('id, name, description, price_cents, currency, credit_count, duration_months, type, billing_type, features, is_popular, once_per_member, sort_order')
       .eq('gym_id', gymId)
       .eq('active', true)
       .order('sort_order', { ascending: true })
 
     if (error || !plans) {
-      setState({ oneTime: [], recurring: [], loading: false, error: true })
+      setState({ creditPlans: [], unlimitedPlans: [], loading: false, error: true })
       return
     }
 
@@ -107,6 +124,7 @@ export function useGymPlans() {
         currency: p.currency ?? 'EUR',
         creditCount: p.credit_count,
         durationMonths: p.duration_months,
+        planType: p.type ?? 'credits',
         billingType: p.billing_type ?? '',
         features: tr?.features ?? p.features,
         isPopular: p.is_popular ?? false,
@@ -146,9 +164,10 @@ export function useGymPlans() {
 
     const visible = consumed.size > 0 ? mapped.filter((p) => !consumed.has(p.id)) : mapped
 
+    // GYM-189 — réparti sur `type` (contrepartie), PAS sur billing_type (mode de paiement).
     setState({
-      oneTime: visible.filter((p) => p.billingType === 'one_time'),
-      recurring: visible.filter((p) => p.billingType !== 'one_time'),
+      creditPlans: visible.filter((p) => p.planType === 'credits'),
+      unlimitedPlans: visible.filter((p) => p.planType === 'unlimited'),
       loading: false,
       error: false,
     })
