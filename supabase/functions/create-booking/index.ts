@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { notExpiredFilter } from '../_shared/active-subscription.ts'
+import { ACTIVE_SUBSCRIPTION_STATUSES, notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -165,7 +165,9 @@ Deno.serve(async (req) => {
       .select('id')
       .eq('member_id', user.id)
       .eq('gym_id', slot.gym_id)
-      .eq('status', 'active')
+      // GYM-195 — 'canceling' compte comme actif : le membre a payé et reste engagé
+      // jusqu'au terme, lui débiter un crédit ici serait le faire payer deux fois.
+      .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
       .or(notExpiredFilter())
       .maybeSingle()
 
