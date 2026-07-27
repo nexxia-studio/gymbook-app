@@ -140,8 +140,12 @@ export default function Revenue() {
         .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(1000),
-      // MRR = somme des montants des abonnements actifs du gym
-      supabase.from('member_subscriptions').select('amount').eq('gym_id', gymId).eq('status', 'active'),
+      // MRR = somme des montants des abonnements actifs du gym.
+      // GYM-189 — on EXCLUT les abonnements payés en une fois (source_payment_id non NULL) :
+      // leur `amount` est le prix TOTAL de l'engagement (ex. 1000 € pour 12 mois), pas une
+      // mensualité. Les inclure gonflerait le MRR du montant complet dès la vente.
+      supabase.from('member_subscriptions').select('amount')
+        .eq('gym_id', gymId).eq('status', 'active').is('source_payment_id', null),
     ])
 
     const mapped: PaymentRow[] = (paymentsRes.data ?? []).map((p) => {
