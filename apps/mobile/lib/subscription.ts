@@ -15,15 +15,43 @@
 // réabonner / racheter une carte immédiatement, contrairement à un abonnement actif qui
 // bloque en 409, GYM-94). C'est un état neutre/positif, distinct de cancelled/expired.
 
-/** Statuts qui donnent accès (et bloquent l'achat d'un 2e abonnement — GYM-94). */
+// GYM-191 — LE STATUT NE SUFFIT PAS : il faut aussi que le terme ne soit pas dépassé.
+// Le backend expire les abonnements échus par un cron HORAIRE ; entre l'échéance réelle
+// et le passage du cron (≤ 1 h), la ligne porte encore status='active'. Sans condition de
+// date, l'app afficherait « actif » un abonnement que le serveur refuse déjà.
+// Prédicat aligné sur le serveur (_shared/active-subscription.ts, promote_waitlist_atomic) :
+//     statut actif ET (ends_at absent OU ends_at > maintenant)
+
+/**
+ * Statuts donnant accès. À n'utiliser que comme PRÉ-FILTRE de requête (`.in('status', …)`) :
+ * il ne dit rien du terme. L'autorité côté app est isSubscriptionActive(), à appliquer sur
+ * la ligne obtenue — et donc à charger `ends_at` avec.
+ */
 export const ACTIVE_SUBSCRIPTION_STATUSES: string[] = ['active', 'canceling']
 
-/** Statuts pertinents à charger pour l'écran abonnement (accès OU affichage « Terminé »). */
+/**
+ * Statuts pertinents à charger pour l'écran abonnement (accès OU affichage « Terminé »).
+ * Même réserve que ci-dessus : pré-filtre de requête, pas un verdict.
+ */
 export const DISPLAYABLE_SUBSCRIPTION_STATUSES: string[] = ['active', 'canceling', 'completed']
 
-/** True uniquement pour un abonnement donnant accès (comportement existant : active/canceling). */
-export function isSubscriptionActive(status: string | null | undefined): boolean {
-  return status === 'active' || status === 'canceling'
+/**
+ * True uniquement pour un abonnement donnant RÉELLEMENT accès : statut actif
+ * (active/canceling) ET terme non dépassé.
+ *
+ * `endsAt` est un paramètre REQUIS à dessein : le rendre optionnel laisserait un appelant
+ * retomber silencieusement sur l'ancien comportement (statut seul), qui est le bug que
+ * GYM-191 corrige. Le compilateur oblige donc chaque site à fournir la date.
+ * `endsAt` null/undefined = abonnement sans terme connu → considéré actif.
+ */
+export function isSubscriptionActive(
+  status: string | null | undefined,
+  endsAt: string | null | undefined,
+): boolean {
+  const statusOk = status === 'active' || status === 'canceling'
+  if (!statusOk) return false
+  if (!endsAt) return true
+  return new Date(endsAt).getTime() > Date.now()
 }
 
 /** Engagement arrivé à son terme (état neutre/positif, distinct de cancelled/expired). */

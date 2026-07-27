@@ -44,8 +44,10 @@ function formatDate(iso: string | null): string {
 }
 
 // GYM-113 — engagement ferme (miroir client du prédicat serveur _shared/subscription-engagement).
+// Le `!!endsAt` reste indispensable : un abonnement SANS terme est actif (isSubscriptionActive
+// le dit) mais n'engage à rien — il n'y a pas de date jusqu'à laquelle le membre serait tenu.
 function isEngaged(status: string, endsAt: string | null): boolean {
-  return isSubscriptionActive(status) && !!endsAt && new Date(endsAt).getTime() > Date.now()
+  return isSubscriptionActive(status, endsAt) && !!endsAt
 }
 // Terme d'engagement en heure locale gym (Europe/Brussels), format long fr-BE.
 function formatEngagedDate(iso: string): string {
@@ -303,7 +305,9 @@ export default function SubscriptionScreen() {
   //  - recurring : achetable SAUF abonnement déjà actif (→ upsell futur). Les crédits ne bloquent RIEN.
   // 'completed' est chargé pour l'affichage mais N'EST PAS actif → n'ouvre aucun droit et
   // ne bloque aucun achat (GYM-151). Seuls active/canceling comptent comme abonnement actif.
-  const hasActiveSub = isSubscriptionActive(activeSub?.status)
+  // GYM-191 — un abonnement échu n'ouvre plus aucun droit et ne bloque plus aucun achat,
+  // même si le cron horaire ne l'a pas encore passé à 'expired'.
+  const hasActiveSub = isSubscriptionActive(activeSub?.status, activeSub?.endsAt)
 
   const activeCreditsName = activeCredits
     ? (creditPlans.find((p) => p.id === activeCredits.planId)?.name ?? t('subscription.credits_generic_name'))
@@ -376,7 +380,7 @@ export default function SubscriptionScreen() {
         )}
 
         {/* Carte abonnement récurrent */}
-        {loading ? null : activeSub && isSubscriptionActive(activeSub.status) ? (
+        {loading ? null : activeSub && isSubscriptionActive(activeSub.status, activeSub.endsAt) ? (
           <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} bg-move-card p-5`}>
             <View className="mb-3 flex-row items-center justify-between">
               <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
