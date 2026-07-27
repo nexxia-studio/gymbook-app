@@ -545,6 +545,38 @@
     "payments": {
       "title": "Payments",
       "subtitle": "Connect your Mollie account to collect payments."
+    },
+    "legal": {
+      "title": "Legal & billing information",
+      "subtitle": "This information appears on the invoices sent to your members.",
+      "identity_title": "Identity",
+      "commercial_name_label": "Trading name",
+      "commercial_name_helper": "The brand shown on the invoice (e.g. “Dopamine by EMS95”)",
+      "legal_name_label": "Registered company name",
+      "legal_name_helper": "The legal name of the operating company (e.g. “EMS 95”)",
+      "legal_form_label": "Legal form",
+      "legal_form_helper": "E.g. SRL, SA, ASBL — optional",
+      "vat_number_label": "VAT / company number",
+      "vat_number_helper": "E.g. BE 1020.241.644",
+      "registered_office_title": "Registered office",
+      "registered_office_helper": "The company's legal address. This is what appears on invoices.",
+      "venue_title": "Venue address",
+      "venue_helper": "The physical address of the gym: what your members see in the app and use to get there.",
+      "street_label": "Street and number",
+      "postal_code_label": "Postal code",
+      "city_label": "City",
+      "vat_title": "VAT regime",
+      "vat_exempt_label": "VAT exempt",
+      "vat_exempt_helper": "Only tick this if your activity is genuinely exempt. The legal notice will replace the VAT breakdown on the invoice.",
+      "vat_rate_label": "VAT rate (%)",
+      "vat_rate_helper": "The amount paid by the member is VAT-inclusive: VAT is extracted from it for display (0 to 100)",
+      "vat_rate_error": "The rate must be between 0 and 100",
+      "vat_mention_label": "Exemption legal notice",
+      "vat_mention_helper": "E.g. “VAT not applicable — Art. 44 of the VAT Code”",
+      "save": "Save",
+      "saved": "Legal information saved",
+      "save_forbidden": "You do not have permission to change this information",
+      "save_error": "Could not save the legal information"
     }
   },
   "activities": {
