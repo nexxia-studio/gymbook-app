@@ -1254,6 +1254,7 @@ export type Database = {
           plan_id: string | null
           plan_name: string | null
           site_id: string | null
+          source_payment_id: string | null
           starts_at: string
           status: string | null
           suspended_until: string | null
@@ -1282,6 +1283,7 @@ export type Database = {
           plan_id?: string | null
           plan_name?: string | null
           site_id?: string | null
+          source_payment_id?: string | null
           starts_at: string
           status?: string | null
           suspended_until?: string | null
@@ -1310,6 +1312,7 @@ export type Database = {
           plan_id?: string | null
           plan_name?: string | null
           site_id?: string | null
+          source_payment_id?: string | null
           starts_at?: string
           status?: string | null
           suspended_until?: string | null

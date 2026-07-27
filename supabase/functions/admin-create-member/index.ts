@@ -195,7 +195,14 @@ Deno.serve(async (req) => {
         // Les abonnements Mollie ne peuvent pas être créés manuellement au comptoir.
         return errorResponse(422, 'PLAN_NOT_ONE_TIME', 'Un abonnement récurrent ne peut pas être enregistré manuellement')
       }
-      if (plan.credit_count == null || plan.credit_count <= 0) {
+      // GYM-189 — le gérant doit pouvoir vendre au comptoir (espèces / terminal) un
+      // abonnement payé en une fois, pas seulement une carte de séances. Ce qui rend une
+      // formule « mal configurée » dépend donc de sa NATURE, pas de la présence de crédits.
+      if (plan.plan_type === 'unlimited') {
+        if (plan.duration_months == null || plan.duration_months <= 0) {
+          return errorResponse(422, 'PLAN_MISCONFIGURED', 'Formule mal configurée (durée invalide)')
+        }
+      } else if (plan.credit_count == null || plan.credit_count <= 0) {
         return errorResponse(422, 'PLAN_MISCONFIGURED', 'Formule mal configurée (crédits invalides)')
       }
     }
@@ -228,7 +235,10 @@ Deno.serve(async (req) => {
     const emailSent = await sendInviteEmail(supabaseAdmin, email, firstName)
 
     // 6. Carte de séances payée sur place (optionnelle).
-    let paymentInfo: { id: string; status: string; credits: number } | undefined
+    let paymentInfo: {
+      id: string; status: string; credits: number
+      delivered?: string; subscription_id?: string
+    } | undefined
     let warning: string | undefined
     let invoiceSent = false
 
@@ -252,18 +262,28 @@ Deno.serve(async (req) => {
         console.error('[admin-create-member] payment insert failed:', insertErr)
         warning = 'PAYMENT_NOT_RECORDED'
       } else {
-        // Crédit atomique et idempotent (GYM-71) — c'est le RPC qui crédite.
+        // Contrepartie atomique et idempotente (GYM-71) — c'est le RPC qui délivre :
+        // crédits pour un plan 'credits', abonnement pour un plan 'unlimited' (GYM-189).
         const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc('apply_paid_payment', {
           p_payment_id: paymentRowId,
           p_payment_method: paymentMethod,
           p_paid_at: new Date().toISOString(),
         })
-        if (rpcErr || (rpcResult !== 'applied' && rpcResult !== 'already_applied')) {
+        // GYM-189 — le RPC renvoie désormais du jsonb ; `result` conserve exactement les
+        // valeurs de l'ancien retour texte, seul l'accès change.
+        const applied = (rpcResult ?? {}) as { result?: string; delivered?: string; subscription_id?: string }
+        if (rpcErr || (applied.result !== 'applied' && applied.result !== 'already_applied')) {
           console.error('[admin-create-member] apply_paid_payment failed:', rpcErr, rpcResult)
           warning = 'CREDITS_NOT_APPLIED'
           paymentInfo = { id: paymentRowId, status: 'pending', credits: 0 }
         } else {
-          paymentInfo = { id: paymentRowId, status: 'paid', credits: plan.credit_count ?? 0 }
+          paymentInfo = {
+            id: paymentRowId,
+            status: 'paid',
+            credits: plan.credit_count ?? 0,
+            ...(applied.delivered ? { delivered: applied.delivered } : {}),
+            ...(applied.subscription_id ? { subscription_id: applied.subscription_id } : {}),
+          }
           // GYM-167 — génération + envoi de la facture au membre (best-effort). Le membre
           // reçoit donc deux emails : invitation + facture. Un échec → invoice_sent:false.
           invoiceSent = await sendInvoiceEmail(supabaseAdmin, paymentRowId)
