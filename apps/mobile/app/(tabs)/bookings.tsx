@@ -8,7 +8,6 @@ import { BookingTabs, type BookingTab } from '../../components/bookings/BookingT
 import { UpcomingCard } from '../../components/bookings/UpcomingCard'
 import { FavoriteCard } from '../../components/bookings/FavoriteCard'
 import { HistoryCard } from '../../components/bookings/HistoryCard'
-import { LimitBanner } from '../../components/bookings/LimitBanner'
 import { CancelModal } from '../../components/session/CancelModal'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { useBookingStore, type FavoritePattern } from '../../stores/useBookingStore'
@@ -214,7 +213,13 @@ export default function Bookings() {
         {/* === UPCOMING === */}
         {activeTab === 'upcoming' && (
           <>
-            {bookings.length >= 2 && <LimitBanner />}
+            {/* GYM-196 — bandeau « limite atteinte » RETIRÉ : il annonçait « 2
+                réservations max » avec un seuil codé en dur, or la limite est
+                désormais configurable par salle (nexxia_gyms.max_active_bookings) et
+                l'app ne lit jamais cette table. Plutôt que de ré-inscrire un chiffre
+                faux, on s'en remet au message du serveur au moment de réserver, qui
+                porte la vraie valeur. Réactivable dès que la limite sera exposée à
+                l'app (voir compte-rendu GYM-196). */}
 
             {bookings.length === 0 ? (
               <View className="items-center py-20">

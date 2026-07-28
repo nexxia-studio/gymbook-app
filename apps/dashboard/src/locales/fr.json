@@ -544,7 +544,11 @@
       "waitlist_delay_helper": "Temps accordé à un membre pour confirmer sa place après notification (10–120 min)",
       "waitlist_delay_range_error": "Doit être compris entre 10 et 120 minutes",
       "save": "Enregistrer",
-      "saved": "Paramètres enregistrés"
+      "saved": "Paramètres enregistrés",
+      "max_bookings_label": "Réservations simultanées maximum par membre",
+      "max_bookings_helper": "Nombre de cours à venir qu'un membre peut avoir réservés en même temps, Open Gym compris. Un cours passé sort du décompte automatiquement. Laissez vide pour ne pas limiter.",
+      "max_bookings_range_error": "Doit être un nombre entier supérieur ou égal à 1, ou vide pour aucune limite",
+      "save_error": "Impossible d'enregistrer les réglages"
     },
     "payments": {
       "title": "Paiements",

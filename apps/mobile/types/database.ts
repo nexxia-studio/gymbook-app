@@ -1526,6 +1526,7 @@ export type Database = {
           email: string | null
           id: string
           logo_url: string | null
+          max_active_bookings: number | null
           mollie_profile_id: string | null
           mollie_vault_secret_id: string | null
           name: string
@@ -1561,6 +1562,7 @@ export type Database = {
           email?: string | null
           id?: string
           logo_url?: string | null
+          max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
           name: string
@@ -1596,6 +1598,7 @@ export type Database = {
           email?: string | null
           id?: string
           logo_url?: string | null
+          max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
           name?: string
