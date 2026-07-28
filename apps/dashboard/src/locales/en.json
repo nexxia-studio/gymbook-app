@@ -544,7 +544,11 @@
       "waitlist_delay_helper": "Time given to a member to confirm their spot after being notified (10–120 min)",
       "waitlist_delay_range_error": "Must be between 10 and 120 minutes",
       "save": "Save",
-      "saved": "Settings saved"
+      "saved": "Settings saved",
+      "max_bookings_label": "Maximum simultaneous bookings per member",
+      "max_bookings_helper": "How many upcoming classes a member can have booked at once, Open Gym included. Past classes drop out of the count automatically. Leave empty for no limit.",
+      "max_bookings_range_error": "Must be a whole number of at least 1, or empty for no limit",
+      "save_error": "Couldn't save the settings"
     },
     "payments": {
       "title": "Payments",

@@ -42,7 +42,9 @@ interface BookingState {
   // (promotion serveur). Vit dans le store (survit au remontage de l'écran Réservations,
   // contrairement à un useRef local) → le toast de promotion ne se perd plus.
   justPromoted: boolean
-  createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null }>
+  // GYM-196 — `limit` accompagne MAX_BOOKINGS_REACHED : la limite est configurable par
+  // salle et seul le serveur la connaît (l'app ne lit jamais nexxia_gyms).
+  createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null; limit?: number }>
   cancelBooking: (slotId: string) => Promise<{ noshow?: { level: string; hours?: number } } | void>
   confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean; code?: string }>
   fetchBookings: (userId: string) => Promise<void>
@@ -125,7 +127,10 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           return { status: 'error' as const, code: 'SUSPENDED', suspended_until: (errorBody?.suspended_until as string) ?? null, position: undefined }
         }
         if (code.includes('MAX_BOOKINGS')) {
-          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', position: undefined }
+          // GYM-196 — la limite est configurable par salle : c'est le SERVEUR qui la
+          // communique (champ `limit`). L'app ne lit jamais nexxia_gyms et ne doit pas
+          // ajouter de requête pour l'apprendre.
+          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', limit: errorBody?.limit as number | undefined, position: undefined }
         }
         if (code === 'PAYMENT_REQUIRED') {
           return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
@@ -141,7 +146,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           return { status: 'error' as const, code: 'SUSPENDED', suspended_until: data.suspended_until as string, position: undefined }
         }
         if (code === 'MAX_BOOKINGS_REACHED') {
-          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', position: undefined }
+          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', limit: data.limit as number | undefined, position: undefined }
         }
         if (code === 'PAYMENT_REQUIRED') {
           return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }

@@ -1547,6 +1547,7 @@ export type Database = {
           legal_name: string | null
           legal_postal_code: string | null
           logo_url: string | null
+          max_active_bookings: number | null
           mollie_profile_id: string | null
           mollie_vault_secret_id: string | null
           name: string
@@ -1592,6 +1593,7 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           logo_url?: string | null
+          max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
           name: string
@@ -1638,6 +1640,7 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           logo_url?: string | null
+          max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
           name?: string

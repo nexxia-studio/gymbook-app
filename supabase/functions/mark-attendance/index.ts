@@ -263,6 +263,14 @@ Deno.serve(async (req) => {
         .or(notExpiredFilter())
         .maybeSingle()
 
+      // GYM-196 — OMISSION VOLONTAIRE, NE PAS « CORRIGER ».
+      // La limite nexxia_gyms.max_active_bookings n'est PAS appliquée au walk-in, et c'est
+      // voulu : elle encadre le LIBRE-SERVICE (app membre, cf. create-booking → 400
+      // MAX_BOOKINGS_REACHED, et promote_waitlist_atomic pour la waitlist). Au comptoir,
+      // le membre est physiquement présent devant le gérant : lui refuser le pointage
+      // parce qu'il a trois autres cours réservés n'aurait aucun sens. Même logique de
+      // dérogation gérant que pour l'offre limitée à un achat par membre (GYM-193).
+      //
       // 5. Création atomique (capacité + débit crédit).
       const { data: created, error: createErr } = await admin.rpc('create_booking_atomic', {
         p_member_id: memberId,

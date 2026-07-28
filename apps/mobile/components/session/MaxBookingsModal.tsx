@@ -4,11 +4,17 @@ import { AlertCircle } from 'lucide-react-native'
 
 interface MaxBookingsModalProps {
   visible: boolean
+  /**
+   * GYM-196 — limite communiquée par le serveur avec l'erreur MAX_BOOKINGS_REACHED.
+   * Elle est configurable par salle : ne JAMAIS la coder en dur ici. Absente (ancienne
+   * version du serveur), on retombe sur un message sans chiffre plutôt que d'en inventer un.
+   */
+  limit?: number
   onViewBookings: () => void
   onClose: () => void
 }
 
-export function MaxBookingsModal({ visible, onViewBookings, onClose }: MaxBookingsModalProps) {
+export function MaxBookingsModal({ visible, limit, onViewBookings, onClose }: MaxBookingsModalProps) {
   const { t } = useTranslation()
 
   return (
@@ -23,7 +29,9 @@ export function MaxBookingsModal({ visible, onViewBookings, onClose }: MaxBookin
             </Text>
 
             <Text className="mt-3 text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
-              {t('session.max_bookings_message')}
+              {limit
+                ? t('session.max_bookings_message', { count: limit })
+                : t('session.max_bookings_message_generic')}
             </Text>
           </View>
 

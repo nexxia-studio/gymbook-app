@@ -63,6 +63,8 @@ export default function SessionDetail() {
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [cancelModalVisible, setCancelModalVisible] = useState(false)
   const [maxBookingsVisible, setMaxBookingsVisible] = useState(false)
+  // GYM-196 — limite renvoyée par le serveur (configurable par salle), jamais devinée.
+  const [maxBookingsLimit, setMaxBookingsLimit] = useState<number | undefined>(undefined)
   const [paymentRequiredVisible, setPaymentRequiredVisible] = useState(false)
   const [suspensionModal, setSuspensionModal] = useState<{ visible: boolean; until: string | null }>({ visible: false, until: null })
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
@@ -238,6 +240,7 @@ export default function SessionDetail() {
       return
     }
     if (result.code === 'MAX_BOOKINGS_REACHED') {
+      setMaxBookingsLimit(result.limit)
       setMaxBookingsVisible(true)
       return
     }
@@ -504,6 +507,7 @@ export default function SessionDetail() {
 
       <MaxBookingsModal
         visible={maxBookingsVisible}
+        limit={maxBookingsLimit}
         onViewBookings={() => {
           setMaxBookingsVisible(false)
           router.replace('/(tabs)/bookings' as never)
