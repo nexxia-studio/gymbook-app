@@ -113,6 +113,22 @@ Deno.serve(async (req) => {
       if (promo.reason === 'NOT_WAITLISTED') {
         return errorResponse(400, 'Réservation non en attente', 'NOT_WAITLISTED')
       }
+      // GYM-196 — le membre a atteint sa limite de réservations simultanées.
+      // Son tour N'EST PAS perdu : le booking reste 'waitlisted' et rien n'a été modifié.
+      // On ne notifie donc PAS le suivant et on n'annule rien ici — si le membre libère
+      // une place à temps, il peut reconfirmer ; sinon le cron expire-waitlist-confirmations
+      // fera expirer son délai et passera la main naturellement. Aucun mécanisme à ajouter.
+      if (promo.reason === 'BOOKING_LIMIT_REACHED') {
+        const limit = promo.limit as number | undefined
+        return jsonResponse({
+          error: true,
+          code: 'MAX_BOOKINGS_REACHED',
+          message: limit
+            ? `Vous avez déjà ${limit} réservations à venir. Annulez-en une puis reconfirmez cette place avant la fin de votre délai.`
+            : 'Vous avez atteint votre limite de réservations. Annulez-en une puis reconfirmez cette place avant la fin de votre délai.',
+          limit,
+        }, 409)
+      }
       if (promo.reason === 'FULL') {
         return errorResponse(409, 'Place déjà prise par un autre membre', 'SLOT_FULL')
       }

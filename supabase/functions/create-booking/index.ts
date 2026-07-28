@@ -10,17 +10,22 @@ interface BookingRequest {
   slot_id: string
 }
 
+// GYM-196 — `maxActiveBookings` est remonté ICI plutôt que par une seconde requête :
+// la ligne nexxia_gyms est déjà lue pour le quota de membres, autant en tirer les deux
+// informations. NULL = aucune limite de réservations.
 async function checkMemberQuota(
   supabase: SupabaseClient,
   gymId: string,
-): Promise<{ allowed: boolean; reason?: string }> {
+): Promise<{ allowed: boolean; reason?: string; maxActiveBookings: number | null }> {
   const { data: gym } = await supabase
     .from('nexxia_gyms')
-    .select('plan')
+    .select('plan, max_active_bookings')
     .eq('id', gymId)
     .single()
 
-  if (!gym?.plan) return { allowed: false, reason: 'PLAN_NOT_FOUND' }
+  const maxActiveBookings = (gym?.max_active_bookings as number | null) ?? null
+
+  if (!gym?.plan) return { allowed: false, reason: 'PLAN_NOT_FOUND', maxActiveBookings }
 
   const { data: limits } = await supabase
     .from('nexxia_plan_limits')
@@ -29,7 +34,7 @@ async function checkMemberQuota(
     .single()
 
   // null = illimité
-  if (!limits || limits.max_members === null) return { allowed: true }
+  if (!limits || limits.max_members === null) return { allowed: true, maxActiveBookings }
 
   const { count } = await supabase
     .from('profiles')
@@ -39,10 +44,10 @@ async function checkMemberQuota(
     .is('deleted_at', null)
 
   if ((count ?? 0) >= limits.max_members) {
-    return { allowed: false, reason: 'MEMBER_QUOTA_REACHED' }
+    return { allowed: false, reason: 'MEMBER_QUOTA_REACHED', maxActiveBookings }
   }
 
-  return { allowed: true }
+  return { allowed: true, maxActiveBookings }
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -143,16 +148,30 @@ Deno.serve(async (req) => {
     }
     // If cancelled → we'll reuse this row below
 
-    // 6. Check max 2 future confirmed bookings
-    const { count: futureCount } = await supabaseAdmin
-      .from('bookings')
-      .select('id, time_slots!inner(starts_at)', { count: 'exact', head: true })
-      .eq('member_id', user.id)
-      .eq('status', 'confirmed')
-      .gte('time_slots.starts_at', new Date().toISOString())
+    // 6. Limite de réservations confirmées à venir (GYM-196 — configurable par salle).
+    //    Position INCHANGÉE dans l'ordre des gardes : avant le guard paiement et avant la
+    //    RPC, pour ne débiter aucun crédit à un membre qu'on va refuser.
+    //    La limite vient du gym DU CRÉNEAU, et a déjà été lue par checkMemberQuota
+    //    ci-dessus — aucune requête supplémentaire. NULL = aucune limite.
+    const maxActiveBookings = quotaCheck.maxActiveBookings
+    if (maxActiveBookings !== null) {
+      const { count: futureCount } = await supabaseAdmin
+        .from('bookings')
+        .select('id, time_slots!inner(starts_at)', { count: 'exact', head: true })
+        .eq('member_id', user.id)
+        .eq('status', 'confirmed')
+        .gte('time_slots.starts_at', new Date().toISOString())
 
-    if ((futureCount ?? 0) >= 2) {
-      return errorResponse(400, 'Maximum 2 réservations simultanées', 'MAX_BOOKINGS_REACHED')
+      if ((futureCount ?? 0) >= maxActiveBookings) {
+        // `limit` est renvoyé pour que l'app affiche le bon nombre : elle ne charge
+        // jamais nexxia_gyms et ne peut donc pas connaître la limite autrement.
+        return jsonResponse({
+          error: true,
+          code: 'MAX_BOOKINGS_REACHED',
+          message: `Maximum ${maxActiveBookings} réservations simultanées`,
+          limit: maxActiveBookings,
+        }, 400)
+      }
     }
 
     // ============================================================
