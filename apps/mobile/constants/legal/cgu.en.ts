@@ -51,7 +51,7 @@ These terms govern the use of the Dopamine application and the purchase of servi
 
 6.1. Booking — including joining a waitlist — requires an active subscription or at least one available session.
 
-6.2. Maximum **2 confirmed upcoming bookings** at a time.
+6.2. {{booking_limit_clause}}
 
 6.3. A session is only debited upon **confirmation** of the spot (never on a waitlist; never under a subscription).
 
@@ -61,7 +61,7 @@ These terms govern the use of the Dopamine application and the purchase of servi
 
 7.1. The order of the list is the order of registration.
 
-7.2. When a spot frees up, the first person on the list is notified (notification and email) and has a **30-minute window** — shown in the application — to confirm their spot (the session is debited on confirmation, except under a subscription).
+7.2. When a spot frees up, the first person on the list is notified (notification and email) and has a **{{waitlist_confirmation_minutes}} window** — shown in the application — to confirm their spot (the session is debited on confirmation, except under a subscription).
 
 7.3. Failing confirmation within the window, the waitlist registration expires and the spot is offered to the next person. The member may re-register on the waitlist.
 
@@ -77,9 +77,9 @@ These terms govern the use of the Dopamine application and the purchase of servi
 
 9.1. An unexcused absence is a confirmed member who does not attend without having cancelled.
 
-9.2. Automatic cumulative scale: **1st absence** = warning · **2nd** = booking suspension for **48 hours** · **3rd and beyond** = suspension for **2 weeks**.
+9.2. {{noshow_scale_clause}}
 
-9.3. The session is not re-credited. The absence counter is cumulative; the Club may reset it at its discretion.
+9.3. The session is not re-credited. {{counter_reset_clause}}
 
 ### 10. Subscriptions — duration, term, termination
 
