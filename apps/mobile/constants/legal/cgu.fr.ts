@@ -51,7 +51,7 @@ Les présentes conditions régissent l'utilisation de l'application Dopamine et 
 
 6.1. Réserver — y compris rejoindre une liste d'attente — requiert un abonnement actif ou au moins une séance disponible.
 
-6.2. Maximum **2 réservations confirmées à venir** simultanément.
+6.2. {{booking_limit_clause}}
 
 6.3. Une séance n'est décomptée qu'à la **confirmation** de la place (jamais en liste d'attente ; jamais sous abonnement).
 
@@ -61,7 +61,7 @@ Les présentes conditions régissent l'utilisation de l'application Dopamine et 
 
 7.1. L'ordre de la liste est l'ordre d'inscription.
 
-7.2. Lorsqu'une place se libère, le premier de la liste est notifié (notification et email) et dispose d'un **délai de 30 minutes** — affiché dans l'application — pour confirmer sa place (la séance est décomptée à la confirmation, sauf abonnement).
+7.2. Lorsqu'une place se libère, le premier de la liste est notifié (notification et email) et dispose d'un **délai de {{waitlist_confirmation_minutes}}** — affiché dans l'application — pour confirmer sa place (la séance est décomptée à la confirmation, sauf abonnement).
 
 7.3. À défaut de confirmation dans le délai, l'inscription en liste d'attente expire et la place est proposée au suivant. Le membre peut se réinscrire en liste d'attente.
 
@@ -77,9 +77,9 @@ Les présentes conditions régissent l'utilisation de l'application Dopamine et 
 
 9.1. Est en absence non excusée le membre confirmé qui ne se présente pas sans avoir annulé.
 
-9.2. Barème automatique cumulatif : **1ʳᵉ absence** = avertissement · **2ᵉ** = suspension des réservations pendant **48 heures** · **3ᵉ et suivantes** = suspension de **2 semaines**.
+9.2. {{noshow_scale_clause}}
 
-9.3. La séance n'est pas re-créditée. Le compteur d'absences est cumulatif ; le Club peut le réinitialiser à sa discrétion.
+9.3. La séance n'est pas re-créditée. {{counter_reset_clause}}
 
 ### 10. Abonnements — durée, échéance, résiliation
 
