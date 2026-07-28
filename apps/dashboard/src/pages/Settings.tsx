@@ -12,6 +12,7 @@ import { CoachModal } from '@/components/settings/CoachModal'
 import { CoachDeleteModal } from '@/components/settings/CoachDeleteModal'
 import { GymSettingsCard } from '@/components/settings/GymSettingsCard'
 import { LegalBillingCard } from '@/components/settings/LegalBillingCard'
+import { NoshowPolicyCard } from '@/components/settings/NoshowPolicyCard'
 import { useActivities } from '@/hooks/useActivities'
 import { useCoaches } from '@/hooks/useCoaches'
 import { useToastStore } from '@/hooks/useToast'
@@ -286,6 +287,8 @@ export default function Settings() {
         {activeTab === 'gym' && (
           <div className="flex flex-col gap-4">
             <GymSettingsCard />
+            {/* GYM-175 — politique d'absences (table noshow_rules, distincte de nexxia_gyms). */}
+            <NoshowPolicyCard />
             {/* GYM-180 — identité légale de l'émetteur + régime TVA des factures. */}
             <LegalBillingCard />
           </div>

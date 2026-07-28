@@ -32,15 +32,28 @@ function errorResponse(status: number, code: string, message?: string) {
   return jsonResponse({ error: true, code, message: message ?? code }, status)
 }
 
+// GYM-175 — durée d'une suspension formulée à partir de sa DURÉE RÉELLE, jamais d'un
+// libellé de type. La politique étant configurable par salle (noshow_rules), déduire
+// « 2 semaines » de type === 'suspension_2w' ferait annoncer une durée fausse dès qu'un
+// gérant saisit autre chose que 48 h / 336 h.
+// Heures en dessous d'un jour, jours au-delà : « 6 h », « 2 jours », « 14 jours ».
+function formatSuspensionDuration(fromIso: string | null, toIso: string): string {
+  const from = fromIso ? new Date(fromIso).getTime() : Date.now()
+  const ms = new Date(toIso).getTime() - from
+  const hours = Math.max(1, Math.round(ms / 3_600_000))
+  if (hours < 24) return `${hours} h`
+  const days = Math.max(1, Math.round(hours / 24))
+  return days === 1 ? '1 jour' : `${days} jours`
+}
+
 function suspensionEmailHtml(
   firstName: string | null,
   activityName: string,
   dateStr: string,
   untilStr: string,
-  isLong: boolean,
+  durationLabel: string,
 ): string {
   const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
-  const durationLabel = isLong ? '2 semaines' : '48h'
   return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><div style="font-size:28px;margin-bottom:12px;">⚠️</div><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Compte suspendu ${durationLabel}</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Une absence a été enregistrée pour ton cours <strong>${activityName}</strong> du ${dateStr}. Suite à tes absences répétées, ton compte est suspendu jusqu'au <strong>${untilStr}</strong>.</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Tu ne pourras pas réserver de cours pendant cette période. Pour toute question, contacte l'accueil de ta salle.</p></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
 }
 
@@ -50,7 +63,10 @@ async function notifySuspension(
   supabaseUrl: string,
   serviceKey: string,
   bookingId: string,
-  penaltyType: string,
+  // GYM-175 — plus de `penaltyType` : la durée annoncée se déduit de l'échéance, pas du
+  // libellé. `appliedAt` peut être null (RPC antérieure au lot) → repli sur maintenant,
+  // exact à quelques millisecondes puisque l'appel suit immédiatement la pénalité.
+  appliedAt: string | null,
   expiresAt: string | null,
 ) {
   try {
@@ -87,7 +103,8 @@ async function notifySuspension(
           timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
         })
       : '—'
-    const isLong = penaltyType === 'suspension_2w'
+    // Durée réelle, déduite de l'échéance (GYM-175).
+    const durationLabel = expiresAt ? formatSuspensionDuration(appliedAt, expiresAt) : '—'
 
     if (profile.push_token) {
       await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
@@ -95,7 +112,7 @@ async function notifySuspension(
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({
           tokens: [profile.push_token],
-          title: `Compte suspendu ${isLong ? '2 semaines' : '48h'} ⚠️`,
+          title: `Compte suspendu ${durationLabel} ⚠️`,
           body: `Absence enregistrée — ${activityName}. Suspendu jusqu'au ${untilStr}.`,
           data: { type: 'noshow_penalty', booking_id: bookingId },
         }),
@@ -109,8 +126,8 @@ async function notifySuspension(
         body: JSON.stringify({
           from: 'Dopamine Performance Club <noreply@viniz.app>',
           to: profile.email,
-          subject: `Compte suspendu ${isLong ? '2 semaines' : '48h'} — Dopamine`,
-          html: suspensionEmailHtml(profile.first_name, activityName, dateStr, untilStr, isLong),
+          subject: `Compte suspendu ${durationLabel} — Dopamine`,
+          html: suspensionEmailHtml(profile.first_name, activityName, dateStr, untilStr, durationLabel),
         }),
       }).catch((e) => console.error('[mark-attendance] email error:', e))
     }
@@ -189,10 +206,10 @@ Deno.serve(async (req) => {
 
       // Notification best-effort UNIQUEMENT si une suspension vient d'être appliquée.
       const penalty = (result?.penalty ?? null) as
-        | { action?: string; type?: string; expires_at?: string | null }
+        | { action?: string; type?: string; applied_at?: string | null; expires_at?: string | null }
         | null
       if (penalty?.action === 'applied' && penalty.expires_at) {
-        await notifySuspension(admin, supabaseUrl, serviceKey, bookingId, penalty.type ?? 'suspension_48h', penalty.expires_at)
+        await notifySuspension(admin, supabaseUrl, serviceKey, bookingId, penalty.applied_at ?? null, penalty.expires_at)
       }
 
       return jsonResponse({ ...result })
