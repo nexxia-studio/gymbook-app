@@ -175,3 +175,29 @@ BEGIN
   );
 END;
 $function$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- c) Suppression de la colonne homonyme MORTE sur noshow_rules.
+--
+--    noshow_rules.max_active_bookings (valeur 2 chez Dopamine) préexistait : c'est
+--    l'emplacement que le schéma d'origine prévoyait pour ce réglage. Elle n'a jamais été
+--    lue par quoi que ce soit — ni fonction SQL, ni vue, ni Edge, ni app (vérifié en base
+--    et par grep) — create-booking ayant codé la valeur 2 en dur à la place.
+--
+--    Elle est remplacée par nexxia_gyms.max_active_bookings (section a), retenue parce
+--    qu'elle est cohérente avec waitlist_confirmation_minutes (même table, même écran de
+--    réglages) et surtout parce que son DEFAULT garantit une limite à TOUTE salle :
+--    noshow_rules n'a aucune ligne garantie par gym, une salle sans ligne se serait
+--    retrouvée sans limite silencieusement.
+--
+--    On la supprime pour ne pas laisser deux homonymes portant deux valeurs différentes
+--    (2 ici, 3 sur nexxia_gyms) — piège assuré pour le prochain lecteur.
+--    La contrainte noshow_rules_max_active_bookings_check part automatiquement avec.
+--
+--    ⚠️ LE RESTE DE noshow_rules EST CONSERVÉ : warning_1_at, warning_2_at, suspension_at,
+--    suspension_hours, escalated_suspension_hours, reset_after_days, late_cancel_hours ne
+--    sont PAS mortes — elles portent la politique no-show paramétrable que GYM-175
+--    branchera. Ne pas les supprimer au motif qu'elles ne sont pas encore lues.
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.noshow_rules
+  DROP COLUMN IF EXISTS max_active_bookings;
