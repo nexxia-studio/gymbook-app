@@ -7,6 +7,16 @@
 // (Metro/Expo) et le dashboard (Vite). Ce fichier reproduit à l'identique les corps de
 // apps/mobile/constants/legal/*.ts. Toute modification doit être répercutée des deux côtés
 // (mobile + web) à partir de la source docs/legal/*.md.
+//
+// GYM-197 — POURQUOI CES TEXTES NE SONT PAS TEMPLATÉS, CONTRAIREMENT AU MOBILE :
+// ces pages sont PUBLIQUES (routes hors ProtectedRoute, rendues SANS session — Apple
+// vérifie les URLs hors connexion). Aucun contexte de salle n'est donc disponible, et
+// une même URL sert TOUTES les salles : y injecter les paramètres d'une salle
+// particulière afficherait des valeurs fausses à un membre d'une autre salle.
+// Les clauses dont les valeurs sont désormais configurables (6.2 limite de réservations,
+// 7.2 délai de confirmation, 9.2 barème d'absences, 9.3 remise à zéro) renvoient donc
+// explicitement à la valeur affichée dans l'application, où elle est exacte. Elles
+// n'énoncent plus de chiffre — c'est la seule formulation qui reste vraie pour tous.
 
 export interface ClubIdentity {
   name: string
@@ -269,7 +279,7 @@ Les présentes conditions régissent l'utilisation de l'application Dopamine et 
 
 6.1. Réserver — y compris rejoindre une liste d'attente — requiert un abonnement actif ou au moins une séance disponible.
 
-6.2. Maximum **2 réservations confirmées à venir** simultanément.
+6.2. Le nombre maximum de **réservations confirmées à venir** simultanément est fixé par le Club et affiché dans l'application.
 
 6.3. Une séance n'est décomptée qu'à la **confirmation** de la place (jamais en liste d'attente ; jamais sous abonnement).
 
@@ -279,7 +289,7 @@ Les présentes conditions régissent l'utilisation de l'application Dopamine et 
 
 7.1. L'ordre de la liste est l'ordre d'inscription.
 
-7.2. Lorsqu'une place se libère, le premier de la liste est notifié (notification et email) et dispose d'un **délai de 30 minutes** — affiché dans l'application — pour confirmer sa place (la séance est décomptée à la confirmation, sauf abonnement).
+7.2. Lorsqu'une place se libère, le premier de la liste est notifié (notification et email) et dispose d'un **délai de confirmation fixé par le Club** — affiché dans l'application — pour confirmer sa place (la séance est décomptée à la confirmation, sauf abonnement).
 
 7.3. À défaut de confirmation dans le délai, l'inscription en liste d'attente expire et la place est proposée au suivant. Le membre peut se réinscrire en liste d'attente.
 
@@ -295,9 +305,9 @@ Les présentes conditions régissent l'utilisation de l'application Dopamine et 
 
 9.1. Est en absence non excusée le membre confirmé qui ne se présente pas sans avoir annulé.
 
-9.2. Barème automatique cumulatif : **1ʳᵉ absence** = avertissement · **2ᵉ** = suspension des réservations pendant **48 heures** · **3ᵉ et suivantes** = suspension de **2 semaines**.
+9.2. Un barème automatique cumulatif s'applique : les premières absences donnent lieu à un avertissement, les suivantes à une suspension temporaire des réservations, de durée croissante en cas de récidive. Les seuils et durées exacts sont fixés par le Club et affichés dans l'application.
 
-9.3. La séance n'est pas re-créditée. Le compteur d'absences est cumulatif ; le Club peut le réinitialiser à sa discrétion.
+9.3. La séance n'est pas re-créditée. Le compteur d'absences est cumulatif ; il est automatiquement remis à zéro après une période sans nouvelle absence, dont la durée est fixée par le Club et affichée dans l'application.
 
 ### 10. Abonnements — durée, échéance, résiliation
 
@@ -376,7 +386,7 @@ These terms govern the use of the Dopamine application and the purchase of servi
 
 6.1. Booking — including joining a waitlist — requires an active subscription or at least one available session.
 
-6.2. Maximum **2 confirmed upcoming bookings** at a time.
+6.2. The maximum number of **confirmed upcoming bookings** at a time is set by the Club and shown in the application.
 
 6.3. A session is only debited upon **confirmation** of the spot (never on a waitlist; never under a subscription).
 
@@ -386,7 +396,7 @@ These terms govern the use of the Dopamine application and the purchase of servi
 
 7.1. The order of the list is the order of registration.
 
-7.2. When a spot frees up, the first person on the list is notified (notification and email) and has a **30-minute window** — shown in the application — to confirm their spot (the session is debited on confirmation, except under a subscription).
+7.2. When a spot frees up, the first person on the list is notified (notification and email) and has a **confirmation window set by the Club** — shown in the application — to confirm their spot (the session is debited on confirmation, except under a subscription).
 
 7.3. Failing confirmation within the window, the waitlist registration expires and the spot is offered to the next person. The member may re-register on the waitlist.
 
@@ -402,9 +412,9 @@ These terms govern the use of the Dopamine application and the purchase of servi
 
 9.1. An unexcused absence is a confirmed member who does not attend without having cancelled.
 
-9.2. Automatic cumulative scale: **1st absence** = warning · **2nd** = booking suspension for **48 hours** · **3rd and beyond** = suspension for **2 weeks**.
+9.2. An automatic cumulative scale applies: the first absences result in a warning, subsequent ones in a temporary booking suspension, of increasing length for repeat offences. The exact thresholds and durations are set by the Club and shown in the application.
 
-9.3. The session is not re-credited. The absence counter is cumulative; the Club may reset it at its discretion.
+9.3. The session is not re-credited. The absence counter is cumulative; it is automatically reset after a period without a new absence, the length of which is set by the Club and shown in the application.
 
 ### 10. Subscriptions — duration, term, termination
 
