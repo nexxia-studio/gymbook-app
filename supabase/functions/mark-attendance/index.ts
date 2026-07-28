@@ -36,12 +36,18 @@ function errorResponse(status: number, code: string, message?: string) {
 // libellé de type. La politique étant configurable par salle (noshow_rules), déduire
 // « 2 semaines » de type === 'suspension_2w' ferait annoncer une durée fausse dès qu'un
 // gérant saisit autre chose que 48 h / 336 h.
-// Heures en dessous d'un jour, jours au-delà : « 6 h », « 2 jours », « 14 jours ».
+// SEUIL DE BASCULE À 72 h (exclu) : en dessous on garde les HEURES, qui disent mieux la
+// sanction (« 48 h » plutôt que « 2 jours ») ; au-delà les jours redeviennent lisibles
+// (336 h → « 14 jours »). Exemples : « 6 h », « 48 h », « 14 jours ».
+//
+// ⚠️ Même seuil que formatDuration() dans apps/mobile/constants/legal/params.ts : une
+// suspension doit se lire de la même façon dans les CGU et dans la notification qui
+// l'annonce. Toute modification ici doit y être reportée.
 function formatSuspensionDuration(fromIso: string | null, toIso: string): string {
   const from = fromIso ? new Date(fromIso).getTime() : Date.now()
   const ms = new Date(toIso).getTime() - from
   const hours = Math.max(1, Math.round(ms / 3_600_000))
-  if (hours < 24) return `${hours} h`
+  if (hours < 72) return `${hours} h`
   const days = Math.max(1, Math.round(hours / 24))
   return days === 1 ? '1 jour' : `${days} jours`
 }

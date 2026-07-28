@@ -9,10 +9,17 @@
 // personnelles, rétractation, droit applicable, litiges, âge minimum, préavis de
 // modification — restent FIXES : elles ne dépendent pas de la salle.
 //
-// ⚠️ MIROIR : apps/dashboard/src/lib/legalParams.ts doit garder des noms de placeholders
-// et une logique STRICTEMENT identiques (les deux runtimes ne partagent pas de code).
-// Toute modification ici doit y être reportée — même discipline que CONSUMING_STATUSES
-// (GYM-193).
+// ⚠️ PAS DE MIROIR CÔTÉ DASHBOARD, ET C'EST VOLONTAIRE — NE PAS « COMPLÉTER ».
+// Ce moteur n'existe que dans l'app mobile. Les pages légales du dashboard
+// (apps/dashboard/src/lib/legalContent.ts) sont PUBLIQUES : routes hors ProtectedRoute,
+// rendues SANS session, et une même URL sert TOUTES les salles. Aucun contexte de salle
+// n'y est disponible, et y injecter les paramètres d'une salle particulière afficherait
+// des valeurs fausses aux membres des autres. Ces textes ne sont donc pas templatés : ils
+// REFORMULENT les clauses variables en renvoyant à la valeur affichée dans l'application.
+// Voir l'en-tête de legalContent.ts, qui porte la même explication.
+//
+// Ce qui doit en revanche rester synchronisé avec un autre runtime : le seuil de bascule
+// heures/jours, partagé avec supabase/functions/mark-attendance/index.ts (cf. formatDuration).
 
 /** Valeurs opérationnelles d'une salle. `maxActiveBookings: null` = aucune limite. */
 export interface LegalParams {
@@ -44,9 +51,21 @@ export const DEFAULT_LEGAL_PARAMS: LegalParams = {
 
 type Lang = 'fr' | 'en'
 
-/** Durée lisible : heures en dessous d'un jour, jours au-delà. Accords corrects. */
+/**
+ * Durée lisible, avec accords corrects.
+ *
+ * SEUIL DE BASCULE À 72 h (exclu) et non 24 h : en dessous, on garde les HEURES, qui
+ * disent mieux la sanction (« 48 heures » est plus percutant que « 2 jours ») et surtout
+ * qui préservent la formulation du contrat déjà publié. Au-delà, les jours redeviennent
+ * lisibles (336 h → « 14 jours »).
+ *
+ * ⚠️ Même seuil que formatSuspensionDuration() dans
+ * supabase/functions/mark-attendance/index.ts : une suspension doit se lire de la même
+ * façon dans les CGU et dans la notification qui l'annonce. Toute modification ici doit
+ * y être reportée.
+ */
 function formatDuration(hours: number, lang: Lang): string {
-  if (hours < 24) {
+  if (hours < 72) {
     return lang === 'fr'
       ? `${hours} heure${hours > 1 ? 's' : ''}`
       : `${hours} hour${hours > 1 ? 's' : ''}`
