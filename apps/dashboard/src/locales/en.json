@@ -585,6 +585,25 @@
       "saved": "Legal information saved",
       "save_forbidden": "You do not have permission to change this information",
       "save_error": "Could not save the legal information"
+    },
+    "noshow": {
+      "title": "No-show policy",
+      "subtitle": "What happens when a member doesn't turn up for a class they booked.",
+      "suspension_at_label": "Absences before suspension",
+      "suspension_at_helper": "How many absences before the member is suspended. Below that, they only get a warning.",
+      "suspension_hours_label": "Suspension length (hours)",
+      "suspension_hours_helper": "How long the member can't book, the first time they hit the threshold.",
+      "escalated_hours_label": "Repeat-offence length (hours)",
+      "escalated_hours_helper": "Length applied to further absences once the threshold has been hit. 336 h = 2 weeks.",
+      "reset_days_label": "Counter reset (days)",
+      "reset_days_helper": "After this many days without a new absence, the member's counter goes back to zero. Past absences stay in their history but no longer count towards the next penalty.",
+      "summary": "Applied rule: warning from the 1st absence, {{hours}} h suspension on the {{threshold}}th, then {{escalated}} h for each further absence. Counter reset after {{days}} days without an absence.",
+      "positive_error": "Must be a whole number of at least 1",
+      "escalated_lower_error": "The repeat-offence length can't be shorter than the initial suspension",
+      "save": "Save",
+      "saved": "No-show policy saved",
+      "save_forbidden": "You don't have permission to change this policy",
+      "save_error": "Couldn't save the no-show policy"
     }
   },
   "activities": {
