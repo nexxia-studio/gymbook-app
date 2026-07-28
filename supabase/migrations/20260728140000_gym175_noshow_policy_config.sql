@@ -4,34 +4,43 @@
 -- Dopamine depuis l'origine et n'est lue par ABSOLUMENT RIEN : les implémentations
 -- successives ont recopié les valeurs en dur. Ce volet la branche enfin.
 --
--- ─── INTERPRÉTATION DES SEUILS (imposée — levée d'ambiguïté) ─────────────────
--- warning_2_at et suspension_at valent tous deux 2 chez Dopamine, ce qui rendait la
--- lecture des seuils ambiguë. Règle retenue, fondée sur le SEUL suspension_at :
---     count <  suspension_at  → avertissement (aucune suspension)
---     count =  suspension_at  → suspension de suspension_hours
---     count >  suspension_at  → suspension de escalated_suspension_hours
+-- ─── POLITIQUE À TROIS PALIERS (les trois seuils sont utilisés) ─────────────
+-- Règle évaluée du palier le PLUS HAUT au plus bas, pour que les seuils puissent être
+-- égaux entre eux sans ambiguïté (chez Dopamine warning_2_at = suspension_at = 2) :
+--     count >  suspension_at → suspension de escalated_suspension_hours
+--     count =  suspension_at → suspension de suspension_hours
+--     count >= warning_2_at  → 2e avertissement  (type 'warning_2')
+--     count >= warning_1_at  → 1er avertissement (type 'warning_1')
+--     sinon                  → aucune pénalité
 --
--- NON-RÉGRESSION avec les valeurs Dopamine (suspension_at=2, 48h, 336h) :
---     count=1 → 1 < 2 → avertissement            (identique à aujourd'hui)
---     count=2 → 2 = 2 → suspension 48h           (identique à aujourd'hui)
---     count≥3 → 3 > 2 → suspension 336h (2 sem.) (identique à aujourd'hui)
--- Le comportement est donc STRICTEMENT inchangé tant que la salle ne modifie rien.
+-- L'ordre d'évaluation est ce qui rend le paramétrage lisible : une salle qui veut
+-- « avertir, avertir, suspendre » pose w1=1, w2=2, suspension_at=3 ; une salle plus
+-- stricte pose w2 = suspension_at et le 2e avertissement n'a jamais lieu.
 --
--- ⚠️ warning_1_at et warning_2_at deviennent INERTES sous cette interprétation : le
--- premier avertissement tombe mécaniquement à la première absence, et tout compte
--- inférieur à suspension_at donne un avertissement. Ils sont laissés en base (aucune
--- donnée perdue) mais ne sont volontairement PAS lus ici, pour ne pas laisser croire
--- qu'ils pilotent quelque chose. Voir compte-rendu.
+-- NON-RÉGRESSION 1 — Dopamine (w1=1, w2=2, susp=2, 48, 336) :
+--     count=1 → 1 < 2, 1 < 2, 1 >= 1 → avertissement          (identique à aujourd'hui)
+--     count=2 → 2 = 2                → suspension 48h         (identique à aujourd'hui)
+--     count≥3 → 3 > 2                → suspension 336h        (identique à aujourd'hui)
 --
--- ─── LIBELLÉS DE PÉNALITÉ : VOLONTAIREMENT INCHANGÉS ────────────────────────
--- Le passage aux types génériques 'warning'/'suspension' a été ÉCARTÉ : une dépendance
--- réelle existe. supabase/functions/mark-attendance/index.ts déduit le texte des
--- notifications du libellé (`const isLong = penaltyType === 'suspension_2w'`), pour le
--- push comme pour l'email. Basculer sur 'suspension' ferait annoncer « 48h » à tout
--- membre suspendu, y compris deux semaines. On conserve donc EXACTEMENT le mapping
--- actuel : 'warning' | 'suspension_48h' (1er palier) | 'suspension_2w' (palier aggravé).
--- ⚠️ Conséquence à traiter (voir compte-rendu) : dès qu'une salle configure une durée
--- autre que 48h/336h, le libellé et le texte de notification deviennent mensongers.
+-- NON-RÉGRESSION 2 — salle SANS ligne, replis = DÉFAUTS DU SCHÉMA
+-- (w1=1, w2=2, susp=3, 48, 336) :
+--     count=1 → avertissement · count=2 → 2e avertissement
+--     count=3 → suspension 48h · count≥4 → suspension 336h
+--     « Pas de ligne » signifie donc « politique par défaut », et non « politique de
+--     Dopamine » : les replis suivent les DEFAULT de colonne, pas les valeurs d'une salle.
+--
+-- ─── LIBELLÉS DE PÉNALITÉ ───────────────────────────────────────────────────
+-- Avertissements : 'warning_1' et 'warning_2' (déjà autorisés par le CHECK) remplacent le
+-- 'warning' générique — le palier atteint devient lisible dans l'historique.
+--
+-- Suspensions : 'suspension_48h' et 'suspension_2w' sont CONSERVÉS tels quels. Ils sont
+-- désormais de simples étiquettes, sans conséquence : le commit précédent de ce lot a
+-- rendu la notification indépendante du libellé (la durée annoncée se calcule sur
+-- expires_at − applied_at). Plus AUCUN code ne lit penalties.type. Les renommer serait
+-- donc possible, mais gratuit et coûteux en données historiques — reporté.
+-- ⚠️ 'warning' reste produit par un AUTRE émetteur : cancel-booking insère ce type pour
+-- les annulations tardives. Les trois valeurs coexisteront dans penalties ; tout futur
+-- consommateur devra les traiter ensemble.
 --
 -- ─── Constats base live (Règle Zéro) ────────────────────────────────────────
 --   - mark_attendance_atomic recopiée de sa définition LIVE (postérieure à GYM-174).
@@ -40,8 +49,9 @@
 --   - Le bloc de SYMÉTRIE (annulation d'un no_show) est repris À L'IDENTIQUE : il
 --     supprime la pénalité par booking_id et recalcule suspended_until sans jamais
 --     regarder le type ni les seuils. Aucune raison d'y toucher.
---   - ⚠️ Le DEFAULT du schéma pour suspension_at vaut 3, alors que Dopamine utilise 2 :
---     les REPLIS ci-dessous suivent le comportement RÉEL (2), pas le DEFAULT de colonne.
+--   - DEFAULT du schéma : warning_1_at 1 · warning_2_at 2 · suspension_at 3 ·
+--     suspension_hours 48 · escalated_suspension_hours 336. Les REPLIS ci-dessous les
+--     reprennent EXACTEMENT : une salle sans ligne applique la politique par défaut.
 
 CREATE OR REPLACE FUNCTION public.mark_attendance_atomic(p_booking_id uuid, p_new_status text)
 RETURNS jsonb
@@ -63,6 +73,8 @@ DECLARE
   v_checked_in_at    timestamptz;
   v_checked_method   text;
   -- GYM-175 — politique lue sur la salle du booking.
+  v_warning_1_at     integer;
+  v_warning_2_at     integer;
   v_suspension_at    integer;
   v_susp_hours       integer;
   v_esc_hours        integer;
@@ -116,15 +128,19 @@ BEGIN
     -- GYM-175 — politique de la salle, avec REPLI sur le comportement historique si la
     -- salle n'a pas de ligne noshow_rules (cas d'une salle neuve). Les COALESCE couvrent
     -- aussi les colonnes NULL d'une ligne partiellement remplie.
-    SELECT COALESCE(nr.suspension_at, 2),
+    SELECT COALESCE(nr.warning_1_at, 1),
+           COALESCE(nr.warning_2_at, 2),
+           COALESCE(nr.suspension_at, 3),
            COALESCE(nr.suspension_hours, 48),
            COALESCE(nr.escalated_suspension_hours, 336)
-      INTO v_suspension_at, v_susp_hours, v_esc_hours
+      INTO v_warning_1_at, v_warning_2_at, v_suspension_at, v_susp_hours, v_esc_hours
     FROM noshow_rules nr
     WHERE nr.gym_id = v_booking.gym_id;
 
     IF NOT FOUND THEN
-      v_suspension_at := 2;
+      v_warning_1_at  := 1;
+      v_warning_2_at  := 2;
+      v_suspension_at := 3;
       v_susp_hours    := 48;
       v_esc_hours     := 336;
     END IF;
@@ -135,34 +151,58 @@ BEGIN
 
     v_suspended_until := NULL;
 
-    IF v_new_count < v_suspension_at THEN
-      v_penalty_type := 'warning';
-      v_notes        := v_new_count || 'ème no-show — avertissement. À ' || v_suspension_at
-                        || ' : suspension de ' || v_susp_hours || 'h.';
+    -- Évaluation du palier le PLUS HAUT au plus bas (cf. en-tête) : c'est ce qui permet
+    -- à warning_2_at et suspension_at d'être égaux sans que la règle devienne ambiguë.
+    IF v_new_count > v_suspension_at THEN
+      v_suspended_until := now() + make_interval(hours => v_esc_hours);
+      -- Libellé conservé (cf. en-tête) : palier aggravé.
+      v_penalty_type    := 'suspension_2w';
+      v_notes           := v_new_count || 'ème no-show — suspension ' || v_esc_hours || 'h.';
+      UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
+
     ELSIF v_new_count = v_suspension_at THEN
       v_suspended_until := now() + make_interval(hours => v_susp_hours);
       -- Libellé conservé (cf. en-tête) : 1er palier de suspension.
       v_penalty_type    := 'suspension_48h';
       v_notes           := v_new_count || 'ème no-show — suspension ' || v_susp_hours || 'h.';
       UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
+
+    ELSIF v_new_count >= v_warning_2_at THEN
+      v_penalty_type := 'warning_2';
+      v_notes        := v_new_count || 'ème no-show — 2e avertissement. À '
+                        || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
+
+    ELSIF v_new_count >= v_warning_1_at THEN
+      v_penalty_type := 'warning_1';
+      v_notes        := v_new_count || 'ème no-show — 1er avertissement. À '
+                        || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
+
     ELSE
-      v_suspended_until := now() + make_interval(hours => v_esc_hours);
-      -- Libellé conservé (cf. en-tête) : palier aggravé.
-      v_penalty_type    := 'suspension_2w';
-      v_notes           := v_new_count || 'ème no-show — suspension ' || v_esc_hours || 'h.';
-      UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
+      -- Compte inférieur au 1er seuil d'avertissement : aucune pénalité n'est tracée.
+      -- Le compteur a malgré tout été incrémenté, l'absence est donc bien comptabilisée.
+      v_penalty_type := NULL;
     END IF;
 
-    INSERT INTO penalties (gym_id, member_id, booking_id, type, applied_at, expires_at, notes)
-    VALUES (v_booking.gym_id, v_booking.member_id, p_booking_id,
-            v_penalty_type, now(), v_suspended_until, v_notes);
+    IF v_penalty_type IS NOT NULL THEN
+      INSERT INTO penalties (gym_id, member_id, booking_id, type, applied_at, expires_at, notes)
+      VALUES (v_booking.gym_id, v_booking.member_id, p_booking_id,
+              v_penalty_type, now(), v_suspended_until, v_notes);
 
-    v_penalty := jsonb_build_object(
-      'action', 'applied',
-      'type', v_penalty_type,
-      'noshow_count', v_new_count,
-      'expires_at', v_suspended_until
-    );
+      v_penalty := jsonb_build_object(
+        'action', 'applied',
+        'type', v_penalty_type,
+        'noshow_count', v_new_count,
+        -- GYM-175 — applied_at est exposé pour que la notification puisse calculer la
+        -- durée réelle de la suspension sans dépendre du libellé du type.
+        'applied_at', now(),
+        'expires_at', v_suspended_until
+      );
+    ELSE
+      v_penalty := jsonb_build_object(
+        'action', 'none',
+        'noshow_count', v_new_count
+      );
+    END IF;
 
   ELSIF v_prev = 'no_show' AND p_new_status IN ('attended', 'excused') THEN
     -- ── BLOC DE SYMÉTRIE — REPRIS À L'IDENTIQUE, NE PAS MODIFIER ──────────────
