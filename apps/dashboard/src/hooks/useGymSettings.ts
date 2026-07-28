@@ -4,6 +4,8 @@ import { useGymStore } from '@/stores/useGymStore'
 
 export interface GymSettings {
   waitlistConfirmationMinutes: number
+  /** GYM-196 — null = aucune limite de réservations simultanées. */
+  maxActiveBookings: number | null
 }
 
 export function useGymSettings() {
@@ -16,12 +18,16 @@ export function useGymSettings() {
     setIsLoading(true)
     const { data, error } = await supabase
       .from('nexxia_gyms')
-      .select('waitlist_confirmation_minutes')
+      .select('waitlist_confirmation_minutes, max_active_bookings')
       .eq('id', gym.id)
       .single()
     setIsLoading(false)
     if (error || !data) return
-    setSettings({ waitlistConfirmationMinutes: data.waitlist_confirmation_minutes ?? 30 })
+    setSettings({
+      waitlistConfirmationMinutes: data.waitlist_confirmation_minutes ?? 30,
+      // NULL est une VALEUR (« aucune limite »), jamais un défaut à remplacer.
+      maxActiveBookings: data.max_active_bookings ?? null,
+    })
   }, [gym?.id])
 
   useEffect(() => { load() }, [load])
@@ -34,9 +40,34 @@ export function useGymSettings() {
       .update({ waitlist_confirmation_minutes: minutes })
       .eq('id', gym.id)
     if (error) return { error: error.message }
-    setSettings({ waitlistConfirmationMinutes: minutes })
+    setSettings((s) => (s ? { ...s, waitlistConfirmationMinutes: minutes } : s))
     return {}
   }, [gym?.id])
 
-  return { settings, isLoading, updateWaitlistDelay }
+  /**
+   * GYM-196 — limite de réservations simultanées. `null` = aucune limite (champ vidé).
+   * Écriture via update RLS direct, comme le délai waitlist ; la migration GYM-196 ajoute
+   * le GRANT UPDATE sur la colonne (liste blanche GYM-180).
+   */
+  const updateMaxActiveBookings = useCallback(
+    async (max: number | null): Promise<{ error?: string }> => {
+      if (!gym?.id) return { error: 'no_gym' }
+      if (max !== null && (!Number.isInteger(max) || max < 1)) return { error: 'range' }
+
+      const { data, error } = await supabase
+        .from('nexxia_gyms')
+        .update({ max_active_bookings: max })
+        .eq('id', gym.id)
+        .select('id')
+
+      if (error) return { error: error.message }
+      // Un UPDATE bloqué par RLS ne lève PAS d'erreur : il porte sur 0 ligne (GYM-180).
+      if (!data || data.length === 0) return { error: 'forbidden' }
+      setSettings((s) => (s ? { ...s, maxActiveBookings: max } : s))
+      return {}
+    },
+    [gym?.id],
+  )
+
+  return { settings, isLoading, updateWaitlistDelay, updateMaxActiveBookings }
 }
