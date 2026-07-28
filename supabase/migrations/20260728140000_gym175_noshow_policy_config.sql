@@ -33,11 +33,16 @@
 -- Avertissements : 'warning_1' et 'warning_2' (déjà autorisés par le CHECK) remplacent le
 -- 'warning' générique — le palier atteint devient lisible dans l'historique.
 --
--- Suspensions : 'suspension_48h' et 'suspension_2w' sont CONSERVÉS tels quels. Ils sont
--- désormais de simples étiquettes, sans conséquence : le commit précédent de ce lot a
--- rendu la notification indépendante du libellé (la durée annoncée se calcule sur
--- expires_at − applied_at). Plus AUCUN code ne lit penalties.type. Les renommer serait
--- donc possible, mais gratuit et coûteux en données historiques — reporté.
+-- Suspensions : type générique 'suspension' pour les DEUX niveaux (déjà autorisé par le
+-- CHECK). 'suspension_48h' et 'suspension_2w' devenaient mensongers dès qu'une salle
+-- configurait autre chose que 48 h / 336 h — un gérant consultant l'historique aurait lu
+-- une durée fausse. La DURÉE RÉELLE est portée par expires_at, qui fait foi et distingue
+-- naturellement une suspension simple d'une aggravée.
+-- Le changement est sans risque : le commit précédent de ce lot a rendu la notification
+-- indépendante du libellé (durée calculée sur expires_at − applied_at) et plus AUCUN code
+-- ne lit penalties.type.
+-- Les lignes EXISTANTES ne sont pas migrées : 0 pénalité en prod, celles de staging sont
+-- des données de test. Seules les nouvelles insertions changent.
 -- ⚠️ 'warning' reste produit par un AUTRE émetteur : cancel-booking insère ce type pour
 -- les annulations tardives. Les trois valeurs coexisteront dans penalties ; tout futur
 -- consommateur devra les traiter ensemble.
@@ -45,7 +50,10 @@
 -- ─── Constats base live (Règle Zéro) ────────────────────────────────────────
 --   - mark_attendance_atomic recopiée de sa définition LIVE (postérieure à GYM-174).
 --   - CHECK penalties_type_check réel = ('warning_1','warning_2','suspension','reset',
---     'warning','suspension_48h','suspension_2w') → les libellés conservés sont valides.
+--     'warning','suspension_48h','suspension_2w') → les trois types désormais émis par
+--     cette fonction ('warning_1','warning_2','suspension') y figurent déjà : aucune
+--     modification du CHECK n'est nécessaire. 'suspension_48h' et 'suspension_2w' y
+--     restent autorisés pour les lignes historiques, qui ne sont pas migrées.
 --   - Le bloc de SYMÉTRIE (annulation d'un no_show) est repris À L'IDENTIQUE : il
 --     supprime la pénalité par booking_id et recalcule suspended_until sans jamais
 --     regarder le type ni les seuils. Aucune raison d'y toucher.
@@ -155,15 +163,15 @@ BEGIN
     -- à warning_2_at et suspension_at d'être égaux sans que la règle devienne ambiguë.
     IF v_new_count > v_suspension_at THEN
       v_suspended_until := now() + make_interval(hours => v_esc_hours);
-      -- Libellé conservé (cf. en-tête) : palier aggravé.
-      v_penalty_type    := 'suspension_2w';
+      -- Type générique : la durée réelle est portée par expires_at (cf. en-tête).
+      v_penalty_type    := 'suspension';
       v_notes           := v_new_count || 'ème no-show — suspension ' || v_esc_hours || 'h.';
       UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
 
     ELSIF v_new_count = v_suspension_at THEN
       v_suspended_until := now() + make_interval(hours => v_susp_hours);
-      -- Libellé conservé (cf. en-tête) : 1er palier de suspension.
-      v_penalty_type    := 'suspension_48h';
+      -- Type générique : la durée réelle est portée par expires_at (cf. en-tête).
+      v_penalty_type    := 'suspension';
       v_notes           := v_new_count || 'ème no-show — suspension ' || v_susp_hours || 'h.';
       UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
 

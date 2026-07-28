@@ -73,10 +73,15 @@ export function NoshowPolicyCard() {
   const dirty = rules !== null && JSON.stringify(form) !== JSON.stringify(rules)
 
   /**
-   * Simulation des premiers paliers, dans le MÊME ordre d'évaluation que le serveur
-   * (mark_attendance_atomic) : suspension aggravée, suspension, 2e avertissement,
-   * 1er avertissement, rien. On va jusqu'au premier palier aggravé inclus, qui absorbe
-   * ensuite tous les suivants — d'où le « et suivantes » sur la dernière ligne.
+   * Simulation des premiers paliers, dans le MÊME ordre d'évaluation que le serveur :
+   * suspension aggravée, suspension, 2e avertissement, 1er avertissement, rien. On va
+   * jusqu'au premier palier aggravé inclus, qui absorbe ensuite tous les suivants —
+   * d'où le « et suivantes » sur la dernière ligne.
+   *
+   * ⚠️ SOURCE DE VÉRITÉ = la fonction SQL public.mark_attendance_atomic (migration
+   * gym175_noshow_policy_config). Ceci n'est qu'un AFFICHAGE qui la rejoue : toute
+   * évolution de la règle doit être répercutée AUX DEUX ENDROITS, sinon le gérant
+   * verrait une politique différente de celle réellement appliquée.
    */
   const preview = (() => {
     const { warning1At: w1, warning2At: w2, suspensionAt: sa } = form
