@@ -2,7 +2,11 @@ export default {
   expo: {
     name: 'Dopamine',
     slug: 'dopamine',
-    version: '1.0.0',
+    // GYM — version marketing (CFBundleShortVersionString). 1.0.0 est publiée sur l'App
+    // Store : son train est fermé aux nouvelles soumissions (ITMS-90186) et toute build
+    // doit porter une version supérieure (ITMS-90062). Le buildNumber, lui, n'est PAS
+    // déclaré ici : eas.json le gère (appVersionSource "remote" + autoIncrement).
+    version: '1.0.1',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
