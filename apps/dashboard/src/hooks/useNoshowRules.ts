@@ -18,6 +18,10 @@ import { useGymStore } from '@/stores/useGymStore'
  * comme sur nexxia_gyms) : rien à ajouter côté droits.
  */
 export interface NoshowRules {
+  /** Nombre d'absences déclenchant le 1er avertissement. */
+  warning1At: number
+  /** Nombre d'absences déclenchant le 2e avertissement. */
+  warning2At: number
   /** Nombre d'absences à partir duquel une suspension est appliquée. */
   suspensionAt: number
   /** Durée de la suspension au premier palier, en heures. */
@@ -28,9 +32,15 @@ export interface NoshowRules {
   resetAfterDays: number
 }
 
-/** Valeurs de repli = comportement historique appliqué par mark_attendance_atomic. */
+/**
+ * Valeurs de repli = DEFAULT du schéma, c'est-à-dire la politique que le serveur applique
+ * réellement à une salle sans ligne noshow_rules (« avertir, avertir, suspendre »).
+ * ⚠️ Ce ne sont PAS les valeurs de Dopamine (dont suspension_at vaut 2).
+ */
 export const DEFAULT_NOSHOW_RULES: NoshowRules = {
-  suspensionAt: 2,
+  warning1At: 1,
+  warning2At: 2,
+  suspensionAt: 3,
   suspensionHours: 48,
   escalatedSuspensionHours: 336,
   resetAfterDays: 90,
@@ -46,7 +56,7 @@ export function useNoshowRules() {
     setIsLoading(true)
     const { data, error } = await supabase
       .from('noshow_rules')
-      .select('suspension_at, suspension_hours, escalated_suspension_hours, reset_after_days')
+      .select('warning_1_at, warning_2_at, suspension_at, suspension_hours, escalated_suspension_hours, reset_after_days')
       .eq('gym_id', gym.id)
       .maybeSingle()
     setIsLoading(false)
@@ -59,6 +69,8 @@ export function useNoshowRules() {
       return
     }
     setRules({
+      warning1At: data.warning_1_at ?? DEFAULT_NOSHOW_RULES.warning1At,
+      warning2At: data.warning_2_at ?? DEFAULT_NOSHOW_RULES.warning2At,
       suspensionAt: data.suspension_at ?? DEFAULT_NOSHOW_RULES.suspensionAt,
       suspensionHours: data.suspension_hours ?? DEFAULT_NOSHOW_RULES.suspensionHours,
       escalatedSuspensionHours:
@@ -75,7 +87,13 @@ export function useNoshowRules() {
     // Cohérence métier : durées strictement positives, seuil d'au moins 1 absence,
     // suspension aggravée jamais plus courte que la suspension simple (sinon la
     // « aggravation » adoucirait la sanction).
+    if (!Number.isInteger(next.warning1At) || next.warning1At < 1) return { error: 'warning_1_at' }
+    if (!Number.isInteger(next.warning2At) || next.warning2At < 1) return { error: 'warning_2_at' }
     if (!Number.isInteger(next.suspensionAt) || next.suspensionAt < 1) return { error: 'suspension_at' }
+    // Seuils croissants : un 2e avertissement avant le 1er, ou une suspension avant un
+    // avertissement, rendrait des paliers inatteignables.
+    if (next.warning2At < next.warning1At) return { error: 'warning_order' }
+    if (next.suspensionAt < next.warning2At) return { error: 'suspension_order' }
     if (!Number.isInteger(next.suspensionHours) || next.suspensionHours < 1) return { error: 'suspension_hours' }
     if (!Number.isInteger(next.escalatedSuspensionHours) || next.escalatedSuspensionHours < 1) {
       return { error: 'escalated_hours' }
@@ -87,6 +105,8 @@ export function useNoshowRules() {
       .from('noshow_rules')
       .upsert({
         gym_id: gym.id,
+        warning_1_at: next.warning1At,
+        warning_2_at: next.warning2At,
         suspension_at: next.suspensionAt,
         suspension_hours: next.suspensionHours,
         escalated_suspension_hours: next.escalatedSuspensionHours,

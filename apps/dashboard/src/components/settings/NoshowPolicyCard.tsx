@@ -38,19 +38,24 @@ export function NoshowPolicyCard() {
     setSaving(false)
 
     const map: Record<string, keyof NoshowRules> = {
+      warning_1_at: 'warning1At',
+      warning_2_at: 'warning2At',
+      warning_order: 'warning2At',
       suspension_at: 'suspensionAt',
+      suspension_order: 'suspensionAt',
       suspension_hours: 'suspensionHours',
       escalated_hours: 'escalatedSuspensionHours',
       escalated_lower: 'escalatedSuspensionHours',
       reset_days: 'resetAfterDays',
     }
+    const messageKey: Record<string, string> = {
+      warning_order: 'settings.noshow.warning_order_error',
+      suspension_order: 'settings.noshow.suspension_order_error',
+      escalated_lower: 'settings.noshow.escalated_lower_error',
+    }
     if (result.error && map[result.error]) {
       setErrors({
-        [map[result.error]]: t(
-          result.error === 'escalated_lower'
-            ? 'settings.noshow.escalated_lower_error'
-            : 'settings.noshow.positive_error',
-        ),
+        [map[result.error]]: t(messageKey[result.error] ?? 'settings.noshow.positive_error'),
       })
       return
     }
@@ -67,6 +72,31 @@ export function NoshowPolicyCard() {
 
   const dirty = rules !== null && JSON.stringify(form) !== JSON.stringify(rules)
 
+  /**
+   * Simulation des premiers paliers, dans le MÊME ordre d'évaluation que le serveur
+   * (mark_attendance_atomic) : suspension aggravée, suspension, 2e avertissement,
+   * 1er avertissement, rien. On va jusqu'au premier palier aggravé inclus, qui absorbe
+   * ensuite tous les suivants — d'où le « et suivantes » sur la dernière ligne.
+   */
+  const preview = (() => {
+    const { warning1At: w1, warning2At: w2, suspensionAt: sa } = form
+    const { suspensionHours: sh, escalatedSuspensionHours: eh } = form
+    if (![w1, w2, sa, sh, eh].every(Number.isFinite)) return null
+    if (w2 < w1 || sa < w2) return null // configuration incohérente : rien à montrer
+
+    const lines: { rank: number; text: string }[] = []
+    for (let n = 1; n <= sa + 1; n++) {
+      let text: string
+      if (n > sa) text = t('settings.noshow.preview_escalated', { hours: eh })
+      else if (n === sa) text = t('settings.noshow.preview_suspension', { hours: sh })
+      else if (n >= w2) text = t('settings.noshow.preview_warning_2')
+      else if (n >= w1) text = t('settings.noshow.preview_warning_1')
+      else text = t('settings.noshow.preview_none')
+      lines.push({ rank: n, text })
+    }
+    return lines
+  })()
+
   return (
     <section className="rounded-2xl border border-[#E8E6E0] bg-card p-6">
       <h2 className="font-display text-xl font-black tracking-tight text-dark">
@@ -75,6 +105,28 @@ export function NoshowPolicyCard() {
       <p className="mt-1 font-body text-sm text-muted">{t('settings.noshow.subtitle')}</p>
 
       <div className="mt-6 grid max-w-2xl gap-4 sm:grid-cols-2">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          name="warning_1_at"
+          label={t('settings.noshow.warning_1_label')}
+          helper={t('settings.noshow.warning_1_helper')}
+          error={errors.warning1At}
+          value={shown(form.warning1At)}
+          onChange={(e) => set('warning1At', e.target.value)}
+        />
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          name="warning_2_at"
+          label={t('settings.noshow.warning_2_label')}
+          helper={t('settings.noshow.warning_2_helper')}
+          error={errors.warning2At}
+          value={shown(form.warning2At)}
+          onChange={(e) => set('warning2At', e.target.value)}
+        />
         <Input
           type="number"
           inputMode="numeric"
@@ -121,15 +173,30 @@ export function NoshowPolicyCard() {
         />
       </div>
 
-      {/* Récapitulatif en clair : le gérant lit la règle telle qu'elle s'appliquera. */}
-      <p className="mt-4 max-w-2xl rounded-xl bg-dark/[0.03] px-4 py-3 font-body text-xs text-muted">
-        {t('settings.noshow.summary', {
-          threshold: Number.isFinite(form.suspensionAt) ? form.suspensionAt : '—',
-          hours: Number.isFinite(form.suspensionHours) ? form.suspensionHours : '—',
-          escalated: Number.isFinite(form.escalatedSuspensionHours) ? form.escalatedSuspensionHours : '—',
-          days: Number.isFinite(form.resetAfterDays) ? form.resetAfterDays : '—',
-        })}
-      </p>
+      {/* Récapitulatif en clair, RECALCULÉ à la saisie : c'est ce qui rend le réglage
+          compréhensible sans documentation. Il rejoue exactement la règle du serveur
+          (mark_attendance_atomic), du palier le plus haut au plus bas. */}
+      {preview && (
+        <div className="mt-5 max-w-2xl rounded-xl bg-dark/[0.03] px-4 py-3">
+          <p className="font-body text-xs font-semibold uppercase tracking-wide text-dark/50">
+            {t('settings.noshow.preview_title')}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {preview.map((line) => (
+              <li key={line.rank} className="font-body text-xs text-muted">
+                <span className="font-semibold text-dark">
+                  {t('settings.noshow.preview_rank', { count: line.rank })}
+                </span>
+                {' — '}
+                {line.text}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 font-body text-xs text-muted">
+            {t('settings.noshow.preview_reset', { count: form.resetAfterDays })}
+          </p>
+        </div>
+      )}
 
       <div className="mt-6">
         <Button onClick={handleSave} disabled={!dirty || saving}>
