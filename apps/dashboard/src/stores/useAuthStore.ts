@@ -111,8 +111,12 @@ export const useAuthStore = create<AuthState>((set) => ({
           first_name: firstName,
           last_name: lastName,
           phone: phone ?? null,
-          role: 'gym_admin',
-          gym_id: null,
+          // GYM-200 §5 — `role` et `gym_id` NE SONT PLUS ENVOYÉS, et ne doivent jamais
+          // l'être : handle_new_user() recopie les user_metadata telles quelles, si bien
+          // qu'un role:'gym_admin' posé ici s'auto-attribuait le dashboard complet. À
+          // défaut, le trigger applique COALESCE(..., 'member') et gym_id NULL.
+          // Un accès gérant s'obtient exclusivement par invitation (invite-team-member),
+          // où le rôle est décidé et scellé côté serveur par celui qui invite.
           preferred_language: 'fr',
           privacy_policy_accepted: String(consents?.privacy ?? false),
           terms_accepted: String(consents?.terms ?? false),
