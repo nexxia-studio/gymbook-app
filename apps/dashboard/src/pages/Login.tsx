@@ -78,18 +78,10 @@ export default function Login() {
           {t('auth.login')}
         </Button>
 
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-dark/10" />
-          <span className="font-body text-xs text-dark/30">{t('common.or')}</span>
-          <div className="h-px flex-1 bg-dark/10" />
-        </div>
-
-        <p className="text-center font-body text-sm text-dark/50">
-          {t('auth.no_account')}{' '}
-          <Link to="/signup" className="font-semibold text-dark transition-colors hover:text-accent-dim">
-            {t('auth.signup')}
-          </Link>
-        </p>
+        {/* GYM-200 §5 — le lien « Créer un compte » est retiré : l'inscription gérant
+            publique attribuait gym_admin à quiconque remplissait le formulaire. L'accès au
+            dashboard s'obtient désormais UNIQUEMENT par invitation (Réglages → Équipe).
+            Cf. le bandeau d'en-tête de pages/Signup.tsx. */}
       </form>
     </AuthLayout>
   )

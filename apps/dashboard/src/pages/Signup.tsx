@@ -1,3 +1,25 @@
+// GYM-200 §5 — PAGE NON MONTÉE. Ne pas la rebrancher sans lire ce qui suit.
+//
+// Cette page attribuait role:'gym_admin' dans les user_metadata (via useAuthStore.signUp),
+// que handle_new_user() recopie tel quel : n'importe qui pouvait donc se créer un compte
+// gérant sur app.viniz.app. C'est le vecteur le plus probable du compte gym_admin non
+// autorisé constaté en prod.
+//
+// Constat avant retrait (base prod, 29/07) : sur les 5 comptes existants, AUCUN n'avait
+// été créé par ce formulaire. La porte était grande ouverte sans qu'aucun parcours réel
+// n'en dépende — le funnel « nouvelle salle » qu'elle esquissait (→ /pending → « l'équipe
+// Nexxia vous contactera ») n'a jamais servi. Le fichier est conservé plutôt que supprimé
+// pour que le rebranchement reste trivial le jour où l'onboarding self-service existera.
+//
+// AVANT DE LA REBRANCHER, il faut décider ce que devient un inscrit :
+//   - ne JAMAIS lui attribuer gym_admin depuis le client (le défaut 'member' de
+//     handle_new_user suffit ; useAuthStore.signUp n'envoie plus de rôle) ;
+//   - ou exiger un code d'invitation validé côté serveur.
+// Attention aussi : un compte 'member' sans gym_id peut se connecter à l'app mobile, où le
+// heal GYM-154 le rattacherait automatiquement à la salle Dopamine.
+//
+// L'accès au dashboard s'obtient aujourd'hui uniquement par invitation :
+// Réglages → Équipe → Inviter (Edge Function invite-team-member).
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'

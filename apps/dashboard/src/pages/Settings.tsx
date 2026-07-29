@@ -13,6 +13,7 @@ import { CoachDeleteModal } from '@/components/settings/CoachDeleteModal'
 import { GymSettingsCard } from '@/components/settings/GymSettingsCard'
 import { LegalBillingCard } from '@/components/settings/LegalBillingCard'
 import { NoshowPolicyCard } from '@/components/settings/NoshowPolicyCard'
+import { TeamSection } from '@/components/settings/TeamSection'
 import { useActivities } from '@/hooks/useActivities'
 import { useCoaches } from '@/hooks/useCoaches'
 import { useToastStore } from '@/hooks/useToast'
@@ -21,7 +22,8 @@ import type { CoachItem, CoachFormData } from '@/types/coach'
 import { MollieConnectCard } from '@/components/settings/MollieConnectCard'
 
 // GYM-56 — l'onglet "plans" est retiré : le CRUD des formules vit sur la page /plans.
-const TABS = ['activities', 'coaches', 'gym', 'payments'] as const
+// GYM-200 — onglet "team" : qui a accès au dashboard de la salle (invitations comprises).
+const TABS = ['activities', 'coaches', 'team', 'gym', 'payments'] as const
 type Tab = (typeof TABS)[number]
 
 export default function Settings() {
@@ -282,6 +284,9 @@ export default function Settings() {
             />
           </>
         )}
+
+        {/* ========= TEAM TAB (GYM-200) ========= */}
+        {activeTab === 'team' && <TeamSection />}
 
         {/* ========= GYM TAB ========= */}
         {activeTab === 'gym' && (

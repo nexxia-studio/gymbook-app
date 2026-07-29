@@ -9,7 +9,7 @@ import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCancel from '@/pages/PaymentCancel'
 
 const Login = lazy(() => import('@/pages/Login'))
-const Signup = lazy(() => import('@/pages/Signup'))
+// GYM-200 §5 — pages/Signup.tsx n'est plus monté : voir la route /signup ci-dessous.
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
@@ -64,10 +64,14 @@ function AppRoutes() {
           path="/login"
           element={session ? <Navigate to="/dashboard" replace /> : <Login />}
         />
-        <Route
-          path="/signup"
-          element={session ? <Navigate to="/dashboard" replace /> : <Signup />}
-        />
+        {/* GYM-200 §5 — INSCRIPTION GÉRANT PUBLIQUE FERMÉE.
+            pages/Signup.tsx envoyait role:'gym_admin' dans les user_metadata, que
+            handle_new_user() recopiait tel quel : n'importe qui pouvait se créer un compte
+            gérant sur app.viniz.app. L'accès au dashboard s'obtient désormais uniquement
+            par invitation (invite-team-member), où le rôle est décidé par l'invitant.
+            La route est conservée en redirection plutôt que supprimée : un signet ou un
+            ancien lien ne doit pas tomber sur une page blanche. */}
+        <Route path="/signup" element={<Navigate to="/login" replace />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* GYM-157 — page publique de reset/définition MDP (MEMBRES). HORS ProtectedRoute et
             SANS redirection de session : le lien recovery établit une session member qui ne
