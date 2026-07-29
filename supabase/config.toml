@@ -63,3 +63,14 @@ verify_jwt = true
 # le membre doit appartenir à la salle de l'appelant, gym_id jamais du body).
 [functions.adjust-credits]
 verify_jwt = true
+
+# GYM-200 — invitation d'un membre d'équipe par le gérant (JWT gym_admin requis ;
+# gym_id ET rôle scellés côté serveur : gym_id vient du profil de l'appelant, le rôle est
+# validé contre une liste fermée — jamais pris du body tel quel).
+[functions.invite-team-member]
+verify_jwt = true
+
+# GYM-200 — lecture et retrait des accès d'équipe (JWT gym_admin requis ; la cible doit
+# appartenir à la salle de l'appelant, gym_id jamais du body).
+[functions.team-access]
+verify_jwt = true
