@@ -115,6 +115,28 @@
     "resend_submit": "Renvoyer le lien",
     "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien."
   },
+  "activation": {
+    "checking": "Vérification de votre invitation...",
+    "title": "Bienvenue sur Viniz",
+    "subtitle": "Créez votre mot de passe pour finaliser votre compte.",
+    "joining": "Vous rejoignez",
+    "no_gym": "Votre espace sera rattaché à votre salle par l'équipe Nexxia.",
+    "role": "Rôle :",
+    "role_labels": {
+      "gym_admin": "Gérant",
+      "super_admin": "Administrateur",
+      "coach": "Coach",
+      "member": "Membre"
+    },
+    "password": "Votre mot de passe",
+    "submit": "Activer mon compte",
+    "error_profile": "Mot de passe enregistré, mais vos informations n'ont pas pu être sauvegardées. Réessayez.",
+    "error_generic": "Une erreur est survenue. Réessayez.",
+    "invalid_title": "Invitation expirée",
+    "invalid_message": "Ce lien d'invitation n'est plus valide ou a déjà été utilisé. Entrez votre email pour en recevoir un nouveau.",
+    "resend_submit": "Recevoir un nouveau lien",
+    "resend_success": "Si un compte existe avec cet email, vous recevrez un nouveau lien d'activation."
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "planning": "Planning",
