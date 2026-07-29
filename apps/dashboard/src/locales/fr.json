@@ -555,6 +555,7 @@
     "tabs": {
       "activities": "Activités",
       "coaches": "Coaches",
+      "team": "Équipe",
       "gym": "Salle",
       "payments": "Paiements",
       "plans": "Formules"
@@ -733,6 +734,40 @@
     "toggle_confirm_button": "Desactiver quand meme",
     "validation": {
       "first_name_required": "Le prénom est requis"
+    }
+  },
+  "team": {
+    "title": "Équipe",
+    "subtitle": "Les personnes qui ont accès au tableau de bord de votre salle.",
+    "count": "{{total}} personne(s)",
+    "empty": "Aucun membre d'équipe pour le moment.",
+    "role": "Rôle",
+    "you": "(vous)",
+    "status_pending": "Invitation en attente",
+    "status_active": "Actif",
+    "resend": "Renvoyer l'invitation",
+    "revoke": "Retirer l'accès",
+    "revoke_confirm_title": "Retirer cet accès ?",
+    "revoke_confirm_message": "{{name}} perdra l'accès au tableau de bord et redeviendra un simple membre de la salle. Sa fiche coach est conservée (l'historique du planning reste lisible), mais elle ne sera plus liée à son compte. Vous pourrez l'inviter à nouveau plus tard.",
+    "toast_invited": "Invitation envoyée",
+    "toast_invited_no_email": "Compte créé, mais l'email n'a pas pu être envoyé — utilisez « Renvoyer l'invitation »",
+    "toast_resent": "Invitation renvoyée",
+    "toast_revoked": "Accès de {{name}} retiré",
+    "error_generic": "Une erreur est survenue. Réessayez.",
+    "error_last_admin": "Impossible de retirer le dernier gérant de la salle.",
+    "error_revoke_self": "Vous ne pouvez pas retirer votre propre accès.",
+    "invite": {
+      "new": "Inviter",
+      "title": "Inviter un membre d'équipe",
+      "subtitle": "La personne recevra un email pour activer son compte. La salle et le rôle sont définis ici et ne peuvent pas être modifiés par l'invité.",
+      "submit": "Envoyer l'invitation",
+      "role_helper": "Le rôle est attribué par vous et scellé dans l'invitation.",
+      "email_invalid": "Format d'email invalide",
+      "error_email_exists": "Un compte existe déjà avec cet email.",
+      "error_already_active": "Ce compte est déjà actif.",
+      "error_invalid_role": "Ce rôle ne peut pas être attribué depuis le tableau de bord.",
+      "error_forbidden": "Vous n'avez pas les droits pour inviter un membre d'équipe.",
+      "error_generic": "L'invitation n'a pas pu être envoyée. Réessayez."
     }
   },
   "gym": {
