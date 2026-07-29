@@ -555,6 +555,7 @@
     "tabs": {
       "activities": "Activities",
       "coaches": "Coaches",
+      "team": "Team",
       "gym": "Gym",
       "payments": "Payments",
       "plans": "Plans"
@@ -733,6 +734,40 @@
     "toggle_confirm_button": "Deactivate anyway",
     "validation": {
       "first_name_required": "First name is required"
+    }
+  },
+  "team": {
+    "title": "Team",
+    "subtitle": "People who have access to your gym's dashboard.",
+    "count": "{{total}} person(s)",
+    "empty": "No team members yet.",
+    "role": "Role",
+    "you": "(you)",
+    "status_pending": "Invitation pending",
+    "status_active": "Active",
+    "resend": "Resend invitation",
+    "revoke": "Remove access",
+    "revoke_confirm_title": "Remove this access?",
+    "revoke_confirm_message": "{{name}} will lose dashboard access and become a regular gym member. Their coach profile is kept (so the schedule history stays readable) but will no longer be linked to their account. You can invite them again later.",
+    "toast_invited": "Invitation sent",
+    "toast_invited_no_email": "Account created, but the email could not be sent — use “Resend invitation”",
+    "toast_resent": "Invitation resent",
+    "toast_revoked": "{{name}}'s access removed",
+    "error_generic": "Something went wrong. Please try again.",
+    "error_last_admin": "You cannot remove the gym's last manager.",
+    "error_revoke_self": "You cannot remove your own access.",
+    "invite": {
+      "new": "Invite",
+      "title": "Invite a team member",
+      "subtitle": "They'll receive an email to activate their account. The gym and role are set here and cannot be changed by the invitee.",
+      "submit": "Send invitation",
+      "role_helper": "The role is assigned by you and sealed into the invitation.",
+      "email_invalid": "Invalid email format",
+      "error_email_exists": "An account already exists with this email.",
+      "error_already_active": "This account is already active.",
+      "error_invalid_role": "This role cannot be assigned from the dashboard.",
+      "error_forbidden": "You don't have permission to invite a team member.",
+      "error_generic": "The invitation could not be sent. Please try again."
     }
   },
   "gym": {
