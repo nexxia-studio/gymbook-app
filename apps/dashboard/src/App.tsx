@@ -1,7 +1,8 @@
 import { useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { ACTIVATION_PATH, shouldInterceptInvite } from '@/lib/inviteLink'
 import { ToastContainer } from '@/components/ui/Toast'
 import MollieCallback from '@/pages/MollieCallback'
 import PaymentSuccess from '@/pages/PaymentSuccess'
@@ -16,6 +17,7 @@ const Planning = lazy(() => import('@/pages/Planning'))
 const Settings = lazy(() => import('@/pages/Settings'))
 const Members = lazy(() => import('@/pages/Members'))
 const PendingActivation = lazy(() => import('@/pages/PendingActivation'))
+const AccountActivation = lazy(() => import('@/pages/AccountActivation'))
 const Revenue = lazy(() => import('@/pages/Revenue'))
 const Communications = lazy(() => import('@/pages/Communications'))
 const Plans = lazy(() => import('@/pages/Plans'))
@@ -34,6 +36,22 @@ function Loading() {
 
 function AppRoutes() {
   const session = useAuthStore((s) => s.session)
+  const { pathname } = useLocation()
+
+  // GYM-202 — Détournement d'une arrivée par lien d'INVITATION.
+  //
+  // Évalué AVANT <Routes> : la décision précède donc toute décision de route, et en
+  // particulier la redirection vers /pending que ProtectedRoute déclenche quand gym_id est
+  // absent. C'était exactement le piège du bug — l'invité arrivait authentifié mais sans
+  // mot de passe, était jugé « en attente d'activation », et n'avait plus aucun moyen de se
+  // reconnecter ensuite.
+  //
+  // La garde ne s'arme QUE sur un fragment `type=invite` (ou une erreur de lien sur la
+  // racine) et se désarme dès l'activation terminée : connexion classique, reset password
+  // et utilisateur déjà activé ne la croisent jamais. Cf. lib/inviteLink.ts.
+  if (shouldInterceptInvite(pathname)) {
+    return <Navigate to={ACTIVATION_PATH} replace />
+  }
 
   return (
     <Suspense fallback={<Loading />}>
@@ -55,6 +73,10 @@ function AppRoutes() {
             SANS redirection de session : le lien recovery établit une session member qui ne
             doit pas être interceptée vers /dashboard (bloquée par l'écran gérant GYM-145). */}
         <Route path="/reset-password" element={<ResetPassword />} />
+        {/* GYM-202 — activation d'un compte créé par invitation (GÉRANTS, marque Viniz).
+            Publique au sens du routeur — comme /reset-password, la session vient du lien —
+            mais la page exige une session valide et se redirige elle-même sinon. */}
+        <Route path={ACTIVATION_PATH} element={<AccountActivation />} />
         {/* Routes légales publiques — hors ProtectedRoute (rendues sans session). */}
         <Route path="/legal/privacy" element={<PrivacyPolicy />} />
         <Route path="/legal/terms" element={<Terms />} />

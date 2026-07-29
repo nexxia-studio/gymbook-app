@@ -115,6 +115,28 @@
     "resend_submit": "Resend link",
     "resend_success": "If an account exists with this email, you will receive a new link."
   },
+  "activation": {
+    "checking": "Checking your invitation...",
+    "title": "Welcome to Viniz",
+    "subtitle": "Create your password to finish setting up your account.",
+    "joining": "You're joining",
+    "no_gym": "Your workspace will be linked to your gym by the Nexxia team.",
+    "role": "Role:",
+    "role_labels": {
+      "gym_admin": "Manager",
+      "super_admin": "Administrator",
+      "coach": "Coach",
+      "member": "Member"
+    },
+    "password": "Your password",
+    "submit": "Activate my account",
+    "error_profile": "Password saved, but your details could not be stored. Please try again.",
+    "error_generic": "Something went wrong. Please try again.",
+    "invalid_title": "Invitation expired",
+    "invalid_message": "This invitation link is no longer valid or has already been used. Enter your email to receive a new one.",
+    "resend_submit": "Send me a new link",
+    "resend_success": "If an account exists with this email, you'll receive a new activation link."
+  },
   "nav": {
     "dashboard": "Dashboard",
     "planning": "Planning",
