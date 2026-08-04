@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paiement reçu — Dopamine</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      Page payment-success (Universal Links infra — GYM-158, correctif GYM-207).
+
+      DOUBLE RÔLE :
+      1. CIBLE Universal Link (iPhone, app installée, build ≥ 15) : iOS intercepte
+         https://links.viniz.app/dopamine/payment-success AVANT le chargement de la page
+         (AASA paths /dopamine/* + Associated Domains) et ouvre l'écran natif de
+         vérification, qui poll le paiement. La page n'est alors PAS rendue.
+      2. FALLBACK (Android / desktop / app absente / UL non actif) : la page se charge et
+         propose le retour vers l'app.
+
+      POURQUOI CETTE PAGE REMPLACE gymbook-app.vercel.app/payment/success (GYM-207) :
+      l'ancienne page portait DEUX boutons morts, constatés en production après un
+      paiement pourtant réussi.
+       · « Retourner dans l'app » pointait sur `dopamine://…` : le checkout Mollie
+         s'ouvre dans un navigateur in-app (SFSafariViewController), qui BLOQUE les
+         schémas custom. Ici la redirection est un Universal Link https, qu'iOS honore.
+       · « Fermer cette fenêtre » appelait window.close(), SANS EFFET sur un onglet que
+         le script n'a pas ouvert — restriction navigateur, pas un bug. Le bouton est
+         RETIRÉ plutôt que laissé inerte : un bouton qui ne fait rien fait douter le
+         membre de son paiement.
+
+      ⚠️ Le membre n'a RIEN à faire pour être crédité : le crédit vient du webhook Mollie,
+      pas de cette page. Le texte le dit explicitement — en production, le crédit était
+      déjà accordé pendant que le membre croyait son paiement échoué.
+
+      Site STATIQUE pur (pas de build, pas d'injection d'env) : la constante ci-dessous
+      est unique et documentée, à tenir alignée par le cockpit.
+    -->
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #111111;
+        color: #F5F4F0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: center;
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        background: #1A1A1A;
+        border: 1px solid #2A2A2A;
+        border-radius: 20px;
+        padding: 40px 28px;
+      }
+      .logo {
+        font-family: "Arial Black", Arial, sans-serif;
+        color: #C8FF3D;
+        font-size: 24px;
+        letter-spacing: 2px;
+        margin-bottom: 28px;
+      }
+      h1 { font-size: 22px; margin: 0 0 12px; color: #F5F4F0; }
+      p { font-size: 15px; line-height: 1.6; color: #9A9890; margin: 0 0 24px; }
+      .btn {
+        display: inline-block;
+        background: #C8FF3D;
+        color: #17102E;
+        font-weight: 700;
+        text-decoration: none;
+        padding: 14px 28px;
+        border-radius: 12px;
+        font-size: 15px;
+      }
+      .hint { margin-top: 20px; font-size: 12px; color: #6B6861; margin-bottom: 0; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo">DOPAMINE</div>
+      <h1>Paiement reçu</h1>
+      <p>
+        Ton paiement est enregistré. Tes séances sont créditées automatiquement,
+        tu n'as rien à faire — ouvre l'app pour voir ta confirmation.
+      </p>
+      <a id="openApp" class="btn" href="#">Ouvrir l'app Dopamine</a>
+      <p class="hint">Si rien ne se passe, rouvre l'app depuis ton écran d'accueil.</p>
+    </main>
+
+    <script>
+      // Schéma custom de l'app (app.config.ts → scheme: 'dopamine'). Utilisé UNIQUEMENT
+      // dans ce fallback : on n'y arrive que si l'Universal Link n'a pas été intercepté,
+      // donc hors du navigateur in-app qui le bloquerait.
+      var APP_SCHEME_BASE = 'dopamine://payment/success'
+
+      // On repasse la query telle quelle : `id` (ajouté par create-payment) est la clé
+      // qui arme le poll de l'écran de vérification. Sans elle, l'écran ne peut rien
+      // interroger et bascule directement en « en cours de traitement ».
+      document
+        .getElementById('openApp')
+        .setAttribute('href', APP_SCHEME_BASE + window.location.search)
+    </script>
+  </body>
+</html>
