@@ -7,6 +7,7 @@ import { ArrowLeft, MailCheck } from 'lucide-react-native'
 import { TextInput } from '../../components/ui/TextInput'
 import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
+import { buildMemberResetPasswordUrl } from '../../lib/gymUrls'
 
 export default function ForgotPassword() {
   const { t } = useTranslation()
@@ -18,7 +19,13 @@ export default function ForgotPassword() {
 
   const handleSubmit = useCallback(async () => {
     setIsLoading(true)
-    await supabase.auth.resetPasswordForEmail(email)
+    // GYM-205 — redirectTo EXPLICITE, obligatoire. Sans lui, Supabase applique son Site URL
+    // global, repointé le 29/07 vers le dashboard gérant pour réparer les invitations : le
+    // membre recevait un lien vers app.viniz.app → « Espace réservé aux gérants », et se
+    // retrouvait définitivement bloqué hors de l'app. L'URL est construite depuis le slug
+    // de la salle (jamais en dur), avec repli sur la constante de build.
+    const redirectTo = await buildMemberResetPasswordUrl()
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo })
     setIsLoading(false)
     setSent(true)
   }, [email])
