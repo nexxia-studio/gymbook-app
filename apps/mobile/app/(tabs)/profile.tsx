@@ -114,12 +114,14 @@ export default function Profile() {
           weeks={stats.activeWeeks}
         />
 
-        {/* Subscription */}
-        <ProfileSection title={t('profile.section_subscription')}>
+        {/* Formule — GYM-208 : « Ma formule » et non « Mon abonnement ». La section couvre
+            aussi les crédits à l'unité, qui ne sont pas un abonnement : un membre avec
+            1 crédit lisait « Aucun abonnement actif » et pouvait croire son achat perdu. */}
+        <ProfileSection title={t('profile.section_formula')}>
           <ProfileListItem
             icon={CreditCard}
-            label={t('profile.my_subscription')}
-            detail={subscriptionSummary.detail ?? t('profile.no_subscription_detail')}
+            label={t('profile.my_formula')}
+            detail={subscriptionSummary.detail ?? t('profile.no_formula_detail')}
             badge={subscriptionSummary.isActive ? t('profile.subscription_active') : undefined}
             onPress={() => router.push('/profile/subscription')}
           />
