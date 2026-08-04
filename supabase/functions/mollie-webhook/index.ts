@@ -43,6 +43,51 @@ async function applyRefundsIfAny(
   return true
 }
 
+// GYM-206 — facture auto sur paiement EN LIGNE. Symétrique de l'encaissement au comptoir
+// (admin-create-member, GYM-167) : même appel interne à generate-invoice via
+// X-Internal-Secret (contourne le contrôle de rôle membre/gym_admin), même mode 'email'
+// (génère ET envoie). Jusqu'ici le chemin en ligne n'émettait AUCUNE facture
+// (invoice_number NULL) — non conforme depuis GYM-180 (identité EMS 95 + TVA 12 %).
+//
+// Best-effort strict : le paiement prime sur le document. Un échec ici ne doit jamais
+// faire échouer le webhook (sinon 503 → Mollie rejoue → re-crédit refusé mais bruit) ni
+// empêcher le crédit déjà appliqué. On log de quoi retrouver la ligne et régénérer à la
+// main depuis /revenus.
+async function sendInvoiceEmail(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  paymentId: string,
+  memberId: string | null,
+): Promise<void> {
+  try {
+    const secret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
+    if (!secret) {
+      console.error('[mollie-webhook] INTERNAL_FUNCTIONS_SECRET absent — facture non émise',
+        { payment_id: paymentId, member_id: memberId })
+      return
+    }
+    const { data, error } = await supabase.functions.invoke('generate-invoice', {
+      body: { payment_id: paymentId, mode: 'email' },
+      headers: { 'X-Internal-Secret': secret },
+    })
+    if (error) {
+      console.error('[mollie-webhook] invoice send failed (non-blocking):',
+        { payment_id: paymentId, member_id: memberId, error })
+      return
+    }
+    const res = (data ?? {}) as { success?: boolean; invoice_number?: string; code?: string }
+    if (res.success !== true) {
+      console.error('[mollie-webhook] invoice not generated (non-blocking):',
+        { payment_id: paymentId, member_id: memberId, response: res })
+      return
+    }
+    console.log('[mollie-webhook] invoice sent:', res.invoice_number, 'for payment', paymentId)
+  } catch (e) {
+    console.error('[mollie-webhook] invoice threw (non-blocking):',
+      { payment_id: paymentId, member_id: memberId, error: e instanceof Error ? e.message : String(e) })
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
@@ -279,6 +324,18 @@ Deno.serve(async (req) => {
           console.error('[mollie-webhook] push error (non-blocking):', e)
         }
       }
+
+      // GYM-206 — facture émise et envoyée au membre. Placé ICI, dans la branche
+      // applyResult === 'applied', donc :
+      //  · uniquement sur un paiement réellement encaissé (les statuts pending/failed/
+      //    expired/canceled sont sortis bien plus haut) ;
+      //  · une seule fois — un rejeu Mollie repasse par 'already_applied' et retourne
+      //    avant ce point, le membre ne reçoit donc jamais deux factures ;
+      //  · pour les DEUX contreparties, crédits comme abonnement payé en une fois
+      //    (GYM-189) : cette branche couvre delivered = 'credits' ET 'subscription'.
+      // Après l'email de confirmation et le push : la facture ne doit pas retarder
+      // l'accusé de paiement du membre.
+      await sendInvoiceEmail(supabase, payment.id, payment.member_id ?? null)
     }
 
     return new Response('OK', { status: 200 })
