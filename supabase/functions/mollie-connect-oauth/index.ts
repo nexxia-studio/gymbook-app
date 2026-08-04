@@ -78,6 +78,21 @@ interface MollieTokenResponse {
   scope: string
 }
 
+// GYM-209 — Mollie renvoie dans la réponse token un champ `scope` : une CHAÎNE
+// unique, portées séparées par des espaces (ex. "payments.read payments.write
+// refunds.write"). On la découpe pour la stocker dans
+// gym_mollie_connections.scope (text[]).
+//
+// On enregistre les portées RÉELLEMENT ACCORDÉES par Mollie, et non
+// MOLLIE_SCOPES (les portées demandées) : le gérant peut théoriquement en
+// refuser. Objectif : détecter un manque AVANT qu'un 403 ne surgisse en
+// production, comme le 31/07 sur refunds.write.
+function parseGrantedScopes(scope: string | undefined | null): string[] | null {
+  if (typeof scope !== 'string') return null
+  const scopes = scope.split(/\s+/).filter((s) => s.length > 0)
+  return scopes.length > 0 ? scopes : null
+}
+
 interface MollieProfile {
   id: string
   name?: string
@@ -248,6 +263,19 @@ Deno.serve(async (req) => {
       const accessToken = tokenData.access_token
       const refreshToken = tokenData.refresh_token ?? null
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+      const grantedScopes = parseGrantedScopes(tokenData.scope)
+
+      // Trace explicite : si une portée demandée n'a pas été accordée, elle se
+      // verra ici — et non six semaines plus tard sur un 403 en production.
+      const missingScopes = MOLLIE_SCOPES.split(' ').filter((s) => !(grantedScopes ?? []).includes(s))
+      console.log('[mollie-connect-oauth] callback scopes:', {
+        gymId,
+        granted: grantedScopes,
+        missing: missingScopes.length > 0 ? missingScopes : null,
+      })
+      if (missingScopes.length > 0) {
+        console.warn('[mollie-connect-oauth] SCOPES_NOT_FULLY_GRANTED', { gymId, missingScopes })
+      }
 
       const profilesRes = await fetch(MOLLIE_PROFILES_URL, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -315,6 +343,7 @@ Deno.serve(async (req) => {
             status: 'active',
             mollie_profile_id: mollieProfileId,
             mollie_account_name: mollieAccountName,
+            scope: grantedScopes,
           })
           .eq('gym_id', gymId)
       } else {
@@ -342,6 +371,7 @@ Deno.serve(async (req) => {
               last_refreshed_at: new Date().toISOString(),
               mollie_profile_id: mollieProfileId,
               mollie_account_name: mollieAccountName,
+              scope: grantedScopes,
             })
             .eq('gym_id', gymId)
         } else {
@@ -356,6 +386,7 @@ Deno.serve(async (req) => {
               connected_at: new Date().toISOString(),
               mollie_profile_id: mollieProfileId,
               mollie_account_name: mollieAccountName,
+              scope: grantedScopes,
             })
         }
       }
