@@ -23,7 +23,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 // Contrat serveur (create-payment v26+) : la redirectUrl porte ?id=<payments.id>.
 // On poll la table `payments` par cet id jusqu'à un état TERMINAL.
 const POLL_INTERVAL_MS = 2500
-const GLOBAL_TIMEOUT_MS = 120_000 // ~2 min
+// GYM-207 — 5 min, et non 2. Constat prod du 04/08 : le webhook Mollie a crédité en
+// 2 min 33 s, DÉPASSANT l'ancien plafond de 2 min. L'écran basculait donc en « paiement
+// en cours de traitement » alors que le crédit était déjà accordé — le membre croyait son
+// paiement échoué sur son tout premier achat. Le plafond doit couvrir la latence réelle
+// observée, avec de la marge.
+const GLOBAL_TIMEOUT_MS = 300_000 // 5 min
 // Statuts terminaux d'échec (Mollie → colonne payments.status via webhook).
 const TERMINAL_FAILURE = new Set(['failed', 'canceled', 'cancelled', 'expired'])
 
@@ -196,6 +201,10 @@ function ClassicPaymentScreen({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Verrou d'état terminal : une fois SUCCÈS/ÉCHEC/TIMEOUT atteint, on ne re-poll plus.
   const settledRef = useRef(false)
+  // GYM-207 — miroir de `status` lisible depuis le listener AppState sans le réabonner
+  // à chaque changement d'état (le listener ne doit pas se recréer à chaque poll).
+  const statusRef = useRef<ClassicStatus>('polling')
+  statusRef.current = status
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
@@ -266,14 +275,39 @@ function ClassicPaymentScreen({
     return stopPolling
   }, [rowId, mollieId, poll, stopPolling])
 
+  // GYM-207 — Relance manuelle après timeout. Le membre disposait auparavant d'un message
+  // « Tire pour rafraîchir » sur un écran SANS pull-to-refresh (l'instruction visait un
+  // autre écran) : le geste ne déclenchait rien. On lui donne un bouton qui, lui, relance
+  // réellement le poll pour un nouveau cycle borné.
+  const retryPolling = useCallback(() => {
+    if (!rowId && !mollieId) return
+    settledRef.current = false
+    setStatus('polling')
+    poll()
+    intervalRef.current = setInterval(poll, POLL_INTERVAL_MS)
+    timeoutRef.current = setTimeout(() => {
+      if (!settledRef.current) {
+        settledRef.current = true
+        stopPolling()
+        setStatus('timeout')
+      }
+    }, GLOBAL_TIMEOUT_MS)
+  }, [rowId, mollieId, poll, stopPolling])
+
   // Filet QA-06 : le deep link auto depuis l'app bancaire n'est pas fiable. Quand l'app
   // repasse au premier plan (retour manuel), on re-poll IMMÉDIATEMENT.
+  //
+  // GYM-207 — y compris APRÈS un timeout : c'est le cas vécu en production (webhook plus
+  // lent que le plafond). Un simple retour dans l'app doit suffire à voir la confirmation,
+  // sans que le membre ait quoi que ce soit à faire.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active' && !settledRef.current) poll()
+      if (next !== 'active') return
+      if (!settledRef.current) { poll(); return }
+      if (statusRef.current === 'timeout') retryPolling()
     })
     return () => sub.remove()
-  }, [poll])
+  }, [poll, retryPolling])
 
   // Modale succès : auto-fermeture ~5 s → destination contextuelle (returnTo ou À venir).
   useEffect(() => {
@@ -345,8 +379,21 @@ function ClassicPaymentScreen({
             <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
               {t('payment.timeout_message')}
             </Text>
-            <Pressable onPress={goToBookings} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
-              <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
+            {/* GYM-207 — relance RÉELLE, en remplacement de l'ancienne consigne
+                « Tire pour rafraîchir » qui ne correspondait à aucun geste sur cet écran.
+                Masquée s'il n'y a aucune clé de paiement à interroger. */}
+            {(rowId || mollieId) && (
+              <Pressable onPress={retryPolling} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+                <Text style={ctaLabel}>{t('payment.check_again')}</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={goToBookings}
+              className={`w-full items-center rounded-xl border border-move-border py-4 ${rowId || mollieId ? 'mt-3' : 'mt-10'}`}
+            >
+              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#111111' }}>
+                {t('payment.go_to_bookings')}
+              </Text>
             </Pressable>
           </>
         )}
