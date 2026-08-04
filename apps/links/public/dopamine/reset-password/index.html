@@ -79,7 +79,13 @@
       // STATIQUE pur (pas de build, pas d'injection d'env) → constante unique et documentée.
       // Le cockpit doit la garder alignée sur le domaine réel du dashboard (cf. redirect_to /
       // Redirect URLs Supabase au déploiement).
-      var WEB_RESET_BASE = 'https://gymbook-app.vercel.app/reset-password'
+      //
+      // GYM-159 — domaine actualisé : gymbook-app.vercel.app était l'ANCIEN domaine.
+      // GYM-205 — ce repli est emprunté par des MEMBRES (Android / desktop / app absente)
+      // depuis que l'app envoie son redirectTo ici. C'est sans danger : /reset-password est
+      // déclarée HORS ProtectedRoute côté dashboard, donc publique — ne pas la déplacer
+      // derrière une garde de rôle sans casser la réinitialisation membre.
+      var WEB_RESET_BASE = 'https://app.viniz.app/reset-password'
 
       // Préserve query + fragment intacts (les tokens de recovery vivent dans le fragment).
       var dest = WEB_RESET_BASE + window.location.search + window.location.hash
