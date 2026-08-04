@@ -131,12 +131,10 @@ Deno.serve(async (req) => {
       .eq('mollie_payment_id', molliePaymentId)
       .maybeSingle()
 
-    // GYM-212 — état du paiement AVANT toute écriture de ce passage. C'est le seul signal
-    // de rejeu disponible dans la branche récurrente, qui — contrairement au premier
-    // paiement — n'a AUCUN court-circuit d'idempotence en tête de branche (voir CR).
-    // Capturé ici parce que les upserts plus bas écrasent status='paid'.
-    const alreadyPaidBeforeWrite = existingPayment?.status === 'paid'
-
+    // GYM-213 — `existingPayment` est lu ICI, AVANT toute écriture : c'est le signal de
+    // rejeu des DEUX branches (premier paiement et échéance), chacune sortant en tête sur
+    // `existingPayment?.status === 'paid'`. Ne pas déplacer cette lecture après un upsert :
+    // les upserts posent status='paid' et le signal deviendrait toujours vrai.
     let gymIdForToken = existingPayment?.gym_id ?? null
     let accessToken: string | null = null
 
@@ -421,6 +419,23 @@ Deno.serve(async (req) => {
           }
         }
       } else if (molliePayment.sequenceType === 'recurring') {
+        // GYM-213 — idempotence : même court-circuit que la branche premier paiement, et
+        // pour la même raison. Mollie rejoue ses webhooks sur timeout ou erreur réseau ;
+        // sans cette sortie, un rejeu ré-exécutait TOUTE la branche, dont l'increment de
+        // payments_count qui n'est pas idempotent.
+        //
+        // ⚠️ CE N'ÉTAIT PAS UN RISQUE THÉORIQUE : payments_count est comparé à max_payments
+        // pour décider de la fin de l'abonnement. Un compteur gonflé par un rejeu clôturait
+        // l'abonnement EN AVANCE — le membre perdait un mois d'accès qu'il avait payé.
+        //
+        // Le signal est le statut de la ligne payments LU AVANT TOUTE ÉCRITURE, et non
+        // l'état de l'abonnement : « paiement déjà traité » et « abonnement déjà à jour »
+        // sont deux questions différentes, et seule la première est fiable ici.
+        if (existingPayment?.status === 'paid') {
+          console.log('[sub-webhook] renewal already processed — idempotent skip:', molliePaymentId)
+          return new Response('OK', { status: 200 })
+        }
+
         console.log('[sub-webhook] recurring payment paid')
         const mollieSubscriptionId = molliePayment.subscriptionId ?? null
 
@@ -446,9 +461,12 @@ Deno.serve(async (req) => {
           return new Response('renewal payment write failed', { status: 503 })
         }
 
-        // Compteur d'échéances : increment NON idempotent → mis à jour APRÈS le paiement et
-        // journalisé sans 503 en cas d'erreur (un 503 ici rejouerait l'increment au retry =
-        // double comptage). ⚠️ POINT AMBIGU documenté (voir compte-rendu).
+        // Compteur d'échéances : increment NON idempotent en lui-même → mis à jour APRÈS le
+        // paiement et journalisé sans 503 en cas d'erreur (un 503 ici rejouerait l'increment
+        // au retry = double comptage).
+        // GYM-213 — un rejeu Mollie ne peut plus l'atteindre : la branche sort en tête sur
+        // existingPayment.status === 'paid'. L'ordre (paiement d'abord, compteur ensuite)
+        // reste néanmoins la bonne défense pour un échec PARTIEL de ce même passage.
         if (mollieSubscriptionId) {
           const { data: sub } = await supabase
             .from('member_subscriptions').select('id, payments_count, max_payments')
@@ -463,9 +481,13 @@ Deno.serve(async (req) => {
               updated_at: new Date().toISOString(),
             }).eq('id', sub.id)
             if (subUpdError) {
-              // Surfacé mais non bloquant. NB : status='completed' n'est PAS dans le CHECK
-              // member_subscriptions_status_check (active/suspended/expired/cancelled/paused)
-              // → bug préexistant qui fera échouer l'update sur la DERNIÈRE échéance (voir CR).
+              // Surfacé mais non bloquant.
+              // GYM-213 — l'ancien commentaire affirmait ici que status='completed' n'était
+              // pas dans member_subscriptions_status_check et ferait échouer la DERNIÈRE
+              // échéance. C'EST FAUX : vérifié en production ET en staging le 04/08, le CHECK
+              // vaut (active, suspended, expired, cancelled, paused, completed, canceling) —
+              // 'completed' y figure depuis GYM-151. Le commentaire décrivait un bug qui
+              // n'existe plus ; il est supprimé plutôt que laissé à égarer le prochain lecteur.
               await recordWebhookFailure(supabase, {
                 functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
                 gymId, stage: 'subscription_counter', detail: { error: subUpdError.message, isFinal },
@@ -477,18 +499,11 @@ Deno.serve(async (req) => {
         // GYM-212 — facture de l'ÉCHÉANCE. C'est le chemin qui se répète : 12 factures
         // dues par an et par abonné.
         //
-        // ⚠️ IDEMPOTENCE — cette branche n'a AUCUN court-circuit en tête (contrairement au
-        // premier paiement) : sur un rejeu Mollie elle ré-exécute tout, y compris
-        // l'increment du compteur, explicitement documenté comme NON idempotent. Plutôt
-        // que d'improviser un nouveau garde, on réutilise LE MÊME SIGNAL que la branche
-        // premier paiement — `existingPayment.status`, lu avant toute écriture : la ligne
-        // n'existe pas au premier passage d'une échéance (aucune n'est créée en amont pour
-        // le récurrent), et porte 'paid' à tout rejeu. Un rejeu n'envoie donc pas de
-        // seconde facture.
-        // ⚠️ L'absence de court-circuit de branche reste un sujet ouvert — cf. compte-rendu.
-        if (alreadyPaidBeforeWrite) {
-          console.log('[sub-webhook] renewal already processed — skip invoice (idempotent):', molliePaymentId)
-        } else {
+        // GYM-213 — le garde local qui protégeait cet appel a été RETIRÉ : le
+        // court-circuit en tête de branche le rend inutile, puisqu'un rejeu ne parvient
+        // plus jusqu'ici. Deux mécanismes pour la même garantie n'apportaient rien et
+        // laissaient croire que l'appel avait besoin d'une protection propre.
+        {
           const invoicePaymentId = await resolvePaymentRowId(supabase, molliePaymentId, existingPayment?.id ?? null)
           if (invoicePaymentId) await sendInvoiceEmail(supabase, invoicePaymentId, memberId)
           else {
