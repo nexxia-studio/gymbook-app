@@ -10,6 +10,80 @@ const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 const MOLLIE_TEST_API_KEY = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
 
+// GYM-212 — facture auto sur les abonnements récurrents. Repris À L'IDENTIQUE de
+// mollie-webhook (GYM-206, déployé et validé en prod v27), lui-même calqué sur
+// l'encaissement au comptoir (admin-create-member, GYM-167) : appel interne à
+// generate-invoice via X-Internal-Secret (contourne le contrôle de rôle
+// membre/gym_admin), mode 'email' (génère ET envoie).
+//
+// Jusqu'ici cette fonction n'émettait AUCUNE facture, sur AUCUNE échéance — ni au
+// premier paiement, ni aux renouvellements. C'est le chemin qui SE RÉPÈTE : un abonné
+// à 90 €/mois produit 12 encaissements par an, donc 12 factures dues. Non conforme
+// depuis GYM-180 (identité EMS 95 + détail TVA 12 %).
+//
+// Best-effort strict : le paiement prime sur le document. Un échec ici ne doit jamais
+// faire échouer le webhook (sinon 503 → Mollie rejoue → reconduction rejouée), ni
+// empêcher la reconduction de l'abonnement, ni bloquer l'accès du membre. On log de
+// quoi retrouver la ligne et régénérer à la main depuis /revenus.
+async function sendInvoiceEmail(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  paymentId: string,
+  memberId: string | null,
+): Promise<void> {
+  try {
+    const secret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
+    if (!secret) {
+      console.error('[sub-webhook] INTERNAL_FUNCTIONS_SECRET absent — facture non émise',
+        { payment_id: paymentId, member_id: memberId })
+      return
+    }
+    const { data, error } = await supabase.functions.invoke('generate-invoice', {
+      body: { payment_id: paymentId, mode: 'email' },
+      headers: { 'X-Internal-Secret': secret },
+    })
+    if (error) {
+      console.error('[sub-webhook] invoice send failed (non-blocking):',
+        { payment_id: paymentId, member_id: memberId, error })
+      return
+    }
+    const res = (data ?? {}) as { success?: boolean; invoice_number?: string; code?: string }
+    if (res.success !== true) {
+      console.error('[sub-webhook] invoice not generated (non-blocking):',
+        { payment_id: paymentId, member_id: memberId, response: res })
+      return
+    }
+    console.log('[sub-webhook] invoice sent:', res.invoice_number, 'for payment', paymentId)
+  } catch (e) {
+    console.error('[sub-webhook] invoice threw (non-blocking):',
+      { payment_id: paymentId, member_id: memberId, error: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+// GYM-212 — les deux upserts de cette fonction ne renvoient pas la ligne écrite, et on ne
+// touche PAS à ces écritures critiques (leur `error` pilote le 503). On relit donc l'id
+// par mollie_payment_id, qui est UNIQUE. Lecture seule, sans effet sur le flux de paiement.
+async function resolvePaymentRowId(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  molliePaymentId: string,
+  knownId: string | null,
+): Promise<string | null> {
+  if (knownId) return knownId
+  try {
+    const { data } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('mollie_payment_id', molliePaymentId)
+      .maybeSingle()
+    return (data?.id as string | undefined) ?? null
+  } catch (e) {
+    console.error('[sub-webhook] payment id lookup failed (non-blocking):',
+      { mollie_payment_id: molliePaymentId, error: e instanceof Error ? e.message : String(e) })
+    return null
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
@@ -56,6 +130,12 @@ Deno.serve(async (req) => {
       .select('id, gym_id, member_id, status')
       .eq('mollie_payment_id', molliePaymentId)
       .maybeSingle()
+
+    // GYM-212 — état du paiement AVANT toute écriture de ce passage. C'est le seul signal
+    // de rejeu disponible dans la branche récurrente, qui — contrairement au premier
+    // paiement — n'a AUCUN court-circuit d'idempotence en tête de branche (voir CR).
+    // Capturé ici parce que les upserts plus bas écrasent status='paid'.
+    const alreadyPaidBeforeWrite = existingPayment?.status === 'paid'
 
     let gymIdForToken = existingPayment?.gym_id ?? null
     let accessToken: string | null = null
@@ -325,6 +405,21 @@ Deno.serve(async (req) => {
             })
           } catch (e) { console.error('[sub-webhook] push error:', e) }
         }
+
+        // GYM-212 — facture du PREMIER paiement d'abonnement.
+        // Idempotence : assurée par le court-circuit EXISTANT en tête de branche
+        // (`existingPayment?.status === 'paid'` → return OK avant d'arriver ici). Un rejeu
+        // Mollie n'atteint jamais ce point, le membre ne reçoit donc jamais deux factures.
+        // Aucun garde réinventé. Placé après l'email et le push, comme dans GYM-206 : la
+        // facture ne doit pas retarder l'accusé d'activation.
+        {
+          const invoicePaymentId = await resolvePaymentRowId(supabase, molliePaymentId, existingPayment?.id ?? null)
+          if (invoicePaymentId) await sendInvoiceEmail(supabase, invoicePaymentId, memberId)
+          else {
+            console.error('[sub-webhook] facture non émise — ligne payments introuvable (non-blocking):',
+              { mollie_payment_id: molliePaymentId, member_id: memberId, branch: 'first' })
+          }
+        }
       } else if (molliePayment.sequenceType === 'recurring') {
         console.log('[sub-webhook] recurring payment paid')
         const mollieSubscriptionId = molliePayment.subscriptionId ?? null
@@ -376,6 +471,29 @@ Deno.serve(async (req) => {
                 gymId, stage: 'subscription_counter', detail: { error: subUpdError.message, isFinal },
               })
             }
+          }
+        }
+
+        // GYM-212 — facture de l'ÉCHÉANCE. C'est le chemin qui se répète : 12 factures
+        // dues par an et par abonné.
+        //
+        // ⚠️ IDEMPOTENCE — cette branche n'a AUCUN court-circuit en tête (contrairement au
+        // premier paiement) : sur un rejeu Mollie elle ré-exécute tout, y compris
+        // l'increment du compteur, explicitement documenté comme NON idempotent. Plutôt
+        // que d'improviser un nouveau garde, on réutilise LE MÊME SIGNAL que la branche
+        // premier paiement — `existingPayment.status`, lu avant toute écriture : la ligne
+        // n'existe pas au premier passage d'une échéance (aucune n'est créée en amont pour
+        // le récurrent), et porte 'paid' à tout rejeu. Un rejeu n'envoie donc pas de
+        // seconde facture.
+        // ⚠️ L'absence de court-circuit de branche reste un sujet ouvert — cf. compte-rendu.
+        if (alreadyPaidBeforeWrite) {
+          console.log('[sub-webhook] renewal already processed — skip invoice (idempotent):', molliePaymentId)
+        } else {
+          const invoicePaymentId = await resolvePaymentRowId(supabase, molliePaymentId, existingPayment?.id ?? null)
+          if (invoicePaymentId) await sendInvoiceEmail(supabase, invoicePaymentId, memberId)
+          else {
+            console.error('[sub-webhook] facture non émise — ligne payments introuvable (non-blocking):',
+              { mollie_payment_id: molliePaymentId, member_id: memberId, branch: 'recurring' })
           }
         }
       }
