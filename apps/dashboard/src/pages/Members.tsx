@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { MemberDrawer } from '@/components/members/MemberDrawer'
 import { AddMemberModal } from '@/components/members/AddMemberModal'
+import { LiftSuspensionModal } from '@/components/members/LiftSuspensionModal'
 import { useMembers, type Member } from '@/hooks/useMembers'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { useGymStore } from '@/stores/useGymStore'
@@ -122,10 +123,14 @@ export default function Members() {
   const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
   const [selected, setSelected] = useState<Member | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [liftTarget, setLiftTarget] = useState<Member | null>(null)
 
-  async function handleLiftSuspension(member: Member) {
-    await liftSuspension(member.id, 'Lifted by admin')
-    addToast(t('members.toast_suspension_lifted'))
+  // GYM-204 — la levée passe par une modale à motif obligatoire. L'ancienne version
+  // appelait l'écriture avec un motif en dur ('Lifted by admin') puis affichait un toast de
+  // succès SANS jamais tester le résultat : le geste n'aboutissait pas, personne ne l'a vu.
+  // Succès comme échec sont désormais décidés par la modale, sur le retour réel.
+  function handleLiftSuspension(member: Member) {
+    setLiftTarget(member)
   }
 
   async function handleSendPush(member: Member) {
@@ -220,6 +225,16 @@ export default function Members() {
       </div>
 
       <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onCreated={refetch} />
+
+      {/* GYM-204 — motif obligatoire, erreurs visibles, liste rafraîchie après succès. */}
+      <LiftSuspensionModal
+        open={liftTarget !== null}
+        onClose={() => setLiftTarget(null)}
+        memberName={liftTarget ? `${liftTarget.firstName} ${liftTarget.lastName}` : ''}
+        suspendedUntil={liftTarget?.suspendedUntil ?? null}
+        onLift={(reason) => liftSuspension(liftTarget!.id, reason)}
+        onDone={refetch}
+      />
 
       <MemberDrawer
         member={selected}
