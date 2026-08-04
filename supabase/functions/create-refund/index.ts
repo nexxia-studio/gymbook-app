@@ -130,6 +130,20 @@ Deno.serve(async (req) => {
       console.error('[create-refund] Mollie refund refused:', mollieRes.status, detail)
       // Solde du gym insuffisant → message dédié.
       const lower = detail.toLowerCase()
+      // GYM-209 — Portée OAuth manquante. Mollie répond 403 avec un détail du type :
+      // « Not all required permissions (refunds.write) for accessing this resource
+      // were granted. » Constaté en prod le 31/07 sur le 1er remboursement réel.
+      // Ce n'est PAS un échec métier : le gérant doit reconnecter son compte Mollie
+      // pour ré-accorder le consentement (une portée ne s'ajoute pas à une
+      // autorisation existante). Un « Le remboursement a échoué » générique
+      // laisserait le gérant sans action possible.
+      if (mollieRes.status === 403 && (lower.includes('permission') || lower.includes('scope') || lower.includes('granted'))) {
+        return errorResponse(
+          403,
+          'MOLLIE_SCOPE_MISSING',
+          'Votre compte Mollie n\'autorise pas les remboursements. Reconnectez-le depuis Réglages → Paiements pour accorder cette permission.',
+        )
+      }
       if (mollieRes.status === 422 && (lower.includes('balance') || lower.includes('insufficient') || lower.includes('funds') || lower.includes('amount'))) {
         return errorResponse(422, 'INSUFFICIENT_BALANCE', 'Solde Mollie insuffisant pour ce remboursement')
       }

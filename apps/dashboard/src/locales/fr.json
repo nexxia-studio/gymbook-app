@@ -950,6 +950,7 @@
       "error_invalid_amount": "Montant invalide",
       "error_amount_too_high": "Montant supérieur au remboursable restant",
       "error_insufficient_balance": "Solde Mollie insuffisant pour ce remboursement",
+      "error_scope_missing": "Votre compte Mollie n'autorise pas les remboursements. Reconnectez-le depuis Réglages → Paiements pour accorder cette permission.",
       "error_manual": "Paiement hors-ligne — à rembourser en salle",
       "error_subscription": "Le remboursement d'un abonnement n'est pas géré ici",
       "error_generic": "Le remboursement a échoué",
