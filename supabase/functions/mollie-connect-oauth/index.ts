@@ -12,14 +12,50 @@ const MOLLIE_TOKEN_URL = 'https://api.mollie.com/oauth2/tokens'
 // GYM-85 : /v2/profiles/me ne fonctionne PAS avec un token OAuth (org access token).
 // La liste /v2/profiles, elle, est accessible en OAuth → on prend profiles[0].
 const MOLLIE_PROFILES_URL = 'https://api.mollie.com/v2/profiles'
+// GYM-209 — Portées demandées au consentement OAuth du gérant.
+//
+// ⚠️ RÈGLE MOLLIE : une portée ne s'ajoute JAMAIS à une autorisation existante.
+// Tout ajout ici impose de REFAIRE le consentement OAuth (déconnexion +
+// reconnexion par le gérant). D'où la liste ci-dessous, qui couvre l'usage
+// réel du repo ET le besoin planifié GYM-185 (domiciliation SEPA).
+//
+// Chaque portée est justifiée par un appel existant ou planifié. Ne rien
+// ajouter « au cas où » : une permission superflue est un mauvais signal au
+// gérant sur l'écran de consentement.
 const MOLLIE_SCOPES = [
+  // GET /v2/payments/{id} — mollie-webhook, mollie-subscription-webhook.
   'payments.read',
+  // POST /v2/payments — create-payment, create-subscription (1er paiement).
   'payments.write',
+  // GYM-209 : MANQUANT jusqu'ici → 403 « Not all required permissions
+  // (refunds.write) » constaté en prod le 31/07 sur le 1er remboursement réel.
+  // POST /v2/payments/{id}/refunds — create-refund.
+  'refunds.write',
+  // Relecture de l'état d'un remboursement (réconciliation / support). Le
+  // webhook lit aujourd'hui amountRefunded sur le paiement, mais toute
+  // consultation directe d'un refund exige cette portée — et l'ajouter plus
+  // tard coûterait une reconnexion.
+  'refunds.read',
+  // GET /v2/profiles — mollie-connect-oauth (récupération du profile_id).
   'profiles.read',
-  'subscriptions.read',
-  'subscriptions.write',
-  'customers.read',
+  // POST /v2/customers — create-subscription (création du client Mollie).
   'customers.write',
+  // Relecture d'un client Mollie (vérification mandat / support). Pas d'appel
+  // GET direct aujourd'hui ; requis par le parcours mandat GYM-185.
+  'customers.read',
+  // POST /v2/customers/{id}/subscriptions — mollie-subscription-webhook.
+  // DELETE .../subscriptions/{id} — cancel-subscription, delete-account.
+  'subscriptions.write',
+  // Relecture de l'état d'un abonnement Mollie (réconciliation).
+  'subscriptions.read',
+  // GYM-185 (domiciliation SEPA, prochain chantier) : lecture et création du
+  // mandat SEPA via /v2/customers/{id}/mandates. Anticipé ICI pour ne pas
+  // imposer une 2e reconnexion au gérant au moment du chantier.
+  'mandates.read',
+  'mandates.write',
+  // Identification du compte au consentement. Aucun appel /v2/organizations
+  // dans le repo à ce jour — conservé (pré-existant) le temps de vérifier les
+  // fonctions déployées hors repo ; candidat à suppression, cf. GYM-59.
   'organizations.read',
 ].join(' ')
 
