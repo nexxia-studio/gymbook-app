@@ -97,7 +97,10 @@ export function RefundModal({ payment, onClose, onDone }: RefundModalProps) {
       })
       if (fnError) {
         const code = await extractErrorCode(fnError)
-        if (code === 'INSUFFICIENT_BALANCE') setError(t('revenue.refund.error_insufficient_balance'))
+        // GYM-209 : portée OAuth manquante côté Mollie → le gérant doit reconnecter
+        // son compte, action concrète qu'un message générique masquerait.
+        if (code === 'MOLLIE_SCOPE_MISSING') setError(t('revenue.refund.error_scope_missing'))
+        else if (code === 'INSUFFICIENT_BALANCE') setError(t('revenue.refund.error_insufficient_balance'))
         else if (code === 'MANUAL_PAYMENT') setError(t('revenue.refund.error_manual'))
         else if (code === 'SUBSCRIPTION_PAYMENT') setError(t('revenue.refund.error_subscription'))
         else setError(t('revenue.refund.error_generic'))

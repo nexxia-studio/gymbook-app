@@ -12,14 +12,50 @@ const MOLLIE_TOKEN_URL = 'https://api.mollie.com/oauth2/tokens'
 // GYM-85 : /v2/profiles/me ne fonctionne PAS avec un token OAuth (org access token).
 // La liste /v2/profiles, elle, est accessible en OAuth → on prend profiles[0].
 const MOLLIE_PROFILES_URL = 'https://api.mollie.com/v2/profiles'
+// GYM-209 — Portées demandées au consentement OAuth du gérant.
+//
+// ⚠️ RÈGLE MOLLIE : une portée ne s'ajoute JAMAIS à une autorisation existante.
+// Tout ajout ici impose de REFAIRE le consentement OAuth (déconnexion +
+// reconnexion par le gérant). D'où la liste ci-dessous, qui couvre l'usage
+// réel du repo ET le besoin planifié GYM-185 (domiciliation SEPA).
+//
+// Chaque portée est justifiée par un appel existant ou planifié. Ne rien
+// ajouter « au cas où » : une permission superflue est un mauvais signal au
+// gérant sur l'écran de consentement.
 const MOLLIE_SCOPES = [
+  // GET /v2/payments/{id} — mollie-webhook, mollie-subscription-webhook.
   'payments.read',
+  // POST /v2/payments — create-payment, create-subscription (1er paiement).
   'payments.write',
+  // GYM-209 : MANQUANT jusqu'ici → 403 « Not all required permissions
+  // (refunds.write) » constaté en prod le 31/07 sur le 1er remboursement réel.
+  // POST /v2/payments/{id}/refunds — create-refund.
+  'refunds.write',
+  // Relecture de l'état d'un remboursement (réconciliation / support). Le
+  // webhook lit aujourd'hui amountRefunded sur le paiement, mais toute
+  // consultation directe d'un refund exige cette portée — et l'ajouter plus
+  // tard coûterait une reconnexion.
+  'refunds.read',
+  // GET /v2/profiles — mollie-connect-oauth (récupération du profile_id).
   'profiles.read',
-  'subscriptions.read',
-  'subscriptions.write',
-  'customers.read',
+  // POST /v2/customers — create-subscription (création du client Mollie).
   'customers.write',
+  // Relecture d'un client Mollie (vérification mandat / support). Pas d'appel
+  // GET direct aujourd'hui ; requis par le parcours mandat GYM-185.
+  'customers.read',
+  // POST /v2/customers/{id}/subscriptions — mollie-subscription-webhook.
+  // DELETE .../subscriptions/{id} — cancel-subscription, delete-account.
+  'subscriptions.write',
+  // Relecture de l'état d'un abonnement Mollie (réconciliation).
+  'subscriptions.read',
+  // GYM-185 (domiciliation SEPA, prochain chantier) : lecture et création du
+  // mandat SEPA via /v2/customers/{id}/mandates. Anticipé ICI pour ne pas
+  // imposer une 2e reconnexion au gérant au moment du chantier.
+  'mandates.read',
+  'mandates.write',
+  // Identification du compte au consentement. Aucun appel /v2/organizations
+  // dans le repo à ce jour — conservé (pré-existant) le temps de vérifier les
+  // fonctions déployées hors repo ; candidat à suppression, cf. GYM-59.
   'organizations.read',
 ].join(' ')
 
@@ -40,6 +76,21 @@ interface MollieTokenResponse {
   expires_in: number
   token_type: string
   scope: string
+}
+
+// GYM-209 — Mollie renvoie dans la réponse token un champ `scope` : une CHAÎNE
+// unique, portées séparées par des espaces (ex. "payments.read payments.write
+// refunds.write"). On la découpe pour la stocker dans
+// gym_mollie_connections.scope (text[]).
+//
+// On enregistre les portées RÉELLEMENT ACCORDÉES par Mollie, et non
+// MOLLIE_SCOPES (les portées demandées) : le gérant peut théoriquement en
+// refuser. Objectif : détecter un manque AVANT qu'un 403 ne surgisse en
+// production, comme le 31/07 sur refunds.write.
+function parseGrantedScopes(scope: string | undefined | null): string[] | null {
+  if (typeof scope !== 'string') return null
+  const scopes = scope.split(/\s+/).filter((s) => s.length > 0)
+  return scopes.length > 0 ? scopes : null
 }
 
 interface MollieProfile {
@@ -122,7 +173,14 @@ Deno.serve(async (req) => {
       url.searchParams.set('state', state)
       url.searchParams.set('scope', MOLLIE_SCOPES)
       url.searchParams.set('response_type', 'code')
-      url.searchParams.set('approval_prompt', 'auto')
+      // GYM-209 : 'force' et NON 'auto'. Avec 'auto', Mollie n'affiche pas l'écran
+      // de consentement si le compte a déjà autorisé l'application et réutilise
+      // l'autorisation existante — la reconnexion « réussirait » sans jamais
+      // accorder les portées ajoutées (refunds.*, mandates.*), et les
+      // remboursements échoueraient encore en 403. 'force' rend l'octroi
+      // déterministe et montre au gérant ce qu'il accorde. Ne pas remettre 'auto'
+      // pour économiser un écran.
+      url.searchParams.set('approval_prompt', 'force')
 
       return jsonResponse({ url: url.toString() })
     }
@@ -212,6 +270,19 @@ Deno.serve(async (req) => {
       const accessToken = tokenData.access_token
       const refreshToken = tokenData.refresh_token ?? null
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+      const grantedScopes = parseGrantedScopes(tokenData.scope)
+
+      // Trace explicite : si une portée demandée n'a pas été accordée, elle se
+      // verra ici — et non six semaines plus tard sur un 403 en production.
+      const missingScopes = MOLLIE_SCOPES.split(' ').filter((s) => !(grantedScopes ?? []).includes(s))
+      console.log('[mollie-connect-oauth] callback scopes:', {
+        gymId,
+        granted: grantedScopes,
+        missing: missingScopes.length > 0 ? missingScopes : null,
+      })
+      if (missingScopes.length > 0) {
+        console.warn('[mollie-connect-oauth] SCOPES_NOT_FULLY_GRANTED', { gymId, missingScopes })
+      }
 
       const profilesRes = await fetch(MOLLIE_PROFILES_URL, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -279,6 +350,7 @@ Deno.serve(async (req) => {
             status: 'active',
             mollie_profile_id: mollieProfileId,
             mollie_account_name: mollieAccountName,
+            scope: grantedScopes,
           })
           .eq('gym_id', gymId)
       } else {
@@ -306,6 +378,7 @@ Deno.serve(async (req) => {
               last_refreshed_at: new Date().toISOString(),
               mollie_profile_id: mollieProfileId,
               mollie_account_name: mollieAccountName,
+              scope: grantedScopes,
             })
             .eq('gym_id', gymId)
         } else {
@@ -320,6 +393,7 @@ Deno.serve(async (req) => {
               connected_at: new Date().toISOString(),
               mollie_profile_id: mollieProfileId,
               mollie_account_name: mollieAccountName,
+              scope: grantedScopes,
             })
         }
       }
