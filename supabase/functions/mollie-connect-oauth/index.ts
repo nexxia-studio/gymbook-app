@@ -173,7 +173,14 @@ Deno.serve(async (req) => {
       url.searchParams.set('state', state)
       url.searchParams.set('scope', MOLLIE_SCOPES)
       url.searchParams.set('response_type', 'code')
-      url.searchParams.set('approval_prompt', 'auto')
+      // GYM-209 : 'force' et NON 'auto'. Avec 'auto', Mollie n'affiche pas l'écran
+      // de consentement si le compte a déjà autorisé l'application et réutilise
+      // l'autorisation existante — la reconnexion « réussirait » sans jamais
+      // accorder les portées ajoutées (refunds.*, mandates.*), et les
+      // remboursements échoueraient encore en 403. 'force' rend l'octroi
+      // déterministe et montre au gérant ce qu'il accorde. Ne pas remettre 'auto'
+      // pour économiser un écran.
+      url.searchParams.set('approval_prompt', 'force')
 
       return jsonResponse({ url: url.toString() })
     }
