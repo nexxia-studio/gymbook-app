@@ -435,6 +435,26 @@
     "send_push": "Send notification",
     "empty": "No members",
     "toast_suspension_lifted": "Suspension lifted",
+    "lift": {
+      "title": "Lift suspension",
+      "suspended_until": "Suspended until {{date}}",
+      "noshow_kept": "The no-show counter is not changed. To cancel an absence, use the check-in screen.",
+      "reason_label": "Reason",
+      "reason_placeholder": "Specify the reason",
+      "reason": {
+        "checkin_error": "Check-in error",
+        "proof_provided": "Proof provided",
+        "commercial": "Goodwill gesture",
+        "other": "Other"
+      },
+      "confirm": "Lift suspension",
+      "toast_success": "Suspension lifted",
+      "error_not_suspended": "This member is not suspended",
+      "error_wrong_gym": "This member does not belong to your gym",
+      "error_reason_required": "A reason is required",
+      "error_forbidden": "Restricted to the gym manager",
+      "error_generic": "Lifting the suspension failed"
+    },
     "toast_push_sent": "Notification sent",
     "push_default_message": "Message from Dopamine Performance Club",
     "add_member": "Add a member",

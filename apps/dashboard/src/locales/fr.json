@@ -435,6 +435,26 @@
     "send_push": "Envoyer une notification",
     "empty": "Aucun membre",
     "toast_suspension_lifted": "Suspension levee",
+    "lift": {
+      "title": "Lever la suspension",
+      "suspended_until": "Suspendu jusqu'au {{date}}",
+      "noshow_kept": "Le compteur d'absences n'est pas modifié. Pour annuler une absence, passez par l'écran de pointage.",
+      "reason_label": "Motif",
+      "reason_placeholder": "Précisez le motif",
+      "reason": {
+        "checkin_error": "Erreur de pointage",
+        "proof_provided": "Justificatif fourni",
+        "commercial": "Geste commercial",
+        "other": "Autre"
+      },
+      "confirm": "Lever la suspension",
+      "toast_success": "Suspension levée",
+      "error_not_suspended": "Ce membre n'est pas suspendu",
+      "error_wrong_gym": "Ce membre n'appartient pas à votre salle",
+      "error_reason_required": "Un motif est obligatoire",
+      "error_forbidden": "Action réservée au gérant de la salle",
+      "error_generic": "La levée de la suspension a échoué"
+    },
     "toast_push_sent": "Notification envoyee",
     "push_default_message": "Message de Dopamine Performance Club",
     "add_member": "Ajouter un membre",
