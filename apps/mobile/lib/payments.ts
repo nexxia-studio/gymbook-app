@@ -8,12 +8,14 @@ import i18n from './i18n'
 import { captureEvent } from './analytics'
 
 // GYM-89 — Les paiements MEMBRES (one-time + abonnement) reviennent sur la page membre
-// dédiée /payment/success, et NON sur /mollie/callback (réservé au flux OAuth gérant).
-const PAYMENT_RETURN_BASE = 'https://gymbook-app.vercel.app/payment/success'
-
-export function buildRedirectUrl(source: string): string {
-  return `${PAYMENT_RETURN_BASE}?source=${source}`
-}
+// dédiée, et NON sur /mollie/callback (réservé au flux OAuth gérant).
+//
+// GYM-207 — L'URL n'est plus en dur (elle pointait sur l'ancien domaine
+// gymbook-app.vercel.app) : elle est construite depuis le slug de la salle, et vise
+// désormais un Universal Link links.viniz.app/{slug}/payment-success. Voir lib/gymUrls.ts
+// pour le pourquoi du https plutôt que du schéma `dopamine://`.
+export { buildPaymentReturnUrl as buildRedirectUrl } from './gymUrls'
+import { buildPaymentReturnUrl } from './gymUrls'
 
 /** Formate un montant (en CENTIMES) selon la devise. Fallback robuste si Intl indisponible. */
 export function formatPrice(priceCents: number, currency = 'EUR'): string {
@@ -116,19 +118,19 @@ async function invokeCheckout(fn: string, body: Record<string, unknown>): Promis
 }
 
 /** Achat à l'unité (one-time) → create-payment v24. */
-export function startOneTimeCheckout(
+export async function startOneTimeCheckout(
   planId: string,
   opts: { gymId: string; redirectUrl?: string },
 ): Promise<CheckoutResult> {
   return invokeCheckout('create-payment', {
     gym_id: opts.gymId,
     plan_id: planId,
-    redirect_url: opts.redirectUrl ?? buildRedirectUrl('one_time'),
+    redirect_url: opts.redirectUrl ?? await buildPaymentReturnUrl('one_time'),
   })
 }
 
 /** Abonnement récurrent → create-subscription v24 (member_id = utilisateur courant). */
-export function startSubscriptionCheckout(
+export async function startSubscriptionCheckout(
   planId: string,
   opts: { gymId: string; memberId: string; redirectUrl?: string },
 ): Promise<CheckoutResult> {
@@ -136,7 +138,7 @@ export function startSubscriptionCheckout(
     gym_id: opts.gymId,
     member_id: opts.memberId,
     plan_id: planId,
-    redirect_url: opts.redirectUrl ?? buildRedirectUrl('subscription'),
+    redirect_url: opts.redirectUrl ?? await buildPaymentReturnUrl('subscription'),
   })
 }
 

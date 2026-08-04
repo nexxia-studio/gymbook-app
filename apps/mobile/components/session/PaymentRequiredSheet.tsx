@@ -81,7 +81,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     try {
       const result = await startOneTimeCheckout(dropInPlan.id, {
         gymId,
-        redirectUrl: buildRedirectUrl('drop_in'),
+        redirectUrl: await buildRedirectUrl('drop_in'),
       })
 
       if (!result.ok) {

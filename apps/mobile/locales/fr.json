@@ -459,7 +459,8 @@
     "failed_title": "PAIEMENT ÉCHOUÉ",
     "failed_message": "Le paiement n'a pas abouti. Aucun montant confirmé n'a été prélevé.",
     "timeout_title": "PAIEMENT EN COURS DE TRAITEMENT",
-    "timeout_message": "Ton paiement est en cours de traitement. Tire pour rafraîchir tes réservations.",
+    "timeout_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
+    "check_again": "Vérifier à nouveau",
     "modal_success_title": "Paiement réussi",
     "modal_success_body": "Ton paiement a bien été confirmé."
   },

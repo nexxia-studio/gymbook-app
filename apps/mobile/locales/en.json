@@ -459,7 +459,8 @@
     "failed_title": "PAYMENT FAILED",
     "failed_message": "The payment did not go through. No confirmed amount was charged.",
     "timeout_title": "PAYMENT BEING PROCESSED",
-    "timeout_message": "Your payment is being processed. Pull to refresh your bookings.",
+    "timeout_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, you don't need to do anything.",
+    "check_again": "Check again",
     "modal_success_title": "Payment successful",
     "modal_success_body": "Your payment has been confirmed."
   },
