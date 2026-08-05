@@ -3,7 +3,7 @@
 // directes (RLS gym_admin) ; email non modifiable (hors périmètre v1).
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History } from 'lucide-react'
+import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { supabase } from '@/lib/supabase'
@@ -124,6 +124,11 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
     }
   }
 
+  // GYM-214 — une suspension ÉCHUE n'est plus une suspension : comparer à maintenant,
+  // ne jamais se contenter de « la colonne est renseignée ». Le cron d'expiration ne
+  // repasse pas la colonne à NULL, une date passée y subsiste donc normalement.
+  const isSuspended = !!member?.suspendedUntil && new Date(member.suspendedUntil).getTime() > Date.now()
+
   const fullName = `${identity.firstName} ${identity.lastName}`.trim() || (member?.email ?? '')
   const initials = `${identity.firstName.charAt(0)}${identity.lastName.charAt(0)}`.toUpperCase() || '?'
 
@@ -173,6 +178,35 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                   <p className="truncate font-body text-sm text-muted">{member.email}</p>
                 </div>
               </div>
+
+              {/* ── GYM-214 — État disciplinaire, près de l'identité ──
+                  GYM-204 a donné au gérant le pouvoir de lever une sanction sans rien lui
+                  montrer de ce qui l'a causée. Cet indicateur est la première réponse :
+                  discret quand tout va bien (rien du tout), net quand il y a à savoir.
+                  Aucun « 0 absence » : une ligne vide n'apprend rien et ajoute du bruit. */}
+              {isSuspended ? (
+                <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-red-50 px-4 py-3">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <div className="min-w-0">
+                    <p className="font-body text-sm font-semibold text-red-700">
+                      {t('member_drawer.discipline.suspended_until', { date: fmtDate(member.suspendedUntil, true) })}
+                    </p>
+                    {member.noshowCount > 0 && (
+                      <p className="font-body text-xs text-red-600/80">
+                        {t('member_drawer.discipline.noshow_count', { count: member.noshowCount })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : member.noshowCount > 0 ? (
+                /* Compteur sans suspension : un SIGNAL, pas une sanction — ton neutre. */
+                <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-amber-50 px-4 py-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <p className="font-body text-sm text-amber-700">
+                    {t('member_drawer.discipline.noshow_count', { count: member.noshowCount })}
+                  </p>
+                </div>
+              ) : null}
 
               {editing ? (
                 <form onSubmit={handleSave} className="mt-5 flex flex-col gap-4">

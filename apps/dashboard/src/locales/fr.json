@@ -548,7 +548,12 @@
     },
     "error_names_required": "Le prénom et le nom sont requis",
     "error_save": "La modification a échoué",
-    "toast_saved": "Membre mis à jour"
+    "toast_saved": "Membre mis à jour",
+    "discipline": {
+      "suspended_until": "Suspendu jusqu'au {{date}}",
+      "noshow_count_one": "{{count}} absence enregistrée",
+      "noshow_count_other": "{{count}} absences enregistrées"
+    }
   },
   "attendance": {
     "title": "Présences",

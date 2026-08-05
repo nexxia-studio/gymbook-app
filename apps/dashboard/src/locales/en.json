@@ -548,7 +548,12 @@
     },
     "error_names_required": "First name and last name are required",
     "error_save": "Update failed",
-    "toast_saved": "Member updated"
+    "toast_saved": "Member updated",
+    "discipline": {
+      "suspended_until": "Suspended until {{date}}",
+      "noshow_count_one": "{{count}} recorded absence",
+      "noshow_count_other": "{{count}} recorded absences"
+    }
   },
   "attendance": {
     "title": "Attendance",
