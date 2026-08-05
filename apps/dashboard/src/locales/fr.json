@@ -453,7 +453,15 @@
       "error_wrong_gym": "Ce membre n'appartient pas à votre salle",
       "error_reason_required": "Un motif est obligatoire",
       "error_forbidden": "Action réservée au gérant de la salle",
-      "error_generic": "La levée de la suspension a échoué"
+      "error_generic": "La levée de la suspension a échoué",
+      "summary": {
+        "noshow_count_one": "{{count}} absence au compteur",
+        "noshow_count_other": "{{count}} absences au compteur",
+        "last_absence": "Dernière absence le {{date}}",
+        "current": "Sanction en cours : {{origin}}, posée le {{date}}",
+        "prior_lifts_one": "{{count}} levée déjà accordée à ce membre",
+        "prior_lifts_other": "{{count}} levées déjà accordées à ce membre"
+      }
     },
     "toast_push_sent": "Notification envoyee",
     "push_default_message": "Message de Dopamine Performance Club",
