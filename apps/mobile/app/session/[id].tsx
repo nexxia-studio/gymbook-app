@@ -15,6 +15,8 @@ import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { SuspensionModal } from '../../components/session/SuspensionModal'
 import { PaymentRequiredSheet } from '../../components/session/PaymentRequiredSheet'
 import { useBookingStore } from '../../stores/useBookingStore'
+import { useGymProfile } from '../../hooks/useGymProfile'
+import { formatGymAddress } from '../../lib/gymProfile'
 import { supabase } from '../../lib/supabase'
 import { GYM_ID } from '../../constants/dopamine'
 import { getDisplayStatus } from '../../utils/slotStatus'
@@ -38,6 +40,10 @@ export default function SessionDetail() {
 
   const { createBooking, cancelBooking, confirmWaitlist, favorites, addFavorite, removeFavorite, isFavorite } = useBookingStore()
 
+  // GYM-216 — identité de la salle (nom + adresse d'exploitation), lue en base.
+  const gym = useGymProfile()
+  const gymAddress = formatGymAddress(gym)
+
   const slotId = params.id ?? ''
 
   // Slot data — fetched from Supabase, params used as initial fallback only.
@@ -46,6 +52,12 @@ export default function SessionDetail() {
   const [slotData, setSlotData] = useState({
     activity: params.activity ?? 'Open Gym',
     activityId: '',
+    // GYM-216 — description saisie par le gérant (activities.description). Vide tant
+    // que la requête n'a pas répondu : la section reste masquée, jamais un texte générique.
+    description: '',
+    // GYM-216 — visuel et teinte du cours (activities.image_url / color).
+    imageUrl: null as string | null,
+    activityColor: null as string | null,
     startsAt: '',
     date: params.date ?? '',
     time: params.time ?? '',
@@ -56,7 +68,7 @@ export default function SessionDetail() {
     booked: Number(params.booked) || 0,
   })
 
-  const { activity, date, time, endTime, coach, duration, capacity } = slotData
+  const { activity, description, imageUrl, activityColor, date, time, endTime, coach, duration, capacity } = slotData
 
   const [bookedCount, setBookedCount] = useState(slotData.booked)
   const [loading, setLoading] = useState(false)
@@ -83,14 +95,20 @@ export default function SessionDetail() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
-          activities(name, duration_min),
+          activities(name, duration_min, description, image_url, color),
           coaches(name)
         `)
         .eq('id', slotId)
         .single()
 
       if (data) {
-        const act = data.activities as unknown as { name: string; duration_min: number } | null
+        const act = data.activities as unknown as {
+          name: string
+          duration_min: number
+          description: string | null
+          image_url: string | null
+          color: string | null
+        } | null
         const coa = data.coaches as unknown as { name: string } | null
         const actName = act?.name ?? activity
         const coachName = coa?.name ?? coach
@@ -99,6 +117,9 @@ export default function SessionDetail() {
         setSlotData({
           activity: actName,
           activityId: data.activity_id ?? '',
+          description: act?.description ?? '',
+          imageUrl: act?.image_url ?? null,
+          activityColor: act?.color ?? null,
           startsAt: data.starts_at,
           date: formatDateStr(data.starts_at),
           time: formatTime(data.starts_at),
@@ -315,6 +336,8 @@ export default function SessionDetail() {
         {/* Hero */}
         <SessionHero
           activity={activity}
+          imageUrl={imageUrl}
+          activityColor={activityColor}
           onBack={() => router.back()}
           isFavorite={isFav}
           onToggleFavorite={toggleFav}
@@ -331,30 +354,45 @@ export default function SessionDetail() {
 
         <View className="h-2" />
 
-        {/* Description */}
-        <SessionDescription activity={activity} />
+        {/* Description — GYM-216 : activities.description. Le composant ne rend rien
+            si elle est vide ; l'espaceur suit la même condition pour ne pas laisser
+            un double blanc à la place de la section. */}
+        {description.trim().length > 0 && (
+          <>
+            <SessionDescription description={description} />
+            <View className="h-2" />
+          </>
+        )}
 
-        <View className="h-2" />
-
-        {/* Location */}
-        <View className="bg-move-card px-5 py-4">
-          <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
-            {t('session.location')}
-          </Text>
-          <View className="flex-row items-center gap-2">
-            <MapPin size={16} color="#6B6861" />
-            <View>
-              <Text className="font-dmsans-bold text-sm text-move-dark">
-                Dopamine Performance Club
+        {/* Location — GYM-216 : nom + adresse d'EXPLOITATION lus dans nexxia_gyms.
+            Bloc entièrement masqué si l'adresse est indisponible : mieux vaut ne rien
+            afficher qu'envoyer le membre à une adresse périmée (celle en dur dans les
+            locales pointait encore sur Neupré, alors que la salle est à Ougrée).
+            ⚠️ Jamais legal_address — siège social, factures uniquement (GYM-180). */}
+        {gymAddress && (
+          <>
+            <View className="bg-move-card px-5 py-4">
+              <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+                {t('session.location')}
               </Text>
-              <Text className="font-dmsans text-xs text-move-text-secondary">
-                {t('session.address')}
-              </Text>
+              <View className="flex-row items-center gap-2">
+                <MapPin size={16} color="#6B6861" />
+                <View className="flex-1">
+                  {gym?.name && (
+                    <Text className="font-dmsans-bold text-sm text-move-dark">
+                      {gym.name}
+                    </Text>
+                  )}
+                  <Text className="font-dmsans text-xs text-move-text-secondary">
+                    {gymAddress}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
 
-        <View className="h-2" />
+            <View className="h-2" />
+          </>
+        )}
 
         {/* Other slots this week */}
         <WeekSlots

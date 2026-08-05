@@ -19,7 +19,7 @@ export default function Schedule() {
     activityFilter, setActivityFilter,
     weekFilter, setWeekFilter,
     coachFilter, setCoachFilter,
-    resetFilters, hasActiveFilters, coaches, refetch,
+    resetFilters, hasActiveFilters, coaches, activities, refetch,
   } = useSchedule()
   const { favorites, addFavorite, removeFavorite, isFavorite } = useBookingStore()
   const [refreshing, setRefreshing] = useState(false)
@@ -92,6 +92,7 @@ export default function Schedule() {
           weekFilter={weekFilter}
           coachFilter={coachFilter}
           coaches={coaches}
+          activities={activities}
           onActivityChange={setActivityFilter}
           onWeekChange={setWeekFilter}
           onCoachChange={setCoachFilter}

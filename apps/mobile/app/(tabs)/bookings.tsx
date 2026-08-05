@@ -25,12 +25,25 @@ interface FavoriteCardData {
   key: string
   pattern: FavoritePattern
   activity: string
+  // GYM-216 — visuel et teinte lus dans activities, plus déduits du nom du cours.
+  imageUrl: string | null
+  activityColor: string | null
   dayLabel: string
   time: string
   hasUpcoming: boolean
   nextDateLabel: string | null
   coach: string
-  next: { id: string; date: string; time: string; activity: string; coach: string } | null
+  next: {
+    id: string
+    date: string
+    time: string
+    activity: string
+    coach: string
+    // Paramètres d'amorce de l'écran séance : valeurs réelles de l'activité, plus
+    // « 120/6 si Open Gym, sinon 60/12 » (faux dès la 3e activité).
+    duration: number | null
+    capacity: number | null
+  } | null
 }
 
 export default function Bookings() {
@@ -128,23 +141,27 @@ export default function Bookings() {
         setFavoritesData([])
         return
       }
-      // Future slots for this gym + activity id → name map (for motifs with no
-      // upcoming occurrence, so the card still shows the activity name).
+      // Future slots for this gym + activity id → activité (nom, visuel, teinte,
+      // durée, capacité) pour les motifs sans occurrence à venir, dont la carte doit
+      // rester complète.
       const [{ data: slots }, { data: acts }] = await Promise.all([
         supabase
           .from('time_slots')
-          .select('id, activity_id, starts_at, activities(name), coaches(name)')
+          .select('id, activity_id, starts_at, activities(name, color, image_url, duration_min, default_capacity), coaches(name)')
           .eq('gym_id', GYM_ID)
           .gt('starts_at', new Date().toISOString())
           .neq('status', 'cancelled')
           .order('starts_at'),
-        supabase.from('activities').select('id, name').eq('gym_id', GYM_ID),
+        supabase
+          .from('activities')
+          .select('id, name, color, image_url, duration_min, default_capacity')
+          .eq('gym_id', GYM_ID),
       ])
       if (cancelled) return
 
       const rows = (slots ?? []) as Array<Record<string, unknown>>
-      const activityName = new Map<string, string>(
-        (acts ?? []).map((a: Record<string, unknown>) => [a.id as string, a.name as string]),
+      const activityById = new Map<string, Record<string, unknown>>(
+        (acts ?? []).map((a: Record<string, unknown>) => [a.id as string, a]),
       )
 
       const cards: FavoriteCardData[] = favorites.map((fav) => {
@@ -158,14 +175,20 @@ export default function Bookings() {
         })
         const days = t('home.days', { returnObjects: true }) as string[]
         const months = t('home.months', { returnObjects: true }) as string[]
-        const matchAct = match ? (match.activities as Record<string, unknown> | null) : null
         const matchCoach = match ? (match.coaches as Record<string, unknown> | null) : null
-        const activity = (matchAct?.name as string) ?? activityName.get(fav.activity_id) ?? 'Open Gym'
+        // L'activité du créneau à venir si on en a un, sinon la fiche activité chargée
+        // à part : la carte d'un motif sans occurrence garde nom, visuel et teinte.
+        const act = (match ? (match.activities as Record<string, unknown> | null) : null)
+          ?? activityById.get(fav.activity_id)
+          ?? null
+        const activity = (act?.name as string) ?? ''
         const nextDate = match ? formatDateStr(match.starts_at as string) : null
         return {
           key: `${fav.activity_id}-${fav.day_of_week}-${fav.local_time}`,
           pattern: fav,
           activity,
+          imageUrl: (act?.image_url as string | null) ?? null,
+          activityColor: (act?.color as string | null) ?? null,
           dayLabel: days[fav.day_of_week] ?? '',
           time: fav.local_time.slice(0, 5),
           hasUpcoming: !!match,
@@ -178,6 +201,8 @@ export default function Bookings() {
                 time: formatTime(match.starts_at as string),
                 activity,
                 coach: (matchCoach?.name as string) ?? '',
+                duration: (act?.duration_min as number | null) ?? null,
+                capacity: (act?.default_capacity as number | null) ?? null,
               }
             : null,
         }
@@ -273,6 +298,8 @@ export default function Bookings() {
                 <FavoriteCard
                   key={fav.key}
                   activity={fav.activity}
+                  imageUrl={fav.imageUrl}
+                  activityColor={fav.activityColor}
                   dayLabel={fav.dayLabel}
                   time={fav.time}
                   coach={fav.coach}
@@ -283,7 +310,19 @@ export default function Bookings() {
                     const next = fav.next!
                     router.push({
                       pathname: '/session/[id]',
-                      params: { id: next.id, activity: next.activity, date: next.date, time: next.time, coach: next.coach, duration: next.activity === 'Open Gym' ? '120' : '60', capacity: next.activity === 'Open Gym' ? '6' : '12', booked: '3', endTime: '' },
+                      params: {
+                        id: next.id,
+                        activity: next.activity,
+                        date: next.date,
+                        time: next.time,
+                        coach: next.coach,
+                        // Valeurs réelles de l'activité ; l'écran séance les remplace
+                        // de toute façon par celles du créneau après sa requête.
+                        duration: next.duration != null ? String(next.duration) : '',
+                        capacity: next.capacity != null ? String(next.capacity) : '',
+                        booked: '',
+                        endTime: '',
+                      },
                     })
                   } : undefined}
                 />

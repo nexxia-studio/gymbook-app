@@ -1,10 +1,11 @@
-import { View, Text, TouchableOpacity, ImageBackground, Pressable } from 'react-native'
+import { View, Text, TouchableOpacity, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Heart, Dumbbell, Flame } from 'lucide-react-native'
 import { CapacityBadge } from './CapacityBadge'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import type { HomeSlot } from '../../hooks/useHomeSchedule'
 import { LinearGradient } from '../../components/home/Gradient'
+import { ActivityImage } from '../shared/ActivityImage'
 
 interface SessionCardProps {
   slot: HomeSlot
@@ -13,16 +14,6 @@ interface SessionCardProps {
   isWaitlisted: boolean
   onToggleFavorite: () => void
   onPress: () => void
-}
-
-const IMAGE_URLS: Record<string, string> = {
-  'Open Gym': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
-  'HIIT / Hyrox': 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=800&q=80',
-}
-
-const INITIALS: Record<string, string> = {
-  'Open Gym': 'OG',
-  'HIIT / Hyrox': 'HX',
 }
 
 export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggleFavorite, onPress }: SessionCardProps) {
@@ -37,20 +28,18 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
       style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
       className="mb-4 overflow-hidden rounded-2xl bg-move-card shadow-sm"
     >
-      {/* Image area */}
-      <ImageBackground
-        source={{ uri: IMAGE_URLS[slot.activity] }}
+      {/* Image area — GYM-216 : activities.image_url, repli neutre si vide.
+          Le filigrane d'initiales est porté par le repli lui-même (il n'a plus à être
+          plaqué par-dessus une vraie photo). */}
+      <ActivityImage
+        imageUrl={slot.imageUrl}
+        activity={slot.activity}
+        accentColor={slot.activityColor}
         className="h-44"
         imageStyle={{ borderTopLeftRadius: 16, borderTopRightRadius: 16 }}
+        initialsSize={120}
       >
         <LinearGradient />
-
-        {/* Watermark */}
-        <View className="absolute inset-0 items-center justify-center">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 120, color: 'rgba(255,255,255,0.08)' }}>
-            {INITIALS[slot.activity] ?? ''}
-          </Text>
-        </View>
 
         {/* Favorite button */}
         <TouchableOpacity
@@ -79,7 +68,7 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
           </View>
           <Text className="mt-0.5 font-dmsans text-[13px] text-white/60">{slot.coach}</Text>
         </View>
-      </ImageBackground>
+      </ActivityImage>
 
       {/* Footer */}
       <View className="flex-row items-center px-4 py-3">

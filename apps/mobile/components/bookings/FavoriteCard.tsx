@@ -1,9 +1,14 @@
-import { View, Text, Image, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Heart } from 'lucide-react-native'
+import { ActivityImage } from '../shared/ActivityImage'
 
 interface FavoriteCardProps {
   activity: string
+  /** GYM-216 — activities.image_url. Vide → repli neutre (cas nominal aujourd'hui). */
+  imageUrl?: string | null
+  /** activities.color, teinte du repli. */
+  activityColor?: string | null
   dayLabel: string // weekday name of the recurring motif
   time: string // 'HH:mm', gym-local
   coach: string // coach of the resolved next occurrence ('' if none)
@@ -13,21 +18,20 @@ interface FavoriteCardProps {
   onBook?: () => void
 }
 
-const IMAGES: Record<string, string> = {
-  'Open Gym': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&q=60',
-  'HIIT / Hyrox': 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=200&q=60',
-}
-
-export function FavoriteCard({ activity, dayLabel, time, coach, hasUpcoming, nextDateLabel, onRemove, onBook }: FavoriteCardProps) {
+export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time, coach, hasUpcoming, nextDateLabel, onRemove, onBook }: FavoriteCardProps) {
   const { t } = useTranslation()
 
   return (
     <View className="mb-3 flex-row items-center overflow-hidden rounded-2xl bg-move-card">
-      {/* Image */}
-      <Image
-        source={{ uri: IMAGES[activity] ?? IMAGES['Open Gym'] }}
-        className="h-20 w-20"
+      {/* Image — GYM-216 : activities.image_url, repli neutre si vide. */}
+      <ActivityImage
+        imageUrl={imageUrl}
+        activity={activity}
+        accentColor={activityColor}
+        className="h-20 w-20 overflow-hidden"
         style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16 }}
+        imageStyle={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16 }}
+        initialsSize={34}
       />
 
       {/* Info — the recurring motif */}
