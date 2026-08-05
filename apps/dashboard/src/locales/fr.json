@@ -453,7 +453,15 @@
       "error_wrong_gym": "Ce membre n'appartient pas à votre salle",
       "error_reason_required": "Un motif est obligatoire",
       "error_forbidden": "Action réservée au gérant de la salle",
-      "error_generic": "La levée de la suspension a échoué"
+      "error_generic": "La levée de la suspension a échoué",
+      "summary": {
+        "noshow_count_one": "{{count}} absence au compteur",
+        "noshow_count_other": "{{count}} absences au compteur",
+        "last_absence": "Dernière absence le {{date}}",
+        "current": "Sanction en cours : {{origin}}, posée le {{date}}",
+        "prior_lifts_one": "{{count}} levée déjà accordée à ce membre",
+        "prior_lifts_other": "{{count}} levées déjà accordées à ce membre"
+      }
     },
     "toast_push_sent": "Notification envoyee",
     "push_default_message": "Message de Dopamine Performance Club",
@@ -548,7 +556,41 @@
     },
     "error_names_required": "Le prénom et le nom sont requis",
     "error_save": "La modification a échoué",
-    "toast_saved": "Membre mis à jour"
+    "toast_saved": "Membre mis à jour",
+    "discipline": {
+      "suspended_until": "Suspendu jusqu'au {{date}}",
+      "noshow_count_one": "{{count}} absence enregistrée",
+      "noshow_count_other": "{{count}} absences enregistrées",
+      "title": "Historique disciplinaire",
+      "empty": "Aucun incident enregistré.",
+      "kind": {
+        "warning_1": "1er avertissement",
+        "warning_2": "2e avertissement",
+        "warning_late": "Avertissement",
+        "suspension": "Suspension",
+        "suspension_for": "Suspension {{duration}}",
+        "unknown": "Sanction"
+      },
+      "duration": {
+        "hours_one": "{{count}} h",
+        "hours_other": "{{count}} h",
+        "days_one": "{{count}} jour",
+        "days_other": "{{count}} jours",
+        "weeks_one": "{{count}} semaine",
+        "weeks_other": "{{count}} semaines"
+      },
+      "origin": {
+        "noshow": "Absence",
+        "late_cancel": "Annulation tardive",
+        "unknown": "Origine inconnue"
+      },
+      "active_until": "En cours jusqu’au {{date}}",
+      "lifted_on": "Levée le {{date}}",
+      "other_lifts": "Autres levées accordées",
+      "reset_on": "Compteur remis à zéro le {{date}} si aucune nouvelle absence",
+      "reset_suspended": "Le compte à rebours de remise à zéro reprend à la fin de la suspension",
+      "reset_unknown": "Aucune absence constatable : le compteur sera remis à zéro au prochain passage"
+    }
   },
   "attendance": {
     "title": "Présences",
