@@ -12,7 +12,6 @@
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
-    "address": "Route du Condroz, Neupré",
     "login": "Log in",
     "signup": "Create an account",
     "skip": "Continue without account"
@@ -270,7 +269,6 @@
     "cancel_late_warning": "Late cancellation — will count as a no-show",
     "cancel_confirm": "Confirm cancellation",
     "cancel_keep": "Keep my booking",
-    "address": "Route du Condroz, Neupre 4120",
     "max_bookings_message_one": "You already have {{count}} upcoming booking. Cancel it to create a new one.",
     "max_bookings_message_other": "You already have {{count}} upcoming bookings. Cancel one to create a new one.",
     "max_bookings_message_generic": "You've reached your limit of upcoming bookings. Cancel one to create a new one."

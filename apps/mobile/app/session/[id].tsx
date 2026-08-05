@@ -15,6 +15,8 @@ import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { SuspensionModal } from '../../components/session/SuspensionModal'
 import { PaymentRequiredSheet } from '../../components/session/PaymentRequiredSheet'
 import { useBookingStore } from '../../stores/useBookingStore'
+import { useGymProfile } from '../../hooks/useGymProfile'
+import { formatGymAddress } from '../../lib/gymProfile'
 import { supabase } from '../../lib/supabase'
 import { GYM_ID } from '../../constants/dopamine'
 import { getDisplayStatus } from '../../utils/slotStatus'
@@ -37,6 +39,10 @@ export default function SessionDetail() {
   }>()
 
   const { createBooking, cancelBooking, confirmWaitlist, favorites, addFavorite, removeFavorite, isFavorite } = useBookingStore()
+
+  // GYM-216 — identité de la salle (nom + adresse d'exploitation), lue en base.
+  const gym = useGymProfile()
+  const gymAddress = formatGymAddress(gym)
 
   const slotId = params.id ?? ''
 
@@ -336,25 +342,35 @@ export default function SessionDetail() {
 
         <View className="h-2" />
 
-        {/* Location */}
-        <View className="bg-move-card px-5 py-4">
-          <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
-            {t('session.location')}
-          </Text>
-          <View className="flex-row items-center gap-2">
-            <MapPin size={16} color="#6B6861" />
-            <View>
-              <Text className="font-dmsans-bold text-sm text-move-dark">
-                Dopamine Performance Club
+        {/* Location — GYM-216 : nom + adresse d'EXPLOITATION lus dans nexxia_gyms.
+            Bloc entièrement masqué si l'adresse est indisponible : mieux vaut ne rien
+            afficher qu'envoyer le membre à une adresse périmée (celle en dur dans les
+            locales pointait encore sur Neupré, alors que la salle est à Ougrée).
+            ⚠️ Jamais legal_address — siège social, factures uniquement (GYM-180). */}
+        {gymAddress && (
+          <>
+            <View className="bg-move-card px-5 py-4">
+              <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+                {t('session.location')}
               </Text>
-              <Text className="font-dmsans text-xs text-move-text-secondary">
-                {t('session.address')}
-              </Text>
+              <View className="flex-row items-center gap-2">
+                <MapPin size={16} color="#6B6861" />
+                <View className="flex-1">
+                  {gym?.name && (
+                    <Text className="font-dmsans-bold text-sm text-move-dark">
+                      {gym.name}
+                    </Text>
+                  )}
+                  <Text className="font-dmsans text-xs text-move-text-secondary">
+                    {gymAddress}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
 
-        <View className="h-2" />
+            <View className="h-2" />
+          </>
+        )}
 
         {/* Other slots this week */}
         <WeekSlots
