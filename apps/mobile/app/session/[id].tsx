@@ -58,6 +58,8 @@ export default function SessionDetail() {
     // GYM-216 — visuel et teinte du cours (activities.image_url / color).
     imageUrl: null as string | null,
     activityColor: null as string | null,
+    // GYM-220 — icône choisie par le gérant (activities.icon).
+    icon: null as string | null,
     startsAt: '',
     date: params.date ?? '',
     time: params.time ?? '',
@@ -68,7 +70,7 @@ export default function SessionDetail() {
     booked: Number(params.booked) || 0,
   })
 
-  const { activity, description, imageUrl, activityColor, date, time, endTime, coach, duration, capacity } = slotData
+  const { activity, description, imageUrl, activityColor, icon, date, time, endTime, coach, duration, capacity } = slotData
 
   const [bookedCount, setBookedCount] = useState(slotData.booked)
   const [loading, setLoading] = useState(false)
@@ -95,7 +97,7 @@ export default function SessionDetail() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
-          activities(name, duration_min, description, image_url, color),
+          activities(name, duration_min, description, image_url, color, icon),
           coaches(name)
         `)
         .eq('id', slotId)
@@ -108,6 +110,7 @@ export default function SessionDetail() {
           description: string | null
           image_url: string | null
           color: string | null
+          icon: string | null
         } | null
         const coa = data.coaches as unknown as { name: string } | null
         const actName = act?.name ?? activity
@@ -120,6 +123,7 @@ export default function SessionDetail() {
           description: act?.description ?? '',
           imageUrl: act?.image_url ?? null,
           activityColor: act?.color ?? null,
+          icon: act?.icon ?? null,
           startsAt: data.starts_at,
           date: formatDateStr(data.starts_at),
           time: formatTime(data.starts_at),
@@ -338,6 +342,7 @@ export default function SessionDetail() {
           activity={activity}
           imageUrl={imageUrl}
           activityColor={activityColor}
+          icon={icon}
           onBack={() => router.back()}
           isFavorite={isFav}
           onToggleFavorite={toggleFav}

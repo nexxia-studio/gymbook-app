@@ -229,7 +229,8 @@
     "errors": {
       "no_gym": "Gym introuvable",
       "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
-      "no_plan": "Formule à la séance indisponible."
+      "no_plan": "Formule à la séance indisponible.",
+      "not_confirmed": "Paiement non confirmé pour le moment. S'il a été débité, vos crédits arriveront sous peu : vérifiez vos réservations avant de réessayer."
     }
   },
   "session": {

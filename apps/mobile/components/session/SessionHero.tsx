@@ -1,7 +1,8 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ChevronLeft, Heart, Dumbbell, Flame } from 'lucide-react-native'
+import { ChevronLeft, Heart } from 'lucide-react-native'
 import { ActivityImage } from '../shared/ActivityImage'
+import { resolveActivityIcon } from '../../lib/activityIcons'
 
 interface SessionHeroProps {
   activity: string
@@ -9,14 +10,17 @@ interface SessionHeroProps {
   imageUrl?: string | null
   /** activities.color, teinte du repli. */
   activityColor?: string | null
+  /** GYM-220 — activities.icon (nom de composant lucide). Vide/inconnu → icône par défaut. */
+  icon?: string | null
   onBack: () => void
   isFavorite: boolean
   onToggleFavorite: () => void
 }
 
-export function SessionHero({ activity, imageUrl, activityColor, onBack, isFavorite, onToggleFavorite }: SessionHeroProps) {
+export function SessionHero({ activity, imageUrl, activityColor, icon, onBack, isFavorite, onToggleFavorite }: SessionHeroProps) {
   const insets = useSafeAreaInsets()
-  const Icon = activity === 'Open Gym' ? Dumbbell : Flame
+  // GYM-220 — icône choisie par le gérant (activities.icon), plus déduite du nom.
+  const Icon = resolveActivityIcon(icon)
 
   return (
     <ActivityImage
