@@ -552,7 +552,36 @@
     "discipline": {
       "suspended_until": "Suspended until {{date}}",
       "noshow_count_one": "{{count}} recorded absence",
-      "noshow_count_other": "{{count}} recorded absences"
+      "noshow_count_other": "{{count}} recorded absences",
+      "title": "Disciplinary history",
+      "empty": "No incident recorded.",
+      "kind": {
+        "warning_1": "1st warning",
+        "warning_2": "2nd warning",
+        "warning_late": "Warning",
+        "suspension": "Suspension",
+        "suspension_for": "{{duration}} suspension",
+        "unknown": "Penalty"
+      },
+      "duration": {
+        "hours_one": "{{count}} h",
+        "hours_other": "{{count}} h",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "weeks_one": "{{count}} week",
+        "weeks_other": "{{count}} weeks"
+      },
+      "origin": {
+        "noshow": "No-show",
+        "late_cancel": "Late cancellation",
+        "unknown": "Unknown origin"
+      },
+      "active_until": "Active until {{date}}",
+      "lifted_on": "Lifted on {{date}}",
+      "other_lifts": "Other lifts granted",
+      "reset_on": "Counter resets on {{date}} if no new absence",
+      "reset_suspended": "The reset countdown resumes when the suspension ends",
+      "reset_unknown": "No recorded absence: the counter will reset on the next run"
     }
   },
   "attendance": {

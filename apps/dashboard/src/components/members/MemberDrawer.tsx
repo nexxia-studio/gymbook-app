@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
+import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipline'
 import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
 import type { Member } from '@/hooks/useMembers'
 
@@ -27,6 +28,15 @@ const BOOKING_BADGE: Record<string, string> = {
   waitlisted: 'bg-amber-100 text-amber-700',
   // GYM-174 — absent sans perte de crédit (orange neutre).
   excused: 'bg-orange-100 text-orange-700',
+}
+
+// GYM-214 — l'origine de la sanction se lit d'un coup d'œil : un no-show constaté et
+// une annulation tardive sont deux comportements différents. 'unknown' reste neutre :
+// on n'affirme pas une origine qu'on n'a pas pu établir.
+const ORIGIN_BADGE: Record<string, string> = {
+  noshow: 'bg-red-100 text-red-700',
+  late_cancel: 'bg-amber-100 text-amber-700',
+  unknown: 'bg-gray-100 text-gray-500',
 }
 
 const SUB_BADGE: Record<string, string> = {
@@ -49,6 +59,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const tz = useGymTimezone()
   const addToast = useToastStore((s) => s.addToast)
   const { credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, subscription, bookings, loading, adjustCredits } = useMemberDetail(member?.id ?? null)
+  const { penalties, lifts, summary: discipline, loading: disciplineLoading } = useMemberDiscipline(member?.id ?? null)
 
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [identity, setIdentity] = useState({ firstName: '', lastName: '', phone: '' as string | null })
@@ -128,6 +139,26 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   // ne jamais se contenter de « la colonne est renseignée ». Le cron d'expiration ne
   // repasse pas la colonne à NULL, une date passée y subsiste donc normalement.
   const isSuspended = !!member?.suspendedUntil && new Date(member.suspendedUntil).getTime() > Date.now()
+
+  /**
+   * GYM-214 — Libellé en clair d'une sanction. La valeur brute de `penalties.type`
+   * n'est JAMAIS montrée : les types historiques ('suspension_48h', 'suspension_2w')
+   * comme tout type inconnu retombent sur un libellé générique.
+   * La durée d'une suspension vient de expires_at − applied_at, pas du nom du type :
+   * GYM-175 écrit 'suspension' et rend la durée configurable par salle.
+   */
+  function penaltyLabel(p: PenaltyEntry): string {
+    if (p.kind === 'suspension') {
+      if (!p.duration) return t('member_drawer.discipline.kind.suspension')
+      const duration = t(`member_drawer.discipline.duration.${p.duration.unit}`, { count: p.duration.value })
+      return t('member_drawer.discipline.kind.suspension_for', { duration })
+    }
+    return t(`member_drawer.discipline.kind.${p.kind}`)
+  }
+
+  // Levées qu'aucune pénalité chargée ne réclame — cf. le bloc « autres levées ».
+  const attachedLiftIds = new Set(penalties.map((p) => p.lift?.id).filter(Boolean))
+  const orphanLifts = lifts.filter((l) => !attachedLiftIds.has(l.id))
 
   const fullName = `${identity.firstName} ${identity.lastName}`.trim() || (member?.email ?? '')
   const initials = `${identity.firstName.charAt(0)}${identity.lastName.charAt(0)}`.toUpperCase() || '?'
@@ -312,6 +343,101 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                   </div>
                 ) : (
                   <p className="rounded-xl border border-border p-4 font-body text-sm text-muted">{t('member_drawer.no_subscription')}</p>
+                )}
+              </Section>
+
+              {/* ── GYM-214 — Historique disciplinaire ──
+                  Même forme que le journal d'ajustements de crédits (GYM-182) : une carte
+                  bordée, des lignes date + motif + auteur. Rien en base → un état vide
+                  honnête, pas un bloc fantôme. */}
+              <Section Icon={ShieldAlert} title={t('member_drawer.discipline.title')}>
+                {disciplineLoading ? (
+                  <p className="font-body text-sm text-muted">{t('common.loading')}</p>
+                ) : penalties.length === 0 && lifts.length === 0 ? (
+                  <p className="rounded-xl border border-border p-4 font-body text-sm text-muted">
+                    {t('member_drawer.discipline.empty')}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {penalties.map((p) => (
+                      <div key={p.id} className="rounded-xl border border-border p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-body text-sm font-semibold text-dark">
+                              {penaltyLabel(p)}
+                            </p>
+                            <p className="font-body text-xs text-muted">
+                              {fmtDate(p.appliedAt, true)}
+                              {p.activity && <> · {p.activity}</>}
+                            </p>
+                          </div>
+                          {/* Origine : no-show et annulation tardive sont deux
+                              comportements différents, jamais le même badge. */}
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${ORIGIN_BADGE[p.origin]}`}>
+                            {t(`member_drawer.discipline.origin.${p.origin}`)}
+                          </span>
+                        </div>
+
+                        {p.notes && (
+                          <p className="mt-2 font-body text-xs text-muted">{p.notes}</p>
+                        )}
+
+                        {/* 🔴 Une pénalité levée garde son expires_at en base : sans ce
+                            bandeau, l'écran la montrerait « en cours » alors que l'accès
+                            a été rendu. */}
+                        {p.lift ? (
+                          <div className="mt-2 rounded-lg bg-green-50 px-3 py-2">
+                            <p className="font-body text-xs font-semibold text-green-700">
+                              {t('member_drawer.discipline.lifted_on', { date: fmtDate(p.lift.createdAt, true) })}
+                            </p>
+                            <p className="font-body text-xs text-green-700/80">
+                              {p.lift.reason || '—'} · {p.lift.adminName}
+                            </p>
+                          </div>
+                        ) : p.active ? (
+                          <p className="mt-2 font-body text-xs font-semibold text-red-600">
+                            {t('member_drawer.discipline.active_until', { date: fmtDate(p.expiresAt, true) })}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+
+                    {/* Levées qu'aucune pénalité ne réclame : journal antérieur à la ligne
+                        penalties la plus ancienne chargée, ou rapprochement impossible.
+                        Les taire donnerait un historique incomplet. */}
+                    {orphanLifts.length > 0 && (
+                      <div className="rounded-xl border border-border p-4">
+                        <h4 className="mb-2 flex items-center gap-1.5 font-body text-xs font-semibold text-dark">
+                          <History className="h-3.5 w-3.5 text-muted" />
+                          {t('member_drawer.discipline.other_lifts')}
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {orphanLifts.map((l) => (
+                            <div key={l.id} className="font-body text-xs">
+                              <p className="text-dark">{l.reason || '—'}</p>
+                              <p className="text-muted">{fmtDate(l.createdAt, true)} · {l.adminName}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Compteur + échéance de remise à zéro. */}
+                    {discipline && discipline.noshowCount > 0 && (
+                      <div className="rounded-xl bg-dark/[0.03] px-4 py-3">
+                        <p className="font-body text-xs font-semibold text-dark">
+                          {t('member_drawer.discipline.noshow_count', { count: discipline.noshowCount })}
+                        </p>
+                        <p className="mt-0.5 font-body text-xs text-muted">
+                          {isSuspended
+                            ? t('member_drawer.discipline.reset_suspended')
+                            : discipline.resetAt
+                              ? t('member_drawer.discipline.reset_on', { date: fmtDate(discipline.resetAt.toISOString()) })
+                              : t('member_drawer.discipline.reset_unknown')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </Section>
 

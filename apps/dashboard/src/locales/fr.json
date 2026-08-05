@@ -552,7 +552,36 @@
     "discipline": {
       "suspended_until": "Suspendu jusqu'au {{date}}",
       "noshow_count_one": "{{count}} absence enregistrée",
-      "noshow_count_other": "{{count}} absences enregistrées"
+      "noshow_count_other": "{{count}} absences enregistrées",
+      "title": "Historique disciplinaire",
+      "empty": "Aucun incident enregistré.",
+      "kind": {
+        "warning_1": "1er avertissement",
+        "warning_2": "2e avertissement",
+        "warning_late": "Avertissement",
+        "suspension": "Suspension",
+        "suspension_for": "Suspension {{duration}}",
+        "unknown": "Sanction"
+      },
+      "duration": {
+        "hours_one": "{{count}} h",
+        "hours_other": "{{count}} h",
+        "days_one": "{{count}} jour",
+        "days_other": "{{count}} jours",
+        "weeks_one": "{{count}} semaine",
+        "weeks_other": "{{count}} semaines"
+      },
+      "origin": {
+        "noshow": "Absence",
+        "late_cancel": "Annulation tardive",
+        "unknown": "Origine inconnue"
+      },
+      "active_until": "En cours jusqu’au {{date}}",
+      "lifted_on": "Levée le {{date}}",
+      "other_lifts": "Autres levées accordées",
+      "reset_on": "Compteur remis à zéro le {{date}} si aucune nouvelle absence",
+      "reset_suspended": "Le compte à rebours de remise à zéro reprend à la fin de la suspension",
+      "reset_unknown": "Aucune absence constatable : le compteur sera remis à zéro au prochain passage"
     }
   },
   "attendance": {
