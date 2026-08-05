@@ -12,7 +12,6 @@
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
-    "address": "Route du Condroz, Neupré",
     "login": "Se connecter",
     "signup": "Créer un compte",
     "skip": "Continuer sans compte"
@@ -256,10 +255,8 @@
     "suspended_title": "Compte suspendu",
     "suspended_message": "Votre compte est suspendu suite a des annulations tardives. Vous pourrez a nouveau reserver le {{date}} (encore ~{{hours}}h).",
     "suspended_message_generic": "Votre compte est temporairement suspendu suite a des annulations tardives. Contactez votre coach pour plus d'informations.",
-    "contact_gym": "Contacter Dopamine",
+    "contact_gym": "Contacter {{gym}}",
     "spots": "{{booked}} / {{capacity}} places",
-    "desc_open_gym": "Acces libre aux equipements pendant 2h. Nicolas ou Francois sera present pour vous guider. Ideal pour travailler a votre rythme.",
-    "desc_hiit": "Seance haute intensite de 60 minutes. Preparation Hyrox et entrainement fonctionnel. Tous niveaux, adapte par votre coach.",
     "see_more": "Voir plus",
     "see_less": "Voir moins",
     "booking_confirmed": "Reservation confirmee !",
@@ -270,7 +267,6 @@
     "cancel_late_warning": "Annulation tardive — sera compte comme no-show",
     "cancel_confirm": "Confirmer l'annulation",
     "cancel_keep": "Garder ma reservation",
-    "address": "Route du Condroz, Neupre 4120",
     "max_bookings_message_one": "Vous avez déjà {{count}} réservation à venir. Annulez-la pour pouvoir en créer une nouvelle.",
     "max_bookings_message_other": "Vous avez déjà {{count}} réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle.",
     "max_bookings_message_generic": "Vous avez atteint votre limite de réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle."

@@ -191,11 +191,19 @@ export function useSchedule() {
     return Array.from(names).filter(Boolean)
   }, [allSlots])
 
+  // GYM-216 — activités du planning, dérivées des créneaux comme les coachs.
+  // Les pastilles de filtre étaient écrites en dur (« Open Gym », « HIIT / Hyrox ») :
+  // les 4 autres activités de la salle étaient donc impossibles à filtrer.
+  const activities = useMemo(() => {
+    const names = new Set(allSlots.map((s) => s.activity))
+    return Array.from(names).filter(Boolean).sort((a, b) => a.localeCompare(b))
+  }, [allSlots])
+
   return {
     allSlots, filteredSlots, groupedByDay, isLoading,
     activityFilter, setActivityFilter,
     weekFilter, setWeekFilter,
     coachFilter, setCoachFilter,
-    resetFilters, hasActiveFilters, coaches, refetch: fetchSlots,
+    resetFilters, hasActiveFilters, coaches, activities, refetch: fetchSlots,
   }
 }

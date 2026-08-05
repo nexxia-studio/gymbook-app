@@ -6,6 +6,8 @@ interface FilterPillsProps {
   weekFilter: 'current' | 'next' | null
   coachFilter: string | null
   coaches: string[]
+  /** GYM-216 — activités réelles de la salle, dérivées du planning. Plus de liste en dur. */
+  activities: string[]
   onActivityChange: (v: string | null) => void
   onWeekChange: (v: 'current' | 'next' | null) => void
   onCoachChange: (v: string | null) => void
@@ -32,7 +34,7 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
 }
 
 export function FilterPills({
-  activityFilter, weekFilter, coachFilter, coaches,
+  activityFilter, weekFilter, coachFilter, coaches, activities,
   onActivityChange, onWeekChange, onCoachChange,
 }: FilterPillsProps) {
   const { t } = useTranslation()
@@ -50,16 +52,14 @@ export function FilterPills({
           active={activityFilter === null}
           onPress={() => onActivityChange(null)}
         />
-        <Pill
-          label="Open Gym"
-          active={activityFilter === 'Open Gym'}
-          onPress={() => onActivityChange(activityFilter === 'Open Gym' ? null : 'Open Gym')}
-        />
-        <Pill
-          label="HIIT / Hyrox"
-          active={activityFilter === 'HIIT / Hyrox'}
-          onPress={() => onActivityChange(activityFilter === 'HIIT / Hyrox' ? null : 'HIIT / Hyrox')}
-        />
+        {activities.map((name) => (
+          <Pill
+            key={name}
+            label={name}
+            active={activityFilter === name}
+            onPress={() => onActivityChange(activityFilter === name ? null : name)}
+          />
+        ))}
       </ScrollView>
 
       {/* Row 2: Week + Coach */}

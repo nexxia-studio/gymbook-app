@@ -1,8 +1,8 @@
-import { View, Text, TouchableOpacity, ImageBackground } from 'react-native'
+import { View, Text, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import type { Booking } from '../../stores/useBookingStore'
 import { WaitlistCountdown } from '../shared/WaitlistCountdown'
-import { getActivityImageUrl } from '../../utils/activityImages'
+import { ActivityImage } from '../shared/ActivityImage'
 
 interface UpcomingCardProps {
   booking: Booking
@@ -43,10 +43,13 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
   const badgeBg = expired ? 'bg-neutral-500' : isWaitlisted ? 'bg-orange-500' : 'bg-green-500'
 
   return (
-    <ImageBackground
-      source={{ uri: getActivityImageUrl(booking.activity) }}
+    <ActivityImage
+      imageUrl={booking.imageUrl}
+      activity={booking.activity}
+      accentColor={booking.activityColor}
       className="mb-3 overflow-hidden rounded-2xl bg-move-dark"
       imageStyle={{ borderRadius: 16, opacity: 0.35 }}
+      initialsSize={110}
     >
       <View className="rounded-2xl p-4" style={{ backgroundColor: 'rgba(17, 17, 17, 0.65)' }}>
         <View className="flex-row">
@@ -121,6 +124,6 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
           </View>
         </View>
       </View>
-    </ImageBackground>
+    </ActivityImage>
   )
 }

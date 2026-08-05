@@ -23,6 +23,8 @@ export interface Booking {
   slotId: string
   activity: string
   activityColor: string
+  /** GYM-216 — activities.image_url. Vide → repli neutre (cas nominal aujourd'hui). */
+  imageUrl: string | null
   date: string
   time: string
   endTime: string
@@ -254,7 +256,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const slotIds = [...new Set(rawBookings.map((b) => b.slot_id))]
       const { data: rawSlots } = await supabase
         .from('time_slots')
-        .select('id, starts_at, ends_at, capacity, bookings_count, activities(name, color), coaches(name)')
+        .select('id, starts_at, ends_at, capacity, bookings_count, activities(name, color, image_url), coaches(name)')
         .in('id', slotIds)
 
       // Step 3: combine and split
@@ -273,6 +275,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           slotId: row.slot_id,
           activity: (act?.name as string) ?? '',
           activityColor: (act?.color as string) ?? '#4ECDC4',
+          imageUrl: (act?.image_url as string | null) ?? null,
           date: ts?.starts_at ? toDateStr(ts.starts_at as string) : '',
           time: ts?.starts_at ? toHHMM(ts.starts_at as string) : '',
           endTime: ts?.ends_at ? toHHMM(ts.ends_at as string) : '',

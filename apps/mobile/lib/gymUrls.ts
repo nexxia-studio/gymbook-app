@@ -8,16 +8,13 @@
 // ⚠️ RÈGLE : ne JAMAIS remplacer une URL en dur par une autre URL en dur. Tout ce qui
 // dépend de la salle passe par ce module. Seuls les DOMAINES produit (infra Nexxia,
 // identiques pour toutes les salles) sont des constantes ici.
-import { supabase } from './supabase'
-import { GYM_ID, GYM_SLUG } from '../constants/dopamine'
+// GYM-216 — la lecture de nexxia_gyms est passée dans lib/gymProfile (cache partagé) :
+// l'adresse et le slug proviennent désormais de la MÊME requête, pas de deux.
+import { getGymProfile, __resetGymProfileCache } from './gymProfile'
+import { GYM_SLUG } from '../constants/dopamine'
 
 /** Domaine des Universal Links membres (GYM-158). Infra produit, pas propre à une salle. */
 const LINKS_BASE = 'https://links.viniz.app'
-
-// Cache module : le slug ne change pas pendant la vie du process. Une seule lecture,
-// partagée par tous les appelants (dédoublonnage via `inFlight`).
-let cachedSlug: string | null = null
-let inFlight: Promise<string> | null = null
 
 /**
  * Slug de la salle courante, depuis nexxia_gyms.
@@ -29,32 +26,14 @@ let inFlight: Promise<string> | null = null
  *
  * `subdomain` sert de second choix : en base les deux valent 'dopamine', mais slug est
  * la colonne qui porte l'identité d'URL.
+ *
+ * ⚠️ Le repli n'est plus mémorisé (GYM-216) : ces URL se construisent DÉCONNECTÉ, où la
+ * policy membre ne renvoie aucune ligne. Figer GYM_SLUG au premier échec condamnait la
+ * session entière à la constante de build, même une fois le membre connecté.
  */
 export async function getGymSlug(): Promise<string> {
-  if (cachedSlug) return cachedSlug
-  if (inFlight) return inFlight
-
-  inFlight = (async () => {
-    let resolved = GYM_SLUG
-    try {
-      const { data, error } = await supabase
-        .from('nexxia_gyms')
-        .select('slug, subdomain')
-        .eq('id', GYM_ID)
-        .maybeSingle()
-      if (!error && data) {
-        const fromDb = (data.slug as string | null) || (data.subdomain as string | null)
-        if (fromDb && fromDb.trim().length > 0) resolved = fromDb.trim()
-      }
-    } catch {
-      /* repli GYM_SLUG */
-    }
-    cachedSlug = resolved
-    inFlight = null
-    return resolved
-  })()
-
-  return inFlight
+  const profile = await getGymProfile()
+  return profile?.slug ?? profile?.subdomain ?? GYM_SLUG
 }
 
 /**
@@ -84,8 +63,7 @@ export async function buildPaymentReturnUrl(source: string): Promise<string> {
   return `${LINKS_BASE}/${await getGymSlug()}/payment-success?source=${encodeURIComponent(source)}`
 }
 
-/** Réinitialise le cache — tests uniquement. */
+/** Réinitialise le cache — tests uniquement. Délègue au cache partagé (GYM-216). */
 export function __resetGymUrlCache(): void {
-  cachedSlug = null
-  inFlight = null
+  __resetGymProfileCache()
 }
