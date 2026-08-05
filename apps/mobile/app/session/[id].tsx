@@ -55,6 +55,9 @@ export default function SessionDetail() {
     // GYM-216 — description saisie par le gérant (activities.description). Vide tant
     // que la requête n'a pas répondu : la section reste masquée, jamais un texte générique.
     description: '',
+    // GYM-216 — visuel et teinte du cours (activities.image_url / color).
+    imageUrl: null as string | null,
+    activityColor: null as string | null,
     startsAt: '',
     date: params.date ?? '',
     time: params.time ?? '',
@@ -65,7 +68,7 @@ export default function SessionDetail() {
     booked: Number(params.booked) || 0,
   })
 
-  const { activity, description, date, time, endTime, coach, duration, capacity } = slotData
+  const { activity, description, imageUrl, activityColor, date, time, endTime, coach, duration, capacity } = slotData
 
   const [bookedCount, setBookedCount] = useState(slotData.booked)
   const [loading, setLoading] = useState(false)
@@ -92,7 +95,7 @@ export default function SessionDetail() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
-          activities(name, duration_min, description),
+          activities(name, duration_min, description, image_url, color),
           coaches(name)
         `)
         .eq('id', slotId)
@@ -103,6 +106,8 @@ export default function SessionDetail() {
           name: string
           duration_min: number
           description: string | null
+          image_url: string | null
+          color: string | null
         } | null
         const coa = data.coaches as unknown as { name: string } | null
         const actName = act?.name ?? activity
@@ -113,6 +118,8 @@ export default function SessionDetail() {
           activity: actName,
           activityId: data.activity_id ?? '',
           description: act?.description ?? '',
+          imageUrl: act?.image_url ?? null,
+          activityColor: act?.color ?? null,
           startsAt: data.starts_at,
           date: formatDateStr(data.starts_at),
           time: formatTime(data.starts_at),
@@ -329,6 +336,8 @@ export default function SessionDetail() {
         {/* Hero */}
         <SessionHero
           activity={activity}
+          imageUrl={imageUrl}
+          activityColor={activityColor}
           onBack={() => router.back()}
           isFavorite={isFav}
           onToggleFavorite={toggleFav}

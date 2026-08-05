@@ -1,27 +1,30 @@
-import { View, Text, ImageBackground, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ChevronLeft, Heart, Dumbbell, Flame } from 'lucide-react-native'
+import { ActivityImage } from '../shared/ActivityImage'
 
 interface SessionHeroProps {
   activity: string
+  /** GYM-216 — activities.image_url. Vide → repli neutre (cas nominal aujourd'hui). */
+  imageUrl?: string | null
+  /** activities.color, teinte du repli. */
+  activityColor?: string | null
   onBack: () => void
   isFavorite: boolean
   onToggleFavorite: () => void
 }
 
-const IMAGES: Record<string, string> = {
-  'Open Gym': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
-  'HIIT / Hyrox': 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=800&q=80',
-}
-
-export function SessionHero({ activity, onBack, isFavorite, onToggleFavorite }: SessionHeroProps) {
+export function SessionHero({ activity, imageUrl, activityColor, onBack, isFavorite, onToggleFavorite }: SessionHeroProps) {
   const insets = useSafeAreaInsets()
   const Icon = activity === 'Open Gym' ? Dumbbell : Flame
 
   return (
-    <ImageBackground
-      source={{ uri: IMAGES[activity] ?? IMAGES['Open Gym'] }}
+    <ActivityImage
+      imageUrl={imageUrl}
+      activity={activity}
+      accentColor={activityColor}
       className="h-72"
+      initialsSize={160}
     >
       {/* Gradient */}
       <View className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }} />
@@ -53,6 +56,6 @@ export function SessionHero({ activity, onBack, isFavorite, onToggleFavorite }: 
           {activity.toUpperCase()}
         </Text>
       </View>
-    </ImageBackground>
+    </ActivityImage>
   )
 }
