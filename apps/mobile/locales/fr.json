@@ -255,7 +255,7 @@
     "suspended_title": "Compte suspendu",
     "suspended_message": "Votre compte est suspendu suite a des annulations tardives. Vous pourrez a nouveau reserver le {{date}} (encore ~{{hours}}h).",
     "suspended_message_generic": "Votre compte est temporairement suspendu suite a des annulations tardives. Contactez votre coach pour plus d'informations.",
-    "contact_gym": "Contacter Dopamine",
+    "contact_gym": "Contacter {{gym}}",
     "spots": "{{booked}} / {{capacity}} places",
     "see_more": "Voir plus",
     "see_less": "Voir moins",

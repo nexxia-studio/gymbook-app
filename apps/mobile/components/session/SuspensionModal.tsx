@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, Modal, Linking } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { ShieldAlert } from 'lucide-react-native'
 import { toLocalTime } from '../../utils/timezone'
+import { useGymProfile } from '../../hooks/useGymProfile'
 
 interface SuspensionModalProps {
   visible: boolean
@@ -11,6 +12,10 @@ interface SuspensionModalProps {
 
 export function SuspensionModal({ visible, suspendedUntil, onClose }: SuspensionModalProps) {
   const { t } = useTranslation()
+  // GYM-216 — nom et email de contact lus dans nexxia_gyms. L'email était écrit en dur
+  // (contact@dopamineclub.be) : au white-label, un membre suspendu d'une autre salle
+  // aurait écrit à Dopamine.
+  const gym = useGymProfile()
 
   const deadline = suspendedUntil ? toLocalTime(suspendedUntil) : null
   const hoursLeft = deadline
@@ -51,15 +56,20 @@ export function SuspensionModal({ visible, suspendedUntil, onClose }: Suspension
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => Linking.openURL('mailto:contact@dopamineclub.be')}
-              activeOpacity={0.7}
-              className="items-center py-3"
-            >
-              <Text className="font-dmsans text-sm text-move-text-muted">
-                {t('session.contact_gym')}
-              </Text>
-            </TouchableOpacity>
+            {/* Repli : sans email en base, le bouton est MASQUÉ plutôt que d'ouvrir un
+                mailto vers une adresse qui n'est peut-être plus relevée. Le membre garde
+                le bouton Retour, et le message lui dit déjà de contacter son coach. */}
+            {gym?.email && (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`mailto:${gym.email}`)}
+                activeOpacity={0.7}
+                className="items-center py-3"
+              >
+                <Text className="font-dmsans text-sm text-move-text-muted">
+                  {t('session.contact_gym', { gym: gym.name ?? '' }).trim()}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>

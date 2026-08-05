@@ -255,7 +255,7 @@
     "suspended_title": "Account suspended",
     "suspended_message": "Your account is suspended due to late cancellations. You can book again on {{date}} (~{{hours}}h remaining).",
     "suspended_message_generic": "Your account is temporarily suspended due to late cancellations. Contact your coach for more information.",
-    "contact_gym": "Contact Dopamine",
+    "contact_gym": "Contact {{gym}}",
     "spots": "{{booked}} / {{capacity}} spots",
     "see_more": "See more",
     "see_less": "See less",
