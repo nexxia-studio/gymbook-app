@@ -46,9 +46,14 @@ export function MaxBookingsModal({ visible, limit, onViewBookings, onClose }: Ma
               </Text>
             </TouchableOpacity>
 
+            {/* GYM-220 — pointait vers la clé « planning.close », INEXISTANTE : la
+                section `planning` ne porte que des statuts. i18next rendait la clé brute,
+                « planning.close », sur le bouton — visible par tout membre atteignant
+                sa limite de réservations (GYM-196). `common.close` existe dans les deux
+                locales et sert déjà ce rôle exact dans PaymentRequiredSheet. */}
             <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="items-center py-3">
               <Text className="font-dmsans text-sm text-move-text-muted">
-                {t('planning.close')}
+                {t('common.close')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -16,6 +16,8 @@ export interface ScheduleSlot {
   capacity: number
   booked: number
   color: string
+  /** GYM-220 — activities.icon (nom de composant lucide). Vide/inconnu → icône par défaut. */
+  icon: string | null
 }
 
 export interface DaySection {
@@ -57,7 +59,7 @@ export function useSchedule() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count,
-          activities(name, color, duration_min),
+          activities(name, color, duration_min, icon),
           coaches(name)
         `)
         .eq('gym_id', GYM_ID)
@@ -87,6 +89,7 @@ export function useSchedule() {
           capacity: row.capacity as number,
           booked: (row.bookings_count as number) ?? 0,
           color: (act?.color as string) ?? '#4ECDC4',
+          icon: (act?.icon as string | null) ?? null,
         }
       }))
     } catch (e) {

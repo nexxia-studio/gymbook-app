@@ -18,6 +18,8 @@ export interface HomeSlot {
   booked: number
   /** GYM-216 — activities.image_url. Vide → repli neutre (cas nominal aujourd'hui). */
   imageUrl: string | null
+  /** GYM-220 — activities.icon (nom de composant lucide). Vide/inconnu → icône par défaut. */
+  icon: string | null
 }
 
 import { formatTime, formatDateStr, toLocalTime } from '../utils/timezone'
@@ -55,7 +57,7 @@ export function useHomeSchedule() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count,
-          activities(name, color, duration_min, image_url),
+          activities(name, color, duration_min, image_url, icon),
           coaches(name)
         `)
         .eq('gym_id', GYM_ID)
@@ -84,6 +86,7 @@ export function useHomeSchedule() {
           capacity: row.capacity as number,
           booked: (row.bookings_count as number) ?? 0,
           imageUrl: (act?.image_url as string | null) ?? null,
+          icon: (act?.icon as string | null) ?? null,
         }
       }))
     } catch (e) {

@@ -229,7 +229,8 @@
     "errors": {
       "no_gym": "Gym not found",
       "checkout_failed": "Payment could not start. Try again.",
-      "no_plan": "Drop-in plan unavailable."
+      "no_plan": "Drop-in plan unavailable.",
+      "not_confirmed": "Payment not confirmed yet. If you were charged, your credits will arrive shortly: check your bookings before trying again."
     }
   },
   "session": {

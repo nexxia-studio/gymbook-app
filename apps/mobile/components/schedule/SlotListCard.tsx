@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { Heart, ChevronRight, Dumbbell, Flame } from 'lucide-react-native'
+import { Heart, ChevronRight } from 'lucide-react-native'
+import { resolveActivityIcon } from '../../lib/activityIcons'
 import { CapacityBadge } from '../home/CapacityBadge'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import type { ScheduleSlot } from '../../hooks/useSchedule'
@@ -20,7 +21,8 @@ const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
 
 export function SlotListCard({ slot, isFavorite, onToggleFavorite, onPress }: SlotListCardProps) {
   const { t } = useTranslation()
-  const Icon = slot.activity === 'Open Gym' ? Dumbbell : Flame
+  // GYM-220 — icône choisie par le gérant (activities.icon), plus déduite du nom.
+  const Icon = resolveActivityIcon(slot.icon)
   const displayStatus = getDisplayStatus(slot)
 
   return (

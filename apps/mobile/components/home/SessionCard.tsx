@@ -1,11 +1,12 @@
 import { View, Text, TouchableOpacity, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
-import { Heart, Dumbbell, Flame } from 'lucide-react-native'
+import { Heart } from 'lucide-react-native'
 import { CapacityBadge } from './CapacityBadge'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import type { HomeSlot } from '../../hooks/useHomeSchedule'
 import { LinearGradient } from '../../components/home/Gradient'
 import { ActivityImage } from '../shared/ActivityImage'
+import { resolveActivityIcon } from '../../lib/activityIcons'
 
 interface SessionCardProps {
   slot: HomeSlot
@@ -19,7 +20,8 @@ interface SessionCardProps {
 export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggleFavorite, onPress }: SessionCardProps) {
   const { t } = useTranslation()
   const isFull = slot.booked >= slot.capacity
-  const Icon = slot.activity === 'Open Gym' ? Dumbbell : Flame
+  // GYM-220 — icône choisie par le gérant (activities.icon), plus déduite du nom.
+  const Icon = resolveActivityIcon(slot.icon)
   const displayStatus = getDisplayStatus(slot)
 
   return (
