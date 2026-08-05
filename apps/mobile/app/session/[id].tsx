@@ -52,6 +52,9 @@ export default function SessionDetail() {
   const [slotData, setSlotData] = useState({
     activity: params.activity ?? 'Open Gym',
     activityId: '',
+    // GYM-216 — description saisie par le gérant (activities.description). Vide tant
+    // que la requête n'a pas répondu : la section reste masquée, jamais un texte générique.
+    description: '',
     startsAt: '',
     date: params.date ?? '',
     time: params.time ?? '',
@@ -62,7 +65,7 @@ export default function SessionDetail() {
     booked: Number(params.booked) || 0,
   })
 
-  const { activity, date, time, endTime, coach, duration, capacity } = slotData
+  const { activity, description, date, time, endTime, coach, duration, capacity } = slotData
 
   const [bookedCount, setBookedCount] = useState(slotData.booked)
   const [loading, setLoading] = useState(false)
@@ -89,14 +92,18 @@ export default function SessionDetail() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
-          activities(name, duration_min),
+          activities(name, duration_min, description),
           coaches(name)
         `)
         .eq('id', slotId)
         .single()
 
       if (data) {
-        const act = data.activities as unknown as { name: string; duration_min: number } | null
+        const act = data.activities as unknown as {
+          name: string
+          duration_min: number
+          description: string | null
+        } | null
         const coa = data.coaches as unknown as { name: string } | null
         const actName = act?.name ?? activity
         const coachName = coa?.name ?? coach
@@ -105,6 +112,7 @@ export default function SessionDetail() {
         setSlotData({
           activity: actName,
           activityId: data.activity_id ?? '',
+          description: act?.description ?? '',
           startsAt: data.starts_at,
           date: formatDateStr(data.starts_at),
           time: formatTime(data.starts_at),
@@ -337,10 +345,15 @@ export default function SessionDetail() {
 
         <View className="h-2" />
 
-        {/* Description */}
-        <SessionDescription activity={activity} />
-
-        <View className="h-2" />
+        {/* Description — GYM-216 : activities.description. Le composant ne rend rien
+            si elle est vide ; l'espaceur suit la même condition pour ne pas laisser
+            un double blanc à la place de la section. */}
+        {description.trim().length > 0 && (
+          <>
+            <SessionDescription description={description} />
+            <View className="h-2" />
+          </>
+        )}
 
         {/* Location — GYM-216 : nom + adresse d'EXPLOITATION lus dans nexxia_gyms.
             Bloc entièrement masqué si l'adresse est indisponible : mieux vaut ne rien

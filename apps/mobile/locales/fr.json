@@ -257,8 +257,6 @@
     "suspended_message_generic": "Votre compte est temporairement suspendu suite a des annulations tardives. Contactez votre coach pour plus d'informations.",
     "contact_gym": "Contacter Dopamine",
     "spots": "{{booked}} / {{capacity}} places",
-    "desc_open_gym": "Acces libre aux equipements pendant 2h. Nicolas ou Francois sera present pour vous guider. Ideal pour travailler a votre rythme.",
-    "desc_hiit": "Seance haute intensite de 60 minutes. Preparation Hyrox et entrainement fonctionnel. Tous niveaux, adapte par votre coach.",
     "see_more": "Voir plus",
     "see_less": "Voir moins",
     "booking_confirmed": "Reservation confirmee !",
