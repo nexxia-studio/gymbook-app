@@ -453,7 +453,15 @@
       "error_wrong_gym": "This member does not belong to your gym",
       "error_reason_required": "A reason is required",
       "error_forbidden": "Restricted to the gym manager",
-      "error_generic": "Lifting the suspension failed"
+      "error_generic": "Lifting the suspension failed",
+      "summary": {
+        "noshow_count_one": "{{count}} absence on record",
+        "noshow_count_other": "{{count}} absences on record",
+        "last_absence": "Last absence on {{date}}",
+        "current": "Current penalty: {{origin}}, issued on {{date}}",
+        "prior_lifts_one": "{{count}} lift already granted to this member",
+        "prior_lifts_other": "{{count}} lifts already granted to this member"
+      }
     },
     "toast_push_sent": "Notification sent",
     "push_default_message": "Message from Dopamine Performance Club",
@@ -548,7 +556,41 @@
     },
     "error_names_required": "First name and last name are required",
     "error_save": "Update failed",
-    "toast_saved": "Member updated"
+    "toast_saved": "Member updated",
+    "discipline": {
+      "suspended_until": "Suspended until {{date}}",
+      "noshow_count_one": "{{count}} recorded absence",
+      "noshow_count_other": "{{count}} recorded absences",
+      "title": "Disciplinary history",
+      "empty": "No incident recorded.",
+      "kind": {
+        "warning_1": "1st warning",
+        "warning_2": "2nd warning",
+        "warning_late": "Warning",
+        "suspension": "Suspension",
+        "suspension_for": "{{duration}} suspension",
+        "unknown": "Penalty"
+      },
+      "duration": {
+        "hours_one": "{{count}} h",
+        "hours_other": "{{count}} h",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "weeks_one": "{{count}} week",
+        "weeks_other": "{{count}} weeks"
+      },
+      "origin": {
+        "noshow": "No-show",
+        "late_cancel": "Late cancellation",
+        "unknown": "Unknown origin"
+      },
+      "active_until": "Active until {{date}}",
+      "lifted_on": "Lifted on {{date}}",
+      "other_lifts": "Other lifts granted",
+      "reset_on": "Counter resets on {{date}} if no new absence",
+      "reset_suspended": "The reset countdown resumes when the suspension ends",
+      "reset_unknown": "No recorded absence: the counter will reset on the next run"
+    }
   },
   "attendance": {
     "title": "Attendance",

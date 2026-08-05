@@ -230,6 +230,7 @@ export default function Members() {
       <LiftSuspensionModal
         open={liftTarget !== null}
         onClose={() => setLiftTarget(null)}
+        memberId={liftTarget?.id ?? null}
         memberName={liftTarget ? `${liftTarget.firstName} ${liftTarget.lastName}` : ''}
         suspendedUntil={liftTarget?.suspendedUntil ?? null}
         onLift={(reason) => liftSuspension(liftTarget!.id, reason)}

@@ -10,11 +10,14 @@ import { useTranslation } from 'react-i18next'
 import { X, ShieldOff } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToastStore } from '@/hooks/useToast'
+import { useMemberDiscipline } from '@/hooks/useMemberDiscipline'
 import type { LiftSuspensionResult } from '@/hooks/useGymAdminActions'
 
 interface LiftSuspensionModalProps {
   open: boolean
   onClose: () => void
+  /** GYM-214 — charge le dossier disciplinaire résumé sous la décision. */
+  memberId: string | null
   memberName: string
   /** Fin de suspension en cours (ISO), pour situer la sanction levée. */
   suspendedUntil: string | null
@@ -34,9 +37,13 @@ function formatUntil(iso: string | null): string | null {
 }
 
 export function LiftSuspensionModal({
-  open, onClose, memberName, suspendedUntil, onLift, onDone,
+  open, onClose, memberId, memberName, suspendedUntil, onLift, onDone,
 }: LiftSuspensionModalProps) {
   const { t } = useTranslation()
+  // GYM-214 — c'est AU MOMENT DE DÉCIDER que l'information sert : lever une sanction
+  // sans savoir si c'est la 2e absence en trois semaines ou la 3e en deux ans, c'est
+  // décider à l'aveugle. C'était tout l'objet du ticket.
+  const { summary, penalties } = useMemberDiscipline(memberId)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -54,6 +61,14 @@ export function LiftSuspensionModal({
 
   const canSubmit = reason.trim().length > 0 && !submitting
   const until = formatUntil(suspendedUntil)
+
+  // GYM-214 — la sanction QUI COURT : la plus récente encore active et non levée.
+  // `active` exclut déjà les pénalités levées (une levée ne touche pas expires_at,
+  // le rapprochement se fait à la lecture — cf. lib/penalties).
+  const currentPenalty = penalties.find((p) => p.active) ?? null
+  // Levées déjà accordées : une récidive après un geste commercial ne se lit pas
+  // comme une première demande.
+  const priorLifts = penalties.filter((p) => p.lift !== null).length
 
   async function handleSubmit() {
     if (!canSubmit) return
@@ -109,6 +124,36 @@ export function LiftSuspensionModal({
               <span className="font-body text-sm text-muted">
                 {t('members.lift.suspended_until', { date: until })}
               </span>
+            </div>
+          )}
+
+          {/* GYM-214 — résumé du dossier AVANT de valider. Muet quand il n'y a rien à
+              dire : un encart « 0 absence » n'aiderait aucune décision. */}
+          {summary && summary.noshowCount > 0 && (
+            <div className="mt-3 rounded-xl border border-border px-4 py-3">
+              <p className="font-body text-sm font-semibold text-dark">
+                {t('members.lift.summary.noshow_count', { count: summary.noshowCount })}
+              </p>
+              {summary.lastNoShowAt && (
+                <p className="mt-0.5 font-body text-xs text-muted">
+                  {t('members.lift.summary.last_absence', { date: formatUntil(summary.lastNoShowAt) })}
+                </p>
+              )}
+              {/* Sanction en cours : la plus récente encore active et non levée. */}
+              {currentPenalty && (
+                <p className="mt-1.5 font-body text-xs text-muted">
+                  {t('members.lift.summary.current', {
+                    origin: t(`member_drawer.discipline.origin.${currentPenalty.origin}`),
+                    date: formatUntil(currentPenalty.appliedAt),
+                  })}
+                </p>
+              )}
+              {/* Une levée antérieure change complètement la lecture d'une récidive. */}
+              {priorLifts > 0 && (
+                <p className="mt-1.5 font-body text-xs font-semibold text-amber-700">
+                  {t('members.lift.summary.prior_lifts', { count: priorLifts })}
+                </p>
+              )}
             </div>
           )}
 
