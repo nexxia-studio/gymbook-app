@@ -3,6 +3,7 @@
 // après opération ; un retrait au-delà des crédits OFFERTS disponibles est signalé (clamp).
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
 import { X, Plus, Minus, Gift } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToastStore } from '@/hooks/useToast'
@@ -63,8 +64,10 @@ export function AdjustCreditsModal({ open, onClose, memberName, currentRemaining
         addToast(t('member_drawer.adjust.toast_success'), 'success')
       }
       onClose()
-    } catch {
-      addToast(t('member_drawer.adjust.toast_error'), 'error')
+    } catch (err) {
+      // GYM-219 — REASON_REQUIRED et INVALID_DELTA sont corrigeables par le gérant ;
+      // le message générique ne disait pas lequel des deux.
+      addToast(edgeErrorMessage(edgeErrorCodeOf(err), t, { name: memberName }), 'error')
     } finally {
       setSubmitting(false)
     }

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
+import { resolveEdgeError } from '@/lib/edgeErrors'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
 import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipline'
 import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
@@ -115,7 +116,9 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
         },
       })
       if (error) {
-        setFormError(t('member_drawer.error_save'))
+        // GYM-219 — INVALID_PHONE / INVALID_FIRST_NAME désignent le champ fautif ;
+        // « la sauvegarde a échoué » laissait chercher.
+        setFormError(await resolveEdgeError(error, t, { name: identity.firstName }))
         return
       }
       const updated = (data?.member ?? {}) as { first_name?: string; last_name?: string; phone?: string | null }

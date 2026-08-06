@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
+import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
@@ -387,7 +388,9 @@ export function usePlanning() {
     const { data, error } = await supabase.functions.invoke('cancel-slot', {
       body: { slot_id: id, reason: reason?.trim() || undefined },
     })
-    if (error) throw error
+    // GYM-219 — SLOT_STARTED (« déjà commencé ») et SLOT_NOT_FOUND appellent deux
+    // réactions différentes : l'exception opaque les confondait.
+    if (error) throw new EdgeError(await extractErrorCode(error))
     await fetchSlots()
     return {
       bookingsCancelled: (data?.bookings_cancelled as number) ?? 0,
@@ -404,7 +407,7 @@ export function usePlanning() {
     const { data, error } = await supabase.functions.invoke('mark-attendance', {
       body: { action: 'mark', booking_id: bookingId, status },
     })
-    if (error) throw error
+    if (error) throw new EdgeError(await extractErrorCode(error))
     await fetchSlots()
     return {
       status: (data?.status as string) ?? 'updated',
@@ -413,12 +416,18 @@ export function usePlanning() {
   }
 
   // GYM-174 — inscription à la volée d'un membre présent au comptoir puis pointé présent.
-  async function walkIn(slotId: string, memberId: string): Promise<void> {
+  //
+  // GYM-219 — le code de refus est REMONTÉ à l'appelant au lieu d'être noyé dans une
+  // exception opaque. mark-attendance distingue NO_CREDIT, FULL, ALREADY_BOOKED et
+  // SLOT_CANCELLED : ce sont quatre gestes différents au comptoir (vendre une séance,
+  // libérer une place, ne rien faire, changer de cours).
+  async function walkIn(slotId: string, memberId: string): Promise<{ ok: boolean; code?: string }> {
     const { error } = await supabase.functions.invoke('mark-attendance', {
       body: { action: 'walkin', slot_id: slotId, member_id: memberId },
     })
-    if (error) throw error
+    if (error) return { ok: false, code: await extractErrorCode(error) }
     await fetchSlots()
+    return { ok: true }
   }
 
   // GYM-174 / GYM-179 (fix 3) — recherche de membres de la salle pour le walk-in.

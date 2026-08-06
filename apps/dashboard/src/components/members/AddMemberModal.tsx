@@ -3,6 +3,7 @@
 // enregistre une carte de séances one_time payée sur place (cash / terminal).
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { extractErrorCode } from '@/lib/edgeErrors'
 import { X, ChevronDown, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -29,20 +30,6 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-// Lit le code d'erreur métier renvoyé par l'Edge Function (corps JSON porté par
-// error.context pour une FunctionsHttpError).
-async function extractErrorCode(error: unknown): Promise<string | undefined> {
-  const ctx = (error as { context?: Response } | null)?.context
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = await ctx.json()
-      return body?.code as string | undefined
-    } catch {
-      /* corps non-JSON */
-    }
-  }
-  return undefined
-}
 
 export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps) {
   const { t } = useTranslation()

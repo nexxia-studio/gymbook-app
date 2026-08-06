@@ -40,6 +40,29 @@ export async function extractErrorCode(error: unknown): Promise<string | undefin
 }
 
 /**
+ * Erreur porteuse du code métier, pour les hooks qui signalent un échec en LEVANT plutôt
+ * qu'en renvoyant un résultat.
+ *
+ * Ces hooks jetaient l'erreur brute de supabase-js : l'appelant ne récupérait qu'un
+ * « Edge Function returned a non-2xx status code » et affichait un message générique. Le
+ * `catch` peut désormais lire `err.code` — et `edgeErrorCodeOf` s'en charge sans que
+ * l'appelant ait à connaître cette classe.
+ */
+export class EdgeError extends Error {
+  readonly code?: string
+  constructor(code?: string) {
+    super(code ?? 'EDGE_ERROR')
+    this.name = 'EdgeError'
+    this.code = code
+  }
+}
+
+/** Code métier d'une exception attrapée, ou `undefined` (panne réseau, erreur hors protocole). */
+export function edgeErrorCodeOf(err: unknown): string | undefined {
+  return err instanceof EdgeError ? err.code : undefined
+}
+
+/**
  * Codes CONNUS, relevés en lisant les Edge Functions appelées par le dashboard — jamais
  * devinés. Chacun a une entrée `edge_errors.<CODE>` en fr ET en en.
  *
