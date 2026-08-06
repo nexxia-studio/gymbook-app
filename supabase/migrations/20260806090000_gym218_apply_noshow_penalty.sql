@@ -116,24 +116,24 @@ BEGIN
     v_hours           := v_esc_hours;
     v_suspended_until := now() + make_interval(hours => v_esc_hours);
     v_penalty_type    := 'suspension';
-    v_notes           := v_new_count || 'e ' || p_incident_label || ' — suspension ' || v_esc_hours || 'h.';
+    v_notes           := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — suspension ' || v_esc_hours || 'h.';
     UPDATE profiles SET suspended_until = v_suspended_until WHERE id = p_member_id;
 
   ELSIF v_new_count = v_suspension_at THEN
     v_hours           := v_susp_hours;
     v_suspended_until := now() + make_interval(hours => v_susp_hours);
     v_penalty_type    := 'suspension';
-    v_notes           := v_new_count || 'e ' || p_incident_label || ' — suspension ' || v_susp_hours || 'h.';
+    v_notes           := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — suspension ' || v_susp_hours || 'h.';
     UPDATE profiles SET suspended_until = v_suspended_until WHERE id = p_member_id;
 
   ELSIF v_new_count >= v_warning_2_at THEN
     v_penalty_type := 'warning_2';
-    v_notes        := v_new_count || 'e ' || p_incident_label || ' — 2e avertissement. À '
+    v_notes        := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — 2e avertissement. À '
                       || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
 
   ELSIF v_new_count >= v_warning_1_at THEN
     v_penalty_type := 'warning_1';
-    v_notes        := v_new_count || 'e ' || p_incident_label || ' — 1er avertissement. À '
+    v_notes        := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — 1er avertissement. À '
                       || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
 
   ELSE
