@@ -1,32 +1,40 @@
--- GYM-218 (correctif QA staging, 06/08) : ordinaux français corrects dans les libellés
--- de pénalité de mark_attendance_atomic.
+-- GYM-218 (correctif QA staging, 06/08) : libellés de pénalité sans accord de genre,
+-- dans mark_attendance_atomic.
 --
--- COQUILLE RELEVÉE EN QA (cockpit) — l'historique disciplinaire (GYM-214) affichait au
--- gérant « 1ème no-show — 1er avertissement… ». La forme « 1ème » n'existe pas en
--- français ; et « 2ème » / « 3ème », bien que courants, s'abrègent « 2e » / « 3e ».
---     1 → « 1er »  ·  2 → « 2e »  ·  3 → « 3e »  ·  n → « ne »
+-- HISTORIQUE DU CORRECTIF — deux passes.
+--   1) La QA a relevé « 1ème no-show », forme inexistante en français.
+--   2) La correction par ordinal accordé (« 1er no-show ») était juste ici, mais
+--      apply_noshow_penalty, qui partage la même forme, produisait « 1er annulation
+--      tardive » : « annulation » est féminin et demandait « 1re ».
+--
+-- DÉCISION COCKPIT (avec Antoine) : SUPPRIMER l'accord plutôt que gérer le genre. Le
+-- libellé d'incident est un paramètre libre côté apply_noshow_penalty : tout incident
+-- ajouté demain reposerait le problème, et une fonction ne peut pas deviner le genre
+-- d'une chaîne qu'on lui passe. « n° » ne s'accorde jamais.
+--
+-- FORME UNIQUE, appliquée aux DEUX fonctions :
+--     {Libellé} n°{compteur} — {sanction}
+--     « No-show n°1 — 1er avertissement. À 2 : suspension de 48h. »
+--     « Annulation tardive n°2 — suspension 48h. »
+--
+-- ⚠️ L'UNIFORMISATION EST DÉLIBÉRÉE, même si « 1er no-show » était correct :
+-- l'historique disciplinaire (GYM-214) affiche absences et annulations tardives CÔTE À
+-- CÔTE. Deux formulations différentes dans le même écran paraîtraient bricolées.
+--
+-- Ici le libellé est FIXE ('No-show') : cette fonction ne traite qu'un type d'incident,
+-- elle n'a pas de paramètre de libellé. La question de la casse ne s'y pose donc pas —
+-- elle est tranchée chez l'appelant côté apply_noshow_penalty (cf. sa migration).
 --
 -- ─── PÉRIMÈTRE STRICT ───────────────────────────────────────────────────────
 -- Cette fonction porte le bloc de SYMÉTRIE (annulation d'un no-show : décrément du
 -- compteur, suppression de la pénalité par booking_id, recalcul de suspended_until). Le
 -- moindre écart y serait un défaut silencieux sur un chemin peu emprunté.
 --
--- La définition ci-dessous est donc EXTRAITE MOT POUR MOT de la dernière migration qui la
+-- La définition ci-dessous est EXTRAITE MOT POUR MOT de la dernière migration qui la
 -- définit (20260728140000_gym175_noshow_policy_config.sql, confirmée conforme au live par
 -- le cockpit) et seules les QUATRE affectations de `v_notes` diffèrent — vérifié ligne à
 -- ligne, à nombre de lignes constant. Ni la règle d'escalade, ni les seuils, ni les types
 -- de pénalité, ni le bloc de symétrie ne sont touchés.
---
--- ─── POURQUOI UNE EXPRESSION INLINE, ET NON UNE FONCTION D'ORDINAL PARTAGÉE ──
--- Une fonction partagée créerait une dépendance entre deux fonctions de sanction pour
--- trois lignes de texte, et un objet de plus à déployer, versionner et sécuriser. Le CASE
--- inline est lisible sur place et sans couplage. À reconsidérer si un troisième appelant
--- apparaît.
---
--- ⚠️ ACCORD EN GENRE — apply_noshow_penalty reçoit son libellé d'incident en paramètre.
--- Pour « annulation tardive » (féminin), le strict français demanderait « 1re » et non
--- « 1er ». La règle appliquée ici est celle demandée, à la lettre ; le point est signalé
--- au compte-rendu car il ne peut se corriger sans toucher à la signature de la fonction.
 
 CREATE OR REPLACE FUNCTION public.mark_attendance_atomic(p_booking_id uuid, p_new_status text)
 RETURNS jsonb
@@ -132,24 +140,24 @@ BEGIN
       v_suspended_until := now() + make_interval(hours => v_esc_hours);
       -- Type générique : la durée réelle est portée par expires_at (cf. en-tête).
       v_penalty_type    := 'suspension';
-      v_notes           := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' no-show — suspension ' || v_esc_hours || 'h.';
+      v_notes           := 'No-show n°' || v_new_count || ' — suspension ' || v_esc_hours || 'h.';
       UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
 
     ELSIF v_new_count = v_suspension_at THEN
       v_suspended_until := now() + make_interval(hours => v_susp_hours);
       -- Type générique : la durée réelle est portée par expires_at (cf. en-tête).
       v_penalty_type    := 'suspension';
-      v_notes           := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' no-show — suspension ' || v_susp_hours || 'h.';
+      v_notes           := 'No-show n°' || v_new_count || ' — suspension ' || v_susp_hours || 'h.';
       UPDATE profiles SET suspended_until = v_suspended_until WHERE id = v_booking.member_id;
 
     ELSIF v_new_count >= v_warning_2_at THEN
       v_penalty_type := 'warning_2';
-      v_notes        := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' no-show — 2e avertissement. À '
+      v_notes        := 'No-show n°' || v_new_count || ' — 2e avertissement. À '
                         || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
 
     ELSIF v_new_count >= v_warning_1_at THEN
       v_penalty_type := 'warning_1';
-      v_notes        := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' no-show — 1er avertissement. À '
+      v_notes        := 'No-show n°' || v_new_count || ' — 1er avertissement. À '
                         || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
 
     ELSE

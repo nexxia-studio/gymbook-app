@@ -48,6 +48,24 @@
 -- CHECK penalties_type_check les autorise déjà (il liste aussi 'warning',
 -- 'suspension_48h', 'suspension_2w' pour les lignes historiques).
 --
+-- ─── FORME DES LIBELLÉS — aucun accord de genre ─────────────────────────────
+-- « {Libellé} n°{compteur} — {sanction} », soit :
+--     « No-show n°1 — 1er avertissement. À 2 : suspension de 48h. »
+--     « Annulation tardive n°2 — suspension 48h. »
+--
+-- La forme ordinale accordée (« 1er annulation tardive ») était fautive : « annulation »
+-- est féminin et demandait « 1re ». Plutôt que d'apprendre le genre à la fonction, on
+-- SUPPRIME l'accord. `p_incident_label` est un paramètre libre : tout incident ajouté
+-- demain reposerait le problème, et une fonction ne peut pas deviner le genre d'une
+-- chaîne qu'on lui passe. « n° » ne s'accorde jamais.
+--
+-- ⚠️ LA MAJUSCULE EST DÉCIDÉE PAR L'APPELANT, pas ici. On aurait pu capitaliser à la
+-- volée (upper(left(...,1)) || substr(...,2)), mais ce serait DEVINER : `upper()` dépend
+-- de la locale du serveur, et la règle casserait le jour où un libellé doit commencer par
+-- un sigle, un chiffre ou une minuscule voulue. L'appelant, lui, SAIT ce qu'il écrit. Le
+-- paramètre porte donc le libellé tel qu'il doit s'afficher — et le DEFAULT suit
+-- ('No-show'), pour qu'un appel qui l'omet reste bien formé.
+--
 -- ⚠️ CONSÉQUENCE POUR GYM-214 : cancel-booking émettait 'warning' pour l'annulation
 -- tardive, et l'historique disciplinaire s'en servait comme signal d'origine. Ce n'est
 -- plus vrai. Le discriminant fiable reste bookings.status ('cancelled' vs 'no_show'),
@@ -58,9 +76,10 @@ CREATE OR REPLACE FUNCTION public.apply_noshow_penalty(
   p_member_id   uuid,
   p_gym_id      uuid,
   p_booking_id  uuid,
-  -- Libellé d'incident repris dans penalties.notes, pour que l'historique dise ce qui
-  -- s'est passé. La RÈGLE, elle, est strictement la même quelle que soit l'origine.
-  p_incident_label text DEFAULT 'no-show'
+  -- Libellé d'incident repris TEL QUEL dans penalties.notes, majuscule initiale comprise
+  -- (cf. en-tête) : l'appelant décide de la casse, la fonction ne devine rien.
+  -- La RÈGLE, elle, est strictement la même quelle que soit l'origine.
+  p_incident_label text DEFAULT 'No-show'
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -116,24 +135,24 @@ BEGIN
     v_hours           := v_esc_hours;
     v_suspended_until := now() + make_interval(hours => v_esc_hours);
     v_penalty_type    := 'suspension';
-    v_notes           := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — suspension ' || v_esc_hours || 'h.';
+    v_notes           := p_incident_label || ' n°' || v_new_count || ' — suspension ' || v_esc_hours || 'h.';
     UPDATE profiles SET suspended_until = v_suspended_until WHERE id = p_member_id;
 
   ELSIF v_new_count = v_suspension_at THEN
     v_hours           := v_susp_hours;
     v_suspended_until := now() + make_interval(hours => v_susp_hours);
     v_penalty_type    := 'suspension';
-    v_notes           := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — suspension ' || v_susp_hours || 'h.';
+    v_notes           := p_incident_label || ' n°' || v_new_count || ' — suspension ' || v_susp_hours || 'h.';
     UPDATE profiles SET suspended_until = v_suspended_until WHERE id = p_member_id;
 
   ELSIF v_new_count >= v_warning_2_at THEN
     v_penalty_type := 'warning_2';
-    v_notes        := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — 2e avertissement. À '
+    v_notes        := p_incident_label || ' n°' || v_new_count || ' — 2e avertissement. À '
                       || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
 
   ELSIF v_new_count >= v_warning_1_at THEN
     v_penalty_type := 'warning_1';
-    v_notes        := (CASE WHEN v_new_count = 1 THEN '1er' ELSE v_new_count || 'e' END) || ' ' || p_incident_label || ' — 1er avertissement. À '
+    v_notes        := p_incident_label || ' n°' || v_new_count || ' — 1er avertissement. À '
                       || v_suspension_at || ' : suspension de ' || v_susp_hours || 'h.';
 
   ELSE
