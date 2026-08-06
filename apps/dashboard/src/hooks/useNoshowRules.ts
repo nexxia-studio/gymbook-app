@@ -18,6 +18,11 @@ import { useGymStore } from '@/stores/useGymStore'
  * comme sur nexxia_gyms) : rien à ajouter côté droits.
  */
 export interface NoshowRules {
+  /**
+   * GYM-218 — Heures avant le cours en deçà desquelles une annulation est traitée comme
+   * une absence : crédit perdu ET sanction. Lu par l'Edge cancel-booking.
+   */
+  lateCancelHours: number
   /** Nombre d'absences déclenchant le 1er avertissement. */
   warning1At: number
   /** Nombre d'absences déclenchant le 2e avertissement. */
@@ -38,6 +43,7 @@ export interface NoshowRules {
  * ⚠️ Ce ne sont PAS les valeurs de Dopamine (dont suspension_at vaut 2).
  */
 export const DEFAULT_NOSHOW_RULES: NoshowRules = {
+  lateCancelHours: 2,
   warning1At: 1,
   warning2At: 2,
   suspensionAt: 3,
@@ -56,7 +62,7 @@ export function useNoshowRules() {
     setIsLoading(true)
     const { data, error } = await supabase
       .from('noshow_rules')
-      .select('warning_1_at, warning_2_at, suspension_at, suspension_hours, escalated_suspension_hours, reset_after_days')
+      .select('late_cancel_hours, warning_1_at, warning_2_at, suspension_at, suspension_hours, escalated_suspension_hours, reset_after_days')
       .eq('gym_id', gym.id)
       .maybeSingle()
     setIsLoading(false)
@@ -69,6 +75,7 @@ export function useNoshowRules() {
       return
     }
     setRules({
+      lateCancelHours: data.late_cancel_hours ?? DEFAULT_NOSHOW_RULES.lateCancelHours,
       warning1At: data.warning_1_at ?? DEFAULT_NOSHOW_RULES.warning1At,
       warning2At: data.warning_2_at ?? DEFAULT_NOSHOW_RULES.warning2At,
       suspensionAt: data.suspension_at ?? DEFAULT_NOSHOW_RULES.suspensionAt,
@@ -87,6 +94,10 @@ export function useNoshowRules() {
     // Cohérence métier : durées strictement positives, seuil d'au moins 1 absence,
     // suspension aggravée jamais plus courte que la suspension simple (sinon la
     // « aggravation » adoucirait la sanction).
+    // GYM-218 — > 0 : un délai nul signifierait « aucune annulation n'est jamais
+    // tardive », ce qui désarme la politique sans le dire. Le CHECK en base tolère 0,
+    // l'interface non : le gérant qui veut désactiver la sanction a d'autres réglages.
+    if (!Number.isInteger(next.lateCancelHours) || next.lateCancelHours < 1) return { error: 'late_cancel_hours' }
     if (!Number.isInteger(next.warning1At) || next.warning1At < 1) return { error: 'warning_1_at' }
     if (!Number.isInteger(next.warning2At) || next.warning2At < 1) return { error: 'warning_2_at' }
     if (!Number.isInteger(next.suspensionAt) || next.suspensionAt < 1) return { error: 'suspension_at' }
@@ -105,6 +116,7 @@ export function useNoshowRules() {
       .from('noshow_rules')
       .upsert({
         gym_id: gym.id,
+        late_cancel_hours: next.lateCancelHours,
         warning_1_at: next.warning1At,
         warning_2_at: next.warning2At,
         suspension_at: next.suspensionAt,

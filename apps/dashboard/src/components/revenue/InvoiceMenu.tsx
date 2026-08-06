@@ -4,6 +4,7 @@
 // regénérer produit le MÊME document avec le MÊME numéro).
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { resolveEdgeError } from '@/lib/edgeErrors'
 import { FileText, Download, Mail, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
@@ -23,7 +24,9 @@ export function InvoiceMenu({ paymentId }: { paymentId: string }) {
       })
       const html = (data as { html?: string } | null)?.html
       if (error || !html) {
-        addToast(t('revenue.invoice.error'), 'error')
+        // GYM-219 — NOT_PAID (« pas encore encaissé ») n'est pas une panne : le gérant
+        // doit savoir qu'il n'y a rien à facturer, pas réessayer indéfiniment.
+        addToast(await resolveEdgeError(error, t), 'error')
         return
       }
       // Ouvre le document dans un onglet → le gérant imprime / enregistre en PDF.
@@ -47,7 +50,9 @@ export function InvoiceMenu({ paymentId }: { paymentId: string }) {
         body: { payment_id: paymentId, mode: 'email' },
       })
       if (error || !(data as { success?: boolean } | null)?.success) {
-        addToast(t('revenue.invoice.error'), 'error')
+        // NO_EMAIL dit quoi corriger (ajouter l'email sur la fiche) ; RESEND_NOT_CONFIGURED
+        // dit que le problème n'est pas chez le gérant.
+        addToast(await resolveEdgeError(error, t), 'error')
         return
       }
       addToast(t('revenue.invoice.email_sent'), 'success')

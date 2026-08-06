@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { resolveEdgeError } from '@/lib/edgeErrors'
 import { Megaphone, Lock, PartyPopper, AlertTriangle, MessageSquare, Send, Users, Bell, Mail, Eye } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -131,7 +132,9 @@ export default function Communications() {
       })
 
       if (fnErr) {
-        addToast(fnErr.message, 'error')
+        // GYM-219 — `fnErr.message` affichait « Edge Function returned a non-2xx status
+        // code » au gérant : du jargon serveur, sans indication d'action.
+        addToast(await resolveEdgeError(fnErr, t), 'error')
       } else {
         addToast(t('communications.sent_success', {
           push: result?.push_sent ?? 0,

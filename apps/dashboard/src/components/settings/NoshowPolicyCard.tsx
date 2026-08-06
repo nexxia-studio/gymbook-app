@@ -38,6 +38,7 @@ export function NoshowPolicyCard() {
     setSaving(false)
 
     const map: Record<string, keyof NoshowRules> = {
+      late_cancel_hours: 'lateCancelHours',
       warning_1_at: 'warning1At',
       warning_2_at: 'warning2At',
       warning_order: 'warning2At',
@@ -78,15 +79,16 @@ export function NoshowPolicyCard() {
    * jusqu'au premier palier aggravé inclus, qui absorbe ensuite tous les suivants —
    * d'où le « et suivantes » sur la dernière ligne.
    *
-   * ⚠️ SOURCE DE VÉRITÉ = la fonction SQL public.mark_attendance_atomic (migration
-   * gym175_noshow_policy_config). Ceci n'est qu'un AFFICHAGE qui la rejoue : toute
-   * évolution de la règle doit être répercutée AUX DEUX ENDROITS, sinon le gérant
-   * verrait une politique différente de celle réellement appliquée.
+   * ⚠️ SOURCE DE VÉRITÉ = la fonction SQL public.apply_noshow_penalty (GYM-218), qui
+   * porte l'escalade pour les DEUX moteurs — absence pointée et annulation tardive.
+   * Ceci n'est qu'un AFFICHAGE qui la rejoue : toute évolution de la règle doit être
+   * répercutée AUX DEUX ENDROITS, sinon le gérant verrait une politique différente de
+   * celle réellement appliquée.
    */
   const preview = (() => {
     const { warning1At: w1, warning2At: w2, suspensionAt: sa } = form
-    const { suspensionHours: sh, escalatedSuspensionHours: eh } = form
-    if (![w1, w2, sa, sh, eh].every(Number.isFinite)) return null
+    const { suspensionHours: sh, escalatedSuspensionHours: eh, lateCancelHours: lc } = form
+    if (![w1, w2, sa, sh, eh, lc].every(Number.isFinite)) return null
     if (w2 < w1 || sa < w2) return null // configuration incohérente : rien à montrer
 
     const lines: { rank: number; text: string }[] = []
@@ -110,6 +112,19 @@ export function NoshowPolicyCard() {
       <p className="mt-1 font-body text-sm text-muted">{t('settings.noshow.subtitle')}</p>
 
       <div className="mt-6 grid max-w-2xl gap-4 sm:grid-cols-2">
+        {/* GYM-218 — déclencheur de toute la politique côté annulation : placé en tête,
+            avant les paliers qu'il alimente. */}
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          name="late_cancel_hours"
+          label={t('settings.noshow.late_cancel_label')}
+          helper={t('settings.noshow.late_cancel_helper')}
+          error={errors.lateCancelHours}
+          value={shown(form.lateCancelHours)}
+          onChange={(e) => set('lateCancelHours', e.target.value)}
+        />
         <Input
           type="number"
           inputMode="numeric"
@@ -197,6 +212,12 @@ export function NoshowPolicyCard() {
               </li>
             ))}
           </ul>
+          {/* GYM-218 — le barème ci-dessus vaut pour les DEUX moteurs : absence pointée
+              et annulation tardive. C'est ce récapitulatif que le gérant lit pour
+              comprendre sa propre politique ; taire la moitié du système le tromperait. */}
+          <p className="mt-2 font-body text-xs text-muted">
+            {t('settings.noshow.preview_late_cancel', { count: form.lateCancelHours })}
+          </p>
           <p className="mt-2 font-body text-xs text-muted">
             {t('settings.noshow.preview_reset', { count: form.resetAfterDays })}
           </p>

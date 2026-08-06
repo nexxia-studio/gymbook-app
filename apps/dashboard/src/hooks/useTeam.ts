@@ -8,7 +8,7 @@
 //     `authenticated` par GYM-203.
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { extractErrorCode } from '@/lib/edgeErrors'
+import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 
 export interface TeamMember {
   id: string
@@ -54,7 +54,7 @@ export function useTeam() {
       const { data, error } = await supabase.functions.invoke('team-access', {
         body: { action: 'list' },
       })
-      if (error) throw error
+      if (error) throw new EdgeError(await extractErrorCode(error))
       const rows = (data?.members ?? []) as TeamMemberRow[]
       setMembers(rows.map((m) => ({
         id: m.id,

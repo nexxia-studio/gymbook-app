@@ -14,6 +14,7 @@
 // au démontage (un pointage n'est jamais perdu).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
 import { Check, X as XIcon, CircleSlash, Search, UserPlus, Loader2 } from 'lucide-react'
 import type { TimeSlot, AttendanceStatus, SlotMember } from '@/types/planning'
 import { isPresent } from '@/types/planning'
@@ -23,7 +24,7 @@ import type { MarkAttendanceResult, MemberSearchResult } from '@/hooks/usePlanni
 interface AttendanceSectionProps {
   slot: TimeSlot
   onMark: (bookingId: string, status: AttendanceStatus) => Promise<MarkAttendanceResult>
-  onWalkIn: (memberId: string) => Promise<void>
+  onWalkIn: (memberId: string) => Promise<{ ok: boolean; code?: string }>
   searchMembers: (query: string, excludeIds: string[]) => Promise<MemberSearchResult[]>
   onOpenAddMember: () => void
 }
@@ -88,11 +89,13 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
           addToast(t('attendance.toast_suspension_applied'), 'warning')
         }
       })
-      .catch(() => {
+      .catch((err) => {
         // Rollback : on retire l'entrée optimiste → retour au statut réel des props.
         if (interactive && mountedRef.current) {
           setOptimistic((prev) => { const n = { ...prev }; delete n[bookingId]; return n })
-          addToast(t('attendance.toast_mark_error'), 'error')
+          // GYM-219 — SLOT_TOO_OLD, SLOT_CANCELLED et INVALID_SOURCE_STATUS expliquent
+          // pourquoi le pointage revient en arrière ; « une erreur est survenue » non.
+          addToast(edgeErrorMessage(edgeErrorCodeOf(err), t), 'error')
         }
       })
       .finally(done)
@@ -204,13 +207,22 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
   async function handleWalkIn(member: MemberSearchResult) {
     if (addingId) return
     setAddingId(member.id)
+    const name = `${member.firstName} ${member.lastName}`.trim() || member.email
     try {
-      await onWalkIn(member.id)
-      addToast(t('attendance.toast_walkin_added', { name: `${member.firstName} ${member.lastName}`.trim() || member.email }), 'success')
+      // GYM-219 — le refus est NOMMÉ et NOMINATIF. C'est le cas qui a motivé le lot :
+      // « impossible d'ajouter ce membre » obligeait à tester un second membre pour
+      // deviner la cause, client devant soi.
+      const res = await onWalkIn(member.id)
+      if (!res.ok) {
+        addToast(edgeErrorMessage(res.code, t, { name: member.firstName || name }), 'error')
+        return
+      }
+      addToast(t('attendance.toast_walkin_added', { name }), 'success')
       setQuery('')
       setResults([])
     } catch {
-      addToast(t('attendance.toast_walkin_error'), 'error')
+      // Panne réseau / exception hors protocole : aucun code à afficher, repli honnête.
+      addToast(edgeErrorMessage(undefined, t), 'error')
     } finally {
       setAddingId(null)
     }

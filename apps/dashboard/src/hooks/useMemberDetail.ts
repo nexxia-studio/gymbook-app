@@ -5,6 +5,7 @@
 // aucune Edge nécessaire pour lire. Seule l'écriture identité passe par une Edge.
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 export interface CreditLine {
@@ -183,7 +184,9 @@ export function useMemberDetail(memberId: string | null) {
     const { data, error } = await supabase.functions.invoke('adjust-credits', {
       body: { member_id: memberId, delta, reason },
     })
-    if (error) throw error
+    // GYM-219 — INVALID_DELTA, REASON_REQUIRED et MEMBER_NOT_IN_GYM se corrigent
+    // différemment : le code doit atteindre la modale.
+    if (error) throw new EdgeError(await extractErrorCode(error))
     await load()
     return data as AdjustResult
   }, [memberId, load])
