@@ -3,6 +3,7 @@
 // aucune écriture optimiste : le statut/crédits changeront via le webhook Mollie.
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { extractErrorCode } from '@/lib/edgeErrors'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase'
@@ -29,17 +30,6 @@ function fmt(n: number, currency: string): string {
   } catch {
     return `${n.toFixed(2)} ${currency}`
   }
-}
-
-async function extractErrorCode(error: unknown): Promise<string | undefined> {
-  const ctx = (error as { context?: Response } | null)?.context
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = await ctx.json()
-      return body?.code as string | undefined
-    } catch { /* non-JSON */ }
-  }
-  return undefined
 }
 
 export function RefundModal({ payment, onClose, onDone }: RefundModalProps) {

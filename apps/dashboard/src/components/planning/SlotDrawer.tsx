@@ -15,7 +15,7 @@ interface SlotDrawerProps {
   onDelete: (slot: TimeSlot) => void
   // GYM-174 — pointage des présences.
   onMarkAttendance: (bookingId: string, status: AttendanceStatus) => Promise<MarkAttendanceResult>
-  onWalkIn: (slotId: string, memberId: string) => Promise<void>
+  onWalkIn: (slotId: string, memberId: string) => Promise<{ ok: boolean; code?: string }>
   searchMembers: (query: string, excludeIds: string[]) => Promise<MemberSearchResult[]>
   onOpenAddMember: () => void
 }

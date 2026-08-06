@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { edgeErrorMessage } from '@/lib/edgeErrors'
 import { Search, ShieldOff, Bell, MoreVertical, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
@@ -134,7 +135,12 @@ export default function Members() {
   }
 
   async function handleSendPush(member: Member) {
-    await sendPush(member.id, gymName, t('members.push_default_message'))
+    // GYM-219 — le succès n'est plus affirmé sans preuve : le toast suit le résultat.
+    const res = await sendPush(member.id, gymName, t('members.push_default_message'))
+    if (!res.ok) {
+      addToast(edgeErrorMessage(res.code, t, { name: member.firstName }), 'error')
+      return
+    }
     addToast(t('members.toast_push_sent'))
   }
 

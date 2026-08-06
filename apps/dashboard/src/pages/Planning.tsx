@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
 import { ErrorBoundary } from 'react-error-boundary'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
@@ -141,8 +142,10 @@ export default function Planning() {
       )
       setCancelTarget(null)
       planning.setSelectedSlot(null)
-    } catch {
-      addToast(t('slots.toast_cancel_error'), 'error')
+    } catch (err) {
+      // GYM-219 — SLOT_STARTED dit au gérant que le cours a commencé ; le message
+      // générique le laissait cliquer à nouveau sans comprendre.
+      addToast(edgeErrorMessage(edgeErrorCodeOf(err), t), 'error')
     } finally {
       setCancelSubmitting(false)
     }
