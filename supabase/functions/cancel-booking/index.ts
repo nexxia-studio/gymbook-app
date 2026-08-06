@@ -26,10 +26,6 @@ function errorResponse(status: number, message: string, code?: string) {
   return jsonResponse({ error: true, code: code ?? 'ERROR', message }, status)
 }
 
-function addHours(date: Date, hours: number): Date {
-  return new Date(date.getTime() + hours * 60 * 60 * 1000)
-}
-
 function emailHtml(title: string, body: string, ctaText?: string, ctaHref?: string): string {
   const cta = ctaText
     ? `<a href="${ctaHref}" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">${ctaText}</a>`
@@ -106,10 +102,25 @@ Deno.serve(async (req) => {
     if (!slot) return errorResponse(404, 'Créneau introuvable', 'SLOT_NOT_FOUND')
 
     // 4. Calculate late cancel (only meaningful for confirmed bookings)
+    //
+    // GYM-218 — le délai était FIGÉ à 2 h. Il est désormais lu dans noshow_rules du gym :
+    // « S'il décide de réduire à 1 h, ça doit être pris en compte » (Antoine, 06/08).
+    // La colonne late_cancel_hours existait depuis l'origine et n'était lue NULLE PART
+    // (GYM-198). Repli sur le DEFAULT du schéma (2) si la salle n'a pas de ligne — donc
+    // comportement inchangé pour toute salle qui n'a rien configuré.
+    const { data: rules } = await admin
+      .from('noshow_rules')
+      .select('late_cancel_hours')
+      .eq('gym_id', booking.gym_id)
+      .maybeSingle()
+
+    // `?? 2` couvre les deux cas : pas de ligne, et ligne avec la colonne à NULL.
+    const lateCancelHours = rules?.late_cancel_hours ?? 2
+
     const now = new Date()
     const slotStart = new Date(slot.starts_at)
     const hoursUntil = (slotStart.getTime() - now.getTime()) / (1000 * 60 * 60)
-    const isLateCancellation = !wasWaitlisted && hoursUntil < 2 && hoursUntil > 0
+    const isLateCancellation = !wasWaitlisted && hoursUntil < lateCancelHours && hoursUntil > 0
     const isSlotPassed = slotStart < now
 
     // ============================================================
@@ -210,88 +221,84 @@ Deno.serve(async (req) => {
       return errorResponse(500, updateErr.message, 'UPDATE_FAILED')
     }
 
-    const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
-    const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
+    // Les embeds to-one sont typés en TABLEAU par le client généré alors que PostgREST
+    // renvoie un objet : le cast direct ne compilait pas — `deno check` échouait sur ces
+    // deux lignes AVANT ce lot. On tolère les deux formes, comme partout ailleurs.
+    const embedOne = <T,>(v: unknown): T | null =>
+      Array.isArray(v) ? ((v[0] as T | undefined) ?? null) : ((v as T | null) ?? null)
+    const activityName = embedOne<{ name: string }>(slot.activities)?.name ?? 'Cours'
+    const coachName = embedOne<{ name: string }>(slot.coaches)?.name ?? ''
     const dateStr = slotStart.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
     const timeStr = slotStart.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
     // Get profile for emails
     const { data: profile } = await admin
       .from('profiles')
-      .select('id, email, first_name, noshow_count, gym_id')
+      .select('id, email, first_name, gym_id')
       .eq('id', user.id)
       .single()
 
     let noshowResult: { level: string; count?: number; hours?: number; until?: string } | null = null
 
-    // 7. No-show logic if late cancel
+    // 7. GYM-218 — Sanction de l'annulation tardive : politique DU GYM, plus de seuils
+    //    en dur. Les trois paliers (1 avertissement, 48 h, 336 h) et leur enchaînement
+    //    étaient écrits ici ; ils vivent désormais dans public.apply_noshow_penalty, la
+    //    MÊME règle que celle appliquée aux no-shows constatés (GYM-175). Réécrire
+    //    l'escalade en TypeScript aurait créé une seconde implémentation, qui aurait
+    //    divergé au premier ajustement — le défaut même que ce lot corrige.
+    //
+    //    La fonction est atomique : compteur, pénalité et suspension dans une seule
+    //    transaction, là où ce bloc faisait trois écritures séparées.
     if (isLateCancellation && !isSlotPassed && profile) {
-      const newCount = (profile.noshow_count ?? 0) + 1
+      const { data: penalty, error: penaltyError } = await admin.rpc('apply_noshow_penalty', {
+        p_member_id: user.id,
+        p_gym_id: profile.gym_id,
+        p_booking_id: bookingId,
+        p_incident_label: 'annulation tardive',
+      })
 
-      await admin.from('profiles').update({ noshow_count: newCount }).eq('id', user.id)
-
-      if (newCount === 1) {
-        // Warning
-        await admin.from('penalties').insert({
-          member_id: user.id,
-          gym_id: profile.gym_id,
-          booking_id: bookingId,
-          type: 'warning',
-          applied_at: now.toISOString(),
-          notes: `1er avertissement no-show — ${activityName}`,
-        })
-
-        noshowResult = { level: 'warning', count: 1 }
-
-        if (resendKey && profile.email) {
-          await sendEmail(resendKey, profile.email,
-            'Annulation tardive — 1er avertissement',
-            emailHtml('Annulation tardive',
-              `<p style="color:#6B6861;">Votre annulation pour <strong>${activityName}</strong> (${dateStr} à ${timeStr}) était inférieure à 2h avant le début du cours.</p><p style="color:#6B6861;">Ceci est votre <strong>1er avertissement</strong>. Au 2ème, votre compte sera suspendu 48h.</p>`))
-        }
-      } else if (newCount === 2) {
-        // 48h suspension
-        const suspendedUntil = addHours(now, 48)
-        await admin.from('profiles').update({ suspended_until: suspendedUntil.toISOString() }).eq('id', user.id)
-        await admin.from('penalties').insert({
-          member_id: user.id,
-          gym_id: profile.gym_id,
-          booking_id: bookingId,
-          type: 'suspension',
-          applied_at: now.toISOString(),
-          expires_at: suspendedUntil.toISOString(),
-          notes: 'Suspension 48h — 2ème no-show',
-        })
-
-        noshowResult = { level: 'suspension', hours: 48, until: suspendedUntil.toISOString() }
-
-        if (resendKey && profile.email) {
-          await sendEmail(resendKey, profile.email,
-            'Compte suspendu 48h — Dopamine',
-            emailHtml('Compte suspendu',
-              `<p style="color:#6B6861;">Suite à 2 annulations tardives, votre compte est suspendu jusqu'au <strong>${suspendedUntil.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</strong>.</p><p style="color:#6B6861;">Vous ne pourrez pas effectuer de réservation pendant cette période.</p>`))
-        }
+      if (penaltyError) {
+        // L'annulation elle-même est déjà enregistrée et la place rendue à la liste
+        // d'attente : on ne la défait pas parce que la sanction a échoué. Mais l'échec
+        // est LOGGÉ, jamais avalé (leçon GYM-204 : un silence a masqué un défaut des mois).
+        console.error('[cancel-booking] apply_noshow_penalty failed:', penaltyError)
       } else {
-        // 2 weeks suspension
-        const suspendedUntil = addHours(now, 336)
-        await admin.from('profiles').update({ suspended_until: suspendedUntil.toISOString() }).eq('id', user.id)
-        await admin.from('penalties').insert({
-          member_id: user.id,
-          gym_id: profile.gym_id,
-          booking_id: bookingId,
-          type: 'suspension',
-          applied_at: now.toISOString(),
-          expires_at: suspendedUntil.toISOString(),
-          notes: `Suspension 2 semaines — ${newCount}ème no-show`,
-        })
+        const p = penalty as {
+          applied?: boolean
+          type?: string | null
+          count?: number
+          suspension_hours?: number | null
+          suspended_until?: string | null
+        } | null
 
-        noshowResult = { level: 'suspension', hours: 336, until: suspendedUntil.toISOString() }
+        if (p?.applied) {
+          const isSuspension = p.type === 'suspension'
+          noshowResult = isSuspension
+            ? { level: 'suspension', count: p.count, hours: p.suspension_hours ?? undefined, until: p.suspended_until ?? undefined }
+            : { level: 'warning', count: p.count }
 
-        if (resendKey && profile.email) {
-          await sendEmail(resendKey, profile.email,
-            'Compte suspendu 2 semaines — Dopamine',
-            emailHtml('Compte suspendu',
-              `<p style="color:#6B6861;">Suite à plusieurs annulations tardives, votre compte est suspendu jusqu'au <strong>${suspendedUntil.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })}</strong>.</p>`))
+          if (resendKey && profile.email) {
+            // Les libellés d'e-mail sont dérivés de la sanction RÉELLEMENT appliquée :
+            // annoncer « 48h » ou « 2 semaines » en dur mentirait dès qu'une salle
+            // configure autre chose.
+            const untilStr = p.suspended_until
+              ? new Date(p.suspended_until).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+              : ''
+            if (isSuspension) {
+              await sendEmail(resendKey, profile.email,
+                'Compte suspendu — Dopamine',
+                emailHtml('Compte suspendu',
+                  `<p style="color:#6B6861;">Votre annulation pour <strong>${activityName}</strong> (${dateStr} à ${timeStr}) est intervenue moins de ${lateCancelHours}h avant le début du cours : elle est traitée comme une absence.</p><p style="color:#6B6861;">Votre compte est suspendu jusqu'au <strong>${untilStr}</strong>. Vous ne pourrez pas réserver pendant cette période.</p>`))
+            } else {
+              await sendEmail(resendKey, profile.email,
+                'Annulation tardive — avertissement',
+                emailHtml('Annulation tardive',
+                  `<p style="color:#6B6861;">Votre annulation pour <strong>${activityName}</strong> (${dateStr} à ${timeStr}) est intervenue moins de ${lateCancelHours}h avant le début du cours : elle est traitée comme une absence, et la séance n'est pas re-créditée.</p><p style="color:#6B6861;">Ceci est un <strong>avertissement</strong>. En cas de récidive, votre compte pourra être suspendu.</p>`))
+            }
+          }
+        } else {
+          // Sous le 1er seuil de la salle : compteur incrémenté, aucune sanction.
+          noshowResult = { level: 'none', count: p?.count }
         }
       }
     }
