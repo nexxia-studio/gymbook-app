@@ -1104,6 +1104,7 @@
     "NOT_A_MEMBER": "Cette personne n'est pas un membre de ta salle.",
     "NO_GYM": "Aucune salle n'est associée à ton compte. Contacte le support.",
     "NOT_FOUND": "Élément introuvable. Rafraîchis la page.",
-    "SERVER_ERROR": "Une erreur serveur est survenue. Réessaie ; si le problème persiste, contacte le support."
+    "SERVER_ERROR": "Une erreur serveur est survenue. Réessaie ; si le problème persiste, contacte le support.",
+    "NO_PUSH_TOKEN": "{{name}} n'a pas activé les notifications sur son téléphone. Contacte-le autrement."
   }
 }

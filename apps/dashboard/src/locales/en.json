@@ -1104,6 +1104,7 @@
     "NOT_A_MEMBER": "This person is not a member of your gym.",
     "NO_GYM": "No gym is linked to your account. Contact support.",
     "NOT_FOUND": "Item not found. Refresh the page.",
-    "SERVER_ERROR": "A server error occurred. Try again; if it keeps failing, contact support."
+    "SERVER_ERROR": "A server error occurred. Try again; if it keeps failing, contact support.",
+    "NO_PUSH_TOKEN": "{{name}} hasn't enabled notifications on their phone. Reach them another way."
   }
 }

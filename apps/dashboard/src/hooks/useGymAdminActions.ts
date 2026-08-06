@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { extractErrorCode } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { Json } from '@/types/database'
 
@@ -73,24 +74,46 @@ export function useGymAdminActions() {
     return { ok: true }
   }, [])
 
-  const sendPush = useCallback(async (memberId: string, title: string, body: string) => {
+  /**
+   * GYM-219 — 🔴 FAUX SUCCÈS CORRIGÉ. Cette fonction n'extrayait même pas `error` de
+   * l'appel : l'envoi pouvait échouer, le journal enregistrait quand même 'push_sent' et
+   * l'appelant affichait « notification envoyée ». Même silence que le défaut qui a
+   * masqué GYM-204 pendant des mois.
+   *
+   * Le membre SANS push_token était le second silence : rien n'était envoyé, rien n'était
+   * dit. Le gérant croyait avoir joint quelqu'un d'injoignable.
+   *
+   * Renvoie donc un résultat explicite que l'appelant DOIT lire.
+   */
+  const sendPush = useCallback(async (
+    memberId: string,
+    title: string,
+    body: string,
+  ): Promise<{ ok: boolean; code?: string }> => {
     const { data: profile } = await supabase
       .from('profiles')
       .select('push_token')
       .eq('id', memberId)
       .single()
 
-    if (profile?.push_token) {
-      await supabase.functions.invoke('send-notification', {
-        body: {
-          tokens: [profile.push_token],
-          title,
-          body,
-          data: { type: 'admin_message' },
-        },
-      })
-      await logAction('push_sent', memberId, { title })
-    }
+    // Pas de jeton = application jamais installée ou notifications refusées. Ce n'est pas
+    // une erreur serveur : c'est un code métier dédié, pour un message dédié.
+    if (!profile?.push_token) return { ok: false, code: 'NO_PUSH_TOKEN' }
+
+    const { error } = await supabase.functions.invoke('send-notification', {
+      body: {
+        tokens: [profile.push_token],
+        title,
+        body,
+        data: { type: 'admin_message' },
+      },
+    })
+    if (error) return { ok: false, code: await extractErrorCode(error) }
+
+    // Journalisé APRÈS le succès seulement : le journal ne doit pas affirmer un envoi
+    // qui n'a pas eu lieu.
+    await logAction('push_sent', memberId, { title })
+    return { ok: true }
   }, [logAction])
 
   return { liftSuspension, sendPush, logAction }

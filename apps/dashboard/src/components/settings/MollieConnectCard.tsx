@@ -100,10 +100,20 @@ export function MollieConnectCard() {
     if (!confirm('Déconnecter Mollie ? Les paiements seront désactivés.')) return
     setError(null)
     const { data: { session } } = await supabase.auth.getSession()
-    await supabase.functions.invoke('mollie-connect-oauth', {
+    // GYM-219 — 🔴 FAUX SUCCÈS CORRIGÉ : `error` n'était pas testé et l'interface
+    // affichait « déconnecté » quoi qu'il arrive. Le gérant pouvait croire son compte
+    // Mollie détaché alors qu'il restait connecté côté serveur.
+    const { error: fnError } = await supabase.functions.invoke('mollie-connect-oauth', {
       headers: { 'x-action': 'disconnect', Authorization: `Bearer ${session?.access_token}` },
       body: {},
     })
+    if (fnError) {
+      // Réutilise le résolveur DÉJÀ présent dans cette carte (GYM-85) : elle porte ses
+      // propres libellés, sans i18n. Y injecter la table centrale supposerait de
+      // l'internationaliser d'abord — signalé, hors périmètre de ce lot.
+      setError(await resolveErrorMessage(fnError, null))
+      return
+    }
     setConnection(null)
     checkStatus()
   }

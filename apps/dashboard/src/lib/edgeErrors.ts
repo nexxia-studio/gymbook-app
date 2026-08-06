@@ -98,6 +98,9 @@ export const KNOWN_EDGE_ERROR_CODES = [
   'NOT_PAID', 'NO_EMAIL', 'RESEND_NOT_CONFIGURED', 'EMAIL_SEND_FAILED', 'GYM_NOT_FOUND',
   // ── send-communication ──
   'ALREADY_SENT',
+  // ── code CLIENT (GYM-219) : pas de jeton push en base, donc aucun appel émis.
+  //    Ce n'est pas une erreur serveur mais un refus à expliquer au gérant. ──
+  'NO_PUSH_TOKEN',
   // ── transverses (toutes fonctions) ──
   'FORBIDDEN', 'UNAUTHORIZED', 'WRONG_GYM', 'MEMBER_NOT_FOUND', 'MEMBER_DELETED',
   'NOT_A_MEMBER', 'NO_GYM', 'NOT_FOUND', 'SERVER_ERROR',
