@@ -254,7 +254,10 @@ Deno.serve(async (req) => {
         p_member_id: user.id,
         p_gym_id: profile.gym_id,
         p_booking_id: bookingId,
-        p_incident_label: 'annulation tardive',
+        // Libellé tel qu'il s'affichera dans l'historique, majuscule comprise : la
+        // casse est décidée ICI, la fonction SQL ne la devine pas (cf. en-tête de
+        // la migration gym218_apply_noshow_penalty).
+        p_incident_label: 'Annulation tardive',
       })
 
       if (penaltyError) {
