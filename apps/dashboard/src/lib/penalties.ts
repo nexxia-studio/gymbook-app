@@ -31,13 +31,23 @@ export interface PenaltyDuration {
  * ce genre d'amalgame qui fausserait le jugement du gérant.
  */
 export function resolvePenaltyOrigin(type: string, bookingStatus: string | null): PenaltyOrigin {
-  // 'warning' (sans suffixe) n'est émis QUE par cancel-booking : signal non ambigu.
-  if (type === 'warning') return 'late_cancel'
-  // 'warning_1' / 'warning_2' ne sont émis QUE par mark_attendance_atomic.
-  if (type === 'warning_1' || type === 'warning_2') return 'noshow'
-
+  // ⚠️ GYM-218 — L'ORDRE A CHANGÉ : le STATUT DE LA RÉSERVATION est consulté EN PREMIER.
+  //
+  // Jusqu'ici, 'warning_1' / 'warning_2' étaient réputés n'être émis que par
+  // mark_attendance_atomic, et cette règle passait avant le statut. Depuis GYM-218,
+  // cancel-booking applique la MÊME escalade via apply_noshow_penalty et émet donc les
+  // mêmes types : garder l'ancienne priorité classerait désormais une annulation tardive
+  // parmi les ABSENCES, exactement l'amalgame que ce module existe pour éviter.
+  //
+  // Le statut, lui, reste une propriété du chemin qui a écrit la ligne, insensible aux
+  // libellés : 'no_show' pour une absence constatée, 'cancelled' pour une annulation.
   if (bookingStatus === 'no_show') return 'noshow'
   if (bookingStatus === 'cancelled') return 'late_cancel'
+
+  // Repli sur le type quand la réservation n'est pas résolvable (booking_id NULL,
+  // réservation purgée). 'warning' sans suffixe n'a jamais été émis que par
+  // cancel-booking — il reste un signal fiable pour les lignes d'avant GYM-218.
+  if (type === 'warning') return 'late_cancel'
   return 'unknown'
 }
 

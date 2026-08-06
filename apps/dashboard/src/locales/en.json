@@ -673,7 +673,7 @@
     },
     "noshow": {
       "title": "No-show policy",
-      "subtitle": "What happens when a member doesn't turn up for a class they booked.",
+      "subtitle": "What happens when a member doesn't turn up for a class they booked, or cancels too late.",
       "suspension_at_label": "Absences before suspension",
       "suspension_at_helper": "How many absences before the member is suspended. Below that, they only get a warning.",
       "suspension_hours_label": "Suspension length (hours)",
@@ -703,7 +703,11 @@
       "preview_escalated": "{{hours}} h suspension, and for each further absence",
       "preview_none": "no penalty",
       "preview_reset_one": "Counter reset after {{count}} day without an absence.",
-      "preview_reset_other": "Counter reset after {{count}} days without an absence."
+      "preview_reset_other": "Counter reset after {{count}} days without an absence.",
+      "late_cancel_label": "Cancellation window (hours)",
+      "late_cancel_helper": "A cancellation less than N hours before the class is treated as an absence: the credit is lost and the scale below applies.",
+      "preview_late_cancel_one": "This scale also applies to cancellations made less than {{count}} hour before the class: the session is not re-credited.",
+      "preview_late_cancel_other": "This scale also applies to cancellations made less than {{count}} hours before the class: the session is not re-credited."
     }
   },
   "activities": {

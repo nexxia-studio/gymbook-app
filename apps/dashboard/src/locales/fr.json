@@ -673,7 +673,7 @@
     },
     "noshow": {
       "title": "Politique d'absences",
-      "subtitle": "Ce qui se passe quand un membre ne vient pas au cours qu'il a réservé.",
+      "subtitle": "Ce qui se passe quand un membre ne vient pas au cours qu'il a réservé, ou l'annule trop tard.",
       "suspension_at_label": "Absences avant suspension",
       "suspension_at_helper": "À partir de combien d'absences le membre est suspendu. En dessous, il reçoit un simple avertissement.",
       "suspension_hours_label": "Durée de la suspension (heures)",
@@ -703,7 +703,11 @@
       "preview_escalated": "suspension de {{hours}} h, et pour chaque absence suivante",
       "preview_none": "aucune sanction",
       "preview_reset_one": "Compteur remis à zéro après {{count}} jour sans absence.",
-      "preview_reset_other": "Compteur remis à zéro après {{count}} jours sans absence."
+      "preview_reset_other": "Compteur remis à zéro après {{count}} jours sans absence.",
+      "late_cancel_label": "Délai d'annulation (heures)",
+      "late_cancel_helper": "Une annulation moins de N heures avant le cours est traitée comme une absence : le crédit est perdu et la sanction ci-dessous s'applique.",
+      "preview_late_cancel_one": "Ce barème vaut aussi pour les annulations faites moins d'{{count}} heure avant le cours : la séance n'est pas re-créditée.",
+      "preview_late_cancel_other": "Ce barème vaut aussi pour les annulations faites moins de {{count}} heures avant le cours : la séance n'est pas re-créditée."
     }
   },
   "activities": {
