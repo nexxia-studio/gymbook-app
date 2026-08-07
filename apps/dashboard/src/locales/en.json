@@ -590,6 +590,32 @@
       "reset_on": "Counter resets on {{date}} if no new absence",
       "reset_suspended": "The reset countdown resumes when the suspension ends",
       "reset_unknown": "No recorded absence: the counter will reset on the next run"
+    },
+    "sell": {
+      "button": "Sell a plan",
+      "title": "Sell a plan",
+      "current_balance": "Current balance",
+      "plan": "Plan",
+      "plan_placeholder": "Choose a plan",
+      "no_plans": "No active one-off plan. Create one in Settings > Plans.",
+      "price": "Price",
+      "payment_method": "Paid by",
+      "effect_credits_one": "+{{count}} session — new balance: {{total}}",
+      "effect_credits_other": "+{{count}} sessions — new balance: {{total}}",
+      "effect_subscription_one": "Opens a {{count}}-month membership — remaining credits are unchanged.",
+      "effect_subscription_other": "Opens a {{count}}-month membership — remaining credits are unchanged.",
+      "subscription_warning": "This member already has an active membership: their access is unlimited. The sale will be refused.",
+      "invoice_hint": "An invoice will be generated and emailed to the member automatically.",
+      "confirm": "Take payment",
+      "confirm_with_price": "Take {{price}}",
+      "toast_credits_one": "Sale recorded — {{count}} session credited",
+      "toast_credits_other": "Sale recorded — {{count}} sessions credited",
+      "toast_subscription": "Sale recorded — membership opened for {{name}}",
+      "toast_invoice_failed": "Payment recorded, but the invoice could not be emailed to the member."
+    },
+    "payments": {
+      "title": "Payments",
+      "empty": "No payment recorded."
     }
   },
   "attendance": {
@@ -1105,6 +1131,13 @@
     "NO_GYM": "No gym is linked to your account. Contact support.",
     "NOT_FOUND": "Item not found. Refresh the page.",
     "SERVER_ERROR": "A server error occurred. Try again; if it keeps failing, contact support.",
-    "NO_PUSH_TOKEN": "{{name}} hasn't enabled notifications on their phone. Reach them another way."
+    "NO_PUSH_TOKEN": "{{name}} hasn't enabled notifications on their phone. Reach them another way.",
+    "SUBSCRIPTION_ACTIVE": "{{name}} already has an active membership: their access is unlimited, so this purchase would be pointless.",
+    "PLAN_ALREADY_USED": "This offer is limited to one purchase per person — {{name}} has already used it.",
+    "PAYMENT_NOT_RECORDED": "The payment could not be recorded. Nothing was charged or credited: try again.",
+    "CREDITS_NOT_APPLIED": "The payment was recorded but nothing was delivered. Check Revenue before taking payment again.",
+    "MISSING_MEMBER_ID": "No member selected. Refresh the page.",
+    "MISSING_PLAN_ID": "No plan selected.",
+    "MISSING_FIELDS": "Required fields are missing."
   }
 }

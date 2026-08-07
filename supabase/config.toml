@@ -64,6 +64,12 @@ verify_jwt = true
 [functions.adjust-credits]
 verify_jwt = true
 
+# GYM-222 — vente d'une formule à un membre existant, au comptoir (JWT gym_admin requis ;
+# la cible doit être un membre de la salle de l'appelant, gym_id jamais du body ; le PRIX
+# vient de gym_plans via resolve_plan_for_payment, jamais du client).
+[functions.admin-sell-plan]
+verify_jwt = true
+
 # GYM-200 — invitation d'un membre d'équipe par le gérant (JWT gym_admin requis ;
 # gym_id ET rôle scellés côté serveur : gym_id vient du profil de l'appelant, le rôle est
 # validé contre une liste fermée — jamais pris du body tel quel).

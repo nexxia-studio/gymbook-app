@@ -13,8 +13,22 @@
 //  - Prix autoritatif serveur : le montant vient de gym_plans, jamais du client.
 //  - Crédits attribués par le RPC atomique apply_paid_payment (GYM-71), jamais
 //    par un INSERT credits direct.
+//
+// GYM-222 — L'ENCAISSEMENT N'HABITE PLUS ICI. Gardes de formule, ligne payments,
+// apply_paid_payment et facture sont passés dans _shared/counter-sale.ts pour que la vente
+// à un membre DÉJÀ INSCRIT (admin-sell-plan) soit le MÊME geste, et non un second
+// encaissement qui divergerait. Ce qui reste ci-dessous est ce qui relève réellement de la
+// création du compte : identité, auth.admin.createUser, email d'invitation.
+// Le comportement de cette fonction est inchangé, y compris l'ordre : le plan est résolu
+// AVANT createUser (échec de plan = aucun compte créé), l'encaissement n'a lieu qu'après.
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolvePlan } from '../_shared/plan-resolver.ts'
+import {
+  collectCounterPayment,
+  isPaymentMethod,
+  resolveSellablePlan,
+  type PaymentMethod,
+} from '../_shared/counter-sale.ts'
+import type { ResolvedPlan } from '../_shared/plan-resolver.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,8 +47,6 @@ const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 // sur iPhone (la boutique du compte, belge, est utilisée) mais frappe tout membre qui
 // ouvre l'email d'invitation depuis un navigateur desktop.
 const APP_DOWNLOAD_URL = 'https://apps.apple.com/be/app/dopamine-performance-club/id6781670485'
-
-type PaymentMethod = 'cash' | 'card_terminal'
 
 interface CreateMemberRequest {
   first_name?: string
@@ -125,27 +137,6 @@ async function sendInviteEmail(
   }
 }
 
-// GYM-167 — facture auto à l'encaissement hors-ligne. Appelle generate-invoice en INTERNE
-// (X-Internal-Secret → contourne le contrôle de rôle membre/gym_admin). Best-effort : un
-// échec ne doit JAMAIS faire échouer la création du membre ni le crédit.
-async function sendInvoiceEmail(admin: SupabaseClient, paymentId: string): Promise<boolean> {
-  try {
-    const secret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
-    const { data, error } = await admin.functions.invoke('generate-invoice', {
-      body: { payment_id: paymentId, mode: 'email' },
-      headers: secret ? { 'X-Internal-Secret': secret } : undefined,
-    })
-    if (error) {
-      console.error('[admin-create-member] invoice send failed:', error)
-      return false
-    }
-    return (data as { success?: boolean } | null)?.success === true
-  } catch (e) {
-    console.error('[admin-create-member] invoice send threw:', e)
-    return false
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -188,38 +179,22 @@ Deno.serve(async (req) => {
     if (!isValidEmail(email)) {
       return errorResponse(400, 'INVALID_EMAIL', 'Email invalide')
     }
-    if (planId && paymentMethod !== 'cash' && paymentMethod !== 'card_terminal') {
+    if (planId && !isPaymentMethod(paymentMethod)) {
       return errorResponse(400, 'INVALID_PAYMENT_METHOD', 'Méthode de paiement invalide')
     }
 
     // 3. Si une carte est demandée : résoudre le plan AVANT de créer le compte
     //    (échec de plan = rien créé). Prix/crédits autoritatifs serveur.
-    let plan = null as Awaited<ReturnType<typeof resolvePlan>>
+    //    GYM-222 — gardes de formule partagées (PLAN_NOT_FOUND / PLAN_NOT_ONE_TIME /
+    //    PLAN_MISCONFIGURED, dérogation once_per_member incluse) : mêmes codes, mêmes
+    //    statuts qu'avant, mais un seul exemplaire pour les deux chemins d'encaissement.
+    let plan: ResolvedPlan | null = null
     if (planId) {
-      plan = await resolvePlan(supabaseAdmin, gymId, planId)
-      if (!plan) return errorResponse(404, 'PLAN_NOT_FOUND', 'Formule introuvable ou inactive')
-      if (!plan.is_one_time) {
-        // Les abonnements Mollie ne peuvent pas être créés manuellement au comptoir.
-        return errorResponse(422, 'PLAN_NOT_ONE_TIME', 'Un abonnement récurrent ne peut pas être enregistré manuellement')
+      const resolved = await resolveSellablePlan(supabaseAdmin, gymId, planId)
+      if (resolved.refusal) {
+        return errorResponse(resolved.refusal.status, resolved.refusal.code, resolved.refusal.message)
       }
-      // GYM-189 — le gérant doit pouvoir vendre au comptoir (espèces / terminal) un
-      // abonnement payé en une fois, pas seulement une carte de séances. Ce qui rend une
-      // formule « mal configurée » dépend donc de sa NATURE, pas de la présence de crédits.
-      if (plan.plan_type === 'unlimited') {
-        if (plan.duration_months == null || plan.duration_months <= 0) {
-          return errorResponse(422, 'PLAN_MISCONFIGURED', 'Formule mal configurée (durée invalide)')
-        }
-      } else if (plan.credit_count == null || plan.credit_count <= 0) {
-        return errorResponse(422, 'PLAN_MISCONFIGURED', 'Formule mal configurée (crédits invalides)')
-      }
-
-      // GYM-193 — OMISSION VOLONTAIRE, NE PAS « CORRIGER ».
-      // La limite gym_plans.once_per_member (offre de découverte : un achat par membre)
-      // N'EST PAS appliquée ici, et c'est le comportement voulu. Elle encadre le
-      // LIBRE-SERVICE (app membre, cf. create-payment → 409 PLAN_ALREADY_USED) ; au
-      // comptoir, c'est le gérant qui est juge : geste commercial, offre refaite à un
-      // proche, séance d'essai offerte une seconde fois après une longue absence…
-      // Ajouter la garde ici retirerait au gérant une décision qui lui revient.
+      plan = resolved.plan
     }
 
     // 4. Création du compte via Auth Admin API. Le trigger handle_new_user()
@@ -258,52 +233,24 @@ Deno.serve(async (req) => {
     let invoiceSent = false
 
     if (plan) {
-      const paymentRowId = crypto.randomUUID()
-      const { error: insertErr } = await supabaseAdmin.from('payments').insert({
-        id: paymentRowId,
-        gym_id: gymId,
-        member_id: userId,
-        plan_id: plan.plan_id,
-        plan_name: plan.name,
-        amount: plan.price_cents / 100,
-        currency: plan.currency,
-        credits_granted: plan.credit_count,
-        status: 'pending',
-        // Paiement hors-ligne : pas de mollie_payment_id ni de checkout_url.
-        // payment_method (cash / card_terminal) est posé par apply_paid_payment.
+      // GYM-222 — encaissement partagé : ligne payments + apply_paid_payment (crédits OU
+      // abonnement selon la nature du plan) + facture GYM-167. Le membre reçoit donc deux
+      // emails : invitation + facture.
+      //
+      // 🔴 UN ÉCHEC RESTE UN AVERTISSEMENT ICI, PAS UNE ERREUR : le compte vient d'être
+      // créé et l'email d'invitation est parti — renvoyer une erreur ferait croire au
+      // gérant que rien n'a eu lieu et le pousserait à recréer le membre. Le chemin
+      // « membre existant » (admin-sell-plan) tranche l'inverse : il n'a rien à préserver.
+      const outcome = await collectCounterPayment(supabaseAdmin, {
+        gymId,
+        memberId: userId,
+        plan,
+        paymentMethod: paymentMethod as PaymentMethod,
+        logPrefix: '[admin-create-member]',
       })
-
-      if (insertErr) {
-        console.error('[admin-create-member] payment insert failed:', insertErr)
-        warning = 'PAYMENT_NOT_RECORDED'
-      } else {
-        // Contrepartie atomique et idempotente (GYM-71) — c'est le RPC qui délivre :
-        // crédits pour un plan 'credits', abonnement pour un plan 'unlimited' (GYM-189).
-        const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc('apply_paid_payment', {
-          p_payment_id: paymentRowId,
-          p_payment_method: paymentMethod,
-          p_paid_at: new Date().toISOString(),
-        })
-        // GYM-189 — le RPC renvoie désormais du jsonb ; `result` conserve exactement les
-        // valeurs de l'ancien retour texte, seul l'accès change.
-        const applied = (rpcResult ?? {}) as { result?: string; delivered?: string; subscription_id?: string }
-        if (rpcErr || (applied.result !== 'applied' && applied.result !== 'already_applied')) {
-          console.error('[admin-create-member] apply_paid_payment failed:', rpcErr, rpcResult)
-          warning = 'CREDITS_NOT_APPLIED'
-          paymentInfo = { id: paymentRowId, status: 'pending', credits: 0 }
-        } else {
-          paymentInfo = {
-            id: paymentRowId,
-            status: 'paid',
-            credits: plan.credit_count ?? 0,
-            ...(applied.delivered ? { delivered: applied.delivered } : {}),
-            ...(applied.subscription_id ? { subscription_id: applied.subscription_id } : {}),
-          }
-          // GYM-167 — génération + envoi de la facture au membre (best-effort). Le membre
-          // reçoit donc deux emails : invitation + facture. Un échec → invoice_sent:false.
-          invoiceSent = await sendInvoiceEmail(supabaseAdmin, paymentRowId)
-        }
-      }
+      paymentInfo = outcome.warning === 'PAYMENT_NOT_RECORDED' ? undefined : outcome.payment
+      warning = outcome.warning
+      invoiceSent = outcome.invoiceSent
     }
 
     return jsonResponse({
