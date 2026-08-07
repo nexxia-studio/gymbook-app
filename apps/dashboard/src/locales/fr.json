@@ -590,6 +590,32 @@
       "reset_on": "Compteur remis à zéro le {{date}} si aucune nouvelle absence",
       "reset_suspended": "Le compte à rebours de remise à zéro reprend à la fin de la suspension",
       "reset_unknown": "Aucune absence constatable : le compteur sera remis à zéro au prochain passage"
+    },
+    "sell": {
+      "button": "Vendre une formule",
+      "title": "Vendre une formule",
+      "current_balance": "Solde actuel",
+      "plan": "Formule",
+      "plan_placeholder": "Choisir une formule",
+      "no_plans": "Aucune formule à paiement unique active. Crée-en une dans Réglages > Formules.",
+      "price": "Prix",
+      "payment_method": "Encaissé en",
+      "effect_credits_one": "+{{count}} séance — nouveau solde : {{total}}",
+      "effect_credits_other": "+{{count}} séances — nouveau solde : {{total}}",
+      "effect_subscription_one": "Ouvre un abonnement de {{count}} mois — les crédits restants ne changent pas.",
+      "effect_subscription_other": "Ouvre un abonnement de {{count}} mois — les crédits restants ne changent pas.",
+      "subscription_warning": "Ce membre a déjà un abonnement en cours : son accès est illimité. La vente sera refusée.",
+      "invoice_hint": "Une facture sera générée et envoyée automatiquement au membre.",
+      "confirm": "Encaisser",
+      "confirm_with_price": "Encaisser {{price}}",
+      "toast_credits_one": "Vente enregistrée — {{count}} séance créditée",
+      "toast_credits_other": "Vente enregistrée — {{count}} séances créditées",
+      "toast_subscription": "Vente enregistrée — abonnement ouvert pour {{name}}",
+      "toast_invoice_failed": "Encaissement enregistré, mais la facture n'a pas pu être envoyée au membre."
+    },
+    "payments": {
+      "title": "Paiements",
+      "empty": "Aucun paiement enregistré."
     }
   },
   "attendance": {
@@ -1105,6 +1131,13 @@
     "NO_GYM": "Aucune salle n'est associée à ton compte. Contacte le support.",
     "NOT_FOUND": "Élément introuvable. Rafraîchis la page.",
     "SERVER_ERROR": "Une erreur serveur est survenue. Réessaie ; si le problème persiste, contacte le support.",
-    "NO_PUSH_TOKEN": "{{name}} n'a pas activé les notifications sur son téléphone. Contacte-le autrement."
+    "NO_PUSH_TOKEN": "{{name}} n'a pas activé les notifications sur son téléphone. Contacte-le autrement.",
+    "SUBSCRIPTION_ACTIVE": "{{name}} a déjà un abonnement en cours : son accès est illimité, cet achat ne lui servirait à rien.",
+    "PLAN_ALREADY_USED": "Cette offre est limitée à un achat par personne — {{name}} en a déjà bénéficié.",
+    "PAYMENT_NOT_RECORDED": "L'encaissement n'a pas pu être enregistré. Rien n'a été débité ni crédité : réessaie.",
+    "CREDITS_NOT_APPLIED": "Le paiement est enregistré mais la contrepartie n'a pas été délivrée. Vérifie dans Revenus avant de réencaisser.",
+    "MISSING_MEMBER_ID": "Aucun membre sélectionné. Rafraîchis la page.",
+    "MISSING_PLAN_ID": "Aucune formule sélectionnée.",
+    "MISSING_FIELDS": "Des champs obligatoires sont manquants."
   }
 }

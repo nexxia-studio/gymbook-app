@@ -84,7 +84,22 @@ export const KNOWN_EDGE_ERROR_CODES = [
   'INVALID_DELTA', 'REASON_REQUIRED', 'MEMBER_NOT_IN_GYM', 'ADJUST_FAILED',
   // ── admin-create-member ──
   'EMAIL_EXISTS', 'INVALID_EMAIL', 'PLAN_NOT_FOUND', 'PLAN_MISCONFIGURED',
-  'PLAN_NOT_ONE_TIME', 'INVALID_PAYMENT_METHOD', 'CREATE_FAILED',
+  'PLAN_NOT_ONE_TIME', 'INVALID_PAYMENT_METHOD', 'CREATE_FAILED', 'MISSING_FIELDS',
+  // ── admin-sell-plan (GYM-222 — vente au comptoir à un membre existant) ──
+  // Partage les gardes de formule ci-dessus (module _shared/counter-sale.ts) et y ajoute :
+  //  · SUBSCRIPTION_ACTIVE — refus LÉGITIME : un abonnement en cours ouvre déjà l'accès
+  //    illimité. À EXPLIQUER, jamais à masquer : le gérant doit comprendre qu'il ne s'agit
+  //    pas d'une panne mais d'un achat qui ne servirait à rien au membre.
+  //  · PAYMENT_NOT_RECORDED / CREDITS_NOT_APPLIED — l'argent a été annoncé mais la trace ou
+  //    la contrepartie manque. Le gérant doit le savoir TOUT DE SUITE, pas le découvrir
+  //    quand le membre voudra réserver.
+  'SUBSCRIPTION_ACTIVE', 'PAYMENT_NOT_RECORDED', 'CREDITS_NOT_APPLIED',
+  'MISSING_MEMBER_ID', 'MISSING_PLAN_ID',
+  // PLAN_ALREADY_USED n'est PAS renvoyé par le comptoir (dérogation gérant GYM-193, cf.
+  // _shared/counter-sale.ts) — seulement par create-payment, côté app membre. Il est mappé
+  // ici parce que le code est partagé avec le libre-service et qu'un refus non traduit
+  // retomberait sur « l'action n'a pas abouti ».
+  'PLAN_ALREADY_USED',
   // ── admin-update-member ──
   'INVALID_FIRST_NAME', 'INVALID_LAST_NAME', 'INVALID_PHONE', 'NO_FIELDS', 'UPDATE_FAILED',
   // ── admin-lift-suspension (GYM-204, le modèle) ──
