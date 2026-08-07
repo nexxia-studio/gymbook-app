@@ -3,7 +3,7 @@
 // directes (RLS gym_admin) ; email non modifiable (hors périmètre v1).
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle } from 'lucide-react'
+import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle, ShoppingCart, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { supabase } from '@/lib/supabase'
@@ -13,6 +13,7 @@ import { resolveEdgeError } from '@/lib/edgeErrors'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
 import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipline'
 import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
+import { SellPlanModal } from '@/components/members/SellPlanModal'
 import type { Member } from '@/hooks/useMembers'
 
 interface MemberDrawerProps {
@@ -59,10 +60,11 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const { t } = useTranslation()
   const tz = useGymTimezone()
   const addToast = useToastStore((s) => s.addToast)
-  const { credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, subscription, bookings, loading, adjustCredits } = useMemberDetail(member?.id ?? null)
+  const { credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments, subscription, bookings, loading, adjustCredits, sellPlan } = useMemberDetail(member?.id ?? null)
   const { penalties, lifts, summary: discipline, loading: disciplineLoading } = useMemberDiscipline(member?.id ?? null)
 
   const [adjustOpen, setAdjustOpen] = useState(false)
+  const [sellOpen, setSellOpen] = useState(false)
   const [identity, setIdentity] = useState({ firstName: '', lastName: '', phone: '' as string | null })
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '' })
@@ -142,6 +144,24 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   // ne jamais se contenter de « la colonne est renseignée ». Le cron d'expiration ne
   // repasse pas la colonne à NULL, une date passée y subsiste donc normalement.
   const isSuspended = !!member?.suspendedUntil && new Date(member.suspendedUntil).getTime() > Date.now()
+
+  /**
+   * GYM-222 — un abonnement qui fera refuser la vente par le serveur (SUBSCRIPTION_ACTIVE).
+   * Sert UNIQUEMENT à prévenir le gérant avant qu'il encaisse ; l'autorité reste
+   * admin-sell-plan, qui refait le test sur la base.
+   *
+   * Même prédicat que la garde serveur : statut ouvrant des droits ET terme non dépassé.
+   * Un abonnement échu que le cron n'a pas encore passé 'expired' ne doit rien annoncer —
+   * ce serait alarmer exactement au moment du réabonnement.
+   *
+   * ⚠️ Peut rester false pour un abonnement 'canceling' : useMemberDetail ne charge que les
+   * statuts de LIVE_SUB_STATUSES, qui ne l'inclut pas (antérieur à GYM-195). Faux négatif
+   * assumé — le gérant verra alors le refus du serveur, expliqué, au lieu de l'avertissement
+   * anticipé. Jamais l'inverse : on n'annonce pas un blocage qui n'existerait pas.
+   */
+  const hasBlockingSubscription = !!subscription
+    && (subscription.status === 'active' || subscription.status === 'canceling')
+    && (!subscription.endsAt || new Date(subscription.endsAt).getTime() > Date.now())
 
   /**
    * GYM-214 — Libellé en clair d'une sanction. La valeur brute de `penalties.type`
@@ -299,8 +319,23 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                       ))}
                     </div>
                   )}
-                  {/* GYM-182 — bouton d'ajustement manuel. */}
-                  <Button variant="secondary" className="mt-3 w-full" onClick={() => setAdjustOpen(true)}>
+                  {/* GYM-222 — LE geste quotidien de la salle : le gérant vient de lire le
+                      solde juste au-dessus, c'est ici que la vente est naturelle. Action
+                      PRIMAIRE, au-dessus de l'ajustement.
+
+                      🔴 LA HIÉRARCHIE DES DEUX BOUTONS EST LE GARDE-FOU. Vendre produit une
+                      ligne payments, une facture, de la TVA, du chiffre d'affaires ; offrir
+                      (GYM-182) ne produit qu'un crédit. Mettre le second en avant, ou les
+                      rendre équivalents, mènerait un gérant pressé à encaisser de l'argent
+                      par le chemin qui ne le trace pas. */}
+                  <Button className="mt-3 w-full" onClick={() => setSellOpen(true)}>
+                    <ShoppingCart className="h-4 w-4" />
+                    {t('member_drawer.sell.button')}
+                  </Button>
+
+                  {/* GYM-182 — bouton d'ajustement manuel (geste GRATUIT : parrainage,
+                      compensation). Volontairement secondaire. */}
+                  <Button variant="secondary" className="mt-2 w-full" onClick={() => setAdjustOpen(true)}>
                     <Gift className="h-4 w-4" />
                     {t('member_drawer.adjust.button')}
                   </Button>
@@ -326,6 +361,57 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </Section>
+
+              {/* ── GYM-222 — Paiements ──
+                  L'argent encaissé ne se lisait QUE dans /revenus. Après une vente au
+                  comptoir, le gérant n'avait aucune trace sur l'écran où il venait de la
+                  faire — et rien ne distinguait, sur la fiche, une carte VENDUE d'un crédit
+                  OFFERT. Ces lignes sont la preuve comptable du geste : montant, moyen de
+                  paiement, numéro de facture. Aucune ligne → état vide honnête. */}
+              <Section Icon={Receipt} title={t('member_drawer.payments.title')}>
+                {loading ? (
+                  <p className="font-body text-sm text-muted">{t('common.loading')}</p>
+                ) : payments.length === 0 ? (
+                  <p className="rounded-xl border border-border p-4 font-body text-sm text-muted">
+                    {t('member_drawer.payments.empty')}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {payments.map((p) => (
+                      <div key={p.id} className="flex items-start justify-between gap-3 rounded-xl border border-border px-4 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate font-body text-sm font-medium text-dark">{p.planName}</p>
+                          <p className="font-body text-xs text-muted">
+                            {fmtDate(p.at)}
+                            {/* Libellés RÉUTILISÉS de /revenus (revenue.method_*) : le même
+                                paiement doit se lire pareil sur les deux écrans. Seules
+                                'cash' et 'card_terminal' y ont une entrée ; un paiement
+                                Mollie garde son libellé brut plutôt qu'une traduction
+                                inventée. */}
+                            {p.method && <> · {p.method === 'cash' || p.method === 'card_terminal'
+                              ? t(`revenue.method_${p.method}`)
+                              : p.method}</>}
+                            {p.invoiceNumber && <> · {p.invoiceNumber}</>}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="font-body text-sm font-bold text-dark">
+                            {new Intl.NumberFormat('fr-BE', { style: 'currency', currency: p.currency }).format(p.amount)}
+                          </p>
+                          {/* Seul un statut NON encaissé est signalé : afficher « payé » sur
+                              chaque ligne serait du bruit, mais un paiement resté en attente
+                              ou remboursé change ce que le gérant doit en conclure. */}
+                          {p.status !== 'paid' && (
+                            <p className="font-body text-[11px] font-semibold text-amber-600">
+                              {t(`revenue.status_${p.status}`, { defaultValue: p.status })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </Section>
@@ -467,6 +553,16 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                 )}
               </Section>
             </div>
+
+            {/* GYM-222 — modale de vente d'une formule au comptoir. */}
+            <SellPlanModal
+              open={sellOpen}
+              onClose={() => setSellOpen(false)}
+              memberName={fullName}
+              currentRemaining={creditsRemaining}
+              hasActiveSubscription={hasBlockingSubscription}
+              onSell={sellPlan}
+            />
 
             {/* GYM-182 — modale d'ajustement manuel de crédits. */}
             <AdjustCreditsModal

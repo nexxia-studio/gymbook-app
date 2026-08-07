@@ -52,8 +52,31 @@ export interface AdjustResult {
   clamped: boolean
 }
 
+// GYM-222 — une ligne de l'historique des paiements du membre.
+// L'argent encaissé se lisait UNIQUEMENT dans /revenus, jamais sur la fiche : après une
+// vente au comptoir, le gérant n'avait aucune confirmation sur l'écran où il venait de la
+// faire. C'est aussi ce qui distingue visiblement une VENTE (ligne ici + facture) d'un
+// crédit OFFERT (GYM-182, journal des ajustements, aucune écriture comptable).
+export interface MemberPayment {
+  id: string
+  planName: string
+  amount: number
+  currency: string
+  status: string
+  /** 'cash' | 'card_terminal' | valeur Mollie | null tant que le paiement est pending. */
+  method: string | null
+  invoiceNumber: string | null
+  at: string
+}
+
 // GYM-182 — plan_id sentinelle des crédits offerts manuellement (texte libre, pas une FK).
 export const MANUAL_GRANT_PLAN_ID = 'manual_grant'
+
+// GYM-222 — retour de l'Edge admin-sell-plan.
+export interface SellResult {
+  payment: { id: string; status: string; credits: number; delivered?: string; subscription_id?: string }
+  invoice_sent: boolean
+}
 
 // Statuts d'abonnement affichés dans la fiche. expired/cancelled → "aucun abonnement".
 // GYM-151 — 'completed' (engagement arrivé à son terme) est affiché avec un badge « Terminé »
@@ -67,6 +90,7 @@ export function useMemberDetail(memberId: string | null) {
   const [giftedRemaining, setGiftedRemaining] = useState(0)
   const [purchasedRemaining, setPurchasedRemaining] = useState(0)
   const [adjustments, setAdjustments] = useState<CreditAdjustment[]>([])
+  const [payments, setPayments] = useState<MemberPayment[]>([])
   const [subscription, setSubscription] = useState<MemberSubscription | null>(null)
   const [bookings, setBookings] = useState<RecentBooking[]>([])
   const [loading, setLoading] = useState(false)
@@ -75,7 +99,7 @@ export function useMemberDetail(memberId: string | null) {
     if (!memberId || !gymId) return
     setLoading(true)
     try {
-      const [creditsRes, plansRes, subRes, bookingsRes, adjustmentsRes] = await Promise.all([
+      const [creditsRes, plansRes, subRes, bookingsRes, adjustmentsRes, paymentsRes] = await Promise.all([
         supabase
           .from('member_credits')
           .select('plan_id, credits_total, credits_used, credits_remaining')
@@ -102,6 +126,16 @@ export function useMemberDetail(memberId: string | null) {
           .eq('member_id', memberId)
           .order('created_at', { ascending: false })
           .limit(20),
+        // GYM-222 — paiements du membre (RLS gym_admin : gym_id = get_my_gym_id()).
+        // Filtré sur gym_id EN PLUS de member_id : la policy le ferait déjà, mais un membre
+        // ayant changé de salle ne doit pas exposer le chiffre d'affaires d'une autre.
+        supabase
+          .from('payments')
+          .select('id, plan_name, amount, currency, status, payment_method, invoice_number, paid_at, created_at')
+          .eq('member_id', memberId)
+          .eq('gym_id', gymId)
+          .order('created_at', { ascending: false })
+          .limit(10),
       ])
 
       const planNames = new Map<string, string>()
@@ -137,6 +171,20 @@ export function useMemberDetail(memberId: string | null) {
         }
       })
       setAdjustments(adjLines)
+
+      const paymentLines: MemberPayment[] = ((paymentsRes.data ?? []) as Array<Record<string, unknown>>).map((p) => ({
+        id: p.id as string,
+        planName: (p.plan_name as string) ?? '—',
+        amount: Number(p.amount ?? 0),
+        currency: (p.currency as string) ?? 'EUR',
+        status: (p.status as string) ?? 'pending',
+        method: (p.payment_method as string | null) ?? null,
+        invoiceNumber: (p.invoice_number as string | null) ?? null,
+        // paid_at fait foi quand il existe : c'est la date de l'ARGENT. created_at ne vaut
+        // que pour un paiement jamais abouti (checkout abandonné), qui reste 'pending'.
+        at: ((p.paid_at as string | null) ?? (p.created_at as string)) ?? '',
+      }))
+      setPayments(paymentLines)
 
       const sub = subRes.data as Record<string, unknown> | null
       if (sub && LIVE_SUB_STATUSES.includes(sub.status as string)) {
@@ -191,8 +239,33 @@ export function useMemberDetail(memberId: string | null) {
     return data as AdjustResult
   }, [memberId, load])
 
+  // GYM-222 — vente d'une formule au comptoir à ce membre (espèces / terminal).
+  //
+  // 🔴 NE JAMAIS REMPLACER PAR adjustCredits. Une vente doit produire une ligne payments,
+  // une facture, de la TVA et du chiffre d'affaires ; adjust-credits (GYM-182) n'écrit
+  // qu'un crédit offert, et ses motifs décrivent des gestes GRATUITS. Le raccourci
+  // paraîtrait équivalent à l'écran et fausserait durablement la comptabilité de la salle.
+  //
+  // Le PRIX n'est pas envoyé : il est résolu côté serveur depuis gym_plans. Aucun montant
+  // saisi ou affiché par le dashboard n'entre dans l'écriture comptable.
+  //
+  // Lève une EdgeError porteuse du code (SUBSCRIPTION_ACTIVE, PLAN_MISCONFIGURED…) : ce
+  // sont des refus LÉGITIMES qui doivent être expliqués au gérant, pas masqués (GYM-219).
+  const sellPlan = useCallback(async (planId: string, paymentMethod: 'cash' | 'card_terminal'): Promise<SellResult> => {
+    if (!memberId) throw new EdgeError('MEMBER_NOT_FOUND')
+    const { data, error } = await supabase.functions.invoke('admin-sell-plan', {
+      body: { member_id: memberId, plan_id: planId, payment_method: paymentMethod },
+    })
+    if (error) throw new EdgeError(await extractErrorCode(error))
+    // Recharge AVANT de rendre la main : le solde de crédits, l'abonnement éventuellement
+    // ouvert et la nouvelle ligne de paiement doivent être à l'écran quand la modale se
+    // ferme. Sans ça le gérant relit un solde périmé et revend la même carte.
+    await load()
+    return data as SellResult
+  }, [memberId, load])
+
   return {
-    credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments,
-    subscription, bookings, loading, reload: load, adjustCredits,
+    credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments,
+    subscription, bookings, loading, reload: load, adjustCredits, sellPlan,
   }
 }
