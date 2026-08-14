@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Trash2, XCircle } from 'lucide-react'
+import { X, Pencil, Trash2, XCircle, UserPlus } from 'lucide-react'
 import type { TimeSlot, DisplayStatus, AttendanceStatus } from '@/types/planning'
-import { getDisplayStatus, canTrackAttendance } from '@/types/planning'
+import { getDisplayStatus, canTrackAttendance, canBookFutureSlot } from '@/types/planning'
 import { Button } from '@/components/ui/Button'
 import { AttendanceSection } from '@/components/planning/AttendanceSection'
 import type { MarkAttendanceResult, MemberSearchResult } from '@/hooks/usePlanning'
@@ -18,6 +18,8 @@ interface SlotDrawerProps {
   onWalkIn: (slotId: string, memberId: string) => Promise<{ ok: boolean; code?: string }>
   searchMembers: (query: string, excludeIds: string[]) => Promise<MemberSearchResult[]>
   onOpenAddMember: () => void
+  // GYM-226 — inscription à un cours futur (réservation seule, SANS pointage).
+  onOpenBookMember: (slot: TimeSlot) => void
 }
 
 const statusColors: Record<DisplayStatus, string> = {
@@ -29,7 +31,7 @@ const statusColors: Record<DisplayStatus, string> = {
 
 export function SlotDrawer({
   slot, onClose, onEdit, onCancel, onDelete,
-  onMarkAttendance, onWalkIn, searchMembers, onOpenAddMember,
+  onMarkAttendance, onWalkIn, searchMembers, onOpenAddMember, onOpenBookMember,
 }: SlotDrawerProps) {
   const { t } = useTranslation()
 
@@ -183,6 +185,20 @@ export function SlotDrawer({
             {/* Actions */}
             {getDisplayStatus(slot) !== 'cancelled' && (
               <div className="flex flex-col gap-2 border-t border-border p-5">
+                {/* GYM-226 — « Inscrire un membre » : UNIQUEMENT sur un créneau qui n'a pas
+                    commencé. Sur un cours passé ou en cours, c'est le walk-in du bloc
+                    « Présences » qui sert (inscription + pointage présent) ; proposer les
+                    deux au même endroit ferait choisir au hasard entre deux gestes qui ne
+                    produisent pas la même chose. Action de tête : au comptoir, inscrire est
+                    plus fréquent que modifier le créneau. */}
+                {canBookFutureSlot(slot) && (
+                  <div className="flex gap-3">
+                    <Button className="flex-1" onClick={() => onOpenBookMember(slot)}>
+                      <UserPlus className="h-4 w-4" />
+                      {t('book_member.open')}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <Button variant="secondary" className="flex-1" onClick={() => onEdit(slot)}>
                     <Pencil className="h-4 w-4" />

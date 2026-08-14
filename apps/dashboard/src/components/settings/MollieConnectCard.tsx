@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CreditCard, Check, AlertCircle, AlertTriangle, Loader2, Unlink, RefreshCw } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 interface Connection {
   connected: boolean
@@ -12,6 +12,19 @@ interface Connection {
   status: 'active' | 'revoked' | 'expired' | null
 }
 
+// GYM-227 — 🔴 L'EN-TÊTE Authorization FORGÉ À LA MAIN A ÉTÉ RETIRÉ DES TROIS APPELS.
+//
+// Chaque appel faisait `supabase.auth.getSession()` puis posait lui-même
+// `Authorization: Bearer <access_token>`. C'est CET écran qui a produit les trois 401 du
+// 12/08 (07:55:31, 07:55:57, 08:25:17) : le jeton était lu depuis une session que le
+// minuteur d'arrière-plan n'avait pas renouvelée, puis figé dans l'en-tête.
+//
+// Le figer neutralisait aussi le rattrapage : invokeEdge a beau renouveler la session
+// avant de rejouer, un en-tête écrit par l'appelant repart identique — le rejeu aurait
+// porté le MÊME jeton mort. supabase-js attache de lui-même le jeton COURANT à chaque
+// appel ; le laisser faire est ce qui rend le rejeu effectif. `x-action` reste, lui : il
+// porte la sémantique de l'appel, pas l'identité de l'appelant.
+//
 // GYM-85 : mapping des codes d'erreur backend → message FR visible.
 const ERROR_MESSAGES: Record<string, string> = {
   CONFIG_MISSING: 'Configuration Mollie manquante côté serveur, contacte le support.',
@@ -49,9 +62,8 @@ export function MollieConnectCard() {
 
   const checkStatus = useCallback(async () => {
     setError(null)
-    const { data: { session } } = await supabase.auth.getSession()
-    const { data, error: fnError } = await supabase.functions.invoke('mollie-connect-oauth', {
-      headers: { 'x-action': 'status', Authorization: `Bearer ${session?.access_token}` },
+    const { data, error: fnError } = await invokeEdge('mollie-connect-oauth', {
+      headers: { 'x-action': 'status' },
       body: {},
     })
     if (fnError || !data) {
@@ -69,9 +81,8 @@ export function MollieConnectCard() {
     setIsConnecting(true)
     setError(null)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const { data, error: fnError } = await supabase.functions.invoke('mollie-connect-oauth', {
-        headers: { 'x-action': 'authorize', Authorization: `Bearer ${session?.access_token}` },
+      const { data, error: fnError } = await invokeEdge('mollie-connect-oauth', {
+        headers: { 'x-action': 'authorize' },
         body: {},
       })
 
@@ -99,12 +110,11 @@ export function MollieConnectCard() {
   const handleDisconnect = async () => {
     if (!confirm('Déconnecter Mollie ? Les paiements seront désactivés.')) return
     setError(null)
-    const { data: { session } } = await supabase.auth.getSession()
     // GYM-219 — 🔴 FAUX SUCCÈS CORRIGÉ : `error` n'était pas testé et l'interface
     // affichait « déconnecté » quoi qu'il arrive. Le gérant pouvait croire son compte
     // Mollie détaché alors qu'il restait connecté côté serveur.
-    const { error: fnError } = await supabase.functions.invoke('mollie-connect-oauth', {
-      headers: { 'x-action': 'disconnect', Authorization: `Bearer ${session?.access_token}` },
+    const { error: fnError } = await invokeEdge('mollie-connect-oauth', {
+      headers: { 'x-action': 'disconnect' },
       body: {},
     })
     if (fnError) {

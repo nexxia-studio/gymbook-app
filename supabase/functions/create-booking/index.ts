@@ -1,5 +1,13 @@
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { ACTIVE_SUBSCRIPTION_STATUSES, notExpiredFilter } from '../_shared/active-subscription.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-226 — les quatre lectures de garde (quota salle, abonnement ouvrant, crédit
+// disponible, plafond de réservations à venir) vivent désormais dans _shared, partagées
+// avec admin-book-member. EXTRACTION PURE : requêtes, filtres et replis inchangés.
+import {
+  checkMemberQuota,
+  countFutureConfirmedBookings,
+  hasActiveSubscription,
+  hasAvailableCredits,
+} from '../_shared/booking-guards.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,46 +16,6 @@ const corsHeaders = {
 
 interface BookingRequest {
   slot_id: string
-}
-
-// GYM-196 — `maxActiveBookings` est remonté ICI plutôt que par une seconde requête :
-// la ligne nexxia_gyms est déjà lue pour le quota de membres, autant en tirer les deux
-// informations. NULL = aucune limite de réservations.
-async function checkMemberQuota(
-  supabase: SupabaseClient,
-  gymId: string,
-): Promise<{ allowed: boolean; reason?: string; maxActiveBookings: number | null }> {
-  const { data: gym } = await supabase
-    .from('nexxia_gyms')
-    .select('plan, max_active_bookings')
-    .eq('id', gymId)
-    .single()
-
-  const maxActiveBookings = (gym?.max_active_bookings as number | null) ?? null
-
-  if (!gym?.plan) return { allowed: false, reason: 'PLAN_NOT_FOUND', maxActiveBookings }
-
-  const { data: limits } = await supabase
-    .from('nexxia_plan_limits')
-    .select('max_members')
-    .eq('plan', gym.plan)
-    .single()
-
-  // null = illimité
-  if (!limits || limits.max_members === null) return { allowed: true, maxActiveBookings }
-
-  const { count } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('gym_id', gymId)
-    .eq('role', 'member')
-    .is('deleted_at', null)
-
-  if ((count ?? 0) >= limits.max_members) {
-    return { allowed: false, reason: 'MEMBER_QUOTA_REACHED', maxActiveBookings }
-  }
-
-  return { allowed: true, maxActiveBookings }
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -155,14 +123,9 @@ Deno.serve(async (req) => {
     //    ci-dessus — aucune requête supplémentaire. NULL = aucune limite.
     const maxActiveBookings = quotaCheck.maxActiveBookings
     if (maxActiveBookings !== null) {
-      const { count: futureCount } = await supabaseAdmin
-        .from('bookings')
-        .select('id, time_slots!inner(starts_at)', { count: 'exact', head: true })
-        .eq('member_id', user.id)
-        .eq('status', 'confirmed')
-        .gte('time_slots.starts_at', new Date().toISOString())
+      const futureCount = await countFutureConfirmedBookings(supabaseAdmin, user.id)
 
-      if ((futureCount ?? 0) >= maxActiveBookings) {
+      if (futureCount >= maxActiveBookings) {
         // `limit` est renvoyé pour que l'app affiche le bon nombre : elle ne charge
         // jamais nexxia_gyms et ne peut donc pas connaître la limite autrement.
         return jsonResponse({
@@ -179,31 +142,15 @@ Deno.serve(async (req) => {
     // ============================================================
     // GYM-191 — le terme compte autant que le statut : un abonnement échu ne doit plus
     // ouvrir de réservation sans débit de crédit, même si le cron d'expiration a du retard.
-    const { data: activeSubscription } = await supabaseAdmin
-      .from('member_subscriptions')
-      .select('id')
-      .eq('member_id', user.id)
-      .eq('gym_id', slot.gym_id)
-      // GYM-195 — 'canceling' compte comme actif : le membre a payé et reste engagé
-      // jusqu'au terme, lui débiter un crédit ici serait le faire payer deux fois.
-      .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
-      .or(notExpiredFilter())
-      .maybeSingle()
+    // GYM-195 — 'canceling' compte comme actif : le membre a payé et reste engagé
+    // jusqu'au terme, lui débiter un crédit ici serait le faire payer deux fois.
+    const activeSubscription = await hasActiveSubscription(supabaseAdmin, user.id, slot.gym_id)
 
-    // GYM-94 — dispo crédit = MÊME sélection que la RPC : au moins une ligne avec
-    // (credits_total - credits_used) > 0. On compte sur la colonne générée
-    // credits_remaining (= total - used). PAS de limit 1 (qui masquait des crédits
-    // cumulés et provoquait un faux 402).
-    const { count: availableCreditCount } = await supabaseAdmin
-      .from('member_credits')
-      .select('id', { count: 'exact', head: true })
-      .eq('member_id', user.id)
-      .eq('gym_id', slot.gym_id)
-      .gt('credits_remaining', 0)
+    // GYM-94 — dispo crédit = MÊME sélection que la RPC (colonne générée
+    // credits_remaining, sans limit 1 qui masquait des crédits cumulés).
+    const creditsAvailable = await hasAvailableCredits(supabaseAdmin, user.id, slot.gym_id)
 
-    const hasAvailableCredits = (availableCreditCount ?? 0) > 0
-
-    if (!activeSubscription && !hasAvailableCredits) {
+    if (!activeSubscription && !creditsAvailable) {
       return jsonResponse({
         error: true,
         code: 'PAYMENT_REQUIRED',
@@ -227,7 +174,7 @@ Deno.serve(async (req) => {
       p_member_id: user.id,
       p_slot_id: slotId,
       p_gym_id: slot.gym_id,
-      p_has_subscription: !!activeSubscription,
+      p_has_subscription: activeSubscription,
       p_existing_booking_id: existingBooking?.status === 'cancelled' ? existingBooking.id : null,
     })
 

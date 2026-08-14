@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useSessionKeepAlive } from '@/hooks/useSessionKeepAlive'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ACTIVATION_PATH, shouldInterceptInvite } from '@/lib/inviteLink'
 import { ToastContainer } from '@/components/ui/Toast'
@@ -160,6 +161,12 @@ function AppRoutes() {
 
 function App() {
   const initialize = useAuthStore((s) => s.initialize)
+  const hasSession = useAuthStore((s) => s.session !== null)
+
+  // GYM-227 — filet monté ICI, au-dessus du routeur : la session doit rester valide sur
+  // TOUTES les pages, pas seulement celles qui appellent une Edge Function. Une heure
+  // passée sur /planning sans un seul appel laissait le jeton expirer tout autant.
+  useSessionKeepAlive(hasSession)
 
   useEffect(() => {
     initialize()

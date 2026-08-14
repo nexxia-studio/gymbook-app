@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle, ShoppingCart, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { resolveEdgeError } from '@/lib/edgeErrors'
@@ -15,6 +14,7 @@ import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipl
 import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
 import { SellPlanModal } from '@/components/members/SellPlanModal'
 import type { Member } from '@/hooks/useMembers'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 interface MemberDrawerProps {
   member: Member | null
@@ -109,7 +109,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
     }
     setSaving(true)
     try {
-      const { data, error } = await supabase.functions.invoke('admin-update-member', {
+      const { data, error } = await invokeEdge('admin-update-member', {
         body: {
           member_id: member.id,
           first_name: form.firstName.trim(),

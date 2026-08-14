@@ -98,3 +98,27 @@ export function canTrackAttendance(slot: TimeSlot): boolean {
   if (isNaN(slotDay.getTime())) return false
   return slotDay.getTime() <= today.getTime()
 }
+
+/**
+ * GYM-226 — Un membre peut être INSCRIT (réservation, sans pointage) tant que le cours
+ * n'a pas COMMENCÉ.
+ *
+ * ⚠️ LA COMPARAISON PORTE SUR L'HEURE DE DÉBUT, pas sur le jour — contrairement à
+ * canTrackAttendance juste au-dessus. Les deux gestes ne répondent pas à la même question :
+ *   · canTrackAttendance : « ce cours peut-il être pointé ? » → oui dès le jour même, et
+ *     après coup (un pointage se corrige).
+ *   · canBookFutureSlot : « ce cours peut-il encore être réservé ? » → non dès qu'il a
+ *     commencé. Sur un cours déjà tenu, inscrire quelqu'un produirait une réservation que
+ *     personne ne pointera jamais ; c'est le walk-in qui sert, et lui seul.
+ *
+ * Les deux se CHEVAUCHENT donc volontairement sur un cours plus tard dans la journée : le
+ * gérant peut aussi bien inscrire quelqu'un pour 18 h que pointer les présents de 9 h. Ce
+ * sont deux gestes distincts, présentés distinctement (bouton vs recherche de pointage).
+ * Le serveur retient la même borne (admin-book-member → SLOT_PAST).
+ */
+export function canBookFutureSlot(slot: TimeSlot): boolean {
+  if (slot.status === 'cancelled') return false
+  const startMs = buildLocalDate(slot.date, slot.startTime).getTime()
+  if (isNaN(startMs)) return false
+  return startMs > Date.now()
+}

@@ -19,24 +19,49 @@
 import type { TFunction } from 'i18next'
 
 /**
- * Lit le code d'erreur métier renvoyé par une Edge Function.
+ * Détails que certaines Edge Functions joignent au refus, en plus du `code`.
+ *
+ * Ce ne sont pas des décorations : chacun rend le message ACTIONNABLE là où le code seul
+ * resterait vague. « Limite atteinte » n'aide pas, « limite de 3 réservations » si.
+ */
+export interface EdgeErrorBody {
+  code?: string
+  /** MAX_BOOKINGS_REACHED — plafond de la salle (nexxia_gyms.max_active_bookings). */
+  limit?: number
+  /** SUSPENDED — échéance de la sanction, pour la nommer avant de proposer sa levée. */
+  suspended_until?: string
+  /** FULL — position que le membre OCCUPERAIT en liste d'attente s'il l'accepte. */
+  waitlist_position?: number
+}
+
+/**
+ * Lit le corps JSON d'un refus d'Edge Function.
  *
  * supabase-js emballe une réponse HTTP en erreur dans une FunctionsHttpError dont le corps
  * original n'est accessible que via `error.context` (une Response non consommée). Sans ça,
  * on ne dispose que d'un « Edge Function returned a non-2xx status code » inexploitable
  * pour afficher un message précis à l'utilisateur.
+ *
+ * ⚠️ UNE Response NE SE LIT QU'UNE FOIS. C'est pourquoi tout passe par cette fonction :
+ * un second appel sur la même erreur trouverait le flux déjà consommé et renverrait un
+ * corps vide. Les appelants qui ont besoin du code ET d'un détail (`limit`,
+ * `suspended_until`…) doivent donc lire le corps UNE seule fois, ici.
  */
-export async function extractErrorCode(error: unknown): Promise<string | undefined> {
+export async function extractErrorBody(error: unknown): Promise<EdgeErrorBody> {
   const ctx = (error as { context?: Response } | null)?.context
   if (ctx && typeof ctx.json === 'function') {
     try {
-      const body = await ctx.json()
-      return body?.code as string | undefined
+      return (await ctx.json()) as EdgeErrorBody
     } catch {
       /* corps non-JSON */
     }
   }
-  return undefined
+  return {}
+}
+
+/** Raccourci du cas courant : seul le code métier intéresse l'appelant. */
+export async function extractErrorCode(error: unknown): Promise<string | undefined> {
+  return (await extractErrorBody(error)).code
 }
 
 /**
@@ -74,8 +99,21 @@ export const KNOWN_EDGE_ERROR_CODES = [
   'FULL', 'NO_CREDIT', 'ALREADY_BOOKED', 'SLOT_CANCELLED', 'SLOT_TOO_OLD',
   'BOOKING_NOT_FOUND', 'SLOT_NOT_FOUND', 'INVALID_STATUS', 'INVALID_SOURCE_STATUS',
   'BOOKING_FAILED', 'MARK_FAILED',
-  // ── create-booking (côté membre ; non atteignable depuis le dashboard aujourd'hui) ──
+  // ── create-booking (côté membre) ET admin-book-member (GYM-226, inscription à un
+  //    cours FUTUR par le gérant). Ces trois codes n'étaient PLUS « non atteignables
+  //    depuis le dashboard » dès GYM-226 : le gérant les rencontre désormais tous les
+  //    trois, et ce sont trois gestes différents — attendre, lever la suspension
+  //    (admin-lift-suspension), vendre une formule (admin-sell-plan). ──
   'MAX_BOOKINGS_REACHED', 'SUSPENDED', 'PAYMENT_REQUIRED',
+  // ── admin-book-member (GYM-226), codes propres à ce chemin ──
+  //  · ALREADY_WAITLISTED — distinct d'ALREADY_BOOKED : le membre a une place PROMISE,
+  //    pas une place ACQUISE. Les confondre ferait dire au gérant « c'est bon, tu es
+  //    inscrit » à quelqu'un qui ne l'est pas.
+  //  · SLOT_PAST — le geste demandé n'est pas celui-ci : sur un cours déjà tenu, c'est le
+  //    pointage walk-in qui sert.
+  //  · MEMBER_QUOTA_REACHED — quota de membres du plan Viniz (limite d'abonnement de la
+  //    salle, pas du membre) : rien à faire au comptoir, c'est un sujet de facturation.
+  'ALREADY_WAITLISTED', 'SLOT_PAST', 'MEMBER_QUOTA_REACHED',
   // ── create-refund (GYM-209 / GYM-189) ──
   'MOLLIE_SCOPE_MISSING', 'MOLLIE_TOKEN_EXPIRED', 'MOLLIE_ERROR', 'INSUFFICIENT_BALANCE',
   'SUBSCRIPTION_PAYMENT', 'MANUAL_PAYMENT', 'NOT_REFUNDABLE', 'NOTHING_TO_REFUND',
@@ -117,6 +155,14 @@ export const KNOWN_EDGE_ERROR_CODES = [
   //    Ce n'est pas une erreur serveur mais un refus à expliquer au gérant. ──
   'NO_PUSH_TOKEN',
   // ── transverses (toutes fonctions) ──
+  //
+  // GYM-227 — UNAUTHORIZED figurait déjà ici, mais RIEN NE LE PRODUISAIT côté client.
+  // Ce module traite les refus MÉTIER : des décisions rendues par une fonction qui a bien
+  // reconnu son appelant. Un 401 est l'inverse — la fonction n'a jamais eu lieu, et
+  // personne ne regardait le statut HTTP. Le 12/08, l'expiration s'est donc affichée en
+  // « Erreur lors de la connexion Mollie » : un diagnostic métier pour une panne d'auth.
+  // C'est désormais lib/edgeInvoke.ts qui émet ce code, après avoir tenté un
+  // renouvellement et UN rejeu, et après avoir clos la session morte.
   'FORBIDDEN', 'UNAUTHORIZED', 'WRONG_GYM', 'MEMBER_NOT_FOUND', 'MEMBER_DELETED',
   'NOT_A_MEMBER', 'NO_GYM', 'NOT_FOUND', 'SERVER_ERROR',
 ] as const

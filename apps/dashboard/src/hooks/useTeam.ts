@@ -7,8 +7,8 @@
 //   - le retrait d'accès écrit profiles.role, colonne retirée du GRANT UPDATE de
 //     `authenticated` par GYM-203.
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 export interface TeamMember {
   id: string
@@ -51,7 +51,7 @@ export function useTeam() {
   // chargement la ferait clignoter alors qu'elle est déjà à l'écran.
   const fetchTeam = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('team-access', {
+      const { data, error } = await invokeEdge('team-access', {
         body: { action: 'list' },
       })
       if (error) throw new EdgeError(await extractErrorCode(error))
@@ -80,7 +80,7 @@ export function useTeam() {
     firstName?: string
     lastName?: string
   }): Promise<ActionResult> => {
-    const { data, error } = await supabase.functions.invoke('invite-team-member', {
+    const { data, error } = await invokeEdge('invite-team-member', {
       body: {
         email: input.email.trim().toLowerCase(),
         role: input.role,
@@ -106,7 +106,7 @@ export function useTeam() {
   }, [inviteMember])
 
   const revokeAccess = useCallback(async (memberId: string): Promise<ActionResult> => {
-    const { error } = await supabase.functions.invoke('team-access', {
+    const { error } = await invokeEdge('team-access', {
       body: { action: 'revoke', member_id: memberId },
     })
     if (error) return { ok: false, code: await extractErrorCode(error) }
