@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { extractErrorCode } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { Json } from '@/types/database'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 /** GYM-204 — Résultat explicite : l'appelant DOIT distinguer succès et échec. */
 export interface LiftSuspensionResult {
@@ -50,7 +51,7 @@ export function useGymAdminActions() {
     memberId: string,
     reason: string,
   ): Promise<LiftSuspensionResult> => {
-    const { data, error } = await supabase.functions.invoke('admin-lift-suspension', {
+    const { data, error } = await invokeEdge('admin-lift-suspension', {
       body: { member_id: memberId, reason },
     })
 
@@ -100,7 +101,7 @@ export function useGymAdminActions() {
     // une erreur serveur : c'est un code métier dédié, pour un message dédié.
     if (!profile?.push_token) return { ok: false, code: 'NO_PUSH_TOKEN' }
 
-    const { error } = await supabase.functions.invoke('send-notification', {
+    const { error } = await invokeEdge('send-notification', {
       body: {
         tokens: [profile.push_token],
         title,

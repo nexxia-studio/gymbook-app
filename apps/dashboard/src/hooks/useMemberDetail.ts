@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 export interface CreditLine {
   planId: string
@@ -229,7 +230,7 @@ export function useMemberDetail(memberId: string | null) {
   // la fiche à la fin. Lève en cas d'erreur d'autorisation/validation.
   const adjustCredits = useCallback(async (delta: number, reason: string): Promise<AdjustResult> => {
     if (!memberId) throw new Error('NO_MEMBER')
-    const { data, error } = await supabase.functions.invoke('adjust-credits', {
+    const { data, error } = await invokeEdge('adjust-credits', {
       body: { member_id: memberId, delta, reason },
     })
     // GYM-219 — INVALID_DELTA, REASON_REQUIRED et MEMBER_NOT_IN_GYM se corrigent
@@ -253,7 +254,7 @@ export function useMemberDetail(memberId: string | null) {
   // sont des refus LÉGITIMES qui doivent être expliqués au gérant, pas masqués (GYM-219).
   const sellPlan = useCallback(async (planId: string, paymentMethod: 'cash' | 'card_terminal'): Promise<SellResult> => {
     if (!memberId) throw new EdgeError('MEMBER_NOT_FOUND')
-    const { data, error } = await supabase.functions.invoke('admin-sell-plan', {
+    const { data, error } = await invokeEdge('admin-sell-plan', {
       body: { member_id: memberId, plan_id: planId, payment_method: paymentMethod },
     })
     if (error) throw new EdgeError(await extractErrorCode(error))

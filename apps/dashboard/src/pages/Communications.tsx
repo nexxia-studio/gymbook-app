@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
 import { supabase } from '@/lib/supabase'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 type Template = 'info' | 'closure' | 'promo' | 'cancellation' | 'custom'
 type Segment = 'all' | 'subscribers' | 'drop_in' | 'present_today'
@@ -127,7 +128,7 @@ export default function Communications() {
       }
 
       // 2. Trigger send-communication Edge Function
-      const { data: result, error: fnErr } = await supabase.functions.invoke('send-communication', {
+      const { data: result, error: fnErr } = await invokeEdge('send-communication', {
         body: { communication_id: draft.id },
       })
 

@@ -5,6 +5,7 @@ import { extractErrorBody, extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 // GYM-174 — statuts d'une réservation "inscrite" (pointable), hors cancelled/waitlisted.
 const ATTENDANCE_STATUSES = ['confirmed', 'attended', 'no_show', 'excused']
@@ -403,7 +404,7 @@ export function usePlanning() {
   // + recrédit exact des membres + purge waitlist + notifications), JAMAIS par un simple
   // UPDATE de statut (qui n'aurait ni recrédité ni notifié). Retourne le résumé pour le toast.
   async function cancelSlot(id: string, reason?: string): Promise<CancelSlotSummary> {
-    const { data, error } = await supabase.functions.invoke('cancel-slot', {
+    const { data, error } = await invokeEdge('cancel-slot', {
       body: { slot_id: id, reason: reason?.trim() || undefined },
     })
     // GYM-219 — SLOT_STARTED (« déjà commencé ») et SLOT_NOT_FOUND appellent deux
@@ -422,7 +423,7 @@ export function usePlanning() {
   // (mark_attendance_atomic : crédit + pénalités atomiques ; notification de sanction).
   // JAMAIS un simple UPDATE de statut (qui ne gérerait ni crédit ni pénalité ni notif).
   async function markAttendance(bookingId: string, status: AttendanceStatus): Promise<MarkAttendanceResult> {
-    const { data, error } = await supabase.functions.invoke('mark-attendance', {
+    const { data, error } = await invokeEdge('mark-attendance', {
       body: { action: 'mark', booking_id: bookingId, status },
     })
     if (error) throw new EdgeError(await extractErrorCode(error))
@@ -440,7 +441,7 @@ export function usePlanning() {
   // SLOT_CANCELLED : ce sont quatre gestes différents au comptoir (vendre une séance,
   // libérer une place, ne rien faire, changer de cours).
   async function walkIn(slotId: string, memberId: string): Promise<{ ok: boolean; code?: string }> {
-    const { error } = await supabase.functions.invoke('mark-attendance', {
+    const { error } = await invokeEdge('mark-attendance', {
       body: { action: 'walkin', slot_id: slotId, member_id: memberId },
     })
     if (error) return { ok: false, code: await extractErrorCode(error) }
@@ -467,7 +468,7 @@ export function usePlanning() {
     memberId: string,
     allowWaitlist = false,
   ): Promise<BookMemberResult> {
-    const { data, error } = await supabase.functions.invoke('admin-book-member', {
+    const { data, error } = await invokeEdge('admin-book-member', {
       body: { slot_id: slotId, member_id: memberId, allow_waitlist: allowWaitlist },
     })
 
