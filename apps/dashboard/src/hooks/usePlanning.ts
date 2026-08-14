@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
-import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
+import { extractErrorBody, extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
@@ -115,6 +115,24 @@ export interface MemberSearchResult {
   firstName: string
   lastName: string
   email: string
+}
+
+// GYM-226 — résultat d'une inscription à un cours futur. Volontairement PLUS RICHE qu'un
+// booléen : chaque champ porte ce que le gérant doit savoir pour son geste suivant.
+export interface BookMemberResult {
+  ok: boolean
+  /** Code métier du refus (SUSPENDED, FULL, PAYMENT_REQUIRED, MAX_BOOKINGS_REACHED…). */
+  code?: string
+  /** Succès : place acquise, ou promise en liste d'attente. */
+  status?: 'confirmed' | 'waitlisted'
+  /** Position en liste d'attente — proposée avant (refus FULL), confirmée après. */
+  waitlistPosition?: number
+  /** Plafond de la salle, pour nommer le nombre dans MAX_BOOKINGS_REACHED. */
+  limit?: number
+  /** Échéance de la suspension, pour la dater avant de proposer sa levée. */
+  suspendedUntil?: string
+  /** Un crédit a-t-il été débité (vs abonnement) — à dire au gérant, pas à deviner. */
+  creditDebited?: boolean
 }
 
 export interface MarkAttendanceResult {
@@ -430,6 +448,49 @@ export function usePlanning() {
     return { ok: true }
   }
 
+  // GYM-226 — inscription d'un membre à un cours FUTUR (réservation seule, AUCUN pointage).
+  //
+  // ⚠️ Ce n'est PAS walkIn ci-dessus. Le walk-in inscrit ET marque présent, pour quelqu'un
+  // debout au comptoir ; l'employer sur un cours de la semaine prochaine marquerait
+  // « présent » à un cours qui n'a pas eu lieu. Ici on passe par admin-book-member, qui
+  // rejoue les gardes de create-booking (plafond GYM-196 inclus) puis create_booking_atomic.
+  //
+  // `allowWaitlist` matérialise le second appel : le premier revient en 409 FULL avec la
+  // position qu'occuperait le membre, le gérant tranche, et seulement alors on inscrit en
+  // liste d'attente. On ne force jamais quelqu'un sur une place qu'il n'a pas.
+  //
+  // Le corps du refus est lu UNE fois (la Response de supabase-js n'est pas rejouable) et
+  // remonté ENTIER : `limit`, `suspended_until` et `waitlist_position` sont ce qui permet à
+  // la modale de nommer le refus au lieu de le déplorer.
+  async function bookMember(
+    slotId: string,
+    memberId: string,
+    allowWaitlist = false,
+  ): Promise<BookMemberResult> {
+    const { data, error } = await supabase.functions.invoke('admin-book-member', {
+      body: { slot_id: slotId, member_id: memberId, allow_waitlist: allowWaitlist },
+    })
+
+    if (error) {
+      const body = await extractErrorBody(error)
+      return {
+        ok: false,
+        code: body.code,
+        limit: body.limit,
+        suspendedUntil: body.suspended_until,
+        waitlistPosition: body.waitlist_position,
+      }
+    }
+
+    await fetchSlots()
+    return {
+      ok: true,
+      status: (data?.status as 'confirmed' | 'waitlisted') ?? 'confirmed',
+      waitlistPosition: data?.position as number | undefined,
+      creditDebited: (data?.credit_debited as boolean | undefined) ?? false,
+    }
+  }
+
   // GYM-174 / GYM-179 (fix 3) — recherche de membres de la salle pour le walk-in.
   // Multi-mots : « QA Train3 » doit matcher (prénom "QA", nom "Train3"). On découpe la saisie
   // en mots et on exige que CHAQUE mot matche l'une des colonnes → AND entre les mots (des
@@ -500,6 +561,7 @@ export function usePlanning() {
     checkOverlap,
     markAttendance,
     walkIn,
+    bookMember,
     searchGymMembers,
   }
 }

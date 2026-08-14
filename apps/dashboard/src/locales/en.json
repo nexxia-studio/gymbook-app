@@ -15,7 +15,8 @@
     "search_placeholder": "Search...",
     "notifications": "Notifications",
     "profile": "Profile",
-    "under_construction": "Under construction"
+    "under_construction": "Under construction",
+    "close": "Close"
   },
   "auth": {
     "login": "Log in",
@@ -638,6 +639,33 @@
     "toast_walkin_error": "Failed to add the member.",
     "toast_member_created": "Member created. Search for them to add to the class."
   },
+  "book_member": {
+    "open": "Book a member",
+    "title": "Book a member",
+    "slot_summary": "{{activity}} — {{date}} at {{time}}",
+    "seats": "{{booked}}/{{capacity}} seats",
+    "search_placeholder": "Search for a member…",
+    "search_hint": "Type at least 2 letters (first name, last name or email).",
+    "toast_booked": "{{name}} is booked into this class.",
+    "toast_waitlisted": "{{name}} is on the waitlist, position {{position}}.",
+    "toast_lifted": "{{name}}'s suspension has been lifted.",
+    "suspended": {
+      "headline": "{{name}} is suspended until {{date}}.",
+      "unknown_date": "an unknown date",
+      "explain": "Booking them requires lifting their suspension.",
+      "traced": "The lift is recorded with its reason in the gym's audit log. The no-show counter is not reset.",
+      "lift_and_book": "Lift suspension and book"
+    },
+    "full": {
+      "headline": "This class is full.",
+      "explain": "{{name}} can be placed on the waitlist, at position {{position}}. They will only be booked if a seat frees up.",
+      "confirm": "Add to waitlist"
+    },
+    "payment": {
+      "next_step": "Sell {{name}} a plan from their member sheet, then come back to book them.",
+      "back_to_search": "Back to search"
+    }
+  },
   "settings": {
     "title": "Settings",
     "tabs": {
@@ -1076,7 +1104,7 @@
     "MARK_FAILED": "Attendance could not be saved. Try again.",
     "MAX_BOOKINGS_REACHED": "{{name}} has reached their limit of {{limit}} upcoming bookings.",
     "SUSPENDED": "{{name}} is suspended. Lift the suspension from their profile first.",
-    "PAYMENT_REQUIRED": "{{name}} has no active subscription and no credit available.",
+    "PAYMENT_REQUIRED": "{{name}} has no active subscription and no credits left. Sell them a plan from their member sheet before booking them.",
     "MOLLIE_SCOPE_MISSING": "Your Mollie account doesn't allow refunds. Reconnect it from Settings > Payments.",
     "MOLLIE_TOKEN_EXPIRED": "The Mollie connection has expired. Reconnect your account from Settings > Payments.",
     "MOLLIE_ERROR": "Mollie refused the refund. Check the payment in your Mollie dashboard.",
@@ -1138,6 +1166,9 @@
     "CREDITS_NOT_APPLIED": "The payment was recorded but nothing was delivered. Check Revenue before taking payment again.",
     "MISSING_MEMBER_ID": "No member selected. Refresh the page.",
     "MISSING_PLAN_ID": "No plan selected.",
-    "MISSING_FIELDS": "Required fields are missing."
+    "MISSING_FIELDS": "Required fields are missing.",
+    "ALREADY_WAITLISTED": "{{name}} is already on the waitlist for this class.",
+    "SLOT_PAST": "This class has already started and can no longer be booked. Use attendance tracking to add them.",
+    "MEMBER_QUOTA_REACHED": "Your gym has reached the number of members included in its Viniz plan. Contact support to increase it."
   }
 }

@@ -12,6 +12,7 @@ import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
 import { SlotDeleteModal } from '@/components/planning/SlotDeleteModal'
 import { CancelSlotModal } from '@/components/planning/CancelSlotModal'
+import { BookMemberModal } from '@/components/planning/BookMemberModal'
 import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { usePlanning } from '@/hooks/usePlanning'
 import { useToastStore } from '@/hooks/useToast'
@@ -63,6 +64,9 @@ export default function Planning() {
   const [cancelTarget, setCancelTarget] = useState<TimeSlot | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [addMemberOpen, setAddMemberOpen] = useState(false)
+  // GYM-226 — créneau visé par l'inscription. On garde le SLOT et pas un booléen : la
+  // modale doit connaître la capacité et les déjà-inscrits pour les exclure de la recherche.
+  const [bookMemberSlot, setBookMemberSlot] = useState<TimeSlot | null>(null)
 
   // GYM-174 — le drawer doit refléter les pointages / walk-ins après refetch : on relie
   // le slot sélectionné à sa version fraîche dans la liste (selectedSlot n'est qu'un snapshot).
@@ -291,6 +295,16 @@ export default function Planning() {
         onWalkIn={planning.walkIn}
         searchMembers={planning.searchGymMembers}
         onOpenAddMember={() => setAddMemberOpen(true)}
+        onOpenBookMember={setBookMemberSlot}
+      />
+
+      {/* GYM-226 — inscrire un membre à un cours futur (réservation seule, sans pointage) */}
+      <BookMemberModal
+        open={bookMemberSlot !== null}
+        onClose={() => setBookMemberSlot(null)}
+        slot={bookMemberSlot}
+        onBook={planning.bookMember}
+        searchMembers={planning.searchGymMembers}
       />
 
       {/* Create modal */}
