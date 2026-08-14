@@ -22,6 +22,46 @@
 // ⚠️ UN SEUL REJEU, JAMAIS DE BOUCLE. Un échec APRÈS renouvellement est un échec
 // DÉFINITIF : le jeton était neuf, le serveur l'a quand même refusé. Réessayer
 // martèlerait l'API pour transformer un refus certain en refus lent.
+//
+// ─────────────────────────────────────────────────────────────────────────────────────
+// ET LES APPELS PostgREST (supabase.from(...)) ? RIEN À FAIRE — vérifié, pas supposé.
+// ─────────────────────────────────────────────────────────────────────────────────────
+//
+// La question se repose à chaque relecture de ce fichier : « il manque le même filet sur
+// les requêtes de tables ». NON, et construire un second intercepteur serait redondant.
+// Vérifié dans supabase-js 2.105.4 / auth-js 2.105.4 :
+//
+//  1. CHAQUE requête PostgREST passe par `fetchWithAuth` → `_getAccessToken()` →
+//     `auth.getSession()`. getSession() teste l'échéance avec une MARGE DE 90 s
+//     (EXPIRY_MARGIN_MS = 3 × 30 s) et appelle `_callRefreshToken()` si besoin, AVANT que
+//     la requête ne parte. Un appel PostgREST n'envoie jamais un JWT sciemment périmé.
+//
+//  2. Si ce renouvellement échoue pour de bon (jeton de rafraîchissement révoqué — session
+//     réellement morte, par opposition à une simple panne réseau, que auth-js distingue via
+//     isAuthRetryableFetchError), `_removeSession()` émet SIGNED_OUT.
+//
+//  3. SIGNED_OUT est DÉJÀ intercepté par useAuthStore, qui vide session, gym_id, role et
+//     useGymStore → ProtectedRoute renvoie vers /login. C'est exactement le terminus de
+//     `endDeadSession()` ci-dessous. Deux routes, un seul traitement.
+//
+// ⚠️⚠️ LA LEÇON QUI COMPTE — NE JAMAIS FORGER L'EN-TÊTE Authorization À LA MAIN.
+//
+// `fetchWithAuth` ne pose le jeton que si l'appelant ne l'a pas déjà fait :
+//
+//     if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`)
+//
+// UN EN-TÊTE FOURNI PAR L'APPELANT GAGNE. C'est ce qui a produit les trois 401 du 12/08 :
+// MollieConnectCard faisait `getSession()` puis posait lui-même son `Authorization`,
+// court-circuitant le renouvellement par requête décrit au point 1. Le minuteur
+// d'arrière-plan gelé n'était que la précondition (le jeton était vieux) ; la RAISON pour
+// laquelle il a atteint le serveur, c'est ce court-circuit. Partout ailleurs, le
+// getSession() par requête l'aurait rattrapé — d'où « le second essai passe toujours »
+// dans les logs : le composant re-déclenchait getSession(), qui entre-temps avait
+// rafraîchi.
+//
+// Corollaire pour invokeEdge : un en-tête forgé neutraliserait AUSSI le rejeu ci-dessous,
+// qui repartirait avec le même jeton mort. Passer un Authorization dans `options.headers`
+// est donc un défaut, jamais une précaution.
 import { supabase } from '@/lib/supabase'
 import { endDeadSession, ensureFreshSession, forceRefreshSession } from '@/lib/session'
 

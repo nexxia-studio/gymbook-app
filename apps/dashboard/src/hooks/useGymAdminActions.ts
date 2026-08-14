@@ -16,6 +16,18 @@ export function useGymAdminActions() {
   const gymId = useAuthStore((s) => s.gym_id)
   const userId = useAuthStore((s) => s.user?.id)
 
+  /**
+   * ⚠️ `actionType` EST CONTRAINT PAR UN CHECK EN BASE. Seules ces valeurs passent :
+   *   booking_create, booking_cancel, booking_checkin, subscription_freeze,
+   *   subscription_credit_add, subscription_cancel, subscription_extend,
+   *   noshow_penalty_lift, session_gift, profile_update, password_reset,
+   *   push_notification_send.
+   *
+   * Toute autre valeur fait ÉCHOUER l'insert. Et comme rien ici ne teste `error`, l'échec
+   * est SILENCIEUX : le geste a bien eu lieu, le journal n'en garde rien, et personne ne
+   * l'apprend. C'est le motif de défaut que GYM-204 puis GYM-219 ont déjà eu à corriger —
+   * un échec non testé se lit comme un succès.
+   */
   const logAction = useCallback(async (
     actionType: string,
     targetId: string,
@@ -113,7 +125,12 @@ export function useGymAdminActions() {
 
     // Journalisé APRÈS le succès seulement : le journal ne doit pas affirmer un envoi
     // qui n'a pas eu lieu.
-    await logAction('push_sent', memberId, { title })
+    //
+    // 🔴 'push_sent' N'EXISTAIT PAS dans le CHECK (cf. logAction ci-dessus) : l'insert
+    // était refusé à chaque envoi, sans un mot. Le journal comptait 0 ligne en production
+    // depuis la mise en service — aucune notification n'y a JAMAIS laissé de trace. La
+    // valeur prévue est 'push_notification_send'.
+    await logAction('push_notification_send', memberId, { title })
     return { ok: true }
   }, [logAction])
 
