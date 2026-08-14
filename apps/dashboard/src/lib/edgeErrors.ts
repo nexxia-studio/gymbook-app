@@ -155,6 +155,14 @@ export const KNOWN_EDGE_ERROR_CODES = [
   //    Ce n'est pas une erreur serveur mais un refus à expliquer au gérant. ──
   'NO_PUSH_TOKEN',
   // ── transverses (toutes fonctions) ──
+  //
+  // GYM-227 — UNAUTHORIZED figurait déjà ici, mais RIEN NE LE PRODUISAIT côté client.
+  // Ce module traite les refus MÉTIER : des décisions rendues par une fonction qui a bien
+  // reconnu son appelant. Un 401 est l'inverse — la fonction n'a jamais eu lieu, et
+  // personne ne regardait le statut HTTP. Le 12/08, l'expiration s'est donc affichée en
+  // « Erreur lors de la connexion Mollie » : un diagnostic métier pour une panne d'auth.
+  // C'est désormais lib/edgeInvoke.ts qui émet ce code, après avoir tenté un
+  // renouvellement et UN rejeu, et après avoir clos la session morte.
   'FORBIDDEN', 'UNAUTHORIZED', 'WRONG_GYM', 'MEMBER_NOT_FOUND', 'MEMBER_DELETED',
   'NOT_A_MEMBER', 'NO_GYM', 'NOT_FOUND', 'SERVER_ERROR',
 ] as const
