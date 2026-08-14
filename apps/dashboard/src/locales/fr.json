@@ -15,7 +15,8 @@
     "search_placeholder": "Rechercher...",
     "notifications": "Notifications",
     "profile": "Profil",
-    "under_construction": "En construction"
+    "under_construction": "En construction",
+    "close": "Fermer"
   },
   "auth": {
     "login": "Se connecter",
@@ -638,6 +639,33 @@
     "toast_walkin_error": "L'ajout du membre a échoué.",
     "toast_member_created": "Membre créé. Recherche-le pour l'ajouter au cours."
   },
+  "book_member": {
+    "open": "Inscrire un membre",
+    "title": "Inscrire un membre",
+    "slot_summary": "{{activity}} — {{date}} à {{time}}",
+    "seats": "{{booked}}/{{capacity}} places",
+    "search_placeholder": "Rechercher un membre…",
+    "search_hint": "Tape au moins 2 lettres (prénom, nom ou email).",
+    "toast_booked": "{{name}} est inscrit à ce cours.",
+    "toast_waitlisted": "{{name}} est en liste d'attente, position {{position}}.",
+    "toast_lifted": "Suspension de {{name}} levée.",
+    "suspended": {
+      "headline": "{{name}} est suspendu jusqu'au {{date}}.",
+      "unknown_date": "une date inconnue",
+      "explain": "L'inscrire nécessite de lever sa suspension.",
+      "traced": "La levée est enregistrée avec son motif dans le journal de la salle. Le compteur d'absences n'est pas remis à zéro.",
+      "lift_and_book": "Lever la suspension et inscrire"
+    },
+    "full": {
+      "headline": "Ce cours est complet.",
+      "explain": "{{name}} peut être placé en liste d'attente, en position {{position}}. Il ne sera inscrit que si une place se libère.",
+      "confirm": "Mettre en liste d'attente"
+    },
+    "payment": {
+      "next_step": "Vends une formule à {{name}} depuis sa fiche membre, puis reviens l'inscrire.",
+      "back_to_search": "Retour à la recherche"
+    }
+  },
   "settings": {
     "title": "Paramètres",
     "tabs": {
@@ -1076,7 +1104,7 @@
     "MARK_FAILED": "Le pointage n'a pas pu être enregistré. Réessaie.",
     "MAX_BOOKINGS_REACHED": "{{name}} a atteint sa limite de {{limit}} réservations à venir.",
     "SUSPENDED": "{{name}} est suspendu. Lève la suspension depuis sa fiche avant de continuer.",
-    "PAYMENT_REQUIRED": "{{name}} n'a ni abonnement actif ni crédit disponible.",
+    "PAYMENT_REQUIRED": "{{name}} n'a ni abonnement actif ni crédit disponible. Vends-lui une formule depuis sa fiche avant de l'inscrire.",
     "MOLLIE_SCOPE_MISSING": "Ton compte Mollie n'autorise pas les remboursements. Reconnecte-le depuis Réglages > Paiements.",
     "MOLLIE_TOKEN_EXPIRED": "La connexion Mollie a expiré. Reconnecte ton compte depuis Réglages > Paiements.",
     "MOLLIE_ERROR": "Mollie a refusé le remboursement. Vérifie le paiement dans ton tableau de bord Mollie.",
@@ -1138,6 +1166,9 @@
     "CREDITS_NOT_APPLIED": "Le paiement est enregistré mais la contrepartie n'a pas été délivrée. Vérifie dans Revenus avant de réencaisser.",
     "MISSING_MEMBER_ID": "Aucun membre sélectionné. Rafraîchis la page.",
     "MISSING_PLAN_ID": "Aucune formule sélectionnée.",
-    "MISSING_FIELDS": "Des champs obligatoires sont manquants."
+    "MISSING_FIELDS": "Des champs obligatoires sont manquants.",
+    "ALREADY_WAITLISTED": "{{name}} est déjà en liste d'attente pour ce cours.",
+    "SLOT_PAST": "Ce cours a déjà commencé : il ne peut plus être réservé. Utilise le pointage pour l'ajouter.",
+    "MEMBER_QUOTA_REACHED": "Ta salle a atteint le nombre de membres inclus dans son plan Viniz. Contacte le support pour l'augmenter."
   }
 }

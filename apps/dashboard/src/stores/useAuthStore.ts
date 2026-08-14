@@ -172,8 +172,27 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Auth résolue (avec ou sans session) → les gardes peuvent statuer.
     set({ initialized: true })
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      set({ user: session?.user ?? null, session })
+    // GYM-227 — COHÉRENCE DE L'AFFICHAGE.
+    //
+    // 🔴 Ce listener ne mettait à jour que `user` et `session`. Sur une déconnexion, il
+    // laissait donc `gym_id` et `role` intacts, et useGymStore chargé : l'interface
+    // continuait d'afficher un gérant, sa salle et ses menus alors que plus aucun appel ne
+    // pouvait aboutir. C'est la moitié invisible du défaut du 12/08 — le 401 était la
+    // moitié visible, l'écran qui affirmait le contraire était l'autre.
+    //
+    // Désormais SIGNED_OUT vide TOUT, y compris la salle : ProtectedRoute voit session
+    // null et renvoie vers /login. Une session morte ne laisse aucune coquille à l'écran.
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        useGymStore.getState().setGym(null)
+        set({ user: null, session: null, gym_id: null, role: null })
+        return
+      }
+
+      // TOKEN_REFRESHED / SIGNED_IN / USER_UPDATED — le jeton change, l'identité non.
+      // On ne refait PAS la requête profil : elle est déjà faite par initialize() et
+      // signIn(), et un renouvellement horaire n'a aucune raison de la rejouer.
+      set({ user: session.user, session })
     })
   },
 }))

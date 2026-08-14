@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+import { invokeEdge } from '@/lib/edgeInvoke'
+import { extractErrorCode } from '@/lib/edgeErrors'
 
 export default function MollieCallback() {
   const [searchParams] = useSearchParams()
@@ -26,13 +27,23 @@ export default function MollieCallback() {
       return
     }
 
-    supabase.functions.invoke('mollie-connect-oauth', {
+    invokeEdge('mollie-connect-oauth', {
       body: { code, state },
       headers: { 'x-action': 'callback' },
-    }).then(({ data, error: fnError }) => {
+    }).then(async ({ data, error: fnError }) => {
       if (fnError || !data?.success) {
         setStatus('error')
-        setMessage('Échec de la connexion. Réessayez.')
+        // GYM-227 — 🔴 « Échec de la connexion » est LE message qui a coûté une heure de
+        // diagnostic le 12/08 : il impute à Mollie une panne d'AUTHENTIFICATION. Une
+        // session expirée se nomme, et le geste qu'elle appelle n'est pas « réessayez »
+        // mais « reconnectez-vous ». invokeEdge a déjà clos la session morte ;
+        // ProtectedRoute renverra vers /login.
+        const failureCode = await extractErrorCode(fnError)
+        setMessage(
+          failureCode === 'UNAUTHORIZED'
+            ? 'Votre session a expiré. Reconnectez-vous, puis relancez la connexion Mollie.'
+            : 'Échec de la connexion. Réessayez.',
+        )
         return
       }
       setStatus('success')

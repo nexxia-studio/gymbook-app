@@ -6,9 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { extractErrorCode } from '@/lib/edgeErrors'
 import { X, ChevronDown, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { supabase } from '@/lib/supabase'
 import { useGymPlans } from '@/hooks/useGymPlans'
 import { useToastStore } from '@/hooks/useToast'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 interface AddMemberModalProps {
   open: boolean
@@ -101,7 +101,7 @@ export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps
 
     setIsSubmitting(true)
     try {
-      const { data, error } = await supabase.functions.invoke('admin-create-member', { body })
+      const { data, error } = await invokeEdge('admin-create-member', { body })
 
       if (error) {
         const code = await extractErrorCode(error)

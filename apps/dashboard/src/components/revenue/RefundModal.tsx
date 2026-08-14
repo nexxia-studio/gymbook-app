@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { extractErrorCode } from '@/lib/edgeErrors'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 export interface RefundTarget {
   id: string
@@ -82,7 +82,7 @@ export function RefundModal({ payment, onClose, onDone }: RefundModalProps) {
     setSubmitting(true)
     setError(null)
     try {
-      const { error: fnError } = await supabase.functions.invoke('create-refund', {
+      const { error: fnError } = await invokeEdge('create-refund', {
         body: { payment_id: payment.id, ...(partial ? { amount } : {}) },
       })
       if (fnError) {

@@ -6,8 +6,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resolveEdgeError } from '@/lib/edgeErrors'
 import { FileText, Download, Mail, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useToastStore } from '@/hooks/useToast'
+import { invokeEdge } from '@/lib/edgeInvoke'
 
 export function InvoiceMenu({ paymentId }: { paymentId: string }) {
   const { t } = useTranslation()
@@ -19,7 +19,7 @@ export function InvoiceMenu({ paymentId }: { paymentId: string }) {
     if (busy) return
     setBusy('download')
     try {
-      const { data, error } = await supabase.functions.invoke('generate-invoice', {
+      const { data, error } = await invokeEdge('generate-invoice', {
         body: { payment_id: paymentId, mode: 'download' },
       })
       const html = (data as { html?: string } | null)?.html
@@ -46,7 +46,7 @@ export function InvoiceMenu({ paymentId }: { paymentId: string }) {
     if (busy) return
     setBusy('email')
     try {
-      const { data, error } = await supabase.functions.invoke('generate-invoice', {
+      const { data, error } = await invokeEdge('generate-invoice', {
         body: { payment_id: paymentId, mode: 'email' },
       })
       if (error || !(data as { success?: boolean } | null)?.success) {
