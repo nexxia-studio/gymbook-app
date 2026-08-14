@@ -186,7 +186,9 @@ Deno.serve(async (req) => {
     // ── GARDE 3 — le créneau (create-booking étape 4, à l'identique). ──────────
     const { data: slot } = await admin
       .from('time_slots')
-      .select('id, gym_id, starts_at, ends_at, capacity, status, activities(name), coaches(name)')
+      // bookings_count : occupation courante, consignée au journal (cf. plus bas). Lue ici,
+      // AVANT l'insert, sinon le trigger trg_update_bookings_count l'aura déjà incrémentée.
+      .select('id, gym_id, starts_at, ends_at, capacity, bookings_count, status, activities(name), coaches(name)')
       .eq('id', slotId)
       .single()
 
@@ -353,15 +355,38 @@ Deno.serve(async (req) => {
     // au même titre qu'une vente au comptoir ou qu'une levée de suspension.
     // Best-effort : la réservation est faite, on ne la défait pas parce que le journal a
     // échoué — mais l'échec est loggé, jamais avalé.
+    //
+    // ⚠️ action_type EST CONTRAINT PAR UN CHECK EN BASE (vérifié en production) :
+    //   booking_create, booking_cancel, booking_checkin, subscription_freeze,
+    //   subscription_credit_add, subscription_cancel, subscription_extend,
+    //   noshow_penalty_lift, session_gift, profile_update, password_reset,
+    //   push_notification_send.
+    // Toute autre valeur fait ÉCHOUER l'insert — et ici l'échec est best-effort, donc
+    // SILENCIEUX : la trace serait perdue sans que personne ne le voie. C'est exactement
+    // ce qui serait arrivé avec 'booking_created_by_admin'.
+    //
+    // 'booking_create' convient sans élargir le CHECK : toute ligne de gym_admin_actions
+    // vient PAR NATURE du gérant (admin_id est NOT NULL), un suffixe _by_admin n'ajouterait
+    // rien. Ce qui distingue cette inscription-ci vit dans `metadata`, à quoi la colonne
+    // sert — même usage que admin-lift-suspension.
     const { error: logError } = await admin.from('gym_admin_actions').insert({
       gym_id: gymId,
       admin_id: user.id,
       target_id: memberId,
-      action_type: 'booking_created_by_admin',
+      action_type: 'booking_create',
       metadata: {
+        // Redondant avec target_id, et c'est voulu : la ligne se lit seule, sans avoir à
+        // savoir que « la cible d'une inscription » désigne le membre inscrit.
+        member_id: memberId,
         slot_id: slotId,
         booking_id: rpcResult.booking_id,
         starts_at: slot.starts_at,
+        // Occupation AU MOMENT DE L'INSCRIPTION, relevée avant l'insert : c'est ce qui
+        // permet de relire la décision plus tard (« le gérant a-t-il inscrit quelqu'un
+        // dans un cours déjà plein à 9/10 ? »). Après coup, la donnée est perdue — le
+        // compteur aura bougé.
+        capacity: slot.capacity,
+        booked_before: slot.bookings_count ?? null,
         credit_debited: rpcResult.credit_debited ?? false,
       },
     })
