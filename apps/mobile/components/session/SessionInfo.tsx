@@ -33,7 +33,12 @@ export function SessionInfo({ time, endTime, coach, booked, capacity }: SessionI
       {/* Chips */}
       <View className="flex-row gap-2">
         <InfoChip icon={Clock} label={`${time} → ${endTime}`} />
-        <InfoChip icon={User} label={coach} />
+        {/* GYM-229 — une activité en accès libre (Open Gym) n'a pas de coach.
+          Masquer la ligne plutôt que rendre une chaîne vide, qui laisserait un blanc
+          dans la mise en page. Ternaire explicite vers `null` et non `coach && …` :
+          en React Native, une chaîne vide rendue hors d'un <Text> déclenche un
+          avertissement « text strings must be rendered within a <Text> ». */}
+        {coach ? <InfoChip icon={User} label={coach} /> : null}
         <InfoChip icon={Users} label={t('session.spots', { booked, capacity })} />
       </View>
 
