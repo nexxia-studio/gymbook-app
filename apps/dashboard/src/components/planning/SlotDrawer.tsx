@@ -113,10 +113,21 @@ export function SlotDrawer({
                     {slot.startTime} — {slot.endTime}
                   </p>
                 </div>
-                <div>
-                  <p className="font-body text-xs text-muted">{t('planning.coach')}</p>
-                  <p className="font-body text-sm font-medium text-dark">{slot.coach.name}</p>
-                </div>
+                {/* GYM-229 — masquer plutôt qu'afficher creux. Un créneau en accès libre (Open Gym)
+n'a pas de coach : ni « Coach : — », ni ligne vide qui décale la mise en page.
+Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les deux
+ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
+                {slot.coach.name ? (
+                  <div>
+                    <p className="font-body text-xs text-muted">{t('planning.coach')}</p>
+                    <p className="font-body text-sm font-medium text-dark">{slot.coach.name}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="font-body text-xs text-muted">{t('planning.coach')}</p>
+                    <p className="font-body text-sm font-medium text-muted">{t('planning.no_coach')}</p>
+                  </div>
+                )}
                 <div>
                   <p className="font-body text-xs text-muted">{t('planning.capacity')}</p>
                   <p className="font-body text-sm font-medium text-dark">

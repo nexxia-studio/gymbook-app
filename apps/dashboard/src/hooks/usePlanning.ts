@@ -58,7 +58,7 @@ interface DbSlot {
   bookings_count: number | null
   status: string | null
   notes: string | null
-  activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null; active: boolean | null } | null
+  activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null; active: boolean | null; requires_coach: boolean | null } | null
   coaches: { id: string; name: string; active: boolean | null } | null
   bookings: DbBooking[] | null
 }
@@ -75,6 +75,9 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
       color: row.activities?.color ?? '#4ECDC4',
       durationMin: row.activities?.duration_min ?? 60,
       active: row.activities?.active ?? true,
+      // GYM-229 — repli sur `true` : un build antérieur à la migration doit conserver le
+      // comportement historique (coach obligatoire).
+      requiresCoach: row.activities?.requires_coach ?? true,
     },
     coach: {
       id: row.coaches?.id ?? '',
@@ -216,7 +219,7 @@ export function usePlanning() {
         .from('time_slots')
         .select(`
           id, starts_at, ends_at, capacity, bookings_count, status, notes,
-          activities(id, name, color, duration_min, icon, active),
+          activities(id, name, color, duration_min, icon, active, requires_coach),
           coaches(id, name, active),
           bookings(
             id, member_id, status,
@@ -242,11 +245,12 @@ export function usePlanning() {
   const fetchMeta = useCallback(async () => {
     if (!gymId) return
     const [actRes, coachRes] = await Promise.all([
-      supabase.from('activities').select('id, name, color, duration_min').eq('gym_id', gymId).order('sort_order'),
+      supabase.from('activities').select('id, name, color, duration_min, requires_coach').eq('gym_id', gymId).order('sort_order'),
       supabase.from('coaches').select('id, name').eq('gym_id', gymId).order('sort_order'),
     ])
     setActivitiesList((actRes.data ?? []).map((a) => ({
       id: a.id, name: a.name, color: a.color ?? '#4ECDC4', durationMin: a.duration_min,
+      requiresCoach: a.requires_coach ?? true,
     })))
     setCoachesList((coachRes.data ?? []).map((c) => ({ id: c.id, name: c.name })))
   }, [gymId])
@@ -369,7 +373,10 @@ export function usePlanning() {
       inserts.push({
         gym_id: gymId,
         activity_id: input.activityId,
-        coach_id: input.coachId,
+        // GYM-229 — activité sans encadrement : le formulaire renvoie une chaîne vide,
+        // qui n'est PAS un uuid valide et ferait échouer l'insert. NULL est la valeur
+        // que porte réellement « pas de coach » (time_slots.coach_id est nullable).
+        coach_id: input.coachId || null,
         starts_at: startsAtUtc.toISOString(),
         ends_at: endsAtUtc.toISOString(),
         capacity: input.capacity,
@@ -390,7 +397,7 @@ export function usePlanning() {
 
     await supabase.from('time_slots').update({
       activity_id: input.activityId,
-      coach_id: input.coachId,
+      coach_id: input.coachId || null,
       starts_at: startsAtUtc.toISOString(),
       ends_at: endsAtUtc.toISOString(),
       capacity: input.capacity,
