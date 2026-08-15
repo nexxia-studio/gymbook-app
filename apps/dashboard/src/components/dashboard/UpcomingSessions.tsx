@@ -96,8 +96,12 @@ export function UpcomingSessions() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-body text-sm font-medium text-dark">{slot.activity}</p>
+                {/* GYM-229 — masquer plutôt qu'afficher creux. Un créneau en accès libre (Open Gym)
+n'a pas de coach : ni « Coach : — », ni ligne vide qui décale la mise en page.
+Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les deux
+ne coïncident pas (un créneau posé avant la bascule garde le sien). Sans coach, le séparateur « · » resterait orphelin. */}
                 <p className="font-body text-xs text-muted">
-                  {slot.time} &middot; {slot.coach}
+                  {slot.coach ? `${slot.time} · ${slot.coach}` : slot.time}
                 </p>
               </div>
               <span className="font-body text-xs font-semibold text-dark">

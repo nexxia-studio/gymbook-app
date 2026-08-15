@@ -351,7 +351,8 @@
       "9": "octobre",
       "10": "novembre",
       "11": "décembre"
-    }
+    },
+    "no_coach": "Accès libre"
   },
   "slots": {
     "create_title": "Nouveau créneau",
@@ -415,7 +416,8 @@
       "capacity_max": "Maximum 50 places",
       "coach_overlap": "Ce coach a déjà un créneau à cette heure"
     },
-    "suggested_times": "Horaires suggérés"
+    "suggested_times": "Horaires suggérés",
+    "no_coach_needed": "Cette activité est en accès libre : aucun coach à désigner."
   },
   "members": {
     "title": "Membres",
@@ -812,7 +814,9 @@
       "duration_min": "Minimum 5 minutes",
       "capacity_min": "Minimum 1 place",
       "capacity_max": "Maximum 100 places"
-    }
+    },
+    "requires_coach": "Cette activité nécessite un coach",
+    "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym)."
   },
   "coaches": {
     "title": "Coaches",

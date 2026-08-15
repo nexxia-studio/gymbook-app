@@ -142,7 +142,11 @@ export function TodayPlanning() {
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-body text-sm font-medium text-dark">{slot.activity}</p>
-                  <p className="font-body text-xs text-muted">{slot.coach}</p>
+                  {/* GYM-229 — masquer plutôt qu'afficher creux. Un créneau en accès libre (Open Gym)
+n'a pas de coach : ni « Coach : — », ni ligne vide qui décale la mise en page.
+Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les deux
+ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
+                  {slot.coach && <p className="font-body text-xs text-muted">{slot.coach}</p>}
                 </div>
 
                 <div className="hidden w-28 flex-col gap-1 sm:flex">

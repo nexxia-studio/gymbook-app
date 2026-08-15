@@ -110,18 +110,31 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
   }, [open])
 
   // Auto-fill duration + capacity from activity
-  const _selectedActivity = useMemo(
+  const selectedActivity = useMemo(
     () => activities.find((a) => a.id === form.activityId),
     [activities, form.activityId],
   )
-  void _selectedActivity
+
+  // GYM-229 — le coach est-il attendu pour CETTE activité ?
+  //
+  // Repli sur `true` tant qu'aucune activité n'est choisie, et pour une activité chargée
+  // par un build antérieur à la migration : le comportement historique (coach obligatoire)
+  // reste celui par défaut, on ne relâche jamais la règle par accident.
+  const needsCoach = selectedActivity?.requiresCoach ?? true
 
   function handleActivityChange(id: string) {
     const act = activities.find((a) => a.id === id)
+    // ⚠️ RÉAGIT AU CHANGEMENT D'ACTIVITÉ, pas seulement à l'ouverture de la modale. Passer
+    // d'un cours encadré à l'Open Gym doit OUBLIER le coach déjà choisi : le conserver
+    // enregistrerait un encadrant sur un créneau en accès libre — exactement la donnée
+    // fausse que ce lot supprime. Le champ étant masqué, le gérant ne pourrait pas le voir
+    // ni le corriger.
+    const actNeedsCoach = act?.requiresCoach ?? true
     setForm((f) => ({
       ...f,
       activityId: id,
       duration: act?.durationMin ?? f.duration,
+      coachId: actNeedsCoach ? f.coachId : '',
     }))
   }
 
@@ -140,7 +153,8 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
   function validate(): boolean {
     const e: FormErrors = {}
     if (!form.activityId) e.activityId = t('slots.validation.activity_required')
-    if (!form.coachId) e.coachId = t('slots.validation.coach_required')
+    // GYM-229 — exigence portée par l'activité, plus par le formulaire.
+    if (needsCoach && !form.coachId) e.coachId = t('slots.validation.coach_required')
     if (!form.date) e.date = t('slots.validation.date_required')
     else if (form.date < todayStr()) e.date = t('slots.validation.date_past')
     if (!form.startTime) e.startTime = t('slots.validation.time_required')
@@ -202,7 +216,16 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
               {errors.activityId && <p className={errClass}>{errors.activityId}</p>}
             </div>
 
-            {/* Coach */}
+            {/* Coach — GYM-229 : MASQUÉ, pas seulement facultatif, quand l'activité est en
+                accès libre. Un champ vide et sans objet invite à le remplir « au cas où » ;
+                c'est ainsi qu'on se retrouve avec un coach fictif sur un créneau Open Gym.
+                Une note explique l'absence, pour que le champ ne semble pas avoir disparu
+                par erreur. */}
+            {!needsCoach ? (
+              <div className="rounded-xl border border-border bg-dark/[0.02] px-4 py-3">
+                <p className="font-body text-xs text-muted">{t('slots.no_coach_needed')}</p>
+              </div>
+            ) : (
             <div>
               <label className={labelClass}>{t('slots.coach')}</label>
               <select
@@ -217,6 +240,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
               </select>
               {errors.coachId && <p className={errClass}>{errors.coachId}</p>}
             </div>
+            )}
 
             {/* Date */}
             <div>

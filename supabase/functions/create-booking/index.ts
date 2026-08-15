@@ -236,6 +236,13 @@ Deno.serve(async (req) => {
     // (trigger trg_update_bookings_count maintains time_slots.bookings_count)
     const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
     const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
+    // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
+    // aucun : un libellé « Coach » suivi d'un blanc n'informe de rien et se lit comme une
+    // donnée manquante. Le bloc entier disparaît, libellé compris.
+    // (Ces emails n'ont pas de version texte — Resend ne reçoit qu'un champ `html`.)
+    const coachLine = coachName
+      ? `<p style="color:#9A9890;margin:0 0 4px;">Coach: ${coachName}</p>`
+      : ''
 
     try {
       const resendKey = Deno.env.get('RESEND_API_KEY')
@@ -268,8 +275,8 @@ Deno.serve(async (req) => {
                     <h2 style="margin:0 0 16px;color:#111111;">Réservation confirmée</h2>
                     <p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p>
                     <p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p>
-                    <p style="color:#9A9890;margin:0 0 24px;">Coach: ${coachName}</p>
-                    <a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+                    ${coachLine}
+                    <a href="dopamine://bookings" style="display:inline-block;margin-top:24px;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
                       Voir ma réservation
                     </a>
                   </div>

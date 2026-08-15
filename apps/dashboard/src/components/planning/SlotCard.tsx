@@ -57,7 +57,11 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
           <p className={`font-body text-secondary ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
             {slot.startTime} — {slot.endTime}
           </p>
-          {!compact && (
+          {/* GYM-229 — masquer plutôt qu'afficher creux. Un créneau en accès libre (Open Gym)
+n'a pas de coach : ni « Coach : — », ni ligne vide qui décale la mise en page.
+Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les deux
+ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
+          {!compact && slot.coach.name && (
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
           )}
         </div>
