@@ -441,7 +441,8 @@
       "photo_cancel": "Cancel",
       "photo_permission_error": "Permission denied to access camera or library.",
       "edit_photo": "Edit photo"
-    }
+    },
+    "access_badge_label": "Access code"
   },
   "payment": {
     "success_title": "PAYMENT CONFIRMED!",

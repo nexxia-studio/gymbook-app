@@ -102,6 +102,7 @@ export default function Profile() {
           memberSince={memberSince}
           levelKey={getLevel(stats.completedSessions)}
           avatarUrl={profile?.avatarUrl}
+          accessBadgeCode={profile?.accessBadgeCode}
         />
 
         {/* Gamification */}
