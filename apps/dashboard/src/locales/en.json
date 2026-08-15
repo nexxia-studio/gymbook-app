@@ -351,7 +351,8 @@
       "9": "October",
       "10": "November",
       "11": "December"
-    }
+    },
+    "no_coach": "Open access"
   },
   "slots": {
     "create_title": "New slot",
@@ -415,7 +416,8 @@
       "capacity_max": "Maximum 50 spots",
       "coach_overlap": "This coach already has a slot at this time"
     },
-    "suggested_times": "Suggested times"
+    "suggested_times": "Suggested times",
+    "no_coach_needed": "This activity is open access — no coach to assign."
   },
   "members": {
     "title": "Members",
@@ -812,7 +814,9 @@
       "duration_min": "Minimum 5 minutes",
       "capacity_min": "Minimum 1 spot",
       "capacity_max": "Maximum 100 spots"
-    }
+    },
+    "requires_coach": "This activity requires a coach",
+    "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym)."
   },
   "coaches": {
     "title": "Coaches",

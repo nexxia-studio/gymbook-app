@@ -24,6 +24,9 @@ function mapRow(row: Record<string, unknown>): ActivityItem {
     icon: (row.icon as string) ?? 'Dumbbell',
     color: (row.color as string) ?? '#4ECDC4',
     requiresMedicalCheck: (row.requires_medical_check as boolean) ?? false,
+    // GYM-229 — repli sur `true` : une activité lue avant l'application de la migration
+    // (ou par un build antérieur) doit se comporter comme avant, coach obligatoire.
+    requiresCoach: (row.requires_coach as boolean) ?? true,
     active: (row.active as boolean) ?? true,
   }
 }
@@ -70,6 +73,7 @@ export function useActivities() {
       icon: data.icon,
       color: data.color,
       requires_medical_check: data.requiresMedicalCheck,
+      requires_coach: data.requiresCoach,
     })
     fetchActivities()
   }, [gymId, fetchActivities])
@@ -85,6 +89,7 @@ export function useActivities() {
       icon: data.icon,
       color: data.color,
       requires_medical_check: data.requiresMedicalCheck,
+      requires_coach: data.requiresCoach,
     }).eq('id', id)
     fetchActivities()
   }, [fetchActivities])
@@ -123,6 +128,7 @@ export function useActivities() {
       icon: original.icon,
       color: original.color,
       requires_medical_check: original.requiresMedicalCheck,
+      requires_coach: original.requiresCoach,
     }).select().single()
     fetchActivities()
     return data ? mapRow(data) : null

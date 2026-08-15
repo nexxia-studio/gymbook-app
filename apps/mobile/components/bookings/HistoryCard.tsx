@@ -41,9 +41,16 @@ export function HistoryCard({ booking, dayLabel }: HistoryCardProps) {
         <Text className="font-dmsans text-[13px] text-move-text-secondary">
           {dayLabel} · {booking.time}
         </Text>
-        <Text className="font-dmsans text-xs text-move-text-muted">
-          {booking.coach}
-        </Text>
+        {/* GYM-229 — une activité en accès libre (Open Gym) n'a pas de coach.
+          Masquer la ligne plutôt que rendre une chaîne vide, qui laisserait un blanc
+          dans la mise en page. Ternaire explicite vers `null` et non `coach && …` :
+          en React Native, une chaîne vide rendue hors d'un <Text> déclenche un
+          avertissement « text strings must be rendered within a <Text> ». */}
+        {booking.coach ? (
+          <Text className="font-dmsans text-xs text-move-text-muted">
+            {booking.coach}
+          </Text>
+        ) : null}
       </View>
 
       <View className={`mr-3 rounded-lg px-2.5 py-1 ${style.bg}`}>

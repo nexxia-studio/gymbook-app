@@ -10,6 +10,16 @@ export interface Activity {
   color: string
   durationMin: number
   active?: boolean
+  /**
+   * GYM-229 — false = accès libre, sans encadrement (Open Gym). Pilote la VISIBILITÉ et
+   * l'obligation du sélecteur de coach dans le formulaire de créneau.
+   *
+   * ⚠️ NE PAS s'en servir pour décider de l'AFFICHAGE d'un coach. Les deux questions ne
+   * coïncident pas : un créneau posé avant la bascule garde son coach (on ne réécrit pas
+   * l'existant), et un créneau ancien peut n'en avoir aucun alors que son activité en
+   * exige un. L'affichage se décide sur la PRÉSENCE du coach, jamais sur cette exigence.
+   */
+  requiresCoach?: boolean
 }
 
 export type SlotStatus = 'scheduled' | 'completed' | 'cancelled'

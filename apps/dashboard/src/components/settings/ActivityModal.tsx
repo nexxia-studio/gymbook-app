@@ -32,6 +32,9 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
     icon: 'Dumbbell',
     color: '#4ECDC4',
     requiresMedicalCheck: false,
+    // GYM-229 — coché par défaut : l'immense majorité des cours ont un coach, et c'est
+    // le comportement historique. Décocher est la décision, pas cocher.
+    requiresCoach: true,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [slugManual, setSlugManual] = useState(false)
@@ -49,13 +52,14 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
         icon: editActivity.icon,
         color: editActivity.color,
         requiresMedicalCheck: editActivity.requiresMedicalCheck,
+        requiresCoach: editActivity.requiresCoach,
       })
       setSlugManual(true)
     } else {
       setForm({
         name: '', slug: '', description: '', durationMin: 60,
         defaultCapacity: 16, level: 'all', icon: 'Dumbbell',
-        color: '#4ECDC4', requiresMedicalCheck: false,
+        color: '#4ECDC4', requiresMedicalCheck: false, requiresCoach: true,
       })
       setSlugManual(false)
     }
@@ -260,6 +264,27 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
                 className="h-4 w-4 rounded accent-accent"
               />
               <span className={labelClass}>{t('activities.medical_check')}</span>
+            </label>
+
+            {/* GYM-229 — encadrement.
+                Demande de Nico : l'Open Gym est en accès libre par badge de 7 h à 22 h,
+                sans coach sur place. Sans cette case, poser un tel créneau obligerait à
+                désigner un coach qui ne sera pas là — donnée fausse, affichée au membre.
+                Le texte d'aide dit QUAND décocher, pas ce que fait la case : « requires
+                a coach » n'apprend rien à un gérant qui a l'Open Gym sous les yeux. */}
+            <label className="flex items-start gap-3 rounded-xl border border-border p-4">
+              <input
+                type="checkbox"
+                checked={form.requiresCoach}
+                onChange={(e) => setForm((f) => ({ ...f, requiresCoach: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 rounded accent-accent"
+              />
+              <span>
+                <span className={`${labelClass} block`}>{t('activities.requires_coach')}</span>
+                <span className="mt-0.5 block font-body text-xs text-muted">
+                  {t('activities.requires_coach_hint')}
+                </span>
+              </span>
             </label>
           </div>
         </form>

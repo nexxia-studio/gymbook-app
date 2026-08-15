@@ -33,10 +33,17 @@ function emailHtml(title: string, body: string, ctaText: string, ctaHref: string
 async function sendReminderEmail(reminder: PendingReminder, dateStr: string, timeStr: string) {
   if (!RESEND_KEY || !reminder.member_email) return
   const activityName = reminder.activity_name ?? 'Cours'
-  const coachName = reminder.coach_name ?? '—'
+  // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
+  // aucun : « Coach : — » n'informe de rien et se lit comme une donnée manquante. Le bloc
+  // entier disparaît, libellé compris. (Cet email n'a pas de version texte.)
+  // get_pending_reminders joint coaches en LEFT JOIN : coach_name arrive à NULL, le rappel
+  // lui-même n'est jamais perdu.
+  const coachLine = reminder.coach_name
+    ? `<p style="color:#6B6861;">Coach : ${reminder.coach_name}</p>`
+    : ''
   const html = emailHtml(
     'Rappel — votre cours demain',
-    `<p style="color:#6B6861;">Vous avez un cours demain : <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#6B6861;">Coach : ${coachName}</p>`,
+    `<p style="color:#6B6861;">Vous avez un cours demain : <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p>${coachLine}`,
     'Voir ma réservation', 'dopamine://bookings',
   )
   await fetch('https://api.resend.com/emails', {

@@ -102,7 +102,13 @@ function EventContent({ slot, t }: { slot: TimeSlot; t: (key: string) => string 
           <p className="font-body text-[10px] text-secondary">
             {slot.startTime} — {slot.endTime}
           </p>
-          <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
+          {/* GYM-229 — masquer plutôt qu'afficher creux. Un créneau en accès libre (Open Gym)
+n'a pas de coach : ni « Coach : — », ni ligne vide qui décale la mise en page.
+Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les deux
+ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
+          {slot.coach.name && (
+            <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
+          )}
         </div>
         {displayStatus !== 'scheduled' && !isFrozen && (
           <span

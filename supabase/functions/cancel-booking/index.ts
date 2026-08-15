@@ -228,6 +228,13 @@ Deno.serve(async (req) => {
       Array.isArray(v) ? ((v[0] as T | undefined) ?? null) : ((v as T | null) ?? null)
     const activityName = embedOne<{ name: string }>(slot.activities)?.name ?? 'Cours'
     const coachName = embedOne<{ name: string }>(slot.coaches)?.name ?? ''
+    // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
+    // aucun : un libellé « Coach » suivi d'un blanc n'informe de rien et se lit comme une
+    // donnée manquante. Le bloc entier disparaît, libellé compris.
+    // (Ces emails n'ont pas de version texte — Resend ne reçoit qu'un champ `html`.)
+    const coachLine = coachName
+      ? `<p style="color:#9A9890;">Coach: ${coachName}</p>`
+      : ''
     const dateStr = slotStart.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
     const timeStr = slotStart.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
@@ -357,7 +364,7 @@ Deno.serve(async (req) => {
       await sendEmail(resendKey, profile.email,
         `Réservation annulée — ${activityName}`,
         emailHtml('Réservation annulée',
-          `<p style="color:#6B6861;"><strong>${activityName}</strong></p><p style="color:#6B6861;">${dateStr} à ${timeStr}</p><p style="color:#9A9890;">Coach: ${coachName}</p>${lateWarning}`))
+          `<p style="color:#6B6861;"><strong>${activityName}</strong></p><p style="color:#6B6861;">${dateStr} à ${timeStr}</p>${coachLine}${lateWarning}`))
     }
 
     console.log('[cancel-booking] Success — late:', isLateCancellation, 'noshow:', noshowResult?.level ?? 'none')
