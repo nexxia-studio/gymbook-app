@@ -104,6 +104,13 @@ async function notifyMember(
 
   if (RESEND_KEY && member.email) {
     const greeting = member.first_name ? `Bonjour ${member.first_name},` : 'Bonjour,'
+    // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
+    // aucun : un libellé « Coach » suivi d'un blanc n'informe de rien et se lit comme une
+    // donnée manquante. Le bloc entier disparaît, libellé compris.
+    // (Cet email n'a pas de version texte — Resend ne reçoit qu'un champ `html`.)
+    const coachLine = coachName
+      ? `<p style="color:#9A9890;margin:0 0 4px;">Coach: ${coachName}</p>`
+      : ''
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
@@ -111,7 +118,7 @@ async function notifyMember(
         from: 'Dopamine <noreply@viniz.app>',
         to: member.email,
         subject: `Réservation confirmée — ${activityName}`,
-        html: `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Réservation confirmée</h2><p style="color:#9A9890;font-size:13px;margin:0 0 16px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Ta salle t'a inscrit à ce cours :</p><p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p><p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p><p style="color:#9A9890;margin:0 0 24px;">Coach: ${coachName}</p><p style="color:#9A9890;font-size:12px;margin:0;">Tu ne peux pas venir ? Préviens l'accueil de ta salle.</p></div></div></div>`,
+        html: `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Réservation confirmée</h2><p style="color:#9A9890;font-size:13px;margin:0 0 16px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Ta salle t'a inscrit à ce cours :</p><p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p><p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p>${coachLine}<p style="color:#9A9890;font-size:12px;margin:24px 0 0;">Tu ne peux pas venir ? Préviens l'accueil de ta salle.</p></div></div></div>`,
       }),
     }).catch((e) => console.error('[admin-book-member] email error:', e))
   }
