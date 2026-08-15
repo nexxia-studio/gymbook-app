@@ -3,12 +3,12 @@
 // directes (RLS gym_admin) ; email non modifiable (hors périmètre v1).
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle, ShoppingCart, Receipt } from 'lucide-react'
+import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle, ShoppingCart, Receipt, ScanLine } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { resolveEdgeError } from '@/lib/edgeErrors'
+import { extractErrorBody, edgeErrorMessage } from '@/lib/edgeErrors'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
 import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipline'
 import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
@@ -65,16 +65,23 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
 
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [sellOpen, setSellOpen] = useState(false)
-  const [identity, setIdentity] = useState({ firstName: '', lastName: '', phone: '' as string | null })
+  const [identity, setIdentity] = useState({
+    firstName: '', lastName: '', phone: '' as string | null,
+    // GYM-224 — code du badge d'accès. Saisi ici, LU par le membre dans /profile.
+    accessBadgeCode: null as string | null,
+  })
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', accessBadgeCode: '' })
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   // (Re)seed à l'ouverture / changement de membre.
   useEffect(() => {
     if (member) {
-      setIdentity({ firstName: member.firstName, lastName: member.lastName, phone: member.phone })
+      setIdentity({
+        firstName: member.firstName, lastName: member.lastName, phone: member.phone,
+        accessBadgeCode: member.accessBadgeCode,
+      })
       setEditing(false)
       setFormError(null)
     }
@@ -86,7 +93,10 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   }, [member, onClose])
 
   function startEdit() {
-    setForm({ firstName: identity.firstName, lastName: identity.lastName, phone: identity.phone ?? '' })
+    setForm({
+      firstName: identity.firstName, lastName: identity.lastName, phone: identity.phone ?? '',
+      accessBadgeCode: identity.accessBadgeCode ?? '',
+    })
     setFormError(null)
     setEditing(true)
   }
@@ -115,19 +125,36 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
           phone: form.phone.trim(),
+          // GYM-224 — chaîne vide transmise TELLE QUELLE : c'est l'Edge qui la convertit
+          // en NULL (l'index unique partiel ne filtre que les NULL, pas les ''). Effacer
+          // le champ doit donc pouvoir remonter jusqu'au serveur.
+          access_badge_code: form.accessBadgeCode.trim(),
         },
       })
       if (error) {
         // GYM-219 — INVALID_PHONE / INVALID_FIRST_NAME désignent le champ fautif ;
         // « la sauvegarde a échoué » laissait chercher.
-        setFormError(await resolveEdgeError(error, t, { name: identity.firstName }))
+        //
+        // GYM-224 — on lit le corps ENTIER (une seule fois, la Response n'est pas rejouable)
+        // parce que BADGE_CODE_TAKEN y joint le PRÉNOM DU PORTEUR ACTUEL. C'est l'information
+        // qui transforme « ce code est déjà pris » en un geste : savoir chez qui vérifier.
+        const body = await extractErrorBody(error)
+        setFormError(edgeErrorMessage(body.code, t, {
+          name: identity.firstName,
+          holder: body.holder_first_name,
+        }))
         return
       }
-      const updated = (data?.member ?? {}) as { first_name?: string; last_name?: string; phone?: string | null }
+      const updated = (data?.member ?? {}) as {
+        first_name?: string; last_name?: string; phone?: string | null; access_badge_code?: string | null
+      }
       const next = {
         firstName: updated.first_name ?? form.firstName.trim(),
         lastName: updated.last_name ?? form.lastName.trim(),
         phone: updated.phone ?? null,
+        // `?? null` et non `?? form…` : le serveur fait autorité sur ce qu'il a réellement
+        // stocké (chaîne vide normalisée en NULL, code trimé).
+        accessBadgeCode: updated.access_badge_code ?? null,
       }
       setIdentity(next)
       onUpdated(next)
@@ -270,6 +297,17 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                     <Input label={t('member_drawer.last_name')} value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} required />
                   </div>
                   <Input label={t('member_drawer.phone')} type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder={t('member_drawer.phone_optional')} />
+                  {/* GYM-224 — code du badge d'accès. Vider le champ RETIRE le badge
+                      (l'Edge stocke NULL) : c'est le geste attendu quand un membre rend
+                      son badge ou le perd. */}
+                  <Input
+                    label={t('member_drawer.badge_code')}
+                    value={form.accessBadgeCode}
+                    onChange={(e) => setForm((f) => ({ ...f, accessBadgeCode: e.target.value }))}
+                    placeholder={t('member_drawer.badge_code_optional')}
+                    autoComplete="off"
+                  />
+                  <p className="-mt-2 font-body text-xs text-muted">{t('member_drawer.badge_code_hint')}</p>
                   <div className="flex gap-3">
                     <Button type="button" variant="ghost" onClick={() => setEditing(false)} className="flex-1" disabled={saving}>
                       {t('common.cancel')}
@@ -284,6 +322,9 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                   <div className="mt-5 flex flex-col gap-3">
                     <Row Icon={Mail} label={t('member_drawer.email')} value={member.email} muted title={t('member_drawer.email_readonly')} />
                     <Row Icon={Phone} label={t('member_drawer.phone')} value={identity.phone || '—'} />
+                    {identity.accessBadgeCode && (
+                      <Row Icon={ScanLine} label={t('member_drawer.badge_code')} value={identity.accessBadgeCode} />
+                    )}
                     <Row Icon={Globe} label={t('member_drawer.language')} value={(member.preferredLanguage ?? '—').toUpperCase()} />
                     <Row Icon={CalendarDays} label={t('member_drawer.member_since')} value={fmtDate(member.memberSince)} />
                   </div>

@@ -619,7 +619,10 @@
     "payments": {
       "title": "Payments",
       "empty": "No payment recorded."
-    }
+    },
+    "badge_code": "Badge code",
+    "badge_code_optional": "Access badge number",
+    "badge_code_hint": "Visible to the member in their profile. Leave empty to remove the badge."
   },
   "attendance": {
     "title": "Attendance",
@@ -1173,6 +1176,9 @@
     "MISSING_FIELDS": "Required fields are missing.",
     "ALREADY_WAITLISTED": "{{name}} is already on the waitlist for this class.",
     "SLOT_PAST": "This class has already started and can no longer be booked. Use attendance tracking to add them.",
-    "MEMBER_QUOTA_REACHED": "Your gym has reached the number of members included in its Viniz plan. Contact support to increase it."
+    "MEMBER_QUOTA_REACHED": "Your gym has reached the number of members included in its Viniz plan. Contact support to increase it.",
+    "BADGE_CODE_TAKEN": "This code is already assigned to {{holder}}.",
+    "INVALID_BADGE_CODE": "This badge code is not valid.",
+    "default_other_member": "another member"
   }
 }

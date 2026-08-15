@@ -16,6 +16,8 @@ export interface Member {
   pushToken: string | null
   avatarUrl: string | null
   preferredLanguage: string | null
+  /** GYM-224 — code du badge d'accès physique. NULL = pas encore de badge attribué. */
+  accessBadgeCode: string | null
 }
 
 export function useMembers() {
@@ -31,7 +33,7 @@ export function useMembers() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, avatar_url, preferred_language, created_at')
+        .select('id, first_name, last_name, email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, avatar_url, preferred_language, created_at, access_badge_code')
         .eq('gym_id', gymId)
         .eq('role', 'member')
         .is('deleted_at', null)
@@ -44,6 +46,7 @@ export function useMembers() {
         lastName: r.last_name ?? '',
         email: r.email,
         phone: r.phone,
+        accessBadgeCode: r.access_badge_code,
         role: r.role,
         noshowCount: r.noshow_count ?? 0,
         suspendedUntil: r.suspended_until,
@@ -75,7 +78,12 @@ export function useMembers() {
   const filteredMembers = members.filter((m) => {
     if (search) {
       const q = search.toLowerCase()
-      if (!`${m.firstName} ${m.lastName} ${m.email}`.toLowerCase().includes(q)) return false
+      // GYM-224 — le CODE DE BADGE est cherchable. Cas d'usage direct au comptoir :
+      // « quelqu'un vient de badger, qui est-ce ? » — le gérant tape le numéro lu sur le
+      // lecteur et tombe sur la fiche. Le filtre est CLIENT, sur des lignes déjà chargées :
+      // l'ajout ne touche pas la requête et ne coûte rien.
+      const haystack = `${m.firstName} ${m.lastName} ${m.email} ${m.accessBadgeCode ?? ''}`
+      if (!haystack.toLowerCase().includes(q)) return false
     }
     if (statusFilter === 'suspended') {
       return m.suspendedUntil && new Date(m.suspendedUntil) > new Date()
