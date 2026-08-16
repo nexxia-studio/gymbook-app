@@ -517,7 +517,8 @@
       "suspended_and_canceling": "Suspendu jusqu'au {{date}} · résiliation en cours",
       "no_plan": "Ne peut pas réserver : aucun abonnement ni crédit disponible.",
       "suspended_and_no_plan": "Suspendu jusqu'au {{date}} · et aucun abonnement ni crédit disponible."
-    }
+    },
+    "card_since": "Inscrit le {{date}}"
   },
   "member_drawer": {
     "title": "Fiche membre",
