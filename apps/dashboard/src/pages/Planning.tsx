@@ -234,8 +234,11 @@ export default function Planning() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-4 overflow-x-auto pb-1">
+      {/* Filters — GYM-128.
+          ⚠️ `overflow-x-auto` RETIRÉ de ce conteneur : les menus déroulants s'ouvrent en
+          `absolute`, un ancêtre en overflow les rognerait. FilterPills gère désormais son
+          débordement par `flex-wrap`. */}
+      <div className="mb-4">
         <FilterPills
           coaches={planning.coaches}
           activities={planning.activities}
@@ -245,6 +248,8 @@ export default function Planning() {
           onCoachChange={planning.setFilterCoach}
           onActivityChange={planning.setFilterActivity}
           onStatusChange={planning.setFilterStatus}
+          hasActiveFilters={planning.hasActiveFilters}
+          onReset={planning.resetFilters}
         />
       </div>
 

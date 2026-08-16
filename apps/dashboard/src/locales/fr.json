@@ -284,12 +284,6 @@
     "today": "Aujourd'hui",
     "new_slot": "Nouveau créneau",
     "week_of": "{{start}} — {{end}}",
-    "filter_all_coaches": "Tous les coaches",
-    "filter_all_activities": "Toutes les activités",
-    "filter_all_statuses": "Tous les statuts",
-    "filter_scheduled": "Planifiés",
-    "filter_completed": "Terminés",
-    "filter_cancelled": "Annulés",
     "empty": "Aucun créneau cette semaine",
     "empty_day": "Aucun créneau ce jour",
     "slot_detail": "Détail du créneau",
@@ -352,7 +346,16 @@
       "10": "novembre",
       "11": "décembre"
     },
-    "no_coach": "Accès libre"
+    "no_coach": "Accès libre",
+    "filter_coaches": "Coachs",
+    "filter_activities": "Activités",
+    "filter_statuses": "Statut",
+    "filter_reset": "Réinitialiser"
+  },
+  "filters": {
+    "search_placeholder": "Rechercher…",
+    "no_result": "Aucun résultat",
+    "clear_one": "Tout décocher"
   },
   "slots": {
     "create_title": "Nouveau créneau",
