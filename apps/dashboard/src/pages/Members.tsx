@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { MemberDrawer } from '@/components/members/MemberDrawer'
 import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { LiftSuspensionModal } from '@/components/members/LiftSuspensionModal'
-import { useMembers, type Member } from '@/hooks/useMembers'
+import { useMembers, type Member, type MemberStatusFilter } from '@/hooks/useMembers'
+import type { MemberPlan } from '@/lib/subscription'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
@@ -18,6 +19,65 @@ function nameToColor(name: string): string {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return colors[Math.abs(hash) % colors.length]
+}
+
+/** JJ/MM — la forme demandée. Année omise : une échéance de relance se lit à quelques
+ *  semaines, l'année n'y apporte rien et allonge une cellule déjà dense. */
+function fmtShortDate(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('fr-BE', { day: '2-digit', month: '2-digit' }).format(d)
+}
+
+/**
+ * GYM-147 — colonne FORMULE : ce que le membre POSSÈDE.
+ *
+ * DÉCISIONS PRODUIT (Antoine, 07/08) reprises telles quelles :
+ *  · abonnement → AFFICHER L'ÉCHÉANCE. C'est précisément le signal de relance.
+ *  · abonnement + crédits → « Abonnement et crédits », SANS le nombre : les crédits sont
+ *    GELÉS pendant un abonnement (GYM-94), afficher un compteur figé laisserait croire à
+ *    une consommation qui n'a pas lieu.
+ *  · rien → formulation NEUTRE. « Aucune formule », jamais « Inactif » : un membre sans
+ *    formule n'est pas fautif, il vient peut-être de s'inscrire ou attend son prochain achat.
+ */
+function PlanCell({ plan }: { plan: MemberPlan }) {
+  const { t } = useTranslation()
+
+  if (plan.kind === 'none') {
+    return (
+      <span className="rounded-lg bg-dark/5 px-2 py-0.5 font-body text-[10px] font-semibold text-muted">
+        {t('members.plan_none')}
+      </span>
+    )
+  }
+
+  if (plan.kind === 'credits') {
+    return (
+      <span className="rounded-lg bg-accent-dim/10 px-2 py-0.5 font-body text-[10px] font-semibold text-accent-dim">
+        {t('members.plan_credits', { count: plan.credits })}
+      </span>
+    )
+  }
+
+  // Abonnement (seul ou avec crédits). L'échéance proche vire à l'ambre : c'est le seul
+  // moment où une relance change encore quelque chose, elle doit sauter aux yeux dans une
+  // colonne par ailleurs uniformément verte.
+  const label = plan.kind === 'subscription_credits'
+    ? t('members.plan_subscription_credits')
+    : t('members.plan_subscription')
+  const until = fmtShortDate(plan.endsAt)
+
+  return (
+    <span
+      className={`whitespace-nowrap rounded-lg px-2 py-0.5 font-body text-[10px] font-semibold ${
+        plan.expiringSoon ? 'bg-amber-100 text-amber-800' : 'bg-green-500/10 text-green-600'
+      }`}
+      title={plan.expiringSoon ? t('members.plan_expiring_hint') : undefined}
+    >
+      {until ? t('members.plan_until', { plan: label, date: until }) : label}
+    </span>
+  )
 }
 
 function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
@@ -50,15 +110,23 @@ function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
         </div>
       </td>
 
-      {/* Status */}
+      {/* GYM-147 — FORMULE : « qu'a-t-il acheté ? » ────────────────────────────
+          Remplace le badge Actif/Inactif, qui ne lisait que la suspension et
+          annonçait donc « Actif » un membre dont l'abonnement avait expiré. */}
       <td className="px-4 py-3">
-        <span className={`rounded-lg px-2 py-0.5 font-body text-[10px] font-semibold ${
-          isSuspended
-            ? 'bg-red-50 text-red-500'
-            : 'bg-green-500/10 text-green-600'
-        }`}>
-          {isSuspended ? t('members.suspended') : t('members.active')}
-        </span>
+        <PlanCell plan={member.plan} />
+      </td>
+
+      {/* GYM-147 — ACCÈS : « peut-il réserver ? » ─────────────────────────────
+          VIDE quand il n'y a rien à signaler. « OK » répété sur quarante lignes
+          serait du bruit qui noierait les six lignes qui comptent — leçon GYM-229,
+          masquer plutôt qu'afficher creux. */}
+      <td className="px-4 py-3">
+        {isSuspended && (
+          <span className="whitespace-nowrap rounded-lg bg-red-50 px-2 py-0.5 font-body text-[10px] font-semibold text-red-500">
+            {t('members.access_suspended_until', { date: fmtShortDate(member.suspendedUntil) })}
+          </span>
+        )}
       </td>
 
       {/* No-shows */}
@@ -117,8 +185,8 @@ export default function Members() {
   const { t } = useTranslation()
   const addToast = useToastStore((s) => s.addToast)
   const {
-    members, totalCount, activeCount, isLoading,
-    search, setSearch, statusFilter, setStatusFilter, refetch,
+    members, totalCount, withPlanCount, noPlanCount, expiringCount, suspendedCount,
+    isLoading, search, setSearch, statusFilter, setStatusFilter, refetch,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
   const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
@@ -144,10 +212,18 @@ export default function Members() {
     addToast(t('members.toast_push_sent'))
   }
 
-  const filters: Array<{ key: 'all' | 'active' | 'suspended'; label: string }> = [
+  // GYM-147 — « Actif » a disparu : il ne lisait que la suspension, et annonçait donc
+  // « actif » un membre dont l'abonnement avait expiré. Les trois filtres qui le remplacent
+  // isolent chacun une population SUR LAQUELLE AGIR — c'est l'objet du lot : sans eux, il
+  // faut lire quarante lignes pour trouver les six qui décrochent.
+  //
+  // Chaque pastille porte SON COMPTE : le gérant voit l'ampleur avant de cliquer, et une
+  // population vide se lit d'un coup d'œil sans avoir à filtrer pour le découvrir.
+  const filters: Array<{ key: MemberStatusFilter; label: string; count?: number }> = [
     { key: 'all', label: t('members.filter_all') },
-    { key: 'active', label: t('members.filter_active') },
-    { key: 'suspended', label: t('members.filter_suspended') },
+    { key: 'no_plan', label: t('members.filter_no_plan'), count: noPlanCount },
+    { key: 'expiring', label: t('members.filter_expiring'), count: expiringCount },
+    { key: 'suspended', label: t('members.filter_suspended'), count: suspendedCount },
   ]
 
   return (
@@ -158,7 +234,10 @@ export default function Members() {
             {t('members.title')}
           </h1>
           <p className="mt-1 font-body text-sm text-muted">
-            {t('members.count', { total: totalCount })} &middot; {t('members.count_active', { active: activeCount })}
+            {/* GYM-147 — « actifs » comptait les NON-SUSPENDUS : il annonçait comme actifs
+                des membres dont l'abonnement avait expiré depuis des mois. Le chiffre qui
+                compte est celui des membres qui POSSÈDENT quelque chose. */}
+            {t('members.count', { total: totalCount })} &middot; {t('members.count_with_plan', { count: withPlanCount })}
           </p>
         </div>
         <Button onClick={() => setAddOpen(true)} className="self-start sm:self-auto">
@@ -191,6 +270,13 @@ export default function Members() {
               }`}
             >
               {f.label}
+              {f.count !== undefined && f.count > 0 && (
+                <span className={`ml-1.5 rounded px-1 py-px font-body text-[10px] font-bold ${
+                  statusFilter === f.key ? 'bg-[#17102E]/15' : 'bg-dark/10'
+                }`}>
+                  {f.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -202,7 +288,8 @@ export default function Members() {
           <thead>
             <tr className="border-b border-border bg-dark/[0.02]">
               <th className="px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted">{t('members.col_member')}</th>
-              <th className="px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted">{t('members.col_status')}</th>
+              <th className="px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted">{t('members.col_plan')}</th>
+              <th className="px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted">{t('members.col_access')}</th>
               <th className="px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted">{t('members.col_noshows')}</th>
               <th className="hidden px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted lg:table-cell">{t('members.col_since')}</th>
               <th className="px-4 py-3 text-left font-body text-xs font-semibold uppercase text-muted">{t('members.col_actions')}</th>
@@ -211,10 +298,10 @@ export default function Members() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td colSpan={5} className="p-3"><Skeleton variant="table-row" /></td></tr>
+                <tr key={i}><td colSpan={6} className="p-3"><Skeleton variant="table-row" /></td></tr>
               ))
             ) : members.length === 0 ? (
-              <tr><td colSpan={5} className="py-12 text-center font-body text-sm text-muted">{t('members.empty')}</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center font-body text-sm text-muted">{t('members.empty')}</td></tr>
             ) : (
               members.map((member) => (
                 <MemberRow
