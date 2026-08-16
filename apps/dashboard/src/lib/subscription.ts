@@ -85,6 +85,18 @@ export interface MemberPlan {
   credits: number
   /** L'abonnement se termine sous 7 jours. Faux dès qu'il n'y a pas d'abonnement ouvrant. */
   expiringSoon: boolean
+  /**
+   * GYM-147 (QA 15/08) — résiliation DEMANDÉE, accès maintenu jusqu'au terme (GYM-195).
+   *
+   * ⚠️ Ce n'est PAS une perte d'accès : le membre peut réserver, et la colonne Formule
+   * affiche « Abonnement » à juste titre. Mais pour le gérant, un membre en résiliation
+   * n'est pas un membre installé — c'est quelqu'un à rappeler AVANT l'échéance. Le drawer
+   * le disait déjà (badge « Résiliation en cours ») ; la liste, non.
+   *
+   * Faux dès que l'abonnement n'ouvre plus de droits : une résiliation dont le terme est
+   * passé n'est plus une résiliation en cours, c'est un départ consommé.
+   */
+  isCanceling: boolean
 }
 
 /**
@@ -114,5 +126,8 @@ export function computeMemberPlan(
     endsAt,
     credits: creditsRemaining,
     expiringSoon: subActive && isExpiringSoon(endsAt, now),
+    // Adossé à `subActive`, donc au MÊME prédicat que tout le reste : aucun troisième
+    // test de statut n'est introduit ici.
+    isCanceling: subActive && subscription!.status === 'canceling',
   }
 }

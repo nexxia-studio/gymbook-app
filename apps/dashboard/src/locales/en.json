@@ -505,11 +505,17 @@
     "plan_credits_other": "{{count}} sessions",
     "plan_until": "{{plan}} · until {{date}}",
     "plan_expiring_hint": "This subscription ends in less than 7 days.",
-    "access_suspended_until": "Suspended until {{date}}",
     "filter_no_plan": "No plan",
     "filter_expiring": "Ending soon",
     "count_with_plan_one": "{{count}} with a plan",
-    "count_with_plan_other": "{{count}} with a plan"
+    "count_with_plan_other": "{{count}} with a plan",
+    "access": {
+      "ok": "Access open",
+      "canceling": "Cancellation in progress — access stays open until the end date",
+      "canceling_short": "Cancelling",
+      "suspended": "Suspended until {{date}}",
+      "suspended_and_canceling": "Suspended until {{date}} · cancellation in progress"
+    }
   },
   "member_drawer": {
     "title": "Member profile",
