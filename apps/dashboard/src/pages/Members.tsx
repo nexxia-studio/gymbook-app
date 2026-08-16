@@ -81,58 +81,79 @@ function PlanCell({ plan }: { plan: MemberPlan }) {
 }
 
 /**
- * GYM-147 (QA Antoine, 15/08) — colonne ACCÈS en PASTILLE.
+ * GYM-147 — colonne ACCÈS : « CE MEMBRE PEUT-IL RÉSERVER ? »
  *
- * La version précédente laissait la cellule VIDE quand il n'y avait rien à signaler. Le
- * constat de QA est juste : sur 90 % des lignes, une case vide ne se lit pas « rien à
- * signaler » mais « l'affichage a raté quelque chose ». La consigne « masquer plutôt
- * qu'afficher creux » (GYM-229) visait un LIBELLÉ orphelin — « Coach : — » — pas une
- * pastille, qui se balaie d'un coup d'œil sans encombrer la ligne.
+ * 🔴 CORRECTIF QA (Antoine, 15/08). La version précédente répondait en réalité à une AUTRE
+ * question — « n'est-il pas suspendu ? » — et affichait donc ✅ à côté de « Aucune
+ * formule ». C'était l'INVERSE de la vérité : la garde serveur
+ * (_shared/booking-guards.ts, garde 7) refuse en PAYMENT_REQUIRED tout membre sans
+ * abonnement actif ET sans crédit. La suspension n'est qu'UNE des deux causes de refus ;
+ * l'absence de formule est l'autre, et c'est de loin la plus fréquente.
  *
- * TROIS ÉTATS, et un seul par ligne :
- *   ROUGE  suspendu — accès BLOQUÉ
- *   AMBRE  accès ouvert, mais à savoir : résiliation en cours
- *   VERT   rien à signaler
+ * Sur une colonne dont le rôle est d'annoncer un droit, annoncer l'inverse du serveur est
+ * le pire défaut possible : le gérant envoie quelqu'un réserver, et la porte se ferme.
  *
- * ⚠️ CUMUL : suspendu ET en résiliation → le ROUGE prime, c'est l'information urgente.
- * L'infobulle mentionne alors les DEUX, pour ne rien perdre.
+ * ÉTATS — dans l'ordre de priorité :
+ *   ROUGE  suspendu OU sans formule → il NE PEUT PAS réserver
+ *   AMBRE  résiliation en cours     → il peut, mais il part
+ *   VERT   abonnement ou crédits, rien à signaler
  *
- * ⚠️ L'ÉCHÉANCE PROCHE N'EST PAS REPRISE ICI. La colonne Formule la porte déjà — badge
- * ambre ET date en clair (« Abonnement · jusqu'au 15/09 »). La redire dans Accès mettrait
- * deux pastilles ambre sur la même ligne pour un seul fait, et diluerait le signal que
- * cette colonne doit porter seule : la résiliation.
+ * ⚠️ MÊME CALCUL QUE LA COLONNE VOISINE. `plan.kind === 'none'` est exactement ce
+ * qu'affiche PlanCell et ce que filtre « Sans formule » — une seule expression, trois
+ * usages. Recalculer ici ouvrirait la porte à deux colonnes de la même ligne qui se
+ * contredisent, ce qui serait pire que le défaut corrigé.
  *
- * ⚠️ ACCESSIBILITÉ — JAMAIS LA COULEUR SEULE. Trois éléments s'y ajoutent :
- *   · une ICÔNE de forme distincte (coche / triangle / croix), lisible en niveaux de gris
- *     comme par un daltonien ;
- *   · un `title` en texte, qui donne la date de suspension au survol ;
- *   · un `aria-label` identique, pour les lecteurs d'écran.
- * La date reste par ailleurs affichée EN CLAIR à côté de la pastille rouge : au comptoir,
- * c'est l'information dont le gérant a besoin sans avoir à survoler quoi que ce soit.
+ * ⚠️ ALIGNÉ SUR LE SERVEUR, Y COMPRIS SUR CE QU'IL NE FILTRE PAS. `plan` compte les crédits
+ * sans exclure les expirés, parce que hasAvailableCredits ne les exclut pas non plus
+ * (`.gt('credits_remaining', 0)`, sans clause sur expires_at). Être plus strict ici
+ * annoncerait un blocage qui n'existe pas.
+ *
+ * ⚠️ L'ÉCHÉANCE PROCHE N'EST PAS REPRISE ICI — arbitrage conservé. La colonne Formule la
+ * porte déjà, badge ambre ET date en clair. La redire mettrait deux pastilles ambre sur la
+ * même ligne pour un seul fait.
+ *
+ * ⚠️ ACCESSIBILITÉ — JAMAIS LA COULEUR SEULE : icône de forme distincte (coche / triangle /
+ * croix), `title` en texte et `aria-label` identique. La date de suspension reste affichée
+ * EN CLAIR à côté de la pastille : au comptoir, on ne doit pas avoir à survoler.
  */
 function AccessCell({ member }: { member: Member }) {
   const { t } = useTranslation()
   const suspendedUntil = member.suspendedUntil
   const isSuspended = !!suspendedUntil && new Date(suspendedUntil) > new Date()
+  // Identique à PlanCell et au filtre « Sans formule ». Une seule source.
+  const hasNoPlan = member.plan.kind === 'none'
   const isCanceling = member.plan.isCanceling
-
   const date = fmtShortDate(suspendedUntil)
 
-  if (isSuspended) {
-    // Cumul suspendu + résiliation : le rouge prime, l'infobulle dit les deux.
-    const label = isCanceling
-      ? t('members.access.suspended_and_canceling', { date })
-      : t('members.access.suspended', { date })
+  // ── ROUGE — il ne peut pas réserver ────────────────────────────────────────
+  if (isSuspended || hasNoPlan) {
+    // L'infobulle CUMULE les motifs : un membre suspendu ET sans formule a deux problèmes,
+    // et lever la suspension ne suffirait pas à le faire réserver. Le gérant doit voir les
+    // deux, sinon il résout l'un et se heurte à l'autre.
+    const label = isSuspended
+      ? (hasNoPlan
+          ? t('members.access.suspended_and_no_plan', { date })
+          : isCanceling
+            ? t('members.access.suspended_and_canceling', { date })
+            : t('members.access.suspended', { date }))
+      : t('members.access.no_plan')
+
     return (
       <span className="inline-flex items-center gap-1.5" title={label} aria-label={label}>
         <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100">
           <XCircle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
         </span>
-        <span className="whitespace-nowrap font-body text-[11px] font-semibold text-red-600">{date}</span>
+        {/* La date n'est affichée que pour une SUSPENSION : elle ne figure nulle part
+            ailleurs sur la ligne. Le motif « sans formule », lui, est déjà écrit en toutes
+            lettres dans la colonne Formule — le répéter ici serait du bruit. */}
+        {isSuspended && (
+          <span className="whitespace-nowrap font-body text-[11px] font-semibold text-red-600">{date}</span>
+        )}
       </span>
     )
   }
 
+  // ── AMBRE — il peut réserver, mais il part ────────────────────────────────
   if (isCanceling) {
     const label = t('members.access.canceling')
     return (
@@ -147,6 +168,7 @@ function AccessCell({ member }: { member: Member }) {
     )
   }
 
+  // ── VERT ──────────────────────────────────────────────────────────────────
   const label = t('members.access.ok')
   return (
     <span className="inline-flex items-center" title={label} aria-label={label}>

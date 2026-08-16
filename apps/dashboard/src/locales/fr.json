@@ -514,7 +514,9 @@
       "canceling": "Résiliation en cours — l'accès reste ouvert jusqu'à l'échéance",
       "canceling_short": "Résiliation",
       "suspended": "Suspendu jusqu'au {{date}}",
-      "suspended_and_canceling": "Suspendu jusqu'au {{date}} · résiliation en cours"
+      "suspended_and_canceling": "Suspendu jusqu'au {{date}} · résiliation en cours",
+      "no_plan": "Ne peut pas réserver : aucun abonnement ni crédit disponible.",
+      "suspended_and_no_plan": "Suspendu jusqu'au {{date}} · et aucun abonnement ni crédit disponible."
     }
   },
   "member_drawer": {
