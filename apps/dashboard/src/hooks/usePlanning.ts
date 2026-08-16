@@ -183,9 +183,17 @@ export function usePlanning() {
     return { start, end: addDaysIso(start, 7) }
   })
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
-  const [filterCoach, setFilterCoach] = useState<string | null>(null)
-  const [filterActivity, setFilterActivity] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<string | null>(null)
+  // GYM-128 — SÉLECTION MULTIPLE. Le filtre passe de `string | null` à `string[]` :
+  // tableau VIDE = aucun filtre, donc « tout » (ce que portait `null` auparavant).
+  //
+  // ⚠️ Le PRÉDICAT ne change pas — mêmes champs comparés, même filtrage CLIENT sur les
+  // créneaux déjà chargés, aucune requête modifiée. Seule la cardinalité change : on
+  // teste une APPARTENANCE au lieu d'une égalité. « Marie ou Julie » était impossible à
+  // exprimer avec une valeur unique, alors que c'est la question qu'un gérant à six
+  // coachs se pose en premier.
+  const [filterCoach, setFilterCoach] = useState<string[]>([])
+  const [filterActivity, setFilterActivity] = useState<string[]>([])
+  const [filterStatus, setFilterStatus] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [activitiesList, setActivitiesList] = useState<Activity[]>([])
@@ -287,15 +295,25 @@ export function usePlanning() {
 
   const filteredSlots = useMemo(() => {
     return slots.filter((s) => {
-      if (filterCoach && s.coach.id !== filterCoach) return false
-      if (filterActivity && s.activity.id !== filterActivity) return false
-      if (filterStatus) {
-        const display = getDisplayStatus(s)
-        if (display !== filterStatus) return false
-      }
+      // Liste vide = pas de filtre. Sinon : appartenance, là où c'était une égalité.
+      if (filterCoach.length > 0 && !filterCoach.includes(s.coach.id)) return false
+      if (filterActivity.length > 0 && !filterActivity.includes(s.activity.id)) return false
+      if (filterStatus.length > 0 && !filterStatus.includes(getDisplayStatus(s))) return false
       return true
     })
   }, [slots, filterCoach, filterActivity, filterStatus])
+
+  // GYM-128 — au moins un filtre actif ? Sert au bouton « Réinitialiser », qui n'apparaît
+  // que dans ce cas : un bouton toujours présent mais le plus souvent inutile encombrerait
+  // autant que les pastilles qu'on retire.
+  const hasActiveFilters =
+    filterCoach.length > 0 || filterActivity.length > 0 || filterStatus.length > 0
+
+  const resetFilters = useCallback(() => {
+    setFilterCoach([])
+    setFilterActivity([])
+    setFilterStatus([])
+  }, [])
 
   const getSlotsByDay = useCallback(
     (dateStr: string) => filteredSlots.filter((s) => s.date === dateStr),
@@ -560,6 +578,8 @@ export function usePlanning() {
     setFilterActivity,
     filterStatus,
     setFilterStatus,
+    hasActiveFilters,
+    resetFilters,
     coaches: coachesList,
     activities: activitiesList,
     createSlot,
