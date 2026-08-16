@@ -26,6 +26,15 @@ export interface MemberProfile {
   addressLine: string | null
   emergencyContactName: string | null
   memberSince: string | null
+  /**
+   * GYM-224 — code du badge physique qui ouvre la porte de la salle.
+   *
+   * ⚠️ LECTURE SEULE. Le membre le LIT, il ne le modifie jamais : la colonne est
+   * volontairement absente du GRANT UPDATE de GYM-203, donc toute écriture depuis l'app
+   * serait refusée par Postgres. Sa saisie appartient au gérant (admin-update-member).
+   * NULL = aucun badge attribué, ce qui est un état normal.
+   */
+  accessBadgeCode: string | null
 }
 
 interface AuthState {
@@ -120,7 +129,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!user) return
     const { data } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, email, phone, avatar_url, noshow_count, suspended_until, marketing_consent, date_of_birth, address_line, emergency_contact_name, member_since')
+      // GYM-224 — access_badge_code AJOUTÉ ICI. ⚠️ C'est le piège de GYM-216 et GYM-220 :
+      // la colonne peut exister en base, la migration passer, l'écran être écrit — si le
+      // SELECT ne la demande pas, elle reste indéfiniment vide et le défaut se cherche
+      // partout sauf ici. Ce SELECT est la SEULE source de MemberProfile.
+      .select('id, first_name, last_name, email, phone, avatar_url, noshow_count, suspended_until, marketing_consent, date_of_birth, address_line, emergency_contact_name, member_since, access_badge_code')
       .eq('id', user.id)
       .single()
     if (data) {
@@ -139,6 +152,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           addressLine: data.address_line,
           emergencyContactName: data.emergency_contact_name,
           memberSince: data.member_since,
+          accessBadgeCode: data.access_badge_code,
         },
       })
     }

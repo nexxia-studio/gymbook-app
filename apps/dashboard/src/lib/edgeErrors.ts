@@ -32,6 +32,8 @@ export interface EdgeErrorBody {
   suspended_until?: string
   /** FULL — position que le membre OCCUPERAIT en liste d'attente s'il l'accepte. */
   waitlist_position?: number
+  /** BADGE_CODE_TAKEN (GYM-224) — prénom du membre qui porte DÉJÀ ce code. */
+  holder_first_name?: string | null
 }
 
 /**
@@ -139,7 +141,13 @@ export const KNOWN_EDGE_ERROR_CODES = [
   // retomberait sur « l'action n'a pas abouti ».
   'PLAN_ALREADY_USED',
   // ── admin-update-member ──
+  //  · BADGE_CODE_TAKEN (GYM-224) — refus LÉGITIME, à EXPLIQUER : le code est déjà porté
+  //    par quelqu'un d'autre dans la salle. L'erreur brute de l'index unique (« duplicate
+  //    key value violates unique constraint … ») n'apprend au gérant ni QUE le code est
+  //    pris, ni PAR QUI — or c'est tout ce qu'il a besoin de savoir, badge en main. Le
+  //    serveur renvoie donc le prénom du porteur, que le message nomme.
   'INVALID_FIRST_NAME', 'INVALID_LAST_NAME', 'INVALID_PHONE', 'NO_FIELDS', 'UPDATE_FAILED',
+  'INVALID_BADGE_CODE', 'BADGE_CODE_TAKEN',
   // ── admin-lift-suspension (GYM-204, le modèle) ──
   'NOT_SUSPENDED', 'REASON_TOO_LONG',
   // ── invite-team-member / team-access ──
@@ -178,6 +186,14 @@ export interface EdgeErrorContext {
   name?: string | null
   /** Plafond renvoyé par le serveur, pour MAX_BOOKINGS_REACHED. */
   limit?: number | null
+  /**
+   * GYM-224 — porteur ACTUEL d'un code de badge déjà pris (BADGE_CODE_TAKEN).
+   *
+   * ⚠️ Distinct de `name`, qui désigne le membre que l'action VISAIT. Ici les deux
+   * personnes sont différentes, et c'est justement l'information utile : « ce code est
+   * déjà attribué à Julie » dit au gérant chez qui aller vérifier.
+   */
+  holder?: string | null
 }
 
 /**
@@ -201,7 +217,10 @@ export function edgeErrorMessage(
   // Un membre sans nom connu reste désigné de façon grammaticale, jamais par une chaîne
   // vide qui produirait «  n'a plus de crédit ».
   const name = ctx.name?.trim() || t('edge_errors.default_member')
-  return t(`edge_errors.${code}`, { name, limit: ctx.limit ?? undefined })
+  // GYM-224 — un porteur inconnu (course rare sur l'index unique, cf. admin-update-member)
+  // retombe sur « un autre membre » : le refus reste vrai, seul le nom manque.
+  const holder = ctx.holder?.trim() || t('edge_errors.default_other_member')
+  return t(`edge_errors.${code}`, { name, holder, limit: ctx.limit ?? undefined })
 }
 
 /**

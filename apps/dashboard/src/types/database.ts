@@ -2223,6 +2223,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          access_badge_code: string | null
           address_line: string | null
           avatar_url: string | null
           city: string | null
@@ -2266,6 +2267,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          access_badge_code?: string | null
           address_line?: string | null
           avatar_url?: string | null
           city?: string | null
@@ -2309,6 +2311,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          access_badge_code?: string | null
           address_line?: string | null
           avatar_url?: string | null
           city?: string | null

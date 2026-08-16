@@ -8,6 +8,11 @@ interface ProfileHeaderProps {
   memberSince: string
   levelKey?: string
   avatarUrl?: string | null
+  /**
+   * GYM-224 — code du badge d'accès. `null` quand la salle ne lui en a pas encore
+   * attribué : dans ce cas RIEN ne s'affiche (cf. le bloc plus bas).
+   */
+  accessBadgeCode?: string | null
 }
 
 function nameToColor(name: string): string {
@@ -17,7 +22,7 @@ function nameToColor(name: string): string {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avatarUrl }: ProfileHeaderProps) {
+export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avatarUrl, accessBadgeCode }: ProfileHeaderProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
@@ -62,6 +67,38 @@ export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avat
           {t('profile.badge_gym')}
         </Text>
       </View>
+
+      {/* ── GYM-224 — Code du badge d'accès ────────────────────────────────────
+          Le membre le cherche DEBOUT DEVANT LA PORTE, souvent une main occupée :
+          il doit se lire d'un coup d'œil, sans zoomer ni faire défiler. D'où le
+          corps large, la graisse maximale, l'interlettrage (des chiffres serrés se
+          confondent), et le fond accent qui le détache du reste de la carte.
+
+          `selectable` : recopier le code sans le retaper à la main.
+
+          ⚠️ RIEN quand il n'y a pas de badge — pas de « — », pas de « Aucun badge ».
+          C'est la leçon de GYM-229 : un libellé sans valeur se lit comme une donnée
+          manquante, alors que ne pas avoir de badge est un état parfaitement normal.
+          Le bloc entier disparaît, intitulé compris. */}
+      {accessBadgeCode ? (
+        <View className="mt-4 w-full items-center rounded-2xl bg-move-accent/15 px-4 py-3">
+          <Text className="font-dmsans-medium text-[10px] uppercase tracking-wider text-move-text-secondary">
+            {t('profile.access_badge_label')}
+          </Text>
+          <Text
+            selectable
+            style={{
+              fontFamily: 'BarlowCondensed_900Black',
+              fontSize: 32,
+              lineHeight: 38,
+              letterSpacing: 2,
+              color: '#111111',
+            }}
+          >
+            {accessBadgeCode}
+          </Text>
+        </View>
+      ) : null}
     </View>
   )
 }
