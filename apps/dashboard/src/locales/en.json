@@ -553,6 +553,7 @@
     "no_subscription": "No subscription",
     "sub_status": {
       "active": "Active",
+      "canceling": "Cancelling",
       "paused": "Paused",
       "suspended": "Suspended",
       "completed": "Completed"
