@@ -517,7 +517,8 @@
       "suspended_and_canceling": "Suspended until {{date}} · cancellation in progress",
       "no_plan": "Cannot book: no subscription and no credits available.",
       "suspended_and_no_plan": "Suspended until {{date}} · and no subscription or credits available."
-    }
+    },
+    "card_since": "Joined {{date}}"
   },
   "member_drawer": {
     "title": "Member profile",
