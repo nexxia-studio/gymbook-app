@@ -514,7 +514,9 @@
       "canceling": "Cancellation in progress — access stays open until the end date",
       "canceling_short": "Cancelling",
       "suspended": "Suspended until {{date}}",
-      "suspended_and_canceling": "Suspended until {{date}} · cancellation in progress"
+      "suspended_and_canceling": "Suspended until {{date}} · cancellation in progress",
+      "no_plan": "Cannot book: no subscription and no credits available.",
+      "suspended_and_no_plan": "Suspended until {{date}} · and no subscription or credits available."
     }
   },
   "member_drawer": {
