@@ -505,11 +505,17 @@
     "plan_credits_other": "{{count}} séances",
     "plan_until": "{{plan}} · jusqu'au {{date}}",
     "plan_expiring_hint": "Cet abonnement se termine dans moins de 7 jours.",
-    "access_suspended_until": "Suspendu jusqu'au {{date}}",
     "filter_no_plan": "Sans formule",
     "filter_expiring": "Échéance proche",
     "count_with_plan_one": "{{count}} avec formule",
-    "count_with_plan_other": "{{count}} avec formule"
+    "count_with_plan_other": "{{count}} avec formule",
+    "access": {
+      "ok": "Accès ouvert",
+      "canceling": "Résiliation en cours — l'accès reste ouvert jusqu'à l'échéance",
+      "canceling_short": "Résiliation",
+      "suspended": "Suspendu jusqu'au {{date}}",
+      "suspended_and_canceling": "Suspendu jusqu'au {{date}} · résiliation en cours"
+    }
   },
   "member_drawer": {
     "title": "Fiche membre",

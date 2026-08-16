@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { edgeErrorMessage } from '@/lib/edgeErrors'
-import { Search, ShieldOff, Bell, MoreVertical, Plus } from 'lucide-react'
+import { Search, ShieldOff, Bell, MoreVertical, Plus, Check, AlertTriangle, XCircle } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -80,6 +80,83 @@ function PlanCell({ plan }: { plan: MemberPlan }) {
   )
 }
 
+/**
+ * GYM-147 (QA Antoine, 15/08) — colonne ACCÈS en PASTILLE.
+ *
+ * La version précédente laissait la cellule VIDE quand il n'y avait rien à signaler. Le
+ * constat de QA est juste : sur 90 % des lignes, une case vide ne se lit pas « rien à
+ * signaler » mais « l'affichage a raté quelque chose ». La consigne « masquer plutôt
+ * qu'afficher creux » (GYM-229) visait un LIBELLÉ orphelin — « Coach : — » — pas une
+ * pastille, qui se balaie d'un coup d'œil sans encombrer la ligne.
+ *
+ * TROIS ÉTATS, et un seul par ligne :
+ *   ROUGE  suspendu — accès BLOQUÉ
+ *   AMBRE  accès ouvert, mais à savoir : résiliation en cours
+ *   VERT   rien à signaler
+ *
+ * ⚠️ CUMUL : suspendu ET en résiliation → le ROUGE prime, c'est l'information urgente.
+ * L'infobulle mentionne alors les DEUX, pour ne rien perdre.
+ *
+ * ⚠️ L'ÉCHÉANCE PROCHE N'EST PAS REPRISE ICI. La colonne Formule la porte déjà — badge
+ * ambre ET date en clair (« Abonnement · jusqu'au 15/09 »). La redire dans Accès mettrait
+ * deux pastilles ambre sur la même ligne pour un seul fait, et diluerait le signal que
+ * cette colonne doit porter seule : la résiliation.
+ *
+ * ⚠️ ACCESSIBILITÉ — JAMAIS LA COULEUR SEULE. Trois éléments s'y ajoutent :
+ *   · une ICÔNE de forme distincte (coche / triangle / croix), lisible en niveaux de gris
+ *     comme par un daltonien ;
+ *   · un `title` en texte, qui donne la date de suspension au survol ;
+ *   · un `aria-label` identique, pour les lecteurs d'écran.
+ * La date reste par ailleurs affichée EN CLAIR à côté de la pastille rouge : au comptoir,
+ * c'est l'information dont le gérant a besoin sans avoir à survoler quoi que ce soit.
+ */
+function AccessCell({ member }: { member: Member }) {
+  const { t } = useTranslation()
+  const suspendedUntil = member.suspendedUntil
+  const isSuspended = !!suspendedUntil && new Date(suspendedUntil) > new Date()
+  const isCanceling = member.plan.isCanceling
+
+  const date = fmtShortDate(suspendedUntil)
+
+  if (isSuspended) {
+    // Cumul suspendu + résiliation : le rouge prime, l'infobulle dit les deux.
+    const label = isCanceling
+      ? t('members.access.suspended_and_canceling', { date })
+      : t('members.access.suspended', { date })
+    return (
+      <span className="inline-flex items-center gap-1.5" title={label} aria-label={label}>
+        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100">
+          <XCircle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
+        </span>
+        <span className="whitespace-nowrap font-body text-[11px] font-semibold text-red-600">{date}</span>
+      </span>
+    )
+  }
+
+  if (isCanceling) {
+    const label = t('members.access.canceling')
+    return (
+      <span className="inline-flex items-center gap-1.5" title={label} aria-label={label}>
+        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-700" aria-hidden="true" />
+        </span>
+        <span className="whitespace-nowrap font-body text-[11px] font-semibold text-amber-700">
+          {t('members.access.canceling_short')}
+        </span>
+      </span>
+    )
+  }
+
+  const label = t('members.access.ok')
+  return (
+    <span className="inline-flex items-center" title={label} aria-label={label}>
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-500/15">
+        <Check className="h-3.5 w-3.5 text-green-600" aria-hidden="true" />
+      </span>
+    </span>
+  )
+}
+
 function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
   member: Member
   onSelect: () => void
@@ -122,11 +199,7 @@ function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
           serait du bruit qui noierait les six lignes qui comptent — leçon GYM-229,
           masquer plutôt qu'afficher creux. */}
       <td className="px-4 py-3">
-        {isSuspended && (
-          <span className="whitespace-nowrap rounded-lg bg-red-50 px-2 py-0.5 font-body text-[10px] font-semibold text-red-500">
-            {t('members.access_suspended_until', { date: fmtShortDate(member.suspendedUntil) })}
-          </span>
-        )}
+        <AccessCell member={member} />
       </td>
 
       {/* No-shows */}
