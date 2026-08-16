@@ -284,12 +284,6 @@
     "today": "Today",
     "new_slot": "New slot",
     "week_of": "{{start}} — {{end}}",
-    "filter_all_coaches": "All coaches",
-    "filter_all_activities": "All activities",
-    "filter_all_statuses": "All statuses",
-    "filter_scheduled": "Scheduled",
-    "filter_completed": "Completed",
-    "filter_cancelled": "Cancelled",
     "empty": "No slots this week",
     "empty_day": "No slots this day",
     "slot_detail": "Slot details",
@@ -352,7 +346,16 @@
       "10": "November",
       "11": "December"
     },
-    "no_coach": "Open access"
+    "no_coach": "Open access",
+    "filter_coaches": "Coaches",
+    "filter_activities": "Activities",
+    "filter_statuses": "Status",
+    "filter_reset": "Reset"
+  },
+  "filters": {
+    "search_placeholder": "Search…",
+    "no_result": "No results",
+    "clear_one": "Clear all"
   },
   "slots": {
     "create_title": "New slot",

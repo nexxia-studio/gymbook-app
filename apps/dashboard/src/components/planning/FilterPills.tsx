@@ -1,43 +1,46 @@
+// GYM-128 — Barre de filtres de /planning : TROIS MENUS au lieu d'une traînée de pastilles.
+//
+// SIGNALÉ PAR ANTOINE LE 15/07, DEVENU ACTUEL LE 15/08. Chaque coach, chaque activité et
+// chaque statut avait sa pastille, plus trois pastilles « Tous ». Avec 3 coachs et 2
+// activités c'était tenable ; Nico en aura SIX ET SIX — une quinzaine de pastilles en
+// travers de l'écran, DÈS L'OUVERTURE de la page. Ce n'est pas un défaut de montée en
+// charge, c'est l'état de départ.
+//
+// ⚠️ LE FICHIER GARDE SON NOM. FilterPills est importé par Planning.tsx et le renommer
+// n'apporterait rien à ce lot qu'un diff plus large à relire.
+//
+// ⚠️ CE QUI CHANGE ET CE QUI NE CHANGE PAS. Aucune requête, aucun prédicat métier : le
+// filtrage reste CLIENT, sur les créneaux déjà chargés, en comparant les mêmes champs
+// (coach.id, activity.id, statut d'affichage). Ce qui change est la CARDINALITÉ — on teste
+// une appartenance au lieu d'une égalité — parce que « Marie ou Julie » était impossible à
+// exprimer avec une valeur unique, et c'est la première question d'un gérant à six coachs.
+//
+// ⚠️ LES LISTES SONT DÉRIVÉES DE LA BASE, elles l'étaient déjà : usePlanning.fetchMeta lit
+// `activities` et `coaches` de la salle, triés par sort_order. Le constat GYM-216 (« 2
+// pastilles en dur, 4 activités impossibles à filtrer ») visait le FilterPills de
+// apps/mobile, un autre fichier, corrigé à l'époque. Celui-ci n'a jamais eu ce défaut.
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RotateCcw } from 'lucide-react'
+import { MultiSelectFilter, type MultiSelectOption } from '@/components/ui/MultiSelectFilter'
 import type { Activity, Coach } from '@/types/planning'
 
 interface FilterPillsProps {
   coaches: Coach[]
   activities: Activity[]
-  filterCoach: string | null
-  filterActivity: string | null
-  filterStatus: string | null
-  onCoachChange: (v: string | null) => void
-  onActivityChange: (v: string | null) => void
-  onStatusChange: (v: string | null) => void
+  filterCoach: string[]
+  filterActivity: string[]
+  filterStatus: string[]
+  onCoachChange: (v: string[]) => void
+  onActivityChange: (v: string[]) => void
+  onStatusChange: (v: string[]) => void
+  hasActiveFilters: boolean
+  onReset: () => void
 }
 
-function Pill({
-  label,
-  active,
-  onClick,
-  color,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-  color?: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`shrink-0 rounded-lg px-3 py-1.5 font-body text-xs font-medium transition-all ${
-        active
-          ? 'bg-accent text-[#17102E]'
-          : 'bg-card text-secondary hover:bg-dark/5'
-      }`}
-      style={active && color ? { backgroundColor: color, color: '#17102E' } : undefined}
-    >
-      {label}
-    </button>
-  )
-}
+// Statuts d'affichage filtrables. 'in_progress' est volontairement absent : il était déjà
+// hors de la liste avant ce lot, et l'ajouter serait un changement de comportement.
+const STATUS_VALUES = ['scheduled', 'completed', 'cancelled'] as const
 
 export function FilterPills({
   coaches,
@@ -48,67 +51,70 @@ export function FilterPills({
   onCoachChange,
   onActivityChange,
   onStatusChange,
+  hasActiveFilters,
+  onReset,
 }: FilterPillsProps) {
   const { t } = useTranslation()
 
+  const coachOptions = useMemo<MultiSelectOption[]>(
+    () => coaches.map((c) => ({ value: c.id, label: c.name })),
+    [coaches],
+  )
+
+  // La couleur de l'activité est conservée, en pastille devant l'intitulé : c'est le repère
+  // visuel du planning, le perdre obligerait à relire les noms.
+  const activityOptions = useMemo<MultiSelectOption[]>(
+    () => activities.map((a) => ({ value: a.id, label: a.name, color: a.color })),
+    [activities],
+  )
+
+  const statusOptions = useMemo<MultiSelectOption[]>(
+    () => STATUS_VALUES.map((v) => ({ value: v, label: t(`planning.status.${v}`) })),
+    [t],
+  )
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {/* Coaches */}
-      <Pill
-        label={t('planning.filter_all_coaches')}
-        active={filterCoach === null}
-        onClick={() => onCoachChange(null)}
+    // ⚠️ AUCUN `overflow` SUR CE CONTENEUR, ni ici ni chez l'appelant. Les panneaux des
+    // menus sont positionnés en `absolute` : un ancêtre en `overflow-x-auto` les ROGNERAIT
+    // au lieu de les laisser déborder — le menu s'ouvrirait tronqué, ou ne s'afficherait
+    // pas du tout. C'est le piège classique de ce motif, et c'est aussi pourquoi le
+    // défilement horizontal de /members (GYM-147) ne se transpose PAS ici : là-bas les
+    // pastilles n'ouvrent rien.
+    //
+    // `flex-wrap` fait le travail à la place : sur 380 px, les trois menus et le bouton de
+    // réinitialisation passent sur deux lignes au lieu de déborder. Deux lignes courtes
+    // valent mieux qu'une ligne coupée.
+    <div className="flex flex-wrap items-center gap-2">
+      <MultiSelectFilter
+        label={t('planning.filter_coaches')}
+        options={coachOptions}
+        selected={filterCoach}
+        onChange={onCoachChange}
       />
-      {coaches.map((c) => (
-        <Pill
-          key={c.id}
-          label={c.name}
-          active={filterCoach === c.id}
-          onClick={() => onCoachChange(filterCoach === c.id ? null : c.id)}
-        />
-      ))}
+      <MultiSelectFilter
+        label={t('planning.filter_activities')}
+        options={activityOptions}
+        selected={filterActivity}
+        onChange={onActivityChange}
+      />
+      <MultiSelectFilter
+        label={t('planning.filter_statuses')}
+        options={statusOptions}
+        selected={filterStatus}
+        onChange={onStatusChange}
+      />
 
-      <div className="mx-1 w-px self-stretch bg-border" />
-
-      {/* Activities */}
-      <Pill
-        label={t('planning.filter_all_activities')}
-        active={filterActivity === null}
-        onClick={() => onActivityChange(null)}
-      />
-      {activities.map((a) => (
-        <Pill
-          key={a.id}
-          label={a.name}
-          active={filterActivity === a.id}
-          onClick={() => onActivityChange(filterActivity === a.id ? null : a.id)}
-          color={filterActivity === a.id ? a.color : undefined}
-        />
-      ))}
-
-      <div className="mx-1 w-px self-stretch bg-border" />
-
-      {/* Status */}
-      <Pill
-        label={t('planning.filter_all_statuses')}
-        active={filterStatus === null}
-        onClick={() => onStatusChange(null)}
-      />
-      <Pill
-        label={t('planning.filter_scheduled')}
-        active={filterStatus === 'scheduled'}
-        onClick={() => onStatusChange(filterStatus === 'scheduled' ? null : 'scheduled')}
-      />
-      <Pill
-        label={t('planning.filter_completed')}
-        active={filterStatus === 'completed'}
-        onClick={() => onStatusChange(filterStatus === 'completed' ? null : 'completed')}
-      />
-      <Pill
-        label={t('planning.filter_cancelled')}
-        active={filterStatus === 'cancelled'}
-        onClick={() => onStatusChange(filterStatus === 'cancelled' ? null : 'cancelled')}
-      />
+      {/* Réinitialiser — UNIQUEMENT quand il y a quelque chose à réinitialiser. */}
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 font-body text-xs font-medium text-muted transition-colors hover:bg-dark/5 hover:text-dark"
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('planning.filter_reset')}
+        </button>
+      )}
     </div>
   )
 }
