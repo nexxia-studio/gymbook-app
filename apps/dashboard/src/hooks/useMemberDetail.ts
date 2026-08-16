@@ -79,10 +79,24 @@ export interface SellResult {
   invoice_sent: boolean
 }
 
-// Statuts d'abonnement affichés dans la fiche. expired/cancelled → "aucun abonnement".
+// Statuts d'abonnement AFFICHÉS dans la fiche. expired/cancelled → "aucun abonnement".
 // GYM-151 — 'completed' (engagement arrivé à son terme) est affiché avec un badge « Terminé »
 // (info utile au gérant) plutôt que masqué comme « aucun abonnement ».
-const LIVE_SUB_STATUSES = ['active', 'paused', 'suspended', 'completed']
+//
+// ⚠️ CETTE LISTE RÉPOND À « QUEL ABONNEMENT MONTRER ? », PAS À « OUVRE-T-IL DES DROITS ? ».
+// Les deux questions ne se recouvrent pas : 'paused', 'suspended' et 'completed' méritent
+// d'être VUS par le gérant sans pour autant autoriser une réservation. Le droit d'accès se
+// décide ailleurs, et à un seul endroit : isSubscriptionActive (lib/subscription.ts), qui
+// reprend le prédicat de la garde serveur. Ne pas fusionner les deux — remplacer cette
+// liste par le prédicat de droits ferait DISPARAÎTRE de la fiche les abonnements en pause
+// ou terminés, et le badge « Terminé » de GYM-151 avec eux.
+//
+// GYM-147 — 'canceling' AJOUTÉ. Il manquait : ce tableau est antérieur à GYM-195, qui a
+// introduit le statut (résiliation demandée, accès maintenu jusqu'au terme). Un membre
+// ayant résilié mais dont l'abonnement court encore n'apparaissait donc avec AUCUN
+// abonnement dans sa fiche, alors que la liste /members l'affiche « Abonnement » — deux
+// écrans, deux vérités sur la même donnée.
+const LIVE_SUB_STATUSES = ['active', 'canceling', 'paused', 'suspended', 'completed']
 
 export function useMemberDetail(memberId: string | null) {
   const gymId = useAuthStore((s) => s.gym_id)

@@ -422,18 +422,14 @@
   "members": {
     "title": "Members",
     "count": "{{total}} members",
-    "count_active": "{{active}} active",
     "search_placeholder": "Search a member...",
     "filter_all": "All",
-    "filter_active": "Active",
     "filter_suspended": "Suspended",
     "col_member": "Member",
     "col_status": "Status",
     "col_noshows": "No-shows",
     "col_since": "Joined",
     "col_actions": "Actions",
-    "active": "Active",
-    "suspended": "Suspended",
     "lift_suspension": "Lift suspension",
     "send_push": "Send notification",
     "empty": "No members",
@@ -499,7 +495,30 @@
       "plan_kind_credits_other": "{{count}}-session pack",
       "plan_kind_unlimited_one": "{{count}}-month subscription, paid in full",
       "plan_kind_unlimited_other": "{{count}}-month subscription, paid in full"
-    }
+    },
+    "col_plan": "Plan",
+    "col_access": "Access",
+    "plan_none": "No plan",
+    "plan_subscription": "Subscription",
+    "plan_subscription_credits": "Subscription and credits",
+    "plan_credits_one": "{{count}} session",
+    "plan_credits_other": "{{count}} sessions",
+    "plan_until": "{{plan}} · until {{date}}",
+    "plan_expiring_hint": "This subscription ends in less than 7 days.",
+    "filter_no_plan": "No plan",
+    "filter_expiring": "Ending soon",
+    "count_with_plan_one": "{{count}} with a plan",
+    "count_with_plan_other": "{{count}} with a plan",
+    "access": {
+      "ok": "Access open",
+      "canceling": "Cancellation in progress — access stays open until the end date",
+      "canceling_short": "Cancelling",
+      "suspended": "Suspended until {{date}}",
+      "suspended_and_canceling": "Suspended until {{date}} · cancellation in progress",
+      "no_plan": "Cannot book: no subscription and no credits available.",
+      "suspended_and_no_plan": "Suspended until {{date}} · and no subscription or credits available."
+    },
+    "card_since": "Joined {{date}}"
   },
   "member_drawer": {
     "title": "Member profile",
@@ -543,6 +562,7 @@
     "no_subscription": "No subscription",
     "sub_status": {
       "active": "Active",
+      "canceling": "Cancelling",
       "paused": "Paused",
       "suspended": "Suspended",
       "completed": "Completed"

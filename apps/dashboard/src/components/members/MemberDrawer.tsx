@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { extractErrorBody, edgeErrorMessage } from '@/lib/edgeErrors'
+import { isSubscriptionActive } from '@/lib/subscription'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
 import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipline'
 import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
@@ -47,6 +48,10 @@ const SUB_BADGE: Record<string, string> = {
   suspended: 'bg-red-100 text-red-700',
   // GYM-151 — engagement arrivé à son terme : état neutre (ni positif « actif », ni rouge).
   completed: 'bg-gray-200 text-gray-700',
+  // GYM-147 / GYM-195 — résiliation demandée, accès MAINTENU jusqu'au terme. Ambre : ce
+  // n'est ni un abonnement serein ni une perte d'accès — c'est un départ annoncé, et c'est
+  // exactement le moment où une relance a encore un sens.
+  canceling: 'bg-amber-100 text-amber-700',
 }
 
 function nameToColor(name: string): string {
@@ -181,14 +186,14 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
    * Un abonnement échu que le cron n'a pas encore passé 'expired' ne doit rien annoncer —
    * ce serait alarmer exactement au moment du réabonnement.
    *
-   * ⚠️ Peut rester false pour un abonnement 'canceling' : useMemberDetail ne charge que les
-   * statuts de LIVE_SUB_STATUSES, qui ne l'inclut pas (antérieur à GYM-195). Faux négatif
-   * assumé — le gérant verra alors le refus du serveur, expliqué, au lieu de l'avertissement
-   * anticipé. Jamais l'inverse : on n'annonce pas un blocage qui n'existerait pas.
+   * GYM-147 — LE PRÉDICAT N'EST PLUS RECOPIÉ ICI. Il vient de lib/subscription.ts, partagé
+   * avec la liste /members et aligné sur la garde serveur
+   * (_shared/booking-guards.ts → hasActiveSubscription : statut ∈ {active, canceling} ET
+   * terme non dépassé). Le « faux négatif assumé » que documentait ce commentaire — un
+   * abonnement 'canceling' que useMemberDetail ne chargeait pas — n'existe plus : le statut
+   * a rejoint LIVE_SUB_STATUSES. Une seule définition, trois écrans.
    */
-  const hasBlockingSubscription = !!subscription
-    && (subscription.status === 'active' || subscription.status === 'canceling')
-    && (!subscription.endsAt || new Date(subscription.endsAt).getTime() > Date.now())
+  const hasBlockingSubscription = isSubscriptionActive(subscription?.status, subscription?.endsAt)
 
   /**
    * GYM-214 — Libellé en clair d'une sanction. La valeur brute de `penalties.type`

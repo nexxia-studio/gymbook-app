@@ -422,18 +422,14 @@
   "members": {
     "title": "Membres",
     "count": "{{total}} membres",
-    "count_active": "{{active}} actifs",
     "search_placeholder": "Rechercher un membre...",
     "filter_all": "Tous",
-    "filter_active": "Actifs",
     "filter_suspended": "Suspendus",
     "col_member": "Membre",
     "col_status": "Statut",
     "col_noshows": "No-shows",
     "col_since": "Inscrit le",
     "col_actions": "Actions",
-    "active": "Actif",
-    "suspended": "Suspendu",
     "lift_suspension": "Lever la suspension",
     "send_push": "Envoyer une notification",
     "empty": "Aucun membre",
@@ -499,7 +495,30 @@
       "plan_kind_credits_other": "carte {{count}} séances",
       "plan_kind_unlimited_one": "abonnement {{count}} mois, paiement unique",
       "plan_kind_unlimited_other": "abonnement {{count}} mois, paiement unique"
-    }
+    },
+    "col_plan": "Formule",
+    "col_access": "Accès",
+    "plan_none": "Aucune formule",
+    "plan_subscription": "Abonnement",
+    "plan_subscription_credits": "Abonnement et crédits",
+    "plan_credits_one": "{{count}} séance",
+    "plan_credits_other": "{{count}} séances",
+    "plan_until": "{{plan}} · jusqu'au {{date}}",
+    "plan_expiring_hint": "Cet abonnement se termine dans moins de 7 jours.",
+    "filter_no_plan": "Sans formule",
+    "filter_expiring": "Échéance proche",
+    "count_with_plan_one": "{{count}} avec formule",
+    "count_with_plan_other": "{{count}} avec formule",
+    "access": {
+      "ok": "Accès ouvert",
+      "canceling": "Résiliation en cours — l'accès reste ouvert jusqu'à l'échéance",
+      "canceling_short": "Résiliation",
+      "suspended": "Suspendu jusqu'au {{date}}",
+      "suspended_and_canceling": "Suspendu jusqu'au {{date}} · résiliation en cours",
+      "no_plan": "Ne peut pas réserver : aucun abonnement ni crédit disponible.",
+      "suspended_and_no_plan": "Suspendu jusqu'au {{date}} · et aucun abonnement ni crédit disponible."
+    },
+    "card_since": "Inscrit le {{date}}"
   },
   "member_drawer": {
     "title": "Fiche membre",
@@ -543,6 +562,7 @@
     "no_subscription": "Aucun abonnement",
     "sub_status": {
       "active": "Actif",
+      "canceling": "Résiliation en cours",
       "paused": "En pause",
       "suspended": "Suspendu",
       "completed": "Terminé"
