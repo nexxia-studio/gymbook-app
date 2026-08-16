@@ -222,6 +222,19 @@ Deno.serve(async (req) => {
         emergency_contact_phone: null,
         push_token: null,
         notification_preferences: null,
+        // GYM-224 — code du badge d'accès physique. Deux raisons de l'effacer, et la
+        // seconde est celle qui en fait un correctif et non une précaution :
+        //
+        //   1. C'est une donnée d'ACCÈS PHYSIQUE. La laisser sur un compte supprimé
+        //      contredit l'anonymisation elle-même.
+        //   2. ⚠️ UN BADGE PHYSIQUE SE RECYCLE. L'index unique partiel
+        //      idx_profiles_access_badge_code_gym n'ignore que les NULL : tant que le code
+        //      reste posé sur la ligne supprimée, il est encore « pris ». Rendre le badge
+        //      d'un membre parti à un nouveau membre échouerait — et le gérant n'aurait
+        //      AUCUN moyen de comprendre pourquoi, puisque l'ancien porteur ne figure plus
+        //      dans sa liste (elle filtre sur deleted_at IS NULL). Le mettre à NULL rend le
+        //      code disponible immédiatement.
+        access_badge_code: null,
         deleted_at: nowIso,
         deletion_requested_at: nowIso,
         updated_at: nowIso,

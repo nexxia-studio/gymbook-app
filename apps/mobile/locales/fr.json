@@ -441,7 +441,8 @@
       "photo_cancel": "Annuler",
       "photo_permission_error": "Autorisation refusée pour accéder à l'appareil photo ou la galerie.",
       "edit_photo": "Modifier la photo"
-    }
+    },
+    "access_badge_label": "Code d'accès"
   },
   "payment": {
     "success_title": "PAIEMENT CONFIRMÉ !",
