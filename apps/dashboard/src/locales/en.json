@@ -435,6 +435,34 @@
       "custom_weekdays": "Custom (days of week)"
     }
   },
+  "series": {
+    "counting": "Calculating…",
+    "scope_single": "This class only",
+    "scope_following": "This class and all following",
+    "skipped_exceptions_one": "{{count}} class already edited separately will be left as is.",
+    "skipped_exceptions_other": "{{count}} classes already edited separately will be left as is.",
+    "toast_failed": "The series operation did not complete. Try again.",
+    "toast_partial": "{{done}} classes processed, {{failed}} failed. Run it again: classes already processed won't be handled twice.",
+    "toast_updated": "{{count}} classes updated.",
+    "toast_deleted": "{{count}} classes cancelled.",
+    "update": {
+      "title": "Edit this recurring class",
+      "intro": "This class is part of a series.",
+      "scope_single_hint": "Other classes in the series stay unchanged. This class will no longer follow series edits.",
+      "scope_following_hint": "This class and the ones after it. Past classes are never modified.",
+      "impact": "{{slots}} classes will be updated · {{members}} booked members will be notified",
+      "confirm": "Update"
+    },
+    "delete": {
+      "title": "Cancel this recurring class",
+      "intro": "This class is part of a series.",
+      "scope_single_hint": "Only this class is cancelled. The rest of the series is kept.",
+      "scope_following_hint": "This class and the ones after it. Past classes are never cancelled.",
+      "impact": "{{slots}} classes will be cancelled · {{members}} booked members will be notified",
+      "refund_note": "Debited credits are automatically returned to each member.",
+      "confirm": "Cancel these classes"
+    }
+  },
   "members": {
     "title": "Members",
     "count": "{{total}} members",

@@ -435,6 +435,34 @@
       "custom_weekdays": "Personnalisé (jours de la semaine)"
     }
   },
+  "series": {
+    "counting": "Calcul en cours…",
+    "scope_single": "Ce cours uniquement",
+    "scope_following": "Ce cours et tous les suivants",
+    "skipped_exceptions_one": "{{count}} cours déjà modifié séparément sera conservé tel quel.",
+    "skipped_exceptions_other": "{{count}} cours déjà modifiés séparément seront conservés tels quels.",
+    "toast_failed": "L'opération sur la série n'a pas abouti. Réessaie.",
+    "toast_partial": "{{done}} cours traités, {{failed}} en échec. Relance l'opération : les cours déjà traités ne le seront pas deux fois.",
+    "toast_updated": "{{count}} cours modifiés.",
+    "toast_deleted": "{{count}} cours annulés.",
+    "update": {
+      "title": "Modifier ce cours récurrent",
+      "intro": "Ce cours fait partie d'une série.",
+      "scope_single_hint": "Les autres cours de la série ne changent pas. Ce cours ne suivra plus les modifications de la série.",
+      "scope_following_hint": "Ce cours et ceux qui viennent après. Les cours passés ne sont jamais modifiés.",
+      "impact": "{{slots}} cours seront modifiés · {{members}} membres inscrits seront prévenus",
+      "confirm": "Modifier"
+    },
+    "delete": {
+      "title": "Annuler ce cours récurrent",
+      "intro": "Ce cours fait partie d'une série.",
+      "scope_single_hint": "Seul ce cours est annulé. Le reste de la série est conservé.",
+      "scope_following_hint": "Ce cours et ceux qui viennent après. Les cours passés ne sont jamais annulés.",
+      "impact": "{{slots}} cours seront annulés · {{members}} membres inscrits seront prévenus",
+      "refund_note": "Les crédits débités sont rendus automatiquement à chaque membre.",
+      "confirm": "Annuler ces cours"
+    }
+  },
   "members": {
     "title": "Membres",
     "count": "{{total}} membres",

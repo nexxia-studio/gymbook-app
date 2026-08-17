@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { extractErrorBody, extractErrorCode, EdgeError } from '@/lib/edgeErrors'
+import type { SeriesImpact, SeriesScope } from '@/components/planning/SeriesScopeModal'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import {
@@ -62,6 +63,8 @@ interface DbSlot {
   bookings_count: number | null
   status: string | null
   notes: string | null
+  series_id: string | null
+  is_series_exception: boolean | null
   activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null; active: boolean | null; requires_coach: boolean | null } | null
   coaches: { id: string; name: string; active: boolean | null } | null
   bookings: DbBooking[] | null
@@ -92,6 +95,8 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
     waitlisted: row.bookings?.filter((b) => b.status === 'waitlisted').length ?? 0,
     capacity: row.capacity,
     status: (row.status as SlotStatus) ?? 'scheduled',
+    seriesId: row.series_id ?? null,
+    isSeriesException: row.is_series_exception ?? false,
     // GYM-146 — ne pas afficher un inscrit dont le compte est supprimé (soft-delete).
     // Filtrage JS (PostgREST ne filtre pas proprement une relation imbriquée via .is()).
     // GYM-174 — on inclut désormais confirmed/attended/no_show/excused (les inscrits
@@ -141,6 +146,15 @@ export interface BookMemberResult {
   suspendedUntil?: string
   /** Un crédit a-t-il été débité (vs abonnement) — à dire au gérant, pas à deviner. */
   creditDebited?: boolean
+}
+
+/** GYM-230 — retour d'une opération de série. `failed` > 0 = série à moitié traitée. */
+export interface SeriesOpResult {
+  ok: boolean
+  slots: number
+  failed: number
+  skippedExceptions: number
+  summary?: CancelSlotSummary
 }
 
 export interface MarkAttendanceResult {
@@ -234,7 +248,7 @@ export function usePlanning() {
       const { data, error } = await supabase
         .from('time_slots')
         .select(`
-          id, starts_at, ends_at, capacity, bookings_count, status, notes,
+          id, starts_at, ends_at, capacity, bookings_count, status, notes, series_id, is_series_exception,
           activities(id, name, color, duration_min, icon, active, requires_coach),
           coaches(id, name, active),
           bookings(
@@ -634,6 +648,105 @@ export function usePlanning() {
       }))
   }
 
+  // ── GYM-230 — opérations de SÉRIE ────────────────────────────────────────────
+  //
+  // Les trois passent par l'Edge slot-series-op, jamais par une boucle côté navigateur :
+  // une série peut compter 52 créneaux avec des inscrits, et un onglet fermé au milieu
+  // laisserait la moitié traitée sans que personne ne l'apprenne.
+
+  /**
+   * Compte les créneaux et les membres qu'une action « et tous les suivants » toucherait.
+   * N'ÉCRIT RIEN — c'est ce qui permet d'annoncer l'impact avant que le gérant tranche.
+   */
+  async function countSeriesImpact(slotId: string): Promise<SeriesImpact | null> {
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: { op: 'count', slot_id: slotId },
+    })
+    if (error) return null
+    return {
+      slots: (data?.slots as number) ?? 0,
+      members: (data?.members as number) ?? 0,
+      skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
+    }
+  }
+
+  /**
+   * Modification de série. `scope` 'single' ne passe PAS par l'Edge : c'est un simple
+   * updateSlot, doublé du marquage EXCEPTION — c'est ce marquage qui fera que les
+   * modifications de série ultérieures épargneront ce créneau (décision produit 5).
+   */
+  async function updateSeries(
+    slotId: string,
+    scope: SeriesScope,
+    input: CreateSlotInput,
+  ): Promise<SeriesOpResult> {
+    if (scope === 'single') {
+      await updateSlot(slotId, input)
+      // Le créneau diverge désormais de sa série : il devient une exception.
+      await supabase.from('time_slots').update({ is_series_exception: true }).eq('id', slotId)
+      await fetchSlots()
+      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0 }
+    }
+
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: {
+        op: 'update',
+        slot_id: slotId,
+        patch: {
+          activity_id: input.activityId,
+          coach_id: input.coachId || null,
+          capacity: input.capacity,
+          level: input.level,
+          notes: input.notes || null,
+          // ⚠️ HEURE LOCALE transmise, jamais un instant UTC : c'est le serveur qui
+          // recompose chaque créneau avec le fuseau de la série, sinon le changement
+          // d'heure décalerait les occurrences d'après le 25 octobre.
+          starts_local_time: input.startTime,
+          duration_min: input.duration,
+        },
+      },
+    })
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0 }
+    await fetchSlots()
+    return {
+      ok: true,
+      slots: (data?.slots_updated as number) ?? 0,
+      failed: ((data?.failed_slot_ids as string[]) ?? []).length,
+      skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
+    }
+  }
+
+  /**
+   * Suppression de série. Chaque créneau passe par cancel_slot_atomic — donc RECRÉDIT et
+   * purge de liste d'attente pour chacun.
+   *
+   * ⚠️ L'ÉCHEC PARTIEL EST REMONTÉ, PAS AVALÉ. `failed` > 0 signifie que la série est
+   * à moitié annulée : l'appelant doit le dire. La fonction serveur étant idempotente
+   * (cancel_slot_atomic renvoie 'already_cancelled'), relancer est sans danger.
+   */
+  async function deleteSeries(
+    slotId: string,
+    scope: SeriesScope,
+    reason?: string,
+  ): Promise<SeriesOpResult> {
+    if (scope === 'single') {
+      const summary = await cancelSlot(slotId, reason)
+      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0, summary }
+    }
+
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: { op: 'delete', slot_id: slotId, reason: reason?.trim() || undefined },
+    })
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0 }
+    await fetchSlots()
+    return {
+      ok: true,
+      slots: (data?.slots_cancelled as number) ?? 0,
+      failed: ((data?.failed_slot_ids as string[]) ?? []).length,
+      skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
+    }
+  }
+
   async function removeSlot(id: string) {
     await supabase.from('time_slots').delete().eq('id', id)
     fetchSlots()
@@ -667,6 +780,9 @@ export function usePlanning() {
     removeSlot,
     checkOverlap,
     markAttendance,
+    countSeriesImpact,
+    updateSeries,
+    deleteSeries,
     walkIn,
     bookMember,
     searchGymMembers,
