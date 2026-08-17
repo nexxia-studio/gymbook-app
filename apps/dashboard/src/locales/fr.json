@@ -834,6 +834,19 @@
       "late_cancel_helper": "Une annulation moins de N heures avant le cours est traitée comme une absence : le crédit est perdu et la sanction ci-dessous s'applique.",
       "preview_late_cancel_one": "Ce barème vaut aussi pour les annulations faites moins d'{{count}} heure avant le cours : la séance n'est pas re-créditée.",
       "preview_late_cancel_other": "Ce barème vaut aussi pour les annulations faites moins de {{count}} heures avant le cours : la séance n'est pas re-créditée."
+    },
+    "opening_hours": {
+      "title": "Horaires d'ouverture",
+      "intro": "Les heures pendant lesquelles la salle est accessible. Elles servent à générer les créneaux Open Gym.",
+      "never_set": "Horaires jamais enregistrés. Les valeurs ci-dessous sont une proposition : vérifiez-les puis enregistrez.",
+      "open": "Ouvert",
+      "closed": "Fermé",
+      "opens_at": "Heure d'ouverture",
+      "closes_at": "Heure de fermeture",
+      "day_invalid": "La fermeture doit suivre l'ouverture",
+      "error_range": "Vérifiez les horaires : {{days}}. La fermeture doit suivre l'ouverture.",
+      "error_save": "Les horaires n'ont pas pu être enregistrés. Réessaie.",
+      "saved": "Horaires enregistrés."
     }
   },
   "activities": {

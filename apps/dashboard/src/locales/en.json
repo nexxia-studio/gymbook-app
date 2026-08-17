@@ -834,6 +834,19 @@
       "late_cancel_helper": "A cancellation less than N hours before the class is treated as an absence: the credit is lost and the scale below applies.",
       "preview_late_cancel_one": "This scale also applies to cancellations made less than {{count}} hour before the class: the session is not re-credited.",
       "preview_late_cancel_other": "This scale also applies to cancellations made less than {{count}} hours before the class: the session is not re-credited."
+    },
+    "opening_hours": {
+      "title": "Opening hours",
+      "intro": "The hours when the gym is accessible. Used to generate Open Gym slots.",
+      "never_set": "Hours never saved. The values below are a suggestion: check them, then save.",
+      "open": "Open",
+      "closed": "Closed",
+      "opens_at": "Opening time",
+      "closes_at": "Closing time",
+      "day_invalid": "Closing must be after opening",
+      "error_range": "Check these days: {{days}}. Closing must be after opening.",
+      "error_save": "Opening hours could not be saved. Try again.",
+      "saved": "Opening hours saved."
     }
   },
   "activities": {
