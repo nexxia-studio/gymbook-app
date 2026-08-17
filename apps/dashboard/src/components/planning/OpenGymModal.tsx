@@ -67,6 +67,27 @@ export function OpenGymModal({ open, onClose, activities, onGenerated }: OpenGym
 
   const hours = settings?.openingHours ?? null
 
+  /**
+   * GYM-228 (QA Antoine, 18/08) — SEULES LES ACTIVITÉS EN ACCÈS LIBRE.
+   *
+   * La modale proposait toutes les activités, donc « HIIT / Hyrox » au même titre qu'« Open
+   * Gym ». Générer quatorze créneaux de HIIT par jour, tous les jours, n'est pas un usage
+   * réel — et rien ne le signalait avant que 800 lignes soient créées.
+   *
+   * ⚠️ CRITÈRE : `requiresCoach === false`. Une activité sans coach est PAR NATURE un accès
+   * libre, sans encadrement (GYM-229) : c'est exactement la population visée.
+   *   · PAS `hiddenInPlanning`, qui dit autre chose (« encombre le planning ») — mélanger
+   *     les deux notions les rendrait toutes deux fausses, et une salle peut vouloir
+   *     masquer une activité encadrée sans qu'elle devienne générable.
+   *   · PAS le NOM : une salle peut avoir deux espaces libres (cardio, musculation), et
+   *     « Open Gym » est un libellé que le gérant renomme. Ce projet l'a déjà vécu
+   *     (GYM-176, coachs renommés en une semaine).
+   */
+  const freeAccessActivities = useMemo(
+    () => activities.filter((a) => a.requiresCoach === false),
+    [activities],
+  )
+
   // Estimation HAUTE : elle ignore les exclusions, qu'on ne connaît qu'en lisant les cours.
   // Annoncée comme un plafond, jamais comme un compte exact — le vrai chiffre est celui du
   // résultat.
@@ -122,6 +143,16 @@ export function OpenGymModal({ open, onClose, activities, onGenerated }: OpenGym
             </div>
           )}
 
+          {/* ⚠️ AUCUNE ACTIVITÉ ÉLIGIBLE → on ne montre PAS un sélecteur vide. Un formulaire
+              qui ne mène nulle part sans dire pourquoi est le défaut que GYM-219 a corrigé :
+              le gérant doit savoir quel geste poser, et où. */}
+          {activities.length > 0 && freeAccessActivities.length === 0 && (
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+              <p className="font-body text-xs text-amber-900">{t('open_gym.no_free_access')}</p>
+            </div>
+          )}
+
           <label className="mt-5 block font-body text-sm font-medium text-dark">
             {t('open_gym.activity')}
           </label>
@@ -130,11 +161,12 @@ export function OpenGymModal({ open, onClose, activities, onGenerated }: OpenGym
               activité sans rien signaler. */}
           <select
             value={activityId}
+            disabled={freeAccessActivities.length === 0}
             onChange={(e) => setActivityId(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-border bg-card px-4 py-3 font-body text-sm text-dark outline-none focus:border-dark"
+            className="mt-1 w-full rounded-xl border border-border bg-card px-4 py-3 font-body text-sm text-dark outline-none focus:border-dark disabled:opacity-40"
           >
             <option value="">{t('open_gym.activity_placeholder')}</option>
-            {activities.map((a) => (
+            {freeAccessActivities.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>

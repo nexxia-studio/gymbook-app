@@ -61,9 +61,18 @@ export function useActivities() {
 
   const activeCount = activities.filter((a) => a.active).length
 
-  const createActivity = useCallback(async (data: ActivityFormData) => {
-    if (!gymId) return
-    await supabase.from('activities').insert({
+  /**
+   * GYM-228 — 🔴 L'ERREUR N'ÉTAIT PAS TESTÉE. `await supabase…insert()` sans lire `error` :
+   * l'écran se rafraîchissait sans l'activité, sans un mot. C'est le motif des faux succès
+   * de GYM-204 et GYM-219 — un échec non testé se lit comme une réussite.
+   *
+   * Ce n'était PAS la cause du défaut signalé en QA (la case manquait simplement à
+   * l'écran), mais le trouver en le cherchant et le laisser aurait été le laisser exploser
+   * plus tard, sur une contrainte violée ou un GRANT manquant.
+   */
+  const createActivity = useCallback(async (data: ActivityFormData): Promise<{ error?: string }> => {
+    if (!gymId) return { error: 'no_gym' }
+    const { error } = await supabase.from('activities').insert({
       gym_id: gymId,
       name: data.name,
       slug: data.slug,
@@ -77,11 +86,13 @@ export function useActivities() {
       requires_coach: data.requiresCoach,
       hidden_in_planning: data.hiddenInPlanning,
     })
+    if (error) return { error: error.message }
     fetchActivities()
+    return {}
   }, [gymId, fetchActivities])
 
-  const updateActivity = useCallback(async (id: string, data: ActivityFormData) => {
-    await supabase.from('activities').update({
+  const updateActivity = useCallback(async (id: string, data: ActivityFormData): Promise<{ error?: string }> => {
+    const { error } = await supabase.from('activities').update({
       name: data.name,
       slug: data.slug,
       description: data.description,
@@ -94,7 +105,9 @@ export function useActivities() {
       requires_coach: data.requiresCoach,
       hidden_in_planning: data.hiddenInPlanning,
     }).eq('id', id)
+    if (error) return { error: error.message }
     fetchActivities()
+    return {}
   }, [fetchActivities])
 
   const getActivityFutureSlots = useCallback(async (id: string): Promise<number> => {

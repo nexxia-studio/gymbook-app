@@ -361,7 +361,7 @@
     "no_hours": "Set your opening hours first in Settings > Gym. Without them, no slot can be generated.",
     "activity": "Activity",
     "activity_placeholder": "Choose the Open Gym activity…",
-    "activity_hint": "Slot capacity and level come from this activity.",
+    "activity_hint": "Only open-access activities (no coach) are listed. Slot capacity and level come from the chosen activity.",
     "from": "From",
     "to": "To",
     "estimate_one": "Up to {{count}} slot",
@@ -371,7 +371,8 @@
     "horizon_hint": "One year maximum ({{days}} days).",
     "confirm": "Generate",
     "done": "{{created}} slots created · {{skipped}} skipped (classes) · {{existing}} already present.",
-    "error": "Generation did not complete. Try again."
+    "error": "Generation did not complete. Try again.",
+    "no_free_access": "No open-access activity. In Settings > Activities, uncheck « This activity requires a coach » on the relevant activity: this generation only covers unsupervised slots."
   },
   "filters": {
     "search_placeholder": "Search…",
@@ -922,7 +923,8 @@
     "requires_coach": "This activity requires a coach",
     "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym).",
     "hidden_in_planning": "Hide by default in the planning",
-    "hidden_in_planning_hint": "For high-volume activities such as Open Gym. The activity stays visible and bookable for members."
+    "hidden_in_planning_hint": "For high-volume activities such as Open Gym. The activity stays visible and bookable for members.",
+    "toast_save_failed": "The activity could not be saved. Try again."
   },
   "coaches": {
     "title": "Coaches",

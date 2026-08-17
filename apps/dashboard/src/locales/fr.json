@@ -361,7 +361,7 @@
     "no_hours": "Renseignez d'abord les horaires d'ouverture dans Réglages > Salle. Sans eux, aucun créneau ne peut être généré.",
     "activity": "Activité",
     "activity_placeholder": "Choisir l'activité Open Gym…",
-    "activity_hint": "La capacité et le niveau des créneaux viennent de cette activité.",
+    "activity_hint": "Seules les activités en accès libre (sans coach) sont proposées. La capacité et le niveau des créneaux viennent de l'activité choisie.",
     "from": "Du",
     "to": "Au",
     "estimate_one": "Jusqu'à {{count}} créneau",
@@ -371,7 +371,8 @@
     "horizon_hint": "Un an maximum ({{days}} jours).",
     "confirm": "Générer",
     "done": "{{created}} créneaux créés · {{skipped}} écartés (cours) · {{existing}} déjà présents.",
-    "error": "La génération n'a pas abouti. Réessaie."
+    "error": "La génération n'a pas abouti. Réessaie.",
+    "no_free_access": "Aucune activité en accès libre. Dans Réglages > Activités, décochez « Cette activité nécessite un coach » sur l'activité concernée : cette génération ne sert que les créneaux sans encadrement."
   },
   "filters": {
     "search_placeholder": "Rechercher…",
@@ -922,7 +923,8 @@
     "requires_coach": "Cette activité nécessite un coach",
     "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym).",
     "hidden_in_planning": "Masquer par défaut dans le planning",
-    "hidden_in_planning_hint": "Pour les activités à forte volumétrie comme l'Open Gym. L'activité reste visible et réservable par les membres."
+    "hidden_in_planning_hint": "Pour les activités à forte volumétrie comme l'Open Gym. L'activité reste visible et réservable par les membres.",
+    "toast_save_failed": "L'activité n'a pas pu être enregistrée. Réessaie."
   },
   "coaches": {
     "title": "Coaches",

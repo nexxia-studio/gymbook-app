@@ -72,14 +72,28 @@ export default function Settings() {
   )
 
   // --- Activity handlers ---
-  function handleActCreate(data: ActivityFormData) {
-    createActivity(data)
+  //
+  // 🔴 GYM-228 — LE TOAST DE SUCCÈS ÉTAIT AFFIRMÉ SANS PREUVE. Les deux handlers
+  // n'attendaient même pas l'écriture et annonçaient la réussite quoi qu'il arrive : une
+  // contrainte violée ou un GRANT manquant se serait lu comme un enregistrement réussi.
+  // C'est mot pour mot le défaut de GYM-204, qui a masqué une écriture inopérante pendant
+  // des mois. Le toast suit désormais le résultat.
+  async function handleActCreate(data: ActivityFormData) {
+    const res = await createActivity(data)
+    if (res.error) {
+      addToast(t('activities.toast_save_failed'), 'error')
+      return
+    }
     setActCreateOpen(false)
     addToast(t('activities.toast_created'))
   }
-  function handleActEdit(data: ActivityFormData) {
+  async function handleActEdit(data: ActivityFormData) {
     if (!editActivity) return
-    updateActivity(editActivity.id, data)
+    const res = await updateActivity(editActivity.id, data)
+    if (res.error) {
+      addToast(t('activities.toast_save_failed'), 'error')
+      return
+    }
     setEditActivity(null)
     addToast(t('activities.toast_updated'))
   }
