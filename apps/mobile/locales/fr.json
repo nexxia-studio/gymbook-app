@@ -185,6 +185,13 @@
     "no_results_hint": "Essayez de modifier vos filtres",
     "reset_filters": "Réinitialiser les filtres"
   },
+  "open_gym": {
+    "free_access": "Accès libre",
+    "range": "de {{from}} à {{to}}",
+    "choose_slot": "Choisissez votre créneau",
+    "show": "Créneaux",
+    "hide": "Masquer"
+  },
   "planning": {
     "status": {
       "scheduled": "Planifie",

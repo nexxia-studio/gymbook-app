@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Bell } from 'lucide-react-native'
 import { DayTabs } from '../../components/home/DayTabs'
 import { SessionCard } from '../../components/home/SessionCard'
+import { OpenGymCard } from '../../components/home/OpenGymCard'
 import { EmptyDayState } from '../../components/home/EmptyDayState'
-import { useHomeSchedule } from '../../hooks/useHomeSchedule'
+import { useHomeSchedule, type HomeSlot } from '../../hooks/useHomeSchedule'
 
 export default function Home() {
   const { t } = useTranslation()
@@ -31,6 +32,29 @@ export default function Home() {
     // Scroll to section — simple approach: scroll to top of that section
     // Since sections are stacked vertically, we estimate position
   }
+
+  // Un seul chemin vers la fiche de créneau, qu'on y arrive par une carte de cours ou par
+  // un créneau déplié d'une carte d'accès libre : la réservation ne doit avoir qu'un
+  // parcours.
+  const openSlot = useCallback(
+    (slot: HomeSlot) => {
+      router.push({
+        pathname: '/session/[id]',
+        params: {
+          id: slot.id,
+          activity: slot.activity,
+          date: slot.date,
+          time: slot.time,
+          endTime: slot.endTime,
+          coach: slot.coach,
+          duration: String(slot.duration),
+          capacity: String(slot.capacity),
+          booked: String(slot.booked),
+        },
+      })
+    },
+    [router],
+  )
 
   function formatStickyLabel(date: Date): string {
     const dayName = dayLabels[date.getDay()] ?? ''
@@ -72,7 +96,7 @@ export default function Home() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
         }
       >
-        {scheduleByDay.map(({ date, slots }, dayIndex) => {
+        {scheduleByDay.map(({ date, slots, entries }, dayIndex) => {
           const isSunday = date.getDay() === 0
 
           // Only show the active day and others below for scrolling
@@ -86,35 +110,33 @@ export default function Home() {
               </Text>
 
               {/* Slots or empty */}
+              {/* GYM-228 — on rend des ENTRÉES : soit un cours, soit UNE carte pour tous
+                  les créneaux d'accès libre du jour. L'ordre chronologique est préservé
+                  par le regroupement lui-même (le groupe prend la place de son premier
+                  créneau), donc rien à retrier ici. L'état vide continue de raisonner sur
+                  `slots` : une journée sans créneau reste une journée sans créneau. */}
               {slots.length === 0 ? (
                 <EmptyDayState isSunday={isSunday} />
               ) : (
-                slots.map((slot) => (
-                  <SessionCard
-                    key={slot.id}
-                    slot={slot}
-                    isFavorite={isFavorite(slot)}
-                    isBooked={isSlotBooked(slot.id)}
-                    isWaitlisted={isSlotWaitlisted(slot.id)}
-                    onToggleFavorite={() => toggleFavorite(slot)}
-                    onPress={() => {
-                      router.push({
-                        pathname: '/session/[id]',
-                        params: {
-                          id: slot.id,
-                          activity: slot.activity,
-                          date: slot.date,
-                          time: slot.time,
-                          endTime: slot.endTime,
-                          coach: slot.coach,
-                          duration: String(slot.duration),
-                          capacity: String(slot.capacity),
-                          booked: String(slot.booked),
-                        },
-                      })
-                    }}
-                  />
-                ))
+                entries.map((entry) =>
+                  entry.kind === 'openGym' ? (
+                    <OpenGymCard
+                      key={entry.group.key}
+                      group={entry.group}
+                      onSelectSlot={openSlot}
+                    />
+                  ) : (
+                    <SessionCard
+                      key={entry.slot.id}
+                      slot={entry.slot}
+                      isFavorite={isFavorite(entry.slot)}
+                      isBooked={isSlotBooked(entry.slot.id)}
+                      isWaitlisted={isSlotWaitlisted(entry.slot.id)}
+                      onToggleFavorite={() => toggleFavorite(entry.slot)}
+                      onPress={() => openSlot(entry.slot)}
+                    />
+                  ),
+                )
               )}
             </View>
           )
