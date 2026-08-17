@@ -25,19 +25,19 @@
 // son nombre, jamais silencieusement écarté.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Search, UserPlus, Loader2, ShieldOff, Users, CreditCard } from 'lucide-react'
+import { X, Search, UserPlus, Loader2, ShieldOff, Users, CreditCard, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { edgeErrorMessage } from '@/lib/edgeErrors'
-import type { BookMemberResult, MemberSearchResult } from '@/hooks/usePlanning'
+import type { BookMemberOptions, BookMemberResult, MemberSearchResult } from '@/hooks/usePlanning'
 import type { TimeSlot } from '@/types/planning'
 
 interface BookMemberModalProps {
   open: boolean
   onClose: () => void
   slot: TimeSlot | null
-  onBook: (slotId: string, memberId: string, allowWaitlist?: boolean) => Promise<BookMemberResult>
+  onBook: (slotId: string, memberId: string, options?: BookMemberOptions) => Promise<BookMemberResult>
   searchMembers: (query: string, excludeIds: string[]) => Promise<MemberSearchResult[]>
 }
 
@@ -52,7 +52,15 @@ const LIFT_REASON_KEYS = ['checkin_error', 'proof_provided', 'commercial', 'othe
 type Step =
   | { kind: 'idle' }
   | { kind: 'suspended'; member: MemberSearchResult; until?: string }
-  | { kind: 'full'; member: MemberSearchResult; position?: number }
+  | {
+      kind: 'full'
+      member: MemberSearchResult
+      position?: number
+      /** GYM-231 — l'activité autorise-t-elle « inscrire quand même » ? */
+      overbookAllowed?: boolean
+      /** GYM-231 — combien attendent déjà : le point d'équité. */
+      waitlistCount?: number
+    }
   | { kind: 'payment'; member: MemberSearchResult; code: string }
 
 function formatUntil(iso: string | undefined, locale: string): string | null {
@@ -74,6 +82,9 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
   const [busyId, setBusyId] = useState<string | null>(null)
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const [liftReason, setLiftReason] = useState('')
+  // GYM-231 — motif du dépassement. Séparé de `liftReason` : ce sont deux décisions
+  // différentes, et l'une ne doit jamais hériter du texte saisi pour l'autre.
+  const [overbookReason, setOverbookReason] = useState('')
   const searchSeq = useRef(0)
 
   // Les inscrits (et pointés) sont exclus de la recherche : les proposer ne mènerait qu'à
@@ -96,6 +107,7 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
     setBusyId(null)
     setStep({ kind: 'idle' })
     setLiftReason('')
+    setOverbookReason('')
   }, [open, slot?.id])
 
   useEffect(() => {
@@ -124,9 +136,17 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
     const name = nameOf(member)
     if (res.status === 'waitlisted') {
       addToast(t('book_member.toast_waitlisted', { name, position: res.waitlistPosition ?? '?' }), 'success')
+    } else if (res.overbooked) {
+      // GYM-231 — on ne dit pas « inscrit » pour une place au-delà de la capacité : le
+      // gérant vient d'accorder une dérogation, le toast doit la nommer.
+      addToast(t('book_member.toast_overbooked', { name }), 'success')
     } else {
       addToast(t('book_member.toast_booked', { name }), 'success')
     }
+    // La trace du dépassement a échoué → le geste est fait mais sa justification est
+    // perdue. On ne défait rien (la réservation est valide), on AVERTIT : à ce stade,
+    // seul le gérant peut décider de reporter sa décision ailleurs.
+    if (res.logFailed) addToast(t('book_member.overbook.log_failed'), 'error')
     onClose()
   }
 
@@ -141,7 +161,16 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
         setStep({ kind: 'suspended', member, until: res.suspendedUntil })
         return
       case 'FULL':
-        setStep({ kind: 'full', member, position: res.waitlistPosition })
+        setStep({
+          kind: 'full',
+          member,
+          position: res.waitlistPosition,
+          // GYM-231 — c'est le SERVEUR qui dit si l'option existe sur ce cours. L'écran ne
+          // la déduit pas : proposer un bouton que la base refusera serait pire que de ne
+          // rien proposer.
+          overbookAllowed: res.overbookAllowed === true,
+          waitlistCount: res.waitlistCount ?? 0,
+        })
         return
       case 'PAYMENT_REQUIRED':
       case 'NO_CREDIT':
@@ -155,11 +184,11 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
     }
   }
 
-  async function attemptBook(member: MemberSearchResult, allowWaitlist = false) {
+  async function attemptBook(member: MemberSearchResult, options: BookMemberOptions = {}) {
     if (!slot || busyId) return
     setBusyId(member.id)
     try {
-      const res = await onBook(slot.id, member.id, allowWaitlist)
+      const res = await onBook(slot.id, member.id, options)
       if (res.ok) handleSuccess(member, res)
       else handleRefusal(member, res)
     } catch {
@@ -304,7 +333,13 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
             </div>
           )}
 
-          {/* ── COMPLET : proposer la liste d'attente, position annoncée. ──────── */}
+          {/* ── COMPLET : DEUX ISSUES CÔTE À CÔTE (GYM-231, retour de QA du 14/08). ──
+              · Mettre en liste d'attente — l'issue historique, position annoncée.
+              · Inscrire quand même — le dépassement, SI l'activité l'autorise.
+
+              ⚠️ LA SECONDE N'APPARAÎT QUE SI `overbookAllowed`. Marge à 0 (le cas de toutes
+              les activités tant que personne n'a rien paramétré), et l'écran est
+              exactement celui d'avant ce lot : une seule issue, la liste d'attente. */}
           {step.kind === 'full' && (
             <div className={`${cardClass} mt-4 border-border bg-dark/[0.03]`}>
               <div className="flex items-center gap-2">
@@ -319,18 +354,77 @@ export function BookMemberModal({ open, onClose, slot, onBook, searchMembers }: 
                   position: step.position ?? '?',
                 })}
               </p>
-              <div className="mt-4 flex justify-end gap-2">
+
+              {/* ── 🔴 LE POINT D'ÉQUITÉ ──────────────────────────────────────────
+                  Des membres attendent déjà leur tour, parfois depuis des jours. Forcer
+                  l'inscription d'un tiers passe devant eux. On ne l'interdit pas — c'est
+                  la décision du gérant — mais il ne doit pas la prendre sans le savoir, et
+                  le geste ÉQUITABLE est nommé juste à côté : promouvoir le premier de la
+                  file. L'avertissement ne s'affiche que si la file existe vraiment. */}
+              {step.overbookAllowed && (step.waitlistCount ?? 0) > 0 && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                    <div>
+                      <p className="font-body text-xs font-semibold text-amber-900">
+                        {t('book_member.overbook.equity_headline', { count: step.waitlistCount ?? 0 })}
+                      </p>
+                      <p className="mt-1 font-body text-xs text-amber-800">
+                        {t('book_member.overbook.equity_explain')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Motif OBLIGATOIRE du dépassement — même exigence qu'à la levée de
+                  suspension : le bouton reste inerte tant que le champ est vide, et le
+                  serveur refuse de toute façon sans motif (OVERBOOK_REASON_REQUIRED). */}
+              {step.overbookAllowed && (
+                <div className="mt-3">
+                  <label className="block font-body text-xs font-semibold text-dark">
+                    {t('book_member.overbook.reason_label')} *
+                  </label>
+                  <input
+                    value={overbookReason}
+                    onChange={(e) => setOverbookReason(e.target.value)}
+                    placeholder={t('book_member.overbook.reason_placeholder')}
+                    className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 font-body text-sm text-dark outline-none focus:border-dark"
+                  />
+                  <p className="mt-2 font-body text-[11px] text-muted">
+                    {t('book_member.overbook.traced')}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setStep({ kind: 'idle' })}>
                   {t('common.cancel')}
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => attemptBook(step.member, true)}
+                  variant={step.overbookAllowed ? 'ghost' : undefined}
+                  onClick={() => attemptBook(step.member, { allowWaitlist: true })}
                   disabled={busy}
                   isLoading={busy}
                 >
                   {t('book_member.full.confirm')}
                 </Button>
+                {step.overbookAllowed && (
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      attemptBook(step.member, {
+                        allowOverbook: true,
+                        overbookReason: overbookReason.trim(),
+                      })
+                    }
+                    disabled={!overbookReason.trim() || busy}
+                    isLoading={busy}
+                  >
+                    {t('book_member.overbook.confirm')}
+                  </Button>
+                )}
               </div>
             </div>
           )}

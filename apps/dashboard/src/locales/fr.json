@@ -352,7 +352,8 @@
     "filter_statuses": "Statut",
     "filter_reset": "Réinitialiser",
     "hidden_activities": "{{names}} masqué",
-    "hidden_activities_hint": "Cliquez pour afficher ces créneaux dans le planning."
+    "hidden_activities_hint": "Cliquez pour afficher ces créneaux dans le planning.",
+    "overbooked_by": "+{{count}} au-delà"
   },
   "open_gym": {
     "action": "Open Gym",
@@ -758,6 +759,16 @@
     "payment": {
       "next_step": "Vends une formule à {{name}} depuis sa fiche membre, puis reviens l'inscrire.",
       "back_to_search": "Retour à la recherche"
+    },
+    "toast_overbooked": "{{name}} est inscrit en dépassement de capacité.",
+    "overbook": {
+      "confirm": "Inscrire quand même",
+      "reason_label": "Motif du dépassement",
+      "reason_placeholder": "Ex. : membre présent au comptoir, séance rattrapée…",
+      "traced": "Ce dépassement sera enregistré dans le journal de la salle : qui, quand, pour qui, et pourquoi.",
+      "equity_headline": "{{count}} membre(s) attendent déjà une place sur ce cours.",
+      "equity_explain": "Les inscrire à leur tour est plus équitable : depuis la liste d'attente du créneau, promouvez le premier de la file. Forcer une inscription ici passe devant eux.",
+      "log_failed": "Inscription faite, mais l'enregistrement du motif a échoué — notez la décision ailleurs."
     }
   },
   "settings": {
@@ -918,13 +929,18 @@
       "slug_required": "Le slug est requis",
       "duration_min": "Minimum 5 minutes",
       "capacity_min": "Minimum 1 place",
-      "capacity_max": "Maximum 100 places"
+      "capacity_max": "Maximum 100 places",
+      "overbook_min": "Le dépassement ne peut pas être négatif",
+      "overbook_max": "Maximum 20 places de dépassement"
     },
     "requires_coach": "Cette activité nécessite un coach",
     "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym).",
     "hidden_in_planning": "Masquer par défaut dans le planning",
     "hidden_in_planning_hint": "Pour les activités à forte volumétrie comme l'Open Gym. L'activité reste visible et réservable par les membres.",
-    "toast_save_failed": "L'activité n'a pas pu être enregistrée. Réessaie."
+    "toast_save_failed": "L'activité n'a pas pu être enregistrée. Réessaie.",
+    "max_overbook": "Places de dépassement autorisées",
+    "max_overbook_hint": "Nombre de places que vous pouvez ajouter au-delà de la capacité d'un créneau, quand vous inscrivez quelqu'un depuis le planning. 0 = capacité stricte. Les membres ne voient jamais cette option : pour eux, un cours complet reste complet.",
+    "max_overbook_active": "Vous pourrez ajouter jusqu'à {{count}} place(s) au-delà de la capacité, avec un motif obligatoire."
   },
   "coaches": {
     "title": "Coaches",
@@ -1284,6 +1300,7 @@
     "MEMBER_QUOTA_REACHED": "Ta salle a atteint le nombre de membres inclus dans son plan Viniz. Contacte le support pour l'augmenter.",
     "BADGE_CODE_TAKEN": "Ce code est déjà attribué à {{holder}}.",
     "INVALID_BADGE_CODE": "Ce code de badge n'est pas valide.",
-    "default_other_member": "un autre membre"
+    "default_other_member": "un autre membre",
+    "OVERBOOK_REASON_REQUIRED": "Un motif est obligatoire pour dépasser la capacité."
   }
 }

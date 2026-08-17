@@ -45,6 +45,22 @@ interface BookMemberRequest {
   member_id?: string
   /** Le gérant a VU que le cours est complet et accepte la liste d'attente (cf. FULL). */
   allow_waitlist?: boolean
+  /**
+   * GYM-231 — le gérant a VU que le cours est complet et choisit d'inscrire QUAND MÊME,
+   * dans la limite de activities.max_overbook.
+   *
+   * ⚠️ N'EXISTE QUE SUR CE CHEMIN. create-booking (app membre) n'a pas d'équivalent : un
+   * cours complet reste complet côté membre, et la liste d'attente reste sa seule issue.
+   * Le dépassement est un pouvoir du gérant, pas une fonctionnalité du produit.
+   */
+  allow_overbook?: boolean
+  /**
+   * GYM-231 — motif OBLIGATOIRE du dépassement. Un dépassement n'est pas une erreur à
+   * corriger, c'est une décision qui engage la responsabilité du gérant : elle doit rester
+   * relisible (qui, quand, sur qui, pourquoi). Même exigence qu'à la levée de suspension
+   * (GYM-204), et même refus net si le motif manque.
+   */
+  overbook_reason?: string
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -65,6 +81,20 @@ function embeddedName(rel: unknown, fallback: string): string {
   const value = rel as { name?: string } | { name?: string }[] | null
   const one = Array.isArray(value) ? value[0] ?? null : value
   return one?.name ?? fallback
+}
+
+/**
+ * GYM-231 — marge de dépassement de l'activité embarquée, même contournement de typage.
+ *
+ * ⚠️ REPLI SUR 0, JAMAIS SUR AUTRE CHOSE : une activité lue avant la migration GYM-231, ou
+ * un embed absent, doit donner « capacité dure ». Tout autre repli ouvrirait un dépassement
+ * que personne n'a paramétré.
+ */
+function embeddedMaxOverbook(rel: unknown): number {
+  const value = rel as { max_overbook?: number } | { max_overbook?: number }[] | null
+  const one = Array.isArray(value) ? value[0] ?? null : value
+  const raw = one?.max_overbook
+  return typeof raw === 'number' && raw > 0 ? raw : 0
 }
 
 // Confirmation au membre — MÊME courrier que le libre-service (create-booking).
@@ -161,6 +191,16 @@ Deno.serve(async (req) => {
     if (!slotId) return errorResponse(400, 'MISSING_SLOT_ID', 'slot_id requis')
     if (!memberId) return errorResponse(400, 'MISSING_MEMBER_ID', 'member_id requis')
 
+    // ── GYM-231 — intention de dépassement, contrôlée AVANT tout effet de bord. ─
+    // Le motif est exigé ICI, et pas au moment du journal : sans lui, la réservation
+    // serait déjà créée quand on s'en apercevrait, et il n'y aurait plus qu'à choisir
+    // entre la défaire ou la laisser sans trace. Aucun des deux n'est acceptable.
+    const forcing = body?.allow_overbook === true
+    const overbookReason = (body?.overbook_reason ?? '').trim()
+    if (forcing && !overbookReason) {
+      return errorResponse(400, 'OVERBOOK_REASON_REQUIRED', 'Motif obligatoire pour un dépassement')
+    }
+
     // ── GARDE 1 — le sujet : membre de CETTE salle, non supprimé. ──────────────
     // Équivalent du « profil introuvable » de create-booking, doublé des contrôles
     // d'appartenance qu'un chemin agissant sur un tiers impose (modèle admin-lift-suspension).
@@ -195,7 +235,11 @@ Deno.serve(async (req) => {
       .from('time_slots')
       // bookings_count : occupation courante, consignée au journal (cf. plus bas). Lue ici,
       // AVANT l'insert, sinon le trigger trg_update_bookings_count l'aura déjà incrémentée.
-      .select('id, gym_id, starts_at, ends_at, capacity, bookings_count, status, activities(name), coaches(name)')
+      // GYM-231 — max_overbook : la marge de dépassement de l'ACTIVITÉ. Lue ici pour
+      // pouvoir DIRE au gérant, dans le refus FULL, si l'option « inscrire quand même »
+      // existe sur ce cours — la modale ne doit pas proposer un geste que la base
+      // refusera. L'autorité reste la RPC, qui la relit sous verrou.
+      .select('id, gym_id, activity_id, starts_at, ends_at, capacity, bookings_count, status, activities(name, max_overbook), coaches(name)')
       .eq('id', slotId)
       .single()
 
@@ -272,12 +316,36 @@ Deno.serve(async (req) => {
     // insertion ou réactivation, débit FIFO du crédit dans LA MÊME transaction
     // (NO_CREDIT annule tout). Aucun de ces contrôles n'est rejoué ici : la RPC est
     // l'autorité sur la dernière place.
+    //
+    // GYM-231 — `p_allow_overbook` est le SEUL paramètre ajouté, et il n'est vrai que si le
+    // gérant l'a demandé avec un motif (contrôlé plus haut). La RPC reste l'autorité : elle
+    // relit activities.max_overbook SOUS LE VERROU, donc une marge modifiée entre-temps est
+    // celle qui s'applique, pas celle qu'on a lue pour l'affichage.
+    //
+    // ⚠️ LA MARGE ÉPUISÉE REVIENT EN 'full', comme un cours complet ordinaire : le chemin
+    // liste d'attente ci-dessous fonctionne alors sans rien savoir du dépassement.
+    const overbookMargin = embeddedMaxOverbook(slot.activities)
+
+    // Compte de la liste d'attente relevé AVANT la RPC quand le gérant force : c'est la
+    // donnée du POINT D'ÉQUITÉ (des membres attendent leur tour depuis plus longtemps), et
+    // elle doit être celle du MOMENT DE LA DÉCISION. Après l'inscription, elle a pu bouger.
+    let waitlistAtDecision: number | null = null
+    if (forcing) {
+      const { count } = await admin
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('slot_id', slotId)
+        .eq('status', 'waitlisted')
+      waitlistAtDecision = count ?? 0
+    }
+
     const { data: rpcResult, error: rpcError } = await admin.rpc('create_booking_atomic', {
       p_member_id: memberId,
       p_slot_id: slotId,
       p_gym_id: gymId,
       p_has_subscription: activeSubscription,
       p_existing_booking_id: existingBooking?.status === 'cancelled' ? existingBooking.id : null,
+      p_allow_overbook: forcing,
     })
 
     if (rpcError) {
@@ -315,6 +383,24 @@ Deno.serve(async (req) => {
           code: 'FULL',
           message: 'Créneau complet',
           waitlist_position: position,
+          // ── GYM-231 — de quoi rendre DEUX issues, et pas une. ──────────────
+          // `overbook_allowed` dit si l'option « inscrire quand même » existe SUR CE
+          // COURS. Faux → la modale n'affiche que la liste d'attente : proposer un bouton
+          // que la base refusera serait pire que de ne rien proposer.
+          //
+          // ⚠️ FAUX AUSSI QUAND LE GÉRANT VIENT DE FORCER ET QUE LA MARGE EST ÉPUISÉE :
+          // `forcing` est vrai, la RPC a quand même répondu 'full', donc les places
+          // supplémentaires sont prises elles aussi. Réafficher le bouton inviterait à
+          // rejouer un geste déjà refusé.
+          overbook_allowed: overbookMargin > 0 && !forcing,
+          overbook_margin: overbookMargin,
+          // LE POINT D'ÉQUITÉ. Forcer l'inscription d'un tiers quand des membres
+          // attendent déjà leur tour est INÉQUITABLE : le gérant doit le savoir AVANT de
+          // trancher, pas le découvrir après. Le nombre est donné brut, la modale en tire
+          // l'avertissement et propose de promouvoir le premier de la file.
+          waitlist_count: waitlistCount ?? 0,
+          capacity: slot.capacity,
+          booked: slot.bookings_count ?? null,
         }, 409)
       }
 
@@ -395,6 +481,23 @@ Deno.serve(async (req) => {
         capacity: slot.capacity,
         booked_before: slot.bookings_count ?? null,
         credit_debited: rpcResult.credit_debited ?? false,
+        // ── GYM-231 — ce qui fait d'une ligne de journal la trace d'une DÉCISION. ──
+        // `overbooked` vient de la RPC, pas d'un calcul refait ici : elle seule sait, sous
+        // verrou, si la place accordée était au-delà de la capacité. Recalculer dehors
+        // donnerait une valeur déjà périmée.
+        //
+        // Les trois champs ne sont écrits que sur un dépassement réel : une inscription
+        // ordinaire ne doit pas porter un `overbook_reason: null` qui laisserait croire
+        // qu'on a omis de le demander.
+        ...(rpcResult.overbooked === true
+          ? {
+              overbooked: true,
+              overbook_reason: overbookReason,
+              // Combien attendaient au moment de la décision — la relecture d'équité :
+              // « le gérant a-t-il ajouté un tiers alors que 3 personnes attendaient ? »
+              waitlist_count_at_decision: waitlistAtDecision,
+            }
+          : {}),
       },
     })
     if (logError) {
@@ -420,6 +523,16 @@ Deno.serve(async (req) => {
       activity: activityName,
       coach: coachName,
       starts_at: slot.starts_at,
+      // GYM-231 — le dashboard doit pouvoir DIRE « inscrit en dépassement », pas seulement
+      // « inscrit » : c'est une place au-delà de la capacité annoncée, le gérant vient de
+      // l'accorder et son toast doit le refléter.
+      overbooked: rpcResult.overbooked === true,
+      // ⚠️ LA TRACE A ÉCHOUÉ, ET ON LE DIT. Le journal est best-effort — on ne défait pas
+      // une réservation faite parce qu'un INSERT de log a échoué. Mais sur un dépassement,
+      // perdre la trace, c'est perdre la justification d'une décision : l'avaler
+      // silencieusement serait exactement le défaut que GYM-226 a documenté. Le dashboard
+      // en avertit le gérant, à lui de reporter la décision ailleurs.
+      log_failed: rpcResult.overbooked === true && logError !== null,
     })
   } catch (err) {
     console.error('[admin-book-member] uncaught:', err)

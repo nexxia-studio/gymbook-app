@@ -36,6 +36,9 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
     // le comportement historique. Décocher est la décision, pas cocher.
     requiresCoach: true,
     hiddenInPlanning: false,
+    // GYM-231 — 0 par défaut : capacité DURE, comportement historique. Ouvrir une marge
+    // est la décision du gérant, la fermer n'en est pas une.
+    maxOverbook: 0,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [slugManual, setSlugManual] = useState(false)
@@ -55,6 +58,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
         requiresMedicalCheck: editActivity.requiresMedicalCheck,
         requiresCoach: editActivity.requiresCoach,
         hiddenInPlanning: editActivity.hiddenInPlanning,
+        maxOverbook: editActivity.maxOverbook,
       })
       setSlugManual(true)
     } else {
@@ -62,6 +66,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
         name: '', slug: '', description: '', durationMin: 60,
         defaultCapacity: 16, level: 'all', icon: 'Dumbbell',
         color: '#4ECDC4', requiresMedicalCheck: false, requiresCoach: true, hiddenInPlanning: false,
+        maxOverbook: 0,
       })
       setSlugManual(false)
     }
@@ -90,6 +95,11 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
     if (form.durationMin < 5) e.durationMin = t('activities.validation.duration_min')
     if (form.defaultCapacity < 1) e.defaultCapacity = t('activities.validation.capacity_min')
     if (form.defaultCapacity > 100) e.defaultCapacity = t('activities.validation.capacity_max')
+    // GYM-231 — mêmes bornes que le CHECK en base (0..20). Les rejouer ici n'est pas une
+    // duplication de règle : c'est refuser AVANT l'aller-retour serveur, où la violation
+    // reviendrait en erreur PostgREST brute, illisible pour un gérant.
+    if (form.maxOverbook < 0) e.maxOverbook = t('activities.validation.overbook_min')
+    if (form.maxOverbook > 20) e.maxOverbook = t('activities.validation.overbook_max')
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -311,6 +321,42 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
                 </span>
               </span>
             </label>
+
+            {/* GYM-231 — marge de dépassement, PAR ACTIVITÉ.
+                Demande d'Antoine (12/08) : pouvoir forcer 1-2-3 places. Le réglage vit ici
+                et pas dans les paramètres de la salle parce que forcer sur un cours
+                collectif (place au sol, sécurité, un coach pour 15 au lieu de 12) et forcer
+                sur l'Open Gym (accès libre, sans encadrement) ne sont pas le même geste.
+
+                0 = capacité dure. Le texte d'aide dit CE QUE ÇA AUTORISE et POUR QUI — un
+                gérant doit comprendre sans lire de doc que ça n'ouvre rien du côté membre.
+
+                ⚠️ Champ posé DANS LE JSX, pas seulement dans l'état : c'est exactement ce
+                qui manquait à la case ci-dessus (GYM-228), où tout était correct de bout en
+                bout SAUF l'endroit où on la manipule. */}
+            <div className="rounded-xl border border-border p-4">
+              <label className={`${labelClass} block`} htmlFor="activity-max-overbook">
+                {t('activities.max_overbook')}
+              </label>
+              <p className="mt-0.5 font-body text-xs text-muted">
+                {t('activities.max_overbook_hint')}
+              </p>
+              <input
+                id="activity-max-overbook"
+                type="number"
+                value={form.maxOverbook}
+                min={0}
+                max={20}
+                onChange={(e) => setForm((f) => ({ ...f, maxOverbook: Number(e.target.value) }))}
+                className={`${selectClass} mt-2 w-32`}
+              />
+              {errors.maxOverbook && <p className={errClass}>{errors.maxOverbook}</p>}
+              {form.maxOverbook > 0 && (
+                <p className="mt-2 font-body text-xs text-amber-700">
+                  {t('activities.max_overbook_active', { count: form.maxOverbook })}
+                </p>
+              )}
+            </div>
           </div>
         </form>
 

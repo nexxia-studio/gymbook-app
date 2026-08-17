@@ -58,6 +58,33 @@ function addMinutes(time: string, mins: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
+/**
+ * GYM-231 — repli quand AUCUNE activité n'est encore choisie.
+ *
+ * C'était la valeur en dur qui s'affichait TOUJOURS : le formulaire proposait 16 places
+ * même pour une activité réglée à 2. Elle ne subsiste que pour l'état initial, avant tout
+ * choix d'activité — dès qu'une activité est sélectionnée, c'est SA capacité par défaut
+ * qui s'applique.
+ */
+const FALLBACK_CAPACITY = 16
+/** Idem pour la durée, sur le même chemin. */
+const FALLBACK_DURATION = 60
+
+/**
+ * Durée RÉELLE d'un créneau, depuis ses bornes.
+ *
+ * ⚠️ En édition, la durée doit venir du CRÉNEAU et non de son activité : un cours
+ * exceptionnel de 90 min sur une activité réglée à 60 se voyait ramené à 60 à la simple
+ * ouverture de la modale — la même faute que celle corrigée ici pour la capacité, dans
+ * l'autre sens. `0` ou négatif (donnée aberrante) → on laisse l'appelant replier.
+ */
+function minutesBetween(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  const diff = (eh * 60 + em) - (sh * 60 + sm)
+  return diff > 0 ? diff : 0
+}
+
 function todayStr(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -80,13 +107,29 @@ export function SlotModal({
     coachId: '',
     date: todayStr(),
     startTime: '07:00',
-    duration: 60,
-    capacity: 16,
+    duration: FALLBACK_DURATION,
+    capacity: FALLBACK_CAPACITY,
     level: 'all',
     notes: '',
     recurrence: undefined,
   })
   const [errors, setErrors] = useState<FormErrors>({})
+
+  /**
+   * GYM-231 — le gérant a-t-il SAISI lui-même la capacité / la durée ?
+   *
+   * ⚠️ ARBITRAGE : changer d'activité ne réamorce QUE tant que la valeur est encore celle
+   * proposée. Écraser toujours serait plus simple, mais effacerait sans un mot une saisie
+   * explicite — un gérant qui pose un cours exceptionnel à 20 places, puis corrige un
+   * clic d'activité, verrait son 20 redevenir 12 sans rien remarquer. Or effacer
+   * silencieusement une donnée juste est précisément le défaut que ce lot corrige ; le
+   * reproduire dans l'autre sens ne serait pas un progrès.
+   *
+   * Ne jamais réamorcer du tout, à l'inverse, viderait la correction de son sens : le
+   * formulaire proposerait éternellement le repli de la première activité choisie.
+   */
+  const capacityTouched = useRef(false)
+  const durationTouched = useRef(false)
 
   // Reset form when opening
   useEffect(() => {
@@ -97,7 +140,10 @@ export function SlotModal({
         coachId: editSlot.coach.id,
         date: editSlot.date,
         startTime: editSlot.startTime,
-        duration: editSlot.activity.durationMin,
+        // ⚠️ LE CRÉNEAU D'ABORD, SON ACTIVITÉ ENSUITE. Ces deux valeurs appartiennent au
+        // créneau : elles ne doivent JAMAIS être réamorcées depuis l'activité en édition,
+        // sinon un cours exceptionnel perd ce qui le rend exceptionnel.
+        duration: minutesBetween(editSlot.startTime, editSlot.endTime) || editSlot.activity.durationMin,
         capacity: editSlot.capacity,
         level: 'all',
         notes: '',
@@ -110,13 +156,16 @@ export function SlotModal({
         // GYM-234 — amorce du clic sur la grille, sinon les valeurs historiques.
         date: initialDate ?? todayStr(),
         startTime: initialStartTime ?? '07:00',
-        duration: 60,
-        capacity: 16,
+        duration: FALLBACK_DURATION,
+        capacity: FALLBACK_CAPACITY,
         level: 'all',
         notes: '',
         recurrence: undefined,
       })
     }
+    // Une saisie manuelle ne survit pas à la fermeture : la modale rouverte doit reproposer.
+    capacityTouched.current = false
+    durationTouched.current = false
     setErrors({})
   }, [open, editSlot, initialDate, initialStartTime])
 
@@ -152,7 +201,11 @@ export function SlotModal({
     setForm((f) => ({
       ...f,
       activityId: id,
-      duration: act?.durationMin ?? f.duration,
+      // GYM-231 — la capacité PROPOSÉE vient de l'activité choisie, et suit le CHANGEMENT
+      // d'activité (même comportement que le sélecteur de coach, GYM-229). Elle reste
+      // librement modifiable : c'est une proposition, pas une contrainte.
+      capacity: capacityTouched.current ? f.capacity : act?.defaultCapacity ?? f.capacity,
+      duration: durationTouched.current ? f.duration : act?.durationMin ?? f.duration,
       coachId: actNeedsCoach ? f.coachId : '',
     }))
   }
@@ -334,7 +387,10 @@ export function SlotModal({
                   min={15}
                   max={180}
                   step={5}
-                  onChange={(e) => setForm((f) => ({ ...f, duration: Number(e.target.value) }))}
+                  onChange={(e) => {
+                    durationTouched.current = true
+                    setForm((f) => ({ ...f, duration: Number(e.target.value) }))
+                  }}
                   className={selectClass}
                 />
               </div>
@@ -353,7 +409,10 @@ export function SlotModal({
                 value={form.capacity}
                 min={1}
                 max={50}
-                onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) }))}
+                onChange={(e) => {
+                  capacityTouched.current = true
+                  setForm((f) => ({ ...f, capacity: Number(e.target.value) }))
+                }}
                 className={selectClass}
               />
               {errors.capacity && <p className={errClass}>{errors.capacity}</p>}
