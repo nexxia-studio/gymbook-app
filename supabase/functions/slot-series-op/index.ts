@@ -138,30 +138,60 @@ Deno.serve(async (req) => {
     const slotId = body?.slot_id
     if (!slotId) return errorResponse(400, 'MISSING_SLOT_ID', 'slot_id requis')
 
-    // ── Le pivot, et sa série. gym_id lu sur le PROFIL de l'appelant. ────────
+    // ── Le pivot, et sa série ÉVENTUELLE. gym_id lu sur le PROFIL de l'appelant. ──
     const { data: pivot } = await admin
       .from('time_slots')
-      .select('id, gym_id, series_id, starts_at')
+      .select('id, gym_id, series_id, activity_id, starts_at, ends_at')
       .eq('id', slotId)
       .single()
 
     if (!pivot) return errorResponse(404, 'SLOT_NOT_FOUND', 'Créneau introuvable')
     if (pivot.gym_id !== gymId) return errorResponse(403, 'WRONG_GYM', 'Créneau hors de votre salle')
-    if (!pivot.series_id) return errorResponse(422, 'NOT_IN_SERIES', "Ce créneau n'appartient à aucune série")
 
-    const { data: series } = await admin
-      .from('slot_series')
-      .select('id, gym_id, timezone, starts_local_time, duration_min, activity_id')
-      .eq('id', pivot.series_id)
-      .single()
+    // 🔴 GYM-236 — LE REFUS « NOT_IN_SERIES » A DISPARU.
+    //
+    // Cette fonction exigeait un series_id, et le chemin ponctuel écrivait donc en
+    // PostgREST direct — sans jamais notifier personne. C'est le défaut relevé en corrigeant
+    // GYM-230, et c'est le cas le PLUS FRÉQUENT : un gérant décale un cours isolé (coach
+    // absent, imprévu) bien plus souvent qu'une série entière.
+    //
+    // Un créneau ponctuel n'est pas un cas particulier : c'est une série d'UNE occurrence.
+    // La fonction le traite donc comme un lot de un, et tout ce qui suit — détection du
+    // changement visible, déduplication, push + email, journalisation — s'applique à
+    // l'identique. Une seule voie d'écriture, donc un seul endroit qui notifie.
+    const isStandalone = !pivot.series_id
 
-    if (!series || series.gym_id !== gymId) {
+    const { data: series } = isStandalone
+      ? { data: null }
+      : await admin
+          .from('slot_series')
+          .select('id, gym_id, timezone, starts_local_time, duration_min, activity_id')
+          .eq('id', pivot.series_id)
+          .single()
+
+    if (!isStandalone && (!series || series.gym_id !== gymId)) {
       return errorResponse(403, 'WRONG_GYM', 'Série hors de votre salle')
     }
 
-    const scope = body?.scope ?? 'following'
+    // Le FUSEAU : celui de la série quand elle existe (capturé à sa création, il ne suit
+    // pas les changements de la salle), sinon celui du gym — la source dont la série tire
+    // le sien. Sans lui, recomposer « date locale + heure locale » serait impossible, et
+    // c'est cette conversion par créneau qui absorbe le changement d'heure du 25 octobre.
+    let timeZone: string
+    if (series) {
+      timeZone = series.timezone as string
+    } else {
+      const { data: gym } = await admin
+        .from('nexxia_gyms').select('timezone').eq('id', gymId).single()
+      timeZone = (gym?.timezone as string) ?? 'Europe/Brussels'
+    }
+
+    // Sans série, il n'y a rien « après » : la portée large n'a pas de sens et serait
+    // trompeuse. On la ramène à 'single' plutôt que de renvoyer une erreur — l'appelant
+    // demande de modifier CE créneau, et c'est exactement ce qui va se passer.
+    const scope = isStandalone ? 'single' : (body?.scope ?? 'following')
     const { targets, skippedExceptions } = await selectTargets(
-      admin, pivot.series_id, pivot.starts_at, scope, pivot.id as string,
+      admin, (pivot.series_id as string) ?? '', pivot.starts_at, scope, pivot.id as string,
     )
 
     // ── COUNT — informer avant de décider (décision produit 4). ──────────────
@@ -284,8 +314,14 @@ Deno.serve(async (req) => {
       // nouvelle heure locale », et on reconvertit avec le fuseau DE LA SÉRIE — celui qui a
       // été capturé à sa création.
       const newTime = patch.starts_local_time
-      const newDuration = patch.duration_min ?? (series.duration_min as number)
-      const tz = series.timezone as string
+      // Repli de durée : celle de la série, ou — pour un créneau ponctuel — la sienne,
+      // relue de ses propres bornes. Le formulaire l'envoie toujours ; ce repli couvre un
+      // appel qui ne la porterait pas.
+      const pivotDuration = Math.round(
+        (new Date(pivot.ends_at as string).getTime() - new Date(pivot.starts_at as string).getTime()) / 60_000,
+      )
+      const newDuration = patch.duration_min ?? (series?.duration_min as number | undefined) ?? pivotDuration
+      const tz = timeZone
 
       let updated = 0
       const failed: string[] = []
@@ -319,7 +355,9 @@ Deno.serve(async (req) => {
         // désormais dans la même écriture que le reste, donc dans la même transaction
         // logique. Un marquage qui échouait seul laissait un créneau modifié que la
         // série réécraserait ensuite.
-        if (scope === 'single') fields.is_series_exception = true
+        // ⚠️ UNIQUEMENT dans une série. Marquer un créneau ponctuel « exception »
+        // serait un mensonge : il n'a aucune série à laquelle déroger.
+        if (series && scope === 'single') fields.is_series_exception = true
 
         const { error } = await admin.from('time_slots').update(fields).eq('id', slot.id)
         if (error) {
@@ -345,7 +383,8 @@ Deno.serve(async (req) => {
       // ⚠️ UNIQUEMENT en portée 'following'. Une exception ne redéfinit pas la série :
       // propager son horaire au gabarit ferait naître toutes les occurrences futures avec
       // l'horaire d'un cours qu'on avait justement voulu traiter à part.
-      if (scope === 'following' && Object.keys(seriesPatch).length > 0) {
+      // Un créneau ponctuel n'a pas de gabarit à faire suivre : `series` est null.
+      if (series && scope === 'following' && Object.keys(seriesPatch).length > 0) {
         const { error: seriesErr } = await admin
           .from('slot_series').update(seriesPatch).eq('id', series.id)
         if (seriesErr) console.error('[slot-series-op] series template update failed:', seriesErr.message)
@@ -361,7 +400,8 @@ Deno.serve(async (req) => {
       const notify = await notifyAffectedMembers(admin, supabaseUrl, serviceKey, {
         slotIds: targets.map((s) => s.id),
         activityId: (patch.activity_id as string | undefined) ?? null,
-        seriesActivityId: series.activity_id as string,
+        // Sans série, l'activité de référence est celle du créneau lui-même.
+        seriesActivityId: (series?.activity_id as string | undefined) ?? (pivot.activity_id as string),
         slotCount: updated,
         newTime: newTime ?? null,
         timeChanged: !!newTime || patch.duration_min !== undefined,

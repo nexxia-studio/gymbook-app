@@ -433,7 +433,8 @@
       "monthly_day": "Every month (same date)",
       "monthly_weekday": "Every month (same weekday)",
       "custom_weekdays": "Custom (days of week)"
-    }
+    },
+    "toast_update_failed": "The change could not be saved. Try again."
   },
   "series": {
     "counting": "Calculating…",
