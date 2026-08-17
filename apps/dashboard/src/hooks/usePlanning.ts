@@ -214,6 +214,20 @@ export function usePlanning() {
   const [filterCoach, setFilterCoach] = useState<string[]>([])
   const [filterActivity, setFilterActivity] = useState<string[]>([])
   const [filterStatus, setFilterStatus] = useState<string[]>([])
+
+  /**
+   * GYM-228 — activités masquées PAR DÉFAUT (hidden_in_planning), typiquement l'Open Gym.
+   *
+   * ⚠️ EXCLUSION, ET NON INCLUSION — c'est une notion distincte, pas l'inverse de l'autre.
+   * Le filtre Activités de GYM-128 est inclusif (liste vide = tout) : masquer l'Open Gym
+   * par un état initial aurait demandé de pré-cocher toutes les AUTRES activités, ce qui
+   * afficherait un filtre « actif » à tort et masquerait automatiquement toute activité
+   * créée ensuite. Les deux mécanismes cohabitent donc, chacun sur sa question.
+   *
+   * `null` = pas encore chargé, à distinguer de « rien à masquer » : sans cette nuance, le
+   * planning afficherait brièvement l'Open Gym au premier rendu, puis le retirerait.
+   */
+  const [hiddenActivityIds, setHiddenActivityIds] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [activitiesList, setActivitiesList] = useState<Activity[]>([])
@@ -273,13 +287,17 @@ export function usePlanning() {
   const fetchMeta = useCallback(async () => {
     if (!gymId) return
     const [actRes, coachRes] = await Promise.all([
-      supabase.from('activities').select('id, name, color, duration_min, requires_coach').eq('gym_id', gymId).order('sort_order'),
+      supabase.from('activities').select('id, name, color, duration_min, requires_coach, hidden_in_planning').eq('gym_id', gymId).order('sort_order'),
       supabase.from('coaches').select('id, name').eq('gym_id', gymId).order('sort_order'),
     ])
     setActivitiesList((actRes.data ?? []).map((a) => ({
       id: a.id, name: a.name, color: a.color ?? '#4ECDC4', durationMin: a.duration_min,
       requiresCoach: a.requires_coach ?? true,
+      hiddenInPlanning: a.hidden_in_planning ?? false,
     })))
+    // Masquées par défaut. Le gérant peut les réafficher — son choix n'écrase pas le
+    // réglage, il ne vaut que pour la session en cours.
+    setHiddenActivityIds((prev) => prev ?? (actRes.data ?? []).filter((a) => a.hidden_in_planning).map((a) => a.id))
     setCoachesList((coachRes.data ?? []).map((c) => ({ id: c.id, name: c.name })))
   }, [gymId])
 
@@ -317,11 +335,15 @@ export function usePlanning() {
     return slots.filter((s) => {
       // Liste vide = pas de filtre. Sinon : appartenance, là où c'était une égalité.
       if (filterCoach.length > 0 && !filterCoach.includes(s.coach.id)) return false
+      // GYM-228 — exclusion des activités masquées par défaut. Contournée dès que le
+      // gérant DEMANDE explicitement cette activité dans le filtre : demander à voir
+      // l'Open Gym doit le montrer, sans avoir à décocher un réglage ailleurs.
+      if ((hiddenActivityIds ?? []).includes(s.activity.id) && !filterActivity.includes(s.activity.id)) return false
       if (filterActivity.length > 0 && !filterActivity.includes(s.activity.id)) return false
       if (filterStatus.length > 0 && !filterStatus.includes(getDisplayStatus(s))) return false
       return true
     })
-  }, [slots, filterCoach, filterActivity, filterStatus])
+  }, [slots, filterCoach, filterActivity, filterStatus, hiddenActivityIds])
 
   // GYM-128 — au moins un filtre actif ? Sert au bouton « Réinitialiser », qui n'apparaît
   // que dans ce cas : un bouton toujours présent mais le plus souvent inutile encombrerait
@@ -814,6 +836,8 @@ export function usePlanning() {
     setFilterStatus,
     hasActiveFilters,
     resetFilters,
+    hiddenActivityIds: hiddenActivityIds ?? [],
+    showHiddenActivities: () => setHiddenActivityIds([]),
     coaches: coachesList,
     activities: activitiesList,
     createSlot,

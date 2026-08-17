@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
 import { ErrorBoundary } from 'react-error-boundary'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, CalendarPlus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { FilterPills } from '@/components/planning/FilterPills'
@@ -14,6 +14,7 @@ import { SlotDeleteModal } from '@/components/planning/SlotDeleteModal'
 import { CancelSlotModal } from '@/components/planning/CancelSlotModal'
 import { BookMemberModal } from '@/components/planning/BookMemberModal'
 import { SeriesScopeModal, type SeriesImpact, type SeriesScope } from '@/components/planning/SeriesScopeModal'
+import { OpenGymModal } from '@/components/planning/OpenGymModal'
 import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { usePlanning } from '@/hooks/usePlanning'
 import { useToastStore } from '@/hooks/useToast'
@@ -60,6 +61,9 @@ export default function Planning() {
   const planning = usePlanning()
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  // GYM-228 — génération des créneaux Open Gym. Dans /planning et non /settings :
+  // le gérant voit le résultat dans la vue qu'il a sous les yeux.
+  const [openGymOpen, setOpenGymOpen] = useState(false)
   /**
    * GYM-234 — case de la grille désignée par le clic. `null` = ouverture par le bouton
    * « Nouveau créneau », qui garde ses valeurs par défaut historiques.
@@ -336,10 +340,19 @@ export default function Planning() {
             </button>
           </div>
 
-          <Button className="hidden sm:inline-flex" onClick={() => setCreateModalOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t('planning.new_slot')}
-          </Button>
+          <div className="hidden gap-2 sm:flex">
+            {/* GYM-228 — action SECONDAIRE : générer l'Open Gym est un geste rare (une fois
+                par période), poser un cours est le geste quotidien. La hiérarchie visuelle
+                doit le dire. */}
+            <Button variant="secondary" onClick={() => setOpenGymOpen(true)}>
+              <CalendarPlus className="h-4 w-4" />
+              {t('open_gym.action')}
+            </Button>
+            <Button onClick={() => setCreateModalOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {t('planning.new_slot')}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -359,6 +372,8 @@ export default function Planning() {
           onStatusChange={planning.setFilterStatus}
           hasActiveFilters={planning.hasActiveFilters}
           onReset={planning.resetFilters}
+          hiddenActivityIds={planning.hiddenActivityIds}
+          onShowHidden={planning.showHiddenActivities}
         />
       </div>
 
@@ -411,6 +426,14 @@ export default function Planning() {
         searchMembers={planning.searchGymMembers}
         onOpenAddMember={() => setAddMemberOpen(true)}
         onOpenBookMember={setBookMemberSlot}
+      />
+
+      {/* GYM-228 — génération des créneaux Open Gym sur une période. */}
+      <OpenGymModal
+        open={openGymOpen}
+        onClose={() => setOpenGymOpen(false)}
+        activities={planning.activities}
+        onGenerated={() => planning.navigate('today')}
       />
 
       {/* GYM-230 — « cet événement uniquement » ou « et tous les suivants » ? */}

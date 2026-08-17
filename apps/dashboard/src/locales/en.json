@@ -350,7 +350,29 @@
     "filter_coaches": "Coaches",
     "filter_activities": "Activities",
     "filter_statuses": "Status",
-    "filter_reset": "Reset"
+    "filter_reset": "Reset",
+    "hidden_activities": "{{names}} hidden",
+    "hidden_activities_hint": "Click to show these slots in the planning."
+  },
+  "open_gym": {
+    "action": "Open Gym",
+    "title": "Generate Open Gym slots",
+    "intro": "Creates 2-hour slots starting every hour, within opening hours. Slots overlapping a class are not created.",
+    "no_hours": "Set your opening hours first in Settings > Gym. Without them, no slot can be generated.",
+    "activity": "Activity",
+    "activity_placeholder": "Choose the Open Gym activity…",
+    "activity_hint": "Only open-access activities (no coach) are listed. Slot capacity and level come from the chosen activity.",
+    "from": "From",
+    "to": "To",
+    "estimate_one": "Up to {{count}} slot",
+    "estimate_other": "Up to {{count}} slots",
+    "estimate_hint": "Upper estimate, over {{days}} open days per week. Slots falling during a class will not be created.",
+    "idempotent_hint": "Running it again creates no duplicates: existing slots are left as they are.",
+    "horizon_hint": "One year maximum ({{days}} days).",
+    "confirm": "Generate",
+    "done": "{{created}} slots created · {{skipped}} skipped (classes) · {{existing}} already present.",
+    "error": "Generation did not complete. Try again.",
+    "no_free_access": "No open-access activity. In Settings > Activities, uncheck « This activity requires a coach » on the relevant activity: this generation only covers unsupervised slots."
   },
   "filters": {
     "search_placeholder": "Search…",
@@ -834,6 +856,19 @@
       "late_cancel_helper": "A cancellation less than N hours before the class is treated as an absence: the credit is lost and the scale below applies.",
       "preview_late_cancel_one": "This scale also applies to cancellations made less than {{count}} hour before the class: the session is not re-credited.",
       "preview_late_cancel_other": "This scale also applies to cancellations made less than {{count}} hours before the class: the session is not re-credited."
+    },
+    "opening_hours": {
+      "title": "Opening hours",
+      "intro": "The hours when the gym is accessible. Used to generate Open Gym slots.",
+      "never_set": "Hours never saved. The values below are a suggestion: check them, then save.",
+      "open": "Open",
+      "closed": "Closed",
+      "opens_at": "Opening time",
+      "closes_at": "Closing time",
+      "day_invalid": "Closing must be after opening",
+      "error_range": "Check these days: {{days}}. Closing must be after opening.",
+      "error_save": "Opening hours could not be saved. Try again.",
+      "saved": "Opening hours saved."
     }
   },
   "activities": {
@@ -886,7 +921,10 @@
       "capacity_max": "Maximum 100 spots"
     },
     "requires_coach": "This activity requires a coach",
-    "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym)."
+    "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym).",
+    "hidden_in_planning": "Hide by default in the planning",
+    "hidden_in_planning_hint": "For high-volume activities such as Open Gym. The activity stays visible and bookable for members.",
+    "toast_save_failed": "The activity could not be saved. Try again."
   },
   "coaches": {
     "title": "Coaches",

@@ -24,6 +24,7 @@ export type Database = {
           description: string | null
           duration_min: number
           gym_id: string
+          hidden_in_planning: boolean
           icon: string | null
           id: string
           image_url: string | null
@@ -43,6 +44,7 @@ export type Database = {
           description?: string | null
           duration_min?: number
           gym_id: string
+          hidden_in_planning?: boolean
           icon?: string | null
           id?: string
           image_url?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           description?: string | null
           duration_min?: number
           gym_id?: string
+          hidden_in_planning?: boolean
           icon?: string | null
           id?: string
           image_url?: string | null
@@ -1556,6 +1559,7 @@ export type Database = {
           name: string
           onboarding_completed: boolean | null
           onboarding_step: number | null
+          opening_hours: Json | null
           phone: string | null
           plan: string | null
           postal_code: string | null
@@ -1602,6 +1606,7 @@ export type Database = {
           name: string
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          opening_hours?: Json | null
           phone?: string | null
           plan?: string | null
           postal_code?: string | null
@@ -1649,6 +1654,7 @@ export type Database = {
           name?: string
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          opening_hours?: Json | null
           phone?: string | null
           plan?: string | null
           postal_code?: string | null
