@@ -2,6 +2,11 @@ import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import {
+  RECURRENCE_MODES, MAX_HORIZON_DAYS, maxHorizonDate, buildRRuleString,
+  generateLocalDates, clampHorizon,
+  type RecurrenceInput, type RecurrenceMode, type RecurrenceEndMode,
+} from '@/lib/recurrence'
 import type { TimeSlot, Activity, Coach } from '@/types/planning'
 
 export interface SlotFormData {
@@ -13,8 +18,8 @@ export interface SlotFormData {
   capacity: number
   level: string
   notes: string
-  repeat: boolean
-  repeatWeeks: number
+  /** GYM-230 — undefined = créneau ponctuel, le cas le plus fréquent. */
+  recurrence?: RecurrenceInput
 }
 
 interface SlotModalProps {
@@ -26,6 +31,11 @@ interface SlotModalProps {
   editSlot?: TimeSlot | null
   checkOverlap?: (coachId: string, date: string, startTime: string, duration: number, excludeId?: string) => boolean
 }
+
+// Ordre RRule : 0 = lundi. Les libellés courts sont ceux du planning (MobileDayList).
+const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+// Borne d'INTERFACE sur « après N occurrences ». Le moteur et la base plafonnent aussi.
+const MAX_OCCURRENCES_UI = 366
 
 const SUGGESTED_TIMES = ['07:00', '08:00', '09:30', '12:00', '17:30', '18:30', '19:00', '20:00', '20:30']
 
@@ -40,11 +50,6 @@ function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 type FormErrors = Partial<Record<keyof SlotFormData, string>>
 
@@ -63,8 +68,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
     capacity: 16,
     level: 'all',
     notes: '',
-    repeat: false,
-    repeatWeeks: 4,
+    recurrence: undefined,
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
@@ -81,8 +85,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
         capacity: editSlot.capacity,
         level: 'all',
         notes: '',
-        repeat: false,
-        repeatWeeks: 4,
+        recurrence: undefined,
       })
     } else {
       setForm({
@@ -94,8 +97,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
         capacity: 16,
         level: 'all',
         notes: '',
-        repeat: false,
-        repeatWeeks: 4,
+        recurrence: undefined,
       })
     }
     setErrors({})
@@ -143,12 +145,30 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
     [form.startTime, form.duration],
   )
 
-  const repeatPreview = useMemo(() => {
-    if (!form.repeat || !form.date) return null
-    const start = form.date
-    const end = addDays(start, (form.repeatWeeks - 1) * 7)
-    return { count: form.repeatWeeks, start, end }
-  }, [form.repeat, form.date, form.repeatWeeks])
+  /**
+   * GYM-230 — APERÇU CALCULÉ PAR LE MOTEUR, pas estimé.
+   *
+   * L'ancien aperçu multipliait les semaines (`start + (n-1)*7`) : juste pour un
+   * hebdomadaire, faux pour tout le reste. Ici on construit la vraie règle et on génère
+   * les vraies dates — le gérant voit le nombre exact de cours qu'il va créer, et la
+   * dernière date, AVANT de valider. Un « chaque 31 du mois » qui saute février se lit
+   * alors dans l'aperçu, pas après coup dans le planning.
+   */
+  const preview = useMemo(() => {
+    if (!form.recurrence || !form.date) return null
+    try {
+      const rec: RecurrenceInput = { ...form.recurrence, startsOn: form.date }
+      const rrule = buildRRuleString(rec)
+      const wantedEnd = rec.endMode === 'until' && rec.until ? rec.until : maxHorizonDate(rec.startsOn)
+      const dates = generateLocalDates(rrule, rec.startsOn, clampHorizon(rec.startsOn, wantedEnd))
+      if (dates.length === 0) return null
+      return { count: dates.length, first: dates[0], last: dates[dates.length - 1] }
+    } catch {
+      // Une combinaison impossible ne doit pas faire tomber la modale : pas d'aperçu,
+      // et la validation refusera à la soumission.
+      return null
+    }
+  }, [form.recurrence, form.date])
 
   function validate(): boolean {
     const e: FormErrors = {}
@@ -160,6 +180,9 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
     if (!form.startTime) e.startTime = t('slots.validation.time_required')
     if (form.capacity < 1) e.capacity = t('slots.validation.capacity_min')
     if (form.capacity > 50) e.capacity = t('slots.validation.capacity_max')
+    // GYM-230 — une série qui ne produit rien serait un silence : le gérant validerait et
+    // rien n'apparaîtrait. On refuse à la soumission, en nommant la cause.
+    if (form.recurrence && !preview) e.recurrence = t('slots.validation.recurrence_empty')
     if (form.coachId && form.date && form.startTime && checkOverlap) {
       if (checkOverlap(form.coachId, form.date, form.startTime, form.duration, editSlot?.id)) {
         e.startTime = t('slots.validation.coach_overlap')
@@ -347,41 +370,155 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
               <p className="mt-1 text-right font-body text-[10px] text-muted">{form.notes.length}/200</p>
             </div>
 
-            {/* Repeat */}
+            {/* GYM-230 — RÉCURRENCE.
+                Le cas PONCTUEL reste le geste le plus fréquent : tant que la case n'est
+                pas cochée, rien ne s'affiche et le formulaire est exactement celui d'avant.
+                Cocher déplie les options — on ne fait pas payer le cas simple pour le
+                cas complexe. */}
             {!isEdit && (
               <div className="rounded-xl border border-border p-4">
                 <label className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    checked={form.repeat}
-                    onChange={(e) => setForm((f) => ({ ...f, repeat: e.target.checked }))}
+                    checked={!!form.recurrence}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        recurrence: e.target.checked
+                          ? { mode: 'weekly', startsOn: f.date, endMode: 'count', count: 8 }
+                          : undefined,
+                      }))
+                    }
                     className="h-4 w-4 rounded accent-accent"
                   />
                   <span className={labelClass}>{t('slots.repeat')}</span>
                 </label>
-                {form.repeat && (
+
+                {form.recurrence && (
                   <div className="mt-3 flex flex-col gap-3 pl-7">
-                    <p className="font-body text-xs text-secondary">{t('slots.repeat_weekly')}</p>
+                    {/* Fréquence */}
                     <div>
-                      <label className="font-body text-xs text-muted">{t('slots.repeat_weeks')}</label>
-                      <input
-                        type="number"
-                        value={form.repeatWeeks}
-                        min={2}
-                        max={12}
-                        onChange={(e) => setForm((f) => ({ ...f, repeatWeeks: Number(e.target.value) }))}
-                        className="mt-1 w-24 rounded-lg border border-border bg-card px-3 py-2 font-body text-sm text-dark outline-none focus:border-dark"
-                      />
+                      <label className="font-body text-xs text-muted">{t('slots.repeat_frequency')}</label>
+                      <select
+                        value={form.recurrence.mode}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            recurrence: { ...f.recurrence!, mode: e.target.value as RecurrenceMode },
+                          }))
+                        }
+                        className={`${selectClass} mt-1`}
+                      >
+                        {RECURRENCE_MODES.map((m) => (
+                          <option key={m} value={m}>{t(`slots.recurrence_mode.${m}`)}</option>
+                        ))}
+                      </select>
                     </div>
-                    {repeatPreview && (
+
+                    {/* Jours de la semaine — mode personnalisé uniquement. */}
+                    {form.recurrence.mode === 'custom_weekdays' && (
+                      <div>
+                        <label className="font-body text-xs text-muted">{t('slots.repeat_weekdays')}</label>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {WEEKDAY_KEYS.map((key, idx) => {
+                            const picked = form.recurrence?.weekdays?.includes(idx) ?? false
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                aria-pressed={picked}
+                                onClick={() =>
+                                  setForm((f) => {
+                                    const cur = f.recurrence!.weekdays ?? []
+                                    const next = cur.includes(idx) ? cur.filter((d) => d !== idx) : [...cur, idx]
+                                    return { ...f, recurrence: { ...f.recurrence!, weekdays: next } }
+                                  })
+                                }
+                                className={`h-8 w-9 rounded-lg font-body text-xs font-semibold transition-colors ${
+                                  picked ? 'bg-accent text-[#17102E]' : 'bg-dark/5 text-muted hover:bg-dark/10'
+                                }`}
+                              >
+                                {t(`planning.days_short.${key}`)}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fin — jamais « jamais » (décision produit 3). */}
+                    <div>
+                      <label className="font-body text-xs text-muted">{t('slots.repeat_end')}</label>
+                      <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <select
+                          value={form.recurrence.endMode}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              recurrence: { ...f.recurrence!, endMode: e.target.value as RecurrenceEndMode },
+                            }))
+                          }
+                          className={`${selectClass} sm:w-48`}
+                        >
+                          <option value="count">{t('slots.repeat_end_count')}</option>
+                          <option value="until">{t('slots.repeat_end_until')}</option>
+                        </select>
+
+                        {form.recurrence.endMode === 'count' ? (
+                          <input
+                            type="number"
+                            min={2}
+                            max={MAX_OCCURRENCES_UI}
+                            value={form.recurrence.count ?? 8}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                recurrence: { ...f.recurrence!, count: Number(e.target.value) },
+                              }))
+                            }
+                            className="w-24 rounded-lg border border-border bg-card px-3 py-2 font-body text-sm text-dark outline-none focus:border-dark"
+                          />
+                        ) : (
+                          <input
+                            type="date"
+                            value={form.recurrence.until ?? ''}
+                            min={form.date}
+                            /* Plafond d'un an, posé jusque dans le sélecteur de date : le
+                               gérant ne peut pas même choisir une date hors horizon. La
+                               contrainte est REDITE en base — celle-ci guide, celle-là
+                               empêche. */
+                            max={maxHorizonDate(form.date)}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                recurrence: { ...f.recurrence!, until: e.target.value },
+                              }))
+                            }
+                            className="rounded-lg border border-border bg-card px-3 py-2 font-body text-sm text-dark outline-none focus:border-dark"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Aperçu — le nombre EXACT de cours, calculé par le moteur. */}
+                    {preview ? (
                       <p className="rounded-lg bg-accent-dim/10 px-3 py-2 font-body text-xs text-accent-dim">
                         {t('slots.repeat_preview', {
-                          count: repeatPreview.count,
-                          start: repeatPreview.start,
-                          end: repeatPreview.end,
+                          count: preview.count,
+                          start: preview.first,
+                          end: preview.last,
                         })}
                       </p>
+                    ) : (
+                      <p className="rounded-lg bg-amber-50 px-3 py-2 font-body text-xs text-amber-800">
+                        {t('slots.validation.recurrence_empty')}
+                      </p>
                     )}
+                    {errors.recurrence && <p className={errClass}>{errors.recurrence}</p>}
+
+                    <p className="font-body text-[11px] text-muted">
+                      {t('slots.repeat_horizon_hint', { days: MAX_HORIZON_DAYS })}
+                    </p>
                   </div>
                 )}
               </div>
@@ -397,8 +534,8 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
           <Button type="button" onClick={(ev) => { ev.preventDefault(); const fakeEv = { preventDefault: () => {} } as FormEvent; handleSubmit(fakeEv); }}>
             {isEdit
               ? t('slots.save_button')
-              : form.repeat
-                ? t('slots.create_multiple', { count: form.repeatWeeks })
+              : preview
+                ? t('slots.create_multiple', { count: preview.count })
                 : t('slots.create_button')}
           </Button>
         </div>

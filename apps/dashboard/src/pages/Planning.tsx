@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -13,6 +13,7 @@ import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
 import { SlotDeleteModal } from '@/components/planning/SlotDeleteModal'
 import { CancelSlotModal } from '@/components/planning/CancelSlotModal'
 import { BookMemberModal } from '@/components/planning/BookMemberModal'
+import { SeriesScopeModal, type SeriesImpact, type SeriesScope } from '@/components/planning/SeriesScopeModal'
 import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { usePlanning } from '@/hooks/usePlanning'
 import { useToastStore } from '@/hooks/useToast'
@@ -67,6 +68,12 @@ export default function Planning() {
   // GYM-226 — créneau visé par l'inscription. On garde le SLOT et pas un booléen : la
   // modale doit connaître la capacité et les déjà-inscrits pour les exclure de la recherche.
   const [bookMemberSlot, setBookMemberSlot] = useState<TimeSlot | null>(null)
+  // GYM-230 — question de portée pour un créneau de série. `pending` retient ce que le
+  // gérant a demandé pendant qu'il choisit « ce cours » ou « et tous les suivants ».
+  const [seriesPrompt, setSeriesPrompt] = useState<
+    { action: 'update'; slot: TimeSlot; data: SlotFormData } | { action: 'delete'; slot: TimeSlot } | null
+  >(null)
+  const [seriesImpact, setSeriesImpact] = useState<SeriesImpact | null>(null)
 
   // GYM-174 — le drawer doit refléter les pointages / walk-ins après refetch : on relie
   // le slot sélectionné à sa version fraîche dans la liste (selectedSlot n'est qu'un snapshot).
@@ -118,10 +125,64 @@ export default function Planning() {
 
   function handleEdit(data: SlotFormData) {
     if (!editSlot) return
+    // GYM-230 — un créneau de SÉRIE ne se modifie pas en silence : on demande la portée.
+    // Un créneau ponctuel (seriesId null, cas des 126 existants) garde le chemin direct.
+    if (editSlot.seriesId) {
+      setSeriesPrompt({ action: 'update', slot: editSlot, data })
+      setEditSlot(null)
+      return
+    }
     planning.updateSlot(editSlot.id, data)
     setEditSlot(null)
     planning.setSelectedSlot(null)
     addToast(t('slots.toast_updated'))
+  }
+
+  // Le compte n'est demandé QU'À L'OUVERTURE du dialogue, jamais à chaque frappe : c'est
+  // une lecture serveur, et elle sert à informer une décision, pas à animer l'interface.
+  useEffect(() => {
+    if (!seriesPrompt) { setSeriesImpact(null); return }
+    let alive = true
+    setSeriesImpact(null)
+    planning.countSeriesImpact(seriesPrompt.slot.id).then((impact) => {
+      if (alive) setSeriesImpact(impact)
+    })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesPrompt])
+
+  async function handleSeriesConfirm(scope: SeriesScope) {
+    if (!seriesPrompt) return
+    const { action, slot } = seriesPrompt
+
+    const res = action === 'update'
+      ? await planning.updateSeries(slot.id, scope, seriesPrompt.data)
+      : await planning.deleteSeries(slot.id, scope)
+
+    setSeriesPrompt(null)
+    planning.setSelectedSlot(null)
+
+    if (!res.ok) {
+      addToast(t('series.toast_failed'), 'error')
+      return
+    }
+    // ⚠️ L'ÉCHEC PARTIEL EST DIT. Une série à moitié traitée qui s'annoncerait « réussie »
+    // laisserait le gérant croire son planning à jour — c'est le silence que GYM-204 et
+    // GYM-219 ont eu à corriger ailleurs. Relancer est sans danger (cancel_slot_atomic
+    // est idempotente), et le message le dit.
+    if (res.failed > 0) {
+      addToast(t('series.toast_partial', { done: res.slots, failed: res.failed }), 'warning')
+      return
+    }
+    // GYM-230 — le toast DIT que les membres ont été prévenus. Sans ça, le gérant se
+    // demanderait s'il doit les appeler lui-même — et pourrait doubler le message.
+    const base = action === 'update'
+      ? t('series.toast_updated', { count: res.slots })
+      : t('series.toast_deleted', { count: res.slots })
+    addToast(
+      res.notified > 0 ? `${base} ${t('series.toast_notified', { count: res.notified })}` : base,
+      action === 'delete' ? 'warning' : 'success',
+    )
   }
 
   function handleDeleteConfirm() {
@@ -162,6 +223,12 @@ export default function Planning() {
 
   function handleDrawerCancel(slot: TimeSlot) {
     planning.setSelectedSlot(null)
+    // GYM-230 — annuler un cours récurrent, c'est le geste des vacances scolaires : il
+    // porte presque toujours sur la suite de la série, pas sur une date isolée.
+    if (slot.seriesId) {
+      setSeriesPrompt({ action: 'delete', slot })
+      return
+    }
     setCancelTarget(slot)
   }
 
@@ -301,6 +368,15 @@ export default function Planning() {
         searchMembers={planning.searchGymMembers}
         onOpenAddMember={() => setAddMemberOpen(true)}
         onOpenBookMember={setBookMemberSlot}
+      />
+
+      {/* GYM-230 — « cet événement uniquement » ou « et tous les suivants » ? */}
+      <SeriesScopeModal
+        open={seriesPrompt !== null}
+        onClose={() => setSeriesPrompt(null)}
+        action={seriesPrompt?.action ?? 'update'}
+        impact={seriesImpact}
+        onConfirm={handleSeriesConfirm}
       />
 
       {/* GYM-226 — inscrire un membre à un cours futur (réservation seule, sans pointage) */}
