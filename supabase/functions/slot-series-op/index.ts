@@ -41,6 +41,16 @@ interface SeriesOpRequest {
   op?: 'count' | 'update' | 'delete'
   /** Créneau depuis lequel le gérant agit — le pivot. Le passé lui est antérieur. */
   slot_id?: string
+  /**
+   * 🔴 GYM-230 (QA staging 17/08) — PORTÉE, ajoutée en correctif.
+   *
+   * 'single' ne passait PAS par cette fonction : le dashboard écrivait le créneau
+   * directement en PostgREST. La notification, qui vit ici, n'était donc jamais exécutée
+   * — ni push, ni email, ni même une ligne de journal, l'Edge n'ayant pas tourné du tout.
+   *
+   * Défaut par 'following' : c'est le contrat qu'avaient les appelants avant ce correctif.
+   */
+  scope?: 'single' | 'following' 
   /** Champs à écrire sur les créneaux futurs de la série (op 'update'). */
   patch?: {
     activity_id?: string
@@ -50,6 +60,12 @@ interface SeriesOpRequest {
     notes?: string | null
     /** Heure LOCALE 'HH:mm' — jamais un instant UTC (cf. plus bas). */
     starts_local_time?: string
+    /**
+     * Date LOCALE 'YYYY-MM-DD', portée 'single' UNIQUEMENT : déplacer un cours isolé à une
+     * autre date est un geste légitime. En portée 'following' elle est ignorée — chaque
+     * occurrence a la sienne, et les toutes déplacer à la même date les empilerait.
+     */
+    starts_local_date?: string
     duration_min?: number
   }
   /** Motif d'annulation, transmis tel quel à cancel_slot_atomic (op 'delete'). */
@@ -61,7 +77,21 @@ async function selectTargets(
   admin: SupabaseClient,
   seriesId: string,
   pivotStartsAt: string,
+  scope: 'single' | 'following',
+  pivotId: string,
 ) {
+  // Portée 'single' : le pivot, et lui seul. Il passe par le MÊME traitement que la portée
+  // large — mêmes écritures, MÊME NOTIFICATION. C'est tout l'objet du correctif : deux
+  // portées, un seul chemin.
+  if (scope === 'single') {
+    const { data } = await admin
+      .from('time_slots')
+      .select('id, starts_at, ends_at, bookings_count, is_series_exception')
+      .eq('id', pivotId)
+      .single()
+    return { targets: data ? [data] : [], skippedExceptions: 0 }
+  }
+
   const { data } = await admin
     .from('time_slots')
     .select('id, starts_at, ends_at, bookings_count, is_series_exception')
@@ -129,7 +159,10 @@ Deno.serve(async (req) => {
       return errorResponse(403, 'WRONG_GYM', 'Série hors de votre salle')
     }
 
-    const { targets, skippedExceptions } = await selectTargets(admin, pivot.series_id, pivot.starts_at)
+    const scope = body?.scope ?? 'following'
+    const { targets, skippedExceptions } = await selectTargets(
+      admin, pivot.series_id, pivot.starts_at, scope, pivot.id as string,
+    )
 
     // ── COUNT — informer avant de décider (décision produit 4). ──────────────
     //
@@ -261,10 +294,15 @@ Deno.serve(async (req) => {
         const fields = { ...common }
 
         if (newTime) {
-          // Date LOCALE du créneau, telle que la voit la salle.
-          const localDate = new Intl.DateTimeFormat('en-CA', {
-            timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-          }).format(new Date(slot.starts_at as string))
+          // Date LOCALE du créneau, telle que la voit la salle. En portée 'single', le
+          // gérant peut aussi l'avoir déplacé : sa date prime alors. En portée 'following'
+          // on garde CELLE DE CHAQUE OCCURRENCE — les aligner sur une seule date les
+          // empilerait toutes au même jour.
+          const localDate = (scope === 'single' && patch.starts_local_date)
+            ? patch.starts_local_date
+            : new Intl.DateTimeFormat('en-CA', {
+                timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+              }).format(new Date(slot.starts_at as string))
 
           const starts = zonedToUtc(localDate, newTime, tz)
           const ends = new Date(starts.getTime() + newDuration * 60_000)
@@ -275,6 +313,13 @@ Deno.serve(async (req) => {
           const starts = new Date(slot.starts_at as string)
           fields.ends_at = new Date(starts.getTime() + newDuration * 60_000).toISOString()
         }
+
+        // Portée 'single' : le créneau diverge désormais de sa série, il devient une
+        // EXCEPTION (décision produit 5). Ce marquage était fait côté client — il vit
+        // désormais dans la même écriture que le reste, donc dans la même transaction
+        // logique. Un marquage qui échouait seul laissait un créneau modifié que la
+        // série réécraserait ensuite.
+        if (scope === 'single') fields.is_series_exception = true
 
         const { error } = await admin.from('time_slots').update(fields).eq('id', slot.id)
         if (error) {
@@ -297,7 +342,10 @@ Deno.serve(async (req) => {
       if (newTime) seriesPatch.starts_local_time = newTime
       if (patch.duration_min !== undefined) seriesPatch.duration_min = patch.duration_min
 
-      if (Object.keys(seriesPatch).length > 0) {
+      // ⚠️ UNIQUEMENT en portée 'following'. Une exception ne redéfinit pas la série :
+      // propager son horaire au gabarit ferait naître toutes les occurrences futures avec
+      // l'horaire d'un cours qu'on avait justement voulu traiter à part.
+      if (scope === 'following' && Object.keys(seriesPatch).length > 0) {
         const { error: seriesErr } = await admin
           .from('slot_series').update(seriesPatch).eq('id', series.id)
         if (seriesErr) console.error('[slot-series-op] series template update failed:', seriesErr.message)
