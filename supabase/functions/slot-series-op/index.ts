@@ -17,6 +17,9 @@
 // série n'a pas à la défaire dans son dos.
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// Même clé, même fournisseur que cancel-slot et admin-book-member.
+const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -323,7 +326,11 @@ Deno.serve(async (req) => {
         slots_updated: updated,
         skipped_exceptions: skippedExceptions,
         failed_slot_ids: failed,
-        members_notified: notify.notified,
+        // `members_notified` = membres atteints par AU MOINS UN canal — c'est ce qui
+        // intéresse le gérant. Le détail par canal reste exposé pour le diagnostic.
+        members_notified: notify.reached,
+        push_notified: notify.pushNotified,
+        email_notified: notify.emailNotified,
         notification_skipped: notify.skippedReason,
       }, failed.length > 0 ? 207 : 200)
     }
@@ -335,6 +342,28 @@ Deno.serve(async (req) => {
   }
 })
 
+
+/**
+ * Courrier « cours modifié ».
+ *
+ * ⚠️ MISE EN PAGE REPRISE TELLE QUELLE de cancelEmailHtml (cancel-slot) : même bandeau
+ * DOPAMINE, mêmes couleurs, même bouton, même pied. On ne réinvente pas une seconde
+ * charte — un membre doit reconnaître l'expéditeur au premier coup d'œil, et deux gabarits
+ * divergeraient au premier ajustement.
+ */
+function seriesUpdateEmailHtml(
+  firstName: string | null,
+  activityName: string,
+  whatChanged: string,
+  slotCount: number,
+): string {
+  const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
+  // Le NOMBRE de séances concernées : sans lui, le membre croirait qu'une seule date bouge.
+  const scopeBlock = slotCount > 1
+    ? `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ce changement concerne <strong>${slotCount} séances</strong> à venir.</p>`
+    : ''
+  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><div style="font-size:28px;margin-bottom:12px;">📅</div><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Ton cours a été modifié</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ton cours <strong>${activityName}</strong> a changé : ${whatChanged}.</p>${scopeBlock}<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Tes réservations sont conservées — rien à refaire de ton côté.</p><a href="dopamine://bookings" style="display:inline-block;background:#C8F000;color:#111111;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;margin-top:8px;">Voir mes réservations →</a></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
+}
 
 /**
  * GYM-230 — prévient les inscrits qu'un cours de leur série a changé.
@@ -371,27 +400,37 @@ async function notifyAffectedMembers(
     coachChanged: boolean
     activityChanged: boolean
   },
-): Promise<{ notified: number; skippedReason?: string }> {
+): Promise<{ pushNotified: number; emailNotified: number; reached: number; skippedReason?: string }> {
   const visible = ctx.timeChanged || ctx.coachChanged || ctx.activityChanged
-  if (!visible) return { notified: 0, skippedReason: 'NO_VISIBLE_CHANGE' }
-  if (ctx.slotIds.length === 0) return { notified: 0, skippedReason: 'NO_SLOTS' }
+  if (!visible) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_VISIBLE_CHANGE' }
+  if (ctx.slotIds.length === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_SLOTS' }
 
   try {
     // Inscrits CONFIRMÉS uniquement : la liste d'attente n'a pas de place à défendre, et
     // sera notifiée par le chemin habituel si une place se libère.
     const { data: rows } = await admin
       .from('bookings')
-      .select('member_id, profiles(push_token)')
+      .select('member_id, profiles(push_token, email, first_name)')
       .in('slot_id', ctx.slotIds)
       .eq('status', 'confirmed')
 
-    // Déduplication PAR JETON : c'est elle qui garantit « un message par personne ».
-    const tokens = new Set<string>()
-    for (const r of (rows ?? []) as Array<{ profiles: { push_token: string | null } | { push_token: string | null }[] | null }>) {
+    // ⚠️ DÉDUPLICATION PAR MEMBRE — la clé du regroupement, et elle vaut pour LES DEUX
+    // CANAUX. Quelqu'un inscrit aux huit cours d'une série apparaît huit fois dans cette
+    // requête ; sans ce Map il recevrait huit push ET huit emails pour un seul changement.
+    const members = new Map<string, { push: string | null; email: string | null; firstName: string | null }>()
+    for (const r of (rows ?? []) as Array<{
+      member_id: string
+      profiles: { push_token: string | null; email: string | null; first_name: string | null } | { push_token: string | null; email: string | null; first_name: string | null }[] | null
+    }>) {
+      if (members.has(r.member_id)) continue
       const prof = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
-      if (prof?.push_token) tokens.add(prof.push_token)
+      members.set(r.member_id, {
+        push: prof?.push_token ?? null,
+        email: prof?.email ?? null,
+        firstName: prof?.first_name ?? null,
+      })
     }
-    if (tokens.size === 0) return { notified: 0, skippedReason: 'NO_PUSH_TOKEN' }
+    if (members.size === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_MEMBERS' }
 
     const { data: activity } = await admin
       .from('activities')
@@ -400,44 +439,103 @@ async function notifyAffectedMembers(
       .single()
     const activityName = (activity?.name as string) ?? 'Cours'
 
-    // Message GROUPÉ : il porte le nombre de séances concernées, sinon le membre croirait
-    // qu'une seule date bouge.
     const what = ctx.timeChanged && ctx.newTime
       ? `nouvel horaire : ${ctx.newTime}`
       : ctx.activityChanged
         ? 'le cours a changé'
         : 'changement de coach'
 
-    const body = ctx.slotCount > 1
-      ? `${activityName} — ${what} (${ctx.slotCount} séances concernées).`
-      : `${activityName} — ${what}.`
+    const reachedMembers = new Set<string>()
 
-    const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        tokens: [...tokens],
-        title: 'Ton cours a été modifié',
-        body,
-        data: { type: 'slot_series_updated' },
-      }),
-    })
-
-    if (!resp.ok) {
-      console.error('[slot-series-op] send-notification refused:', JSON.stringify({
-        status: resp.status, recipients: tokens.size, slots: ctx.slotCount,
-      }))
-      return { notified: 0, skippedReason: 'SEND_FAILED' }
+    // ── Canal 1 : push ────────────────────────────────────────────────────────
+    // send-notification accepte un TABLEAU : un seul appel HTTP pour tous les jetons,
+    // et un message par personne.
+    let pushNotified = 0
+    const tokens = [...members.values()].map((m) => m.push).filter((t): t is string => !!t)
+    if (tokens.length > 0) {
+      try {
+        const body = ctx.slotCount > 1
+          ? `${activityName} — ${what} (${ctx.slotCount} séances concernées).`
+          : `${activityName} — ${what}.`
+        const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            tokens,
+            title: 'Ton cours a été modifié',
+            body,
+            data: { type: 'slot_series_updated' },
+          }),
+        })
+        if (resp.ok) {
+          pushNotified = tokens.length
+          for (const [id, m] of members) if (m.push) reachedMembers.add(id)
+        } else {
+          // ⚠️ JOURNAL SÉPARÉ push / email : on doit pouvoir savoir LEQUEL des deux a
+          // échoué. Un log commun laisserait croire que personne n'a rien reçu alors que
+          // l'autre canal a peut-être fonctionné.
+          console.error('[slot-series-op] PUSH failed:', JSON.stringify({
+            status: resp.status, recipients: tokens.length, slots: ctx.slotCount,
+          }))
+        }
+      } catch (e) {
+        console.error('[slot-series-op] PUSH threw:', JSON.stringify({
+          recipients: tokens.length, error: (e as Error).message,
+        }))
+      }
     }
-    return { notified: tokens.size }
+
+    // ── Canal 2 : email ───────────────────────────────────────────────────────
+    //
+    // ⚠️ CE CANAL N'EST PAS UN CONFORT. L'app n'existe que sur iOS ; en Belgique Android
+    // pèse 40 à 45 % du parc, et la publication n'arrivera pas avant septembre. Ces
+    // membres — exactement ceux que le gérant inscrit lui-même depuis son dashboard
+    // (GYM-226) — n'ont AUCUN autre moyen d'apprendre qu'un cours a changé d'heure.
+    //
+    // Un envoi PAR MEMBRE et non un envoi groupé : Resend accepte un tableau dans `to`,
+    // mais tous les destinataires s'y verraient mutuellement, et le prénom ne pourrait pas
+    // être personnalisé. Même forme que cancel-slot.
+    let emailNotified = 0
+    if (RESEND_KEY) {
+      for (const [id, m] of members) {
+        if (!m.email) continue
+        try {
+          const resp = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
+            body: JSON.stringify({
+              from: 'Dopamine Performance Club <noreply@viniz.app>',
+              to: m.email,
+              subject: `Cours modifié — ${activityName}`,
+              html: seriesUpdateEmailHtml(m.firstName, activityName, what, ctx.slotCount),
+            }),
+          })
+          if (resp.ok) {
+            emailNotified += 1
+            reachedMembers.add(id)
+          } else {
+            console.error('[slot-series-op] EMAIL failed:', JSON.stringify({
+              member_id: id, status: resp.status, slots: ctx.slotCount,
+            }))
+          }
+        } catch (e) {
+          console.error('[slot-series-op] EMAIL threw:', JSON.stringify({
+            member_id: id, error: (e as Error).message,
+          }))
+        }
+      }
+    }
+
+    return { pushNotified, emailNotified, reached: reachedMembers.size }
   } catch (e) {
     // Journalisé de façon exploitable : on doit pouvoir savoir QUI n'a pas été prévenu.
     console.error('[slot-series-op] notify threw (non-blocking):', JSON.stringify({
       slots: ctx.slotCount, error: (e as Error).message,
     }))
-    return { notified: 0, skippedReason: 'SEND_THREW' }
+    return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NOTIFY_THREW' }
   }
 }
+
 
 /**
  * « Date locale + heure locale + fuseau » → instant UTC, sans dépendance externe.
