@@ -674,27 +674,31 @@ export function usePlanning() {
   }
 
   /**
-   * Modification de série. `scope` 'single' ne passe PAS par l'Edge : c'est un simple
-   * updateSlot, doublé du marquage EXCEPTION — c'est ce marquage qui fera que les
-   * modifications de série ultérieures épargneront ce créneau (décision produit 5).
+   * Modification de série — LES DEUX PORTÉES passent par l'Edge.
+   *
+   * 🔴 CORRECTIF QA STAGING (17/08). 'single' court-circuitait slot-series-op : il faisait
+   * un updateSlot en PostgREST direct, posait is_series_exception côté client, et
+   * retournait `notified: 0` EN DUR. La notification vivant dans l'Edge, elle n'était donc
+   * jamais exécutée — aucun email, aucun push, et pas même une ligne de journal puisque
+   * l'Edge ne tournait pas. Deux créneaux modifiés en staging avec un inscrit confirmé :
+   * personne n'a rien reçu.
+   *
+   * La suppression, elle, fonctionnait — parce que ses DEUX portées passent par une Edge
+   * (cancel-slot). C'est cette asymétrie qui a créé le trou : une portée notifiait, l'autre
+   * non, et rien ne le signalait.
+   *
+   * Une seule voie d'écriture, donc un seul endroit qui notifie.
    */
   async function updateSeries(
     slotId: string,
     scope: SeriesScope,
     input: CreateSlotInput,
   ): Promise<SeriesOpResult> {
-    if (scope === 'single') {
-      await updateSlot(slotId, input)
-      // Le créneau diverge désormais de sa série : il devient une exception.
-      await supabase.from('time_slots').update({ is_series_exception: true }).eq('id', slotId)
-      await fetchSlots()
-      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0, notified: 0 }
-    }
-
     const { data, error } = await invokeEdge('slot-series-op', {
       body: {
         op: 'update',
         slot_id: slotId,
+        scope,
         patch: {
           activity_id: input.activityId,
           coach_id: input.coachId || null,
@@ -705,6 +709,10 @@ export function usePlanning() {
           // recompose chaque créneau avec le fuseau de la série, sinon le changement
           // d'heure décalerait les occurrences d'après le 25 octobre.
           starts_local_time: input.startTime,
+          // Portée 'single' uniquement : déplacer un cours isolé à une autre date est un
+          // geste légitime, et c'est le seul champ que le chemin client gérait en plus.
+          // L'Edge l'ignore en portée 'following'.
+          starts_local_date: input.date,
           duration_min: input.duration,
         },
       },
