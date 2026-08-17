@@ -377,9 +377,7 @@
     "notes": "Notes",
     "notes_placeholder": "Optional notes (200 characters max)",
     "repeat": "Repeat",
-    "repeat_weekly": "Repeat every week",
-    "repeat_weeks": "For (weeks)",
-    "repeat_preview": "Will create {{count}} slots from {{start}} to {{end}}",
+    "repeat_preview": "{{count}} classes created, from {{start}} to {{end}}",
     "create_button": "Create slot",
     "create_multiple": "Create {{count}} slots",
     "save_button": "Save",
@@ -417,10 +415,55 @@
       "time_required": "Time is required",
       "capacity_min": "Minimum 1 spot",
       "capacity_max": "Maximum 50 spots",
-      "coach_overlap": "This coach already has a slot at this time"
+      "coach_overlap": "This coach already has a slot at this time",
+      "recurrence_empty": "This recurrence produces no classes. Check the frequency and end date."
     },
     "suggested_times": "Suggested times",
-    "no_coach_needed": "This activity is open access — no coach to assign."
+    "no_coach_needed": "This activity is open access — no coach to assign.",
+    "repeat_frequency": "Frequency",
+    "repeat_weekdays": "Days",
+    "repeat_end": "Ends",
+    "repeat_end_count": "After N occurrences",
+    "repeat_end_until": "Until",
+    "repeat_horizon_hint": "One year maximum ({{days}} days). Classes are created ahead of time; you can extend the series later.",
+    "recurrence_mode": {
+      "daily": "Every day",
+      "weekly": "Every week",
+      "biweekly": "Every 2 weeks",
+      "monthly_day": "Every month (same date)",
+      "monthly_weekday": "Every month (same weekday)",
+      "custom_weekdays": "Custom (days of week)"
+    }
+  },
+  "series": {
+    "counting": "Calculating…",
+    "scope_single": "This class only",
+    "scope_following": "This class and all following",
+    "skipped_exceptions_one": "{{count}} class already edited separately will be left as is.",
+    "skipped_exceptions_other": "{{count}} classes already edited separately will be left as is.",
+    "toast_failed": "The series operation did not complete. Try again.",
+    "toast_partial": "{{done}} classes processed, {{failed}} failed. Run it again: classes already processed won't be handled twice.",
+    "toast_updated": "{{count}} classes updated.",
+    "toast_deleted": "{{count}} classes cancelled.",
+    "update": {
+      "title": "Edit this recurring class",
+      "intro": "This class is part of a series.",
+      "scope_single_hint": "Other classes in the series stay unchanged. This class will no longer follow series edits.",
+      "scope_following_hint": "This class and the ones after it. Past classes are never modified.",
+      "impact": "{{slots}} classes will be updated · {{members}} booked members will be notified",
+      "confirm": "Update"
+    },
+    "delete": {
+      "title": "Cancel this recurring class",
+      "intro": "This class is part of a series.",
+      "scope_single_hint": "Only this class is cancelled. The rest of the series is kept.",
+      "scope_following_hint": "This class and the ones after it. Past classes are never cancelled.",
+      "impact": "{{slots}} classes will be cancelled · {{members}} booked members will be notified",
+      "refund_note": "Debited credits are automatically returned to each member.",
+      "confirm": "Cancel these classes"
+    },
+    "toast_notified_one": "{{count}} member was notified.",
+    "toast_notified_other": "{{count}} members were notified."
   },
   "members": {
     "title": "Members",

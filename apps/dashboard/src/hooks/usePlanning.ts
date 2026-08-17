@@ -2,8 +2,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { extractErrorBody, extractErrorCode, EdgeError } from '@/lib/edgeErrors'
+import type { SeriesImpact, SeriesScope } from '@/components/planning/SeriesScopeModal'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
+import {
+  buildRRuleString, clampHorizon, generateLocalDates, localToUtc,
+  addMinutesToTime, maxHorizonDate, type RecurrenceInput,
+} from '@/lib/recurrence'
 import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
 import { invokeEdge } from '@/lib/edgeInvoke'
 
@@ -58,6 +63,8 @@ interface DbSlot {
   bookings_count: number | null
   status: string | null
   notes: string | null
+  series_id: string | null
+  is_series_exception: boolean | null
   activities: { id: string; name: string; color: string | null; duration_min: number; icon: string | null; active: boolean | null; requires_coach: boolean | null } | null
   coaches: { id: string; name: string; active: boolean | null } | null
   bookings: DbBooking[] | null
@@ -88,6 +95,8 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
     waitlisted: row.bookings?.filter((b) => b.status === 'waitlisted').length ?? 0,
     capacity: row.capacity,
     status: (row.status as SlotStatus) ?? 'scheduled',
+    seriesId: row.series_id ?? null,
+    isSeriesException: row.is_series_exception ?? false,
     // GYM-146 — ne pas afficher un inscrit dont le compte est supprimé (soft-delete).
     // Filtrage JS (PostgREST ne filtre pas proprement une relation imbriquée via .is()).
     // GYM-174 — on inclut désormais confirmed/attended/no_show/excused (les inscrits
@@ -139,6 +148,18 @@ export interface BookMemberResult {
   creditDebited?: boolean
 }
 
+/** GYM-230 — retour d'une opération de série. `failed` > 0 = série à moitié traitée. */
+export interface SeriesOpResult {
+  ok: boolean
+  slots: number
+  failed: number
+  skippedExceptions: number
+  /** GYM-230 — membres réellement prévenus du changement. 0 est une information, pas une
+   *  erreur : personne n'était inscrit, ou le changement n'était pas visible pour eux. */
+  notified: number
+  summary?: CancelSlotSummary
+}
+
 export interface MarkAttendanceResult {
   status: string
   penalty: { action?: string; type?: string; expires_at?: string | null } | null
@@ -153,8 +174,12 @@ export interface CreateSlotInput {
   capacity: number
   level: string
   notes: string
-  repeat: boolean
-  repeatWeeks: number
+  /**
+   * GYM-230 — récurrence. `undefined` = créneau PONCTUEL, qui reste le geste le plus
+   * fréquent et ne crée aucune série (time_slots.series_id reste NULL, comme les 126
+   * créneaux antérieurs au lot).
+   */
+  recurrence?: RecurrenceInput
 }
 
 function addMinutes(time: string, mins: number): string {
@@ -226,7 +251,7 @@ export function usePlanning() {
       const { data, error } = await supabase
         .from('time_slots')
         .select(`
-          id, starts_at, ends_at, capacity, bookings_count, status, notes,
+          id, starts_at, ends_at, capacity, bookings_count, status, notes, series_id, is_series_exception,
           activities(id, name, color, duration_min, icon, active, requires_coach),
           coaches(id, name, active),
           bookings(
@@ -374,39 +399,110 @@ export function usePlanning() {
     })
   }
 
+  /**
+   * GYM-230 — création d'un créneau, ponctuel ou récurrent.
+   *
+   * SANS `recurrence` : comportement strictement inchangé — un insert, series_id NULL.
+   * Le cas simple ne paie rien pour le cas complexe.
+   *
+   * AVEC : on crée d'abord la SÉRIE (elle porte la règle, l'heure locale et le fuseau),
+   * puis on génère les créneaux qui en découlent. Les deux gestes sont liés par
+   * series_id — c'est lui qui permettra plus tard de dire « ce cours et tous les suivants ».
+   *
+   * ⚠️ CHAQUE OCCURRENCE EST CONVERTIE SÉPARÉMENT en UTC (localToUtc), jamais par décalage
+   * depuis la première. C'est ce qui absorbe le changement d'heure du 25 octobre : le
+   * 18/10 09:00 donne 07:00Z, le 01/11 09:00 donne 08:00Z, et les deux valent 9 h à
+   * l'horloge de la salle.
+   */
   async function createSlot(input: CreateSlotInput): Promise<number> {
     if (!gymId) return 0
-    const count = input.repeat ? input.repeatWeeks : 1
-    const inserts = []
 
-    for (let i = 0; i < count; i++) {
-      // Parse user input as local Brussels time, convert to UTC for storage
-      const [y, mo, da] = input.date.split('-').map(Number)
-      const baseDate = new Date(y, mo - 1, da)
-      baseDate.setDate(baseDate.getDate() + i * 7)
-      const dateStr = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`
-      const startsAtUtc = fromZonedTime(new Date(`${dateStr}T${input.startTime}:00`), tz)
-      const endsAtUtc = fromZonedTime(new Date(`${dateStr}T${addMinutes(input.startTime, input.duration)}:00`), tz)
+    const endTime = addMinutesToTime(input.startTime, input.duration)
 
-      inserts.push({
+    // ── Cas ponctuel ──────────────────────────────────────────────────────────
+    if (!input.recurrence) {
+      const { error } = await supabase.from('time_slots').insert({
         gym_id: gymId,
         activity_id: input.activityId,
         // GYM-229 — activité sans encadrement : le formulaire renvoie une chaîne vide,
-        // qui n'est PAS un uuid valide et ferait échouer l'insert. NULL est la valeur
-        // que porte réellement « pas de coach » (time_slots.coach_id est nullable).
+        // qui n'est PAS un uuid valide. NULL est la valeur que porte « pas de coach ».
         coach_id: input.coachId || null,
-        starts_at: startsAtUtc.toISOString(),
-        ends_at: endsAtUtc.toISOString(),
+        starts_at: localToUtc(input.date, input.startTime, tz).toISOString(),
+        ends_at: localToUtc(input.date, endTime, tz).toISOString(),
         capacity: input.capacity,
         level: input.level,
         notes: input.notes || null,
         status: 'scheduled',
       })
+      // GYM-230 — l'erreur était AVALÉE ici (insert sans test) : le gérant voyait le
+      // planning se rafraîchir sans son cours et ne comprenait pas. Motif GYM-204/219.
+      if (error) throw new EdgeError('SLOT_CREATE_FAILED')
+      await fetchSlots()
+      return 1
     }
 
-    await supabase.from('time_slots').insert(inserts)
-    fetchSlots()
-    return count
+    // ── Cas récurrent ─────────────────────────────────────────────────────────
+    const rec = input.recurrence
+    const rrule = buildRRuleString(rec)
+
+    // Horizon effectif : la fin voulue, rabotée à un an. Pour une fin « après N
+    // occurrences », c'est le plafond qui borne, la règle s'arrêtant d'elle-même avant.
+    const wantedEnd = rec.endMode === 'until' && rec.until ? rec.until : maxHorizonDate(rec.startsOn)
+    const horizon = clampHorizon(rec.startsOn, wantedEnd)
+
+    const dates = generateLocalDates(rrule, rec.startsOn, horizon)
+    if (dates.length === 0) throw new EdgeError('SERIES_EMPTY')
+
+    // `generated_until` = DERNIÈRE date réellement produite, pas l'horizon demandé : c'est
+    // elle qui rend une prolongation ultérieure reprenable sans doublon.
+    const { data: series, error: seriesError } = await supabase
+      .from('slot_series')
+      .insert({
+        gym_id: gymId,
+        activity_id: input.activityId,
+        coach_id: input.coachId || null,
+        capacity: input.capacity,
+        level: input.level,
+        notes: input.notes || null,
+        starts_local_time: input.startTime,
+        duration_min: input.duration,
+        // Fuseau CAPTURÉ ici : une salle qui changerait de fuseau ne doit pas voir ses
+        // séries existantes se décaler rétroactivement.
+        timezone: tz,
+        rrule,
+        starts_on: rec.startsOn,
+        generated_until: dates[dates.length - 1],
+      })
+      .select('id')
+      .single()
+
+    if (seriesError || !series) throw new EdgeError('SERIES_CREATE_FAILED')
+
+    const { error: slotsError } = await supabase.from('time_slots').insert(
+      dates.map((d) => ({
+        gym_id: gymId,
+        series_id: series.id,
+        activity_id: input.activityId,
+        coach_id: input.coachId || null,
+        starts_at: localToUtc(d, input.startTime, tz).toISOString(),
+        ends_at: localToUtc(d, endTime, tz).toISOString(),
+        capacity: input.capacity,
+        level: input.level,
+        notes: input.notes || null,
+        status: 'scheduled',
+      })),
+    )
+
+    if (slotsError) {
+      // La série sans ses créneaux serait une coquille invisible dans /planning : on la
+      // retire plutôt que de la laisser orpheline. Best-effort — si ce nettoyage échoue
+      // aussi, l'erreur remontée reste la bonne, et la série vide ne casse rien.
+      await supabase.from('slot_series').delete().eq('id', series.id)
+      throw new EdgeError('SLOT_CREATE_FAILED')
+    }
+
+    await fetchSlots()
+    return dates.length
   }
 
   async function updateSlot(id: string, input: CreateSlotInput) {
@@ -555,6 +651,115 @@ export function usePlanning() {
       }))
   }
 
+  // ── GYM-230 — opérations de SÉRIE ────────────────────────────────────────────
+  //
+  // Les trois passent par l'Edge slot-series-op, jamais par une boucle côté navigateur :
+  // une série peut compter 52 créneaux avec des inscrits, et un onglet fermé au milieu
+  // laisserait la moitié traitée sans que personne ne l'apprenne.
+
+  /**
+   * Compte les créneaux et les membres qu'une action « et tous les suivants » toucherait.
+   * N'ÉCRIT RIEN — c'est ce qui permet d'annoncer l'impact avant que le gérant tranche.
+   */
+  async function countSeriesImpact(slotId: string): Promise<SeriesImpact | null> {
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: { op: 'count', slot_id: slotId },
+    })
+    if (error) return null
+    return {
+      slots: (data?.slots as number) ?? 0,
+      members: (data?.members as number) ?? 0,
+      skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
+    }
+  }
+
+  /**
+   * Modification de série — LES DEUX PORTÉES passent par l'Edge.
+   *
+   * 🔴 CORRECTIF QA STAGING (17/08). 'single' court-circuitait slot-series-op : il faisait
+   * un updateSlot en PostgREST direct, posait is_series_exception côté client, et
+   * retournait `notified: 0` EN DUR. La notification vivant dans l'Edge, elle n'était donc
+   * jamais exécutée — aucun email, aucun push, et pas même une ligne de journal puisque
+   * l'Edge ne tournait pas. Deux créneaux modifiés en staging avec un inscrit confirmé :
+   * personne n'a rien reçu.
+   *
+   * La suppression, elle, fonctionnait — parce que ses DEUX portées passent par une Edge
+   * (cancel-slot). C'est cette asymétrie qui a créé le trou : une portée notifiait, l'autre
+   * non, et rien ne le signalait.
+   *
+   * Une seule voie d'écriture, donc un seul endroit qui notifie.
+   */
+  async function updateSeries(
+    slotId: string,
+    scope: SeriesScope,
+    input: CreateSlotInput,
+  ): Promise<SeriesOpResult> {
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: {
+        op: 'update',
+        slot_id: slotId,
+        scope,
+        patch: {
+          activity_id: input.activityId,
+          coach_id: input.coachId || null,
+          capacity: input.capacity,
+          level: input.level,
+          notes: input.notes || null,
+          // ⚠️ HEURE LOCALE transmise, jamais un instant UTC : c'est le serveur qui
+          // recompose chaque créneau avec le fuseau de la série, sinon le changement
+          // d'heure décalerait les occurrences d'après le 25 octobre.
+          starts_local_time: input.startTime,
+          // Portée 'single' uniquement : déplacer un cours isolé à une autre date est un
+          // geste légitime, et c'est le seul champ que le chemin client gérait en plus.
+          // L'Edge l'ignore en portée 'following'.
+          starts_local_date: input.date,
+          duration_min: input.duration,
+        },
+      },
+    })
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0, notified: 0 }
+    await fetchSlots()
+    return {
+      ok: true,
+      slots: (data?.slots_updated as number) ?? 0,
+      notified: (data?.members_notified as number) ?? 0,
+      failed: ((data?.failed_slot_ids as string[]) ?? []).length,
+      skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
+    }
+  }
+
+  /**
+   * Suppression de série. Chaque créneau passe par cancel_slot_atomic — donc RECRÉDIT et
+   * purge de liste d'attente pour chacun.
+   *
+   * ⚠️ L'ÉCHEC PARTIEL EST REMONTÉ, PAS AVALÉ. `failed` > 0 signifie que la série est
+   * à moitié annulée : l'appelant doit le dire. La fonction serveur étant idempotente
+   * (cancel_slot_atomic renvoie 'already_cancelled'), relancer est sans danger.
+   */
+  async function deleteSeries(
+    slotId: string,
+    scope: SeriesScope,
+    reason?: string,
+  ): Promise<SeriesOpResult> {
+    if (scope === 'single') {
+      const summary = await cancelSlot(slotId, reason)
+      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0, notified: summary.notified, summary }
+    }
+
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: { op: 'delete', slot_id: slotId, reason: reason?.trim() || undefined },
+    })
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0, notified: 0 }
+    await fetchSlots()
+    return {
+      ok: true,
+      slots: (data?.slots_cancelled as number) ?? 0,
+      notified: (data?.notified as number) ?? 0,
+      failed: ((data?.failed_slot_ids as string[]) ?? []).length,
+      skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
+    }
+  }
+
   async function removeSlot(id: string) {
     await supabase.from('time_slots').delete().eq('id', id)
     fetchSlots()
@@ -588,6 +793,9 @@ export function usePlanning() {
     removeSlot,
     checkOverlap,
     markAttendance,
+    countSeriesImpact,
+    updateSeries,
+    deleteSeries,
     walkIn,
     bookMember,
     searchGymMembers,

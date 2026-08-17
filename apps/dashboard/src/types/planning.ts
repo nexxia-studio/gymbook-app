@@ -42,6 +42,14 @@ export interface TimeSlot {
   capacity: number
   status: SlotStatus
   members: SlotMember[]
+  /**
+   * GYM-230 — série d'appartenance. `null` = créneau ponctuel : c'est le cas des 126
+   * créneaux antérieurs au lot et de toute création simple, et c'est lui qui décide si
+   * la question « cet événement ou tous les suivants ? » doit être posée.
+   */
+  seriesId: string | null
+  /** GYM-230 — déjà modifié seul : les modifications de série l'épargnent. */
+  isSeriesException: boolean
 }
 
 export interface SlotMember {

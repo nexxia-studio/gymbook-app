@@ -2515,6 +2515,63 @@ export type Database = {
           },
         ]
       }
+      slot_series: {
+        Row: {
+          activity_id: string
+          capacity: number
+          coach_id: string | null
+          created_at: string | null
+          created_by: string | null
+          duration_min: number
+          generated_until: string
+          gym_id: string
+          id: string
+          level: string | null
+          notes: string | null
+          rrule: string
+          starts_local_time: string
+          starts_on: string
+          timezone: string
+          updated_at: string | null
+        }
+        Insert: {
+          activity_id: string
+          capacity: number
+          coach_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_min: number
+          generated_until: string
+          gym_id: string
+          id?: string
+          level?: string | null
+          notes?: string | null
+          rrule: string
+          starts_local_time: string
+          starts_on: string
+          timezone: string
+          updated_at?: string | null
+        }
+        Update: {
+          activity_id?: string
+          capacity?: number
+          coach_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_min?: number
+          generated_until?: string
+          gym_id?: string
+          id?: string
+          level?: string | null
+          notes?: string | null
+          rrule?: string
+          starts_local_time?: string
+          starts_on?: string
+          timezone?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       time_slots: {
         Row: {
           activity_id: string
@@ -2527,8 +2584,10 @@ export type Database = {
           ends_at: string
           gym_id: string
           id: string
+          is_series_exception: boolean
           level: string | null
           notes: string | null
+          series_id: string | null
           site_id: string | null
           starts_at: string
           status: string | null
@@ -2546,8 +2605,10 @@ export type Database = {
           ends_at: string
           gym_id: string
           id?: string
+          is_series_exception?: boolean
           level?: string | null
           notes?: string | null
+          series_id?: string | null
           site_id?: string | null
           starts_at: string
           status?: string | null
@@ -2565,8 +2626,10 @@ export type Database = {
           ends_at?: string
           gym_id?: string
           id?: string
+          is_series_exception?: boolean
           level?: string | null
           notes?: string | null
+          series_id?: string | null
           site_id?: string | null
           starts_at?: string
           status?: string | null
