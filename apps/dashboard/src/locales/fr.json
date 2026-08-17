@@ -352,6 +352,25 @@
     "filter_statuses": "Statut",
     "filter_reset": "Réinitialiser"
   },
+  "open_gym": {
+    "action": "Open Gym",
+    "title": "Générer les créneaux Open Gym",
+    "intro": "Crée des créneaux de 2 h démarrant toutes les heures, dans les horaires d'ouverture. Les créneaux qui chevauchent un cours collectif ne sont pas créés.",
+    "no_hours": "Renseignez d'abord les horaires d'ouverture dans Réglages > Salle. Sans eux, aucun créneau ne peut être généré.",
+    "activity": "Activité",
+    "activity_placeholder": "Choisir l'activité Open Gym…",
+    "activity_hint": "La capacité et le niveau des créneaux viennent de cette activité.",
+    "from": "Du",
+    "to": "Au",
+    "estimate_one": "Jusqu'à {{count}} créneau",
+    "estimate_other": "Jusqu'à {{count}} créneaux",
+    "estimate_hint": "Estimation haute, sur {{days}} jours d'ouverture par semaine. Les créneaux qui tombent pendant un cours ne seront pas créés.",
+    "idempotent_hint": "Relancer la génération ne crée pas de doublon : les créneaux déjà présents sont conservés tels quels.",
+    "horizon_hint": "Un an maximum ({{days}} jours).",
+    "confirm": "Générer",
+    "done": "{{created}} créneaux créés · {{skipped}} écartés (cours) · {{existing}} déjà présents.",
+    "error": "La génération n'a pas abouti. Réessaie."
+  },
   "filters": {
     "search_placeholder": "Rechercher…",
     "no_result": "Aucun résultat",

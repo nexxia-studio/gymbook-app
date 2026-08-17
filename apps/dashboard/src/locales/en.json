@@ -352,6 +352,25 @@
     "filter_statuses": "Status",
     "filter_reset": "Reset"
   },
+  "open_gym": {
+    "action": "Open Gym",
+    "title": "Generate Open Gym slots",
+    "intro": "Creates 2-hour slots starting every hour, within opening hours. Slots overlapping a class are not created.",
+    "no_hours": "Set your opening hours first in Settings > Gym. Without them, no slot can be generated.",
+    "activity": "Activity",
+    "activity_placeholder": "Choose the Open Gym activity…",
+    "activity_hint": "Slot capacity and level come from this activity.",
+    "from": "From",
+    "to": "To",
+    "estimate_one": "Up to {{count}} slot",
+    "estimate_other": "Up to {{count}} slots",
+    "estimate_hint": "Upper estimate, over {{days}} open days per week. Slots falling during a class will not be created.",
+    "idempotent_hint": "Running it again creates no duplicates: existing slots are left as they are.",
+    "horizon_hint": "One year maximum ({{days}} days).",
+    "confirm": "Generate",
+    "done": "{{created}} slots created · {{skipped}} skipped (classes) · {{existing}} already present.",
+    "error": "Generation did not complete. Try again."
+  },
   "filters": {
     "search_placeholder": "Search…",
     "no_result": "No results",
