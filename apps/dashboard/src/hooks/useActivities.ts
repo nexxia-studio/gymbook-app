@@ -28,6 +28,9 @@ function mapRow(row: Record<string, unknown>): ActivityItem {
     // (ou par un build antérieur) doit se comporter comme avant, coach obligatoire.
     requiresCoach: (row.requires_coach as boolean) ?? true,
     hiddenInPlanning: (row.hidden_in_planning as boolean) ?? false,
+    // GYM-231 — repli sur 0 : une activité lue avant la migration reste à capacité DURE.
+    // Replier sur autre chose ouvrirait un dépassement que personne n'a paramétré.
+    maxOverbook: (row.max_overbook as number) ?? 0,
     active: (row.active as boolean) ?? true,
   }
 }
@@ -85,6 +88,7 @@ export function useActivities() {
       requires_medical_check: data.requiresMedicalCheck,
       requires_coach: data.requiresCoach,
       hidden_in_planning: data.hiddenInPlanning,
+      max_overbook: data.maxOverbook,
     })
     if (error) return { error: error.message }
     fetchActivities()
@@ -104,6 +108,7 @@ export function useActivities() {
       requires_medical_check: data.requiresMedicalCheck,
       requires_coach: data.requiresCoach,
       hidden_in_planning: data.hiddenInPlanning,
+      max_overbook: data.maxOverbook,
     }).eq('id', id)
     if (error) return { error: error.message }
     fetchActivities()
@@ -146,6 +151,7 @@ export function useActivities() {
       requires_medical_check: original.requiresMedicalCheck,
       requires_coach: original.requiresCoach,
       hidden_in_planning: original.hiddenInPlanning,
+      max_overbook: original.maxOverbook,
     }).select().single()
     fetchActivities()
     return data ? mapRow(data) : null
