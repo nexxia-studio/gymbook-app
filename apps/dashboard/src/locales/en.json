@@ -377,9 +377,7 @@
     "notes": "Notes",
     "notes_placeholder": "Optional notes (200 characters max)",
     "repeat": "Repeat",
-    "repeat_weekly": "Repeat every week",
-    "repeat_weeks": "For (weeks)",
-    "repeat_preview": "Will create {{count}} slots from {{start}} to {{end}}",
+    "repeat_preview": "{{count}} classes created, from {{start}} to {{end}}",
     "create_button": "Create slot",
     "create_multiple": "Create {{count}} slots",
     "save_button": "Save",
@@ -417,10 +415,25 @@
       "time_required": "Time is required",
       "capacity_min": "Minimum 1 spot",
       "capacity_max": "Maximum 50 spots",
-      "coach_overlap": "This coach already has a slot at this time"
+      "coach_overlap": "This coach already has a slot at this time",
+      "recurrence_empty": "This recurrence produces no classes. Check the frequency and end date."
     },
     "suggested_times": "Suggested times",
-    "no_coach_needed": "This activity is open access — no coach to assign."
+    "no_coach_needed": "This activity is open access — no coach to assign.",
+    "repeat_frequency": "Frequency",
+    "repeat_weekdays": "Days",
+    "repeat_end": "Ends",
+    "repeat_end_count": "After N occurrences",
+    "repeat_end_until": "Until",
+    "repeat_horizon_hint": "One year maximum ({{days}} days). Classes are created ahead of time; you can extend the series later.",
+    "recurrence_mode": {
+      "daily": "Every day",
+      "weekly": "Every week",
+      "biweekly": "Every 2 weeks",
+      "monthly_day": "Every month (same date)",
+      "monthly_weekday": "Every month (same weekday)",
+      "custom_weekdays": "Custom (days of week)"
+    }
   },
   "members": {
     "title": "Members",
