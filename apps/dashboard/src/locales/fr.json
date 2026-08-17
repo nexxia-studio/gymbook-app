@@ -433,7 +433,8 @@
       "monthly_day": "Chaque mois (même date)",
       "monthly_weekday": "Chaque mois (même jour de semaine)",
       "custom_weekdays": "Personnalisé (jours de la semaine)"
-    }
+    },
+    "toast_update_failed": "La modification n'a pas pu être enregistrée. Réessaie."
   },
   "series": {
     "counting": "Calcul en cours…",
