@@ -22,6 +22,15 @@ export interface Activity {
   requiresCoach?: boolean
   /** GYM-228 — masquée par défaut dans /planning (Open Gym). */
   hiddenInPlanning?: boolean
+  /**
+   * GYM-231 — activities.default_capacity : capacité PROPOSÉE à la création d'un créneau
+   * de cette activité.
+   *
+   * ⚠️ UNE PROPOSITION, PAS UNE CONTRAINTE. La capacité qui fait foi est celle du CRÉNEAU
+   * (time_slots.capacity) : c'est elle qui permet un cours exceptionnel, et c'est elle que
+   * lit le contrôle de capacité. Ce champ ne sert qu'à amorcer le formulaire.
+   */
+  defaultCapacity?: number
 }
 
 export type SlotStatus = 'scheduled' | 'completed' | 'cancelled'

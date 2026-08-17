@@ -317,11 +317,17 @@ export function usePlanning() {
   const fetchMeta = useCallback(async () => {
     if (!gymId) return
     const [actRes, coachRes] = await Promise.all([
-      supabase.from('activities').select('id, name, color, duration_min, requires_coach, hidden_in_planning').eq('gym_id', gymId).order('sort_order'),
+      // GYM-231 — 🔴 `default_capacity` MANQUAIT À CE SELECT. La colonne était correctement
+      // renseignée depuis /settings, et le formulaire de créneau ne pouvait pas la lire :
+      // cinquième occurrence du motif (GYM-216, 220, 224, 228).
+      supabase.from('activities').select('id, name, color, duration_min, default_capacity, requires_coach, hidden_in_planning').eq('gym_id', gymId).order('sort_order'),
       supabase.from('coaches').select('id, name').eq('gym_id', gymId).order('sort_order'),
     ])
     setActivitiesList((actRes.data ?? []).map((a) => ({
       id: a.id, name: a.name, color: a.color ?? '#4ECDC4', durationMin: a.duration_min,
+      // ⚠️ Suivi jusqu'à l'OBJET RENDU, pas seulement jusqu'à la requête : c'est au mapping
+      // que GYM-228 avait perdu `requires_coach`, la colonne étant pourtant demandée.
+      defaultCapacity: a.default_capacity ?? undefined,
       requiresCoach: a.requires_coach ?? true,
       hiddenInPlanning: a.hidden_in_planning ?? false,
     })))
