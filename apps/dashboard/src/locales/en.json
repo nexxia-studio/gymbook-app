@@ -461,7 +461,9 @@
       "impact": "{{slots}} classes will be cancelled · {{members}} booked members will be notified",
       "refund_note": "Debited credits are automatically returned to each member.",
       "confirm": "Cancel these classes"
-    }
+    },
+    "toast_notified_one": "{{count}} member was notified.",
+    "toast_notified_other": "{{count}} members were notified."
   },
   "members": {
     "title": "Members",

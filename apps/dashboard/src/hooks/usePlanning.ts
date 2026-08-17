@@ -154,6 +154,9 @@ export interface SeriesOpResult {
   slots: number
   failed: number
   skippedExceptions: number
+  /** GYM-230 — membres réellement prévenus du changement. 0 est une information, pas une
+   *  erreur : personne n'était inscrit, ou le changement n'était pas visible pour eux. */
+  notified: number
   summary?: CancelSlotSummary
 }
 
@@ -685,7 +688,7 @@ export function usePlanning() {
       // Le créneau diverge désormais de sa série : il devient une exception.
       await supabase.from('time_slots').update({ is_series_exception: true }).eq('id', slotId)
       await fetchSlots()
-      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0 }
+      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0, notified: 0 }
     }
 
     const { data, error } = await invokeEdge('slot-series-op', {
@@ -706,11 +709,12 @@ export function usePlanning() {
         },
       },
     })
-    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0 }
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0, notified: 0 }
     await fetchSlots()
     return {
       ok: true,
       slots: (data?.slots_updated as number) ?? 0,
+      notified: (data?.members_notified as number) ?? 0,
       failed: ((data?.failed_slot_ids as string[]) ?? []).length,
       skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
     }
@@ -731,17 +735,18 @@ export function usePlanning() {
   ): Promise<SeriesOpResult> {
     if (scope === 'single') {
       const summary = await cancelSlot(slotId, reason)
-      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0, summary }
+      return { ok: true, slots: 1, failed: 0, skippedExceptions: 0, notified: summary.notified, summary }
     }
 
     const { data, error } = await invokeEdge('slot-series-op', {
       body: { op: 'delete', slot_id: slotId, reason: reason?.trim() || undefined },
     })
-    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0 }
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0, notified: 0 }
     await fetchSlots()
     return {
       ok: true,
       slots: (data?.slots_cancelled as number) ?? 0,
+      notified: (data?.notified as number) ?? 0,
       failed: ((data?.failed_slot_ids as string[]) ?? []).length,
       skippedExceptions: (data?.skipped_exceptions as number) ?? 0,
     }

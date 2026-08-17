@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
 
     const { data: series } = await admin
       .from('slot_series')
-      .select('id, gym_id, timezone, starts_local_time, duration_min')
+      .select('id, gym_id, timezone, starts_local_time, duration_min, activity_id')
       .eq('id', pivot.series_id)
       .single()
 
@@ -300,25 +300,31 @@ Deno.serve(async (req) => {
         if (seriesErr) console.error('[slot-series-op] series template update failed:', seriesErr.message)
       }
 
-      // Les membres inscrits sur les créneaux touchés, pour que le dashboard les notifie
-      // via le canal existant (send-notification).
-      const ids = targets.map((s) => s.id)
-      let affected: unknown[] = []
-      if (ids.length > 0) {
-        const { data: rows } = await admin
-          .from('bookings')
-          .select('member_id, profiles(push_token, first_name, email)')
-          .in('slot_id', ids)
-          .eq('status', 'confirmed')
-        affected = rows ?? []
-      }
+      // ── NOTIFIER LES INSCRITS ────────────────────────────────────────────────
+      //
+      // DÉCISION PRODUIT 4 : les réservations suivent la modification, et les membres
+      // sont PRÉVENUS. La suppression le faisait déjà (via cancel-slot) ; la modification
+      // ne le faisait pas — et c'est le cas le plus dangereux des deux. Une annulation se
+      // voit dans l'app, le cours disparaît. Un décalage de 18 h à 18 h 30 NE SE VOIT PAS :
+      // le membre croit savoir, et se présente devant une salle vide.
+      const notify = await notifyAffectedMembers(admin, supabaseUrl, serviceKey, {
+        slotIds: targets.map((s) => s.id),
+        activityId: (patch.activity_id as string | undefined) ?? null,
+        seriesActivityId: series.activity_id as string,
+        slotCount: updated,
+        newTime: newTime ?? null,
+        timeChanged: !!newTime || patch.duration_min !== undefined,
+        coachChanged: patch.coach_id !== undefined,
+        activityChanged: patch.activity_id !== undefined,
+      })
 
       return jsonResponse({
         op: 'update',
         slots_updated: updated,
         skipped_exceptions: skippedExceptions,
         failed_slot_ids: failed,
-        affected_members: affected,
+        members_notified: notify.notified,
+        notification_skipped: notify.skippedReason,
       }, failed.length > 0 ? 207 : 200)
     }
 
@@ -328,6 +334,110 @@ Deno.serve(async (req) => {
     return errorResponse(500, 'SERVER_ERROR', (err as Error).message)
   }
 })
+
+
+/**
+ * GYM-230 — prévient les inscrits qu'un cours de leur série a changé.
+ *
+ * ⚠️ SEULS LES CHANGEMENTS VISIBLES DÉCLENCHENT UN ENVOI.
+ *   · horaire (début ou durée) → OUI, le cas critique : invisible dans l'app, et c'est
+ *     précisément celui qui fait arriver quelqu'un devant une porte fermée ;
+ *   · coach                    → OUI, un membre vient parfois POUR quelqu'un ;
+ *   · activité                 → OUI, même raison : ce n'est plus le cours réservé ;
+ *   · capacité                 → NON, invisible et sans effet sur la place déjà acquise ;
+ *   · notes internes           → NON, le membre ne les voit pas.
+ * Un membre prévenu pour rien apprend à ignorer les notifications — et n'ouvrira pas
+ * celle qui comptait.
+ *
+ * ⚠️ UN SEUL ENVOI PAR MEMBRE, PAS UN PAR CRÉNEAU. Quelqu'un inscrit aux huit cours d'une
+ * série recevrait huit notifications pour un seul changement. Les jetons sont dédupliqués
+ * et send-notification accepte un TABLEAU : un appel, un message par personne.
+ *
+ * ⚠️ BEST-EFFORT, jamais bloquant. Le créneau prime sur le message : la modification est
+ * déjà écrite quand on arrive ici, et un échec d'envoi ne la défait pas. L'échec est
+ * journalisé avec de quoi le rejouer (nombre de destinataires, cause), jamais avalé.
+ */
+async function notifyAffectedMembers(
+  admin: SupabaseClient,
+  supabaseUrl: string,
+  serviceKey: string,
+  ctx: {
+    slotIds: string[]
+    activityId: string | null
+    seriesActivityId: string
+    slotCount: number
+    newTime: string | null
+    timeChanged: boolean
+    coachChanged: boolean
+    activityChanged: boolean
+  },
+): Promise<{ notified: number; skippedReason?: string }> {
+  const visible = ctx.timeChanged || ctx.coachChanged || ctx.activityChanged
+  if (!visible) return { notified: 0, skippedReason: 'NO_VISIBLE_CHANGE' }
+  if (ctx.slotIds.length === 0) return { notified: 0, skippedReason: 'NO_SLOTS' }
+
+  try {
+    // Inscrits CONFIRMÉS uniquement : la liste d'attente n'a pas de place à défendre, et
+    // sera notifiée par le chemin habituel si une place se libère.
+    const { data: rows } = await admin
+      .from('bookings')
+      .select('member_id, profiles(push_token)')
+      .in('slot_id', ctx.slotIds)
+      .eq('status', 'confirmed')
+
+    // Déduplication PAR JETON : c'est elle qui garantit « un message par personne ».
+    const tokens = new Set<string>()
+    for (const r of (rows ?? []) as Array<{ profiles: { push_token: string | null } | { push_token: string | null }[] | null }>) {
+      const prof = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+      if (prof?.push_token) tokens.add(prof.push_token)
+    }
+    if (tokens.size === 0) return { notified: 0, skippedReason: 'NO_PUSH_TOKEN' }
+
+    const { data: activity } = await admin
+      .from('activities')
+      .select('name')
+      .eq('id', ctx.activityId ?? ctx.seriesActivityId)
+      .single()
+    const activityName = (activity?.name as string) ?? 'Cours'
+
+    // Message GROUPÉ : il porte le nombre de séances concernées, sinon le membre croirait
+    // qu'une seule date bouge.
+    const what = ctx.timeChanged && ctx.newTime
+      ? `nouvel horaire : ${ctx.newTime}`
+      : ctx.activityChanged
+        ? 'le cours a changé'
+        : 'changement de coach'
+
+    const body = ctx.slotCount > 1
+      ? `${activityName} — ${what} (${ctx.slotCount} séances concernées).`
+      : `${activityName} — ${what}.`
+
+    const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        tokens: [...tokens],
+        title: 'Ton cours a été modifié',
+        body,
+        data: { type: 'slot_series_updated' },
+      }),
+    })
+
+    if (!resp.ok) {
+      console.error('[slot-series-op] send-notification refused:', JSON.stringify({
+        status: resp.status, recipients: tokens.size, slots: ctx.slotCount,
+      }))
+      return { notified: 0, skippedReason: 'SEND_FAILED' }
+    }
+    return { notified: tokens.size }
+  } catch (e) {
+    // Journalisé de façon exploitable : on doit pouvoir savoir QUI n'a pas été prévenu.
+    console.error('[slot-series-op] notify threw (non-blocking):', JSON.stringify({
+      slots: ctx.slotCount, error: (e as Error).message,
+    }))
+    return { notified: 0, skippedReason: 'SEND_THREW' }
+  }
+}
 
 /**
  * « Date locale + heure locale + fuseau » → instant UTC, sans dépendance externe.

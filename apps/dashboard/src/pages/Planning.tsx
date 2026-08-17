@@ -174,10 +174,13 @@ export default function Planning() {
       addToast(t('series.toast_partial', { done: res.slots, failed: res.failed }), 'warning')
       return
     }
+    // GYM-230 — le toast DIT que les membres ont été prévenus. Sans ça, le gérant se
+    // demanderait s'il doit les appeler lui-même — et pourrait doubler le message.
+    const base = action === 'update'
+      ? t('series.toast_updated', { count: res.slots })
+      : t('series.toast_deleted', { count: res.slots })
     addToast(
-      action === 'update'
-        ? t('series.toast_updated', { count: res.slots })
-        : t('series.toast_deleted', { count: res.slots }),
+      res.notified > 0 ? `${base} ${t('series.toast_notified', { count: res.notified })}` : base,
       action === 'delete' ? 'warning' : 'success',
     )
   }

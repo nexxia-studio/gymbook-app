@@ -461,7 +461,9 @@
       "impact": "{{slots}} cours seront annulés · {{members}} membres inscrits seront prévenus",
       "refund_note": "Les crédits débités sont rendus automatiquement à chaque membre.",
       "confirm": "Annuler ces cours"
-    }
+    },
+    "toast_notified_one": "{{count}} membre a été prévenu.",
+    "toast_notified_other": "{{count}} membres ont été prévenus."
   },
   "members": {
     "title": "Membres",
