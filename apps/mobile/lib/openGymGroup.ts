@@ -1,0 +1,137 @@
+// GYM-228 (volet 5) — Regrouper les créneaux en accès libre d'une journée en UNE carte.
+//
+// POURQUOI C'EST BLOQUANT. La génération produit 14 créneaux Open Gym PAR JOUR. Sans
+// regroupement, /accueil et /planning afficheraient quatorze cartes « Open Gym » avant
+// d'atteindre le premier vrai cours : l'app deviendrait illisible, et c'est la raison pour
+// laquelle les créneaux ne sont pas encore générés en production.
+//
+// ⚠️ ON AGRÈGE L'OFFRE, JAMAIS LES RÉSERVATIONS. Un membre inscrit à un Open Gym de 8 h
+// doit continuer de voir CE créneau, à cette heure, dans « Mes réservations » et dans son
+// historique. Ce module ne touche donc qu'aux listes d'offre (accueil, planning) — les
+// favoris, réservations et historique passent par d'autres chemins, non modifiés.
+
+/** Forme minimale attendue : les deux hooks (accueil, planning) la satisfont. */
+export interface GroupableSlot {
+  id: string
+  activityId: string
+  date: string
+  time: string      // 'HH:MM' local
+  endTime: string   // 'HH:MM' local
+  activity: string
+  activityColor: string
+  requiresCoach: boolean
+  capacity: number
+  booked: number
+}
+
+export interface OpenGymGroup<T extends GroupableSlot> {
+  /** Clé stable pour le rendu : une carte par (activité, jour). */
+  key: string
+  activityId: string
+  activity: string
+  activityColor: string
+  date: string
+  /** Amplitude RÉELLE de la journée. */
+  from: string
+  to: string
+  /** Les créneaux du jour, dans l'ordre — accessibles au clic pour réserver. */
+  slots: T[]
+}
+
+/**
+ * Une entrée de liste : soit un cours normal, soit un groupe d'accès libre.
+ *
+ * Type discriminé plutôt que deux listes séparées : l'ordre chronologique de la journée
+ * doit être préservé. Rendre les groupes en tête ferait apparaître l'Open Gym de 20 h
+ * avant le cours de 9 h.
+ */
+export type DayEntry<T extends GroupableSlot> =
+  | { kind: 'slot'; slot: T }
+  | { kind: 'openGym'; group: OpenGymGroup<T> }
+
+/**
+ * Seuil de regroupement.
+ *
+ * ⚠️ À DEUX, PAS À UN. Un jour où un seul créneau d'accès libre subsiste (les cours ont
+ * exclu tout le reste) n'a rien à agréger : « Open Gym — de 7 h à 9 h » ne dit pas plus que
+ * la carte du créneau lui-même, et masquerait ses places disponibles derrière un clic.
+ * C'est aussi le seuil qu'applique WeekSlots (`slots.length <= 1 → null`), qu'on réutilise
+ * pour le détail : en deçà, il ne rendrait rien.
+ */
+export const GROUP_MIN_SLOTS = 2
+
+/**
+ * Transforme les créneaux d'UNE journée en entrées de liste.
+ *
+ * ⚠️ CRITÈRE : `requiresCoach === false`. Une activité sans coach est par nature un accès
+ * libre (GYM-229) — c'est la même règle que le dashboard applique pour choisir ce qu'il
+ * peut générer.
+ *   · PAS le NOM « Open Gym » : un libellé se renomme, et ce projet l'a déjà vécu
+ *     (GYM-176, coachs renommés en une semaine).
+ *   · PAS `hidden_in_planning` : c'est un réglage du planning GÉRANT, sans rapport avec ce
+ *     que voit le membre. La colonne n'est d'ailleurs pas lue par l'app mobile.
+ *
+ * ⚠️ UNE CARTE PAR (ACTIVITÉ, JOUR), jamais une carte fourre-tout : une salle peut avoir un
+ * espace cardio ET un espace musculation, tous deux en accès libre. Les fondre ferait
+ * disparaître l'un des deux.
+ */
+export function groupDayEntries<T extends GroupableSlot>(daySlots: T[]): DayEntry<T>[] {
+  const byActivity = new Map<string, T[]>()
+  for (const s of daySlots) {
+    if (s.requiresCoach) continue
+    const list = byActivity.get(s.activityId)
+    if (list) list.push(s)
+    else byActivity.set(s.activityId, [s])
+  }
+
+  // Activités effectivement regroupées : en deçà du seuil, les créneaux restent des cartes
+  // normales et ne doivent PAS être retirés de la liste.
+  const grouped = new Set<string>()
+  const groups: OpenGymGroup<T>[] = []
+
+  for (const [activityId, slots] of byActivity) {
+    if (slots.length < GROUP_MIN_SLOTS) continue
+    grouped.add(activityId)
+
+    // ⚠️ AMPLITUDE CALCULÉE SUR LES CRÉNEAUX RÉELLEMENT PRÉSENTS, jamais sur les horaires
+    // d'ouverture de la salle. Si les cours du soir ont fait sauter l'Open Gym après 17 h,
+    // la carte doit annoncer « de 7 h à 17 h » — promettre 22 h enverrait le membre devant
+    // une porte sans créneau à réserver.
+    //
+    // Comparaison lexicographique sur 'HH:MM' : sûre parce que le format est à largeur
+    // fixe et zéro-paddé (07:00 < 18:00 se compare correctement en chaînes).
+    const ordered = [...slots].sort((a, b) => a.time.localeCompare(b.time))
+    const from = ordered[0].time
+    const to = ordered.reduce((max, s) => (s.endTime > max ? s.endTime : max), ordered[0].endTime)
+
+    groups.push({
+      key: `og-${activityId}-${ordered[0].date}`,
+      activityId,
+      activity: ordered[0].activity,
+      activityColor: ordered[0].activityColor,
+      date: ordered[0].date,
+      from,
+      to,
+      slots: ordered,
+    })
+  }
+
+  // Reconstitution dans l'ORDRE CHRONOLOGIQUE : chaque groupe prend la place de son
+  // PREMIER créneau, les autres sont retirés. La journée se lit donc toujours de haut en
+  // bas dans l'ordre des heures.
+  const entries: DayEntry<T>[] = []
+  const emitted = new Set<string>()
+
+  for (const s of daySlots) {
+    if (!grouped.has(s.activityId)) {
+      entries.push({ kind: 'slot', slot: s })
+      continue
+    }
+    if (emitted.has(s.activityId)) continue
+    emitted.add(s.activityId)
+    const group = groups.find((g) => g.activityId === s.activityId)
+    if (group) entries.push({ kind: 'openGym', group })
+  }
+
+  return entries
+}

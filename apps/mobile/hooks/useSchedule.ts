@@ -59,7 +59,7 @@ export function useSchedule() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count,
-          activities(name, color, duration_min, icon),
+          activities(name, color, duration_min, icon, requires_coach),
           coaches(name)
         `)
         .eq('gym_id', GYM_ID)

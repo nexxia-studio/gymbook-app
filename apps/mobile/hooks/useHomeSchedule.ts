@@ -20,6 +20,15 @@ export interface HomeSlot {
   imageUrl: string | null
   /** GYM-220 — activities.icon (nom de composant lucide). Vide/inconnu → icône par défaut. */
   icon: string | null
+  /**
+   * GYM-228 — activité en ACCÈS LIBRE (pas de coach, GYM-229). C'est le critère de
+   * regroupement en carte unique.
+   *
+   * ⚠️ Repli sur `true` : une activité lue avant la migration GYM-229 garde le
+   * comportement historique (cours encadré, une carte par créneau). Ne JAMAIS replier sur
+   * `false` — cela agrégerait des cours collectifs en une carte « Open Gym ».
+   */
+  requiresCoach: boolean
 }
 
 import { formatTime, formatDateStr, toLocalTime } from '../utils/timezone'
@@ -57,7 +66,7 @@ export function useHomeSchedule() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count,
-          activities(name, color, duration_min, image_url, icon),
+          activities(name, color, duration_min, image_url, icon, requires_coach),
           coaches(name)
         `)
         .eq('gym_id', GYM_ID)
@@ -87,6 +96,7 @@ export function useHomeSchedule() {
           booked: (row.bookings_count as number) ?? 0,
           imageUrl: (act?.image_url as string | null) ?? null,
           icon: (act?.icon as string | null) ?? null,
+          requiresCoach: (act?.requires_coach as boolean | undefined) ?? true,
         }
       }))
     } catch (e) {
