@@ -2,15 +2,20 @@ export default {
   expo: {
     name: 'Dopamine',
     slug: 'dopamine',
-    // GYM — version marketing (CFBundleShortVersionString). 1.0.0 puis 1.0.1 sont publiées
-    // sur l'App Store : leur train est fermé aux nouvelles soumissions (ITMS-90186) et
-    // toute build doit porter une version supérieure (ITMS-90062). Le build 15 est parti
-    // en 1.0.1 et a été rejeté pour cette raison, comme le build 14 la semaine d'avant.
-    // Incrément PATCH : ce train ne porte que des corrections (reset password membre,
-    // retour de paiement, résumé de formule, URL), aucune fonctionnalité visible nouvelle.
+    // GYM — version marketing (CFBundleShortVersionString). 1.0.0, 1.0.1 puis 1.0.2 sont
+    // publiées sur l'App Store : leur train est fermé aux nouvelles soumissions
+    // (ITMS-90186) et toute build doit porter une version supérieure (ITMS-90062). Le
+    // build 15 est parti en 1.0.1 et a été rejeté pour cette raison, comme le build 14 la
+    // semaine d'avant.
+    //
+    // 1.0.3 — build 19, ouvert après approbation et publication du build 18 (train 1.0.2
+    // fermé). Incrément PATCH : GYM-229 (plus de ligne coach vide sur les créneaux Open
+    // Gym) et GYM-224 (numéro de badge d'accès dans le hero de /profile) — deux
+    // ajustements d'affichage, aucune fonctionnalité nouvelle côté membre.
+    //
     // Le buildNumber, lui, n'est PAS déclaré ici : eas.json le gère
     // (appVersionSource "remote" + autoIncrement).
-    version: '1.0.2',
+    version: '1.0.3',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
