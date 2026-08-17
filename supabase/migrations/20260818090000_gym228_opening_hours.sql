@@ -55,6 +55,33 @@ COMMENT ON COLUMN public.nexxia_gyms.opening_hours IS
 --
 -- Ce qu'il attrape en revanche : une clé mal orthographiée ('monday', 'lun'), qui rendrait
 -- un jour silencieusement absent — l'erreur la plus probable, et la plus difficile à voir.
+--
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- 🔴 NE PAS « SIMPLIFIER » CE PRÉDICAT VERS UNE FORME PLUS LISIBLE.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+--
+-- POSTGRESQL INTERDIT TOUTE SOUS-REQUÊTE DANS UN CHECK. La première version de cette
+-- migration écrivait :
+--
+--     AND (SELECT bool_and(k IN ('mon',…)) FROM jsonb_object_keys(opening_hours) AS k)
+--
+-- et a été REFUSÉE à l'application sur staging :
+--
+--     ERROR: 0A000: cannot use subquery in check constraint
+--
+-- Elle aurait fait échouer la migration EN PRODUCTION, et le lot entier avec elle.
+-- ⚠️ La reformulation apparemment plus simple `ARRAY(SELECT jsonb_object_keys(...))`
+-- échoue POUR LA MÊME RAISON : c'est encore une sous-requête, seulement déguisée.
+--
+-- La forme retenue est PUREMENT FONCTIONNELLE — un opérateur, pas de SELECT :
+-- l'opérateur `-` retire d'un jsonb les clés listées ; s'il ne reste rien, c'est que
+-- l'objet ne contenait QUE des jours attendus. Une clé 'monday' survivrait à la
+-- soustraction et ferait échouer la contrainte (vérifié en staging).
+--
+-- ⚠️ Conséquence assumée : ce CHECK n'exige pas que les sept jours soient PRÉSENTS, il
+-- interdit seulement les clés inconnues. Un objet partiel passe donc — c'est voulu, la
+-- lecture applicative (parseOpeningHours) traite une clé absente comme « fermé », et
+-- exiger les sept ici casserait toute écriture partielle future sans rien protéger.
 ALTER TABLE public.nexxia_gyms
   DROP CONSTRAINT IF EXISTS nexxia_gyms_opening_hours_check;
 
@@ -63,8 +90,7 @@ ALTER TABLE public.nexxia_gyms
     opening_hours IS NULL
     OR (
       jsonb_typeof(opening_hours) = 'object'
-      AND (SELECT bool_and(k IN ('mon','tue','wed','thu','fri','sat','sun'))
-           FROM jsonb_object_keys(opening_hours) AS k)
+      AND (opening_hours - ARRAY['mon','tue','wed','thu','fri','sat','sun']) = '{}'::jsonb
     )
   );
 
