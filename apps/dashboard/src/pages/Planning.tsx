@@ -60,6 +60,32 @@ export default function Planning() {
   const planning = usePlanning()
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  /**
+   * GYM-234 — case de la grille désignée par le clic. `null` = ouverture par le bouton
+   * « Nouveau créneau », qui garde ses valeurs par défaut historiques.
+   *
+   * Remis à null à CHAQUE fermeture : sans ça, rouvrir par le bouton après avoir cliqué la
+   * grille réamorcerait sur l'ancienne case, et le gérant créerait un cours à une heure
+   * qu'il n'a pas choisie cette fois-ci.
+   */
+  const [createSeed, setCreateSeed] = useState<{ date: string; startTime: string } | null>(null)
+
+  // Clic sur une case VIDE de la grille → modale pré-remplie.
+  //
+  // ⚠️ L'heure est celle que FullCalendar rapporte pour la case cliquée : elle est DÉJÀ
+  // arrondie au pas de la grille (slotDuration = 30 min), on ne rearrondit rien.
+  // ⚠️ La DURÉE ne vient PAS du clic : elle reste celle de l'activité choisie
+  // (duration_min), comme aujourd'hui. Un glisser sur plusieurs cases ne fait donc que
+  // désigner un DÉBUT — `info.start` est seul lu côté PlanningCalendar.
+  const handleGridCreate = useCallback((date: string, startTime: string) => {
+    setCreateSeed({ date, startTime })
+    setCreateModalOpen(true)
+  }, [])
+
+  const closeCreateModal = useCallback(() => {
+    setCreateModalOpen(false)
+    setCreateSeed(null)
+  }, [])
   const [editSlot, setEditSlot] = useState<TimeSlot | null>(null)
   const [deleteSlot, setDeleteSlot] = useState<TimeSlot | null>(null)
   const [cancelTarget, setCancelTarget] = useState<TimeSlot | null>(null)
@@ -115,7 +141,7 @@ export default function Planning() {
 
   async function handleCreate(data: SlotFormData) {
     const count = await planning.createSlot(data)
-    setCreateModalOpen(false)
+    closeCreateModal()
     addToast(
       count > 1
         ? t('slots.toast_created_multiple', { count })
@@ -361,6 +387,7 @@ export default function Planning() {
           weekStart={planning.weekStart}
           onSlotClick={planning.setSelectedSlot}
           onDatesChange={handleDatesChange}
+          onSlotCreate={handleGridCreate}
         />
       </ErrorBoundary>
 
@@ -407,11 +434,15 @@ export default function Planning() {
       {/* Create modal */}
       <SlotModal
         open={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={closeCreateModal}
         onSubmit={handleCreate}
         activities={planning.activities}
         coaches={planning.coaches}
         checkOverlap={planning.checkOverlap}
+        // GYM-234 — undefined quand l'ouverture vient du bouton : la modale retombe alors
+        // sur ses valeurs par défaut, comportement inchangé.
+        initialDate={createSeed?.date}
+        initialStartTime={createSeed?.startTime}
       />
 
       {/* Edit modal */}
