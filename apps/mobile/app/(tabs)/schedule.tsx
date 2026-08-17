@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSchedule, type DaySection, type ScheduleSlot } from '../../hooks/useSchedule'
+import type { DayEntry } from '../../lib/openGymGroup'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { FilterPills } from '../../components/schedule/FilterPills'
 import { SlotListCard } from '../../components/schedule/SlotListCard'
+import { OpenGymListCard } from '../../components/schedule/OpenGymListCard'
 import { SectionHeader } from '../../components/schedule/SectionHeader'
 import { EmptySchedule } from '../../components/schedule/EmptySchedule'
 import { Skeleton } from '../../components/schedule/Skeleton'
@@ -39,31 +41,45 @@ export default function Schedule() {
     [isFavorite, addFavorite, removeFavorite],
   )
 
+  // Un seul chemin vers la fiche de créneau, qu'on y arrive par une ligne de cours ou par
+  // un créneau déplié d'une carte d'accès libre : la réservation ne doit avoir qu'un
+  // parcours.
+  const openSlot = useCallback(
+    (slot: ScheduleSlot) => {
+      router.push({
+        pathname: '/session/[id]',
+        params: {
+          id: slot.id,
+          activity: slot.activity,
+          date: slot.date,
+          time: slot.time,
+          endTime: slot.endTime,
+          coach: slot.coach,
+          duration: String(slot.duration),
+          capacity: String(slot.capacity),
+          booked: String(slot.booked),
+        },
+      })
+    },
+    [router],
+  )
+
+  // GYM-228 — une entrée de liste est soit un cours, soit UNE carte pour tous les créneaux
+  // d'accès libre du jour. Sans ce regroupement, les 14 créneaux Open Gym générés
+  // quotidiennement repousseraient le premier vrai cours hors de l'écran.
   const renderItem = useCallback(
-    ({ item }: { item: ScheduleSlot }) => (
-      <SlotListCard
-        slot={item}
-        isFavorite={isFavorite({ activityId: item.activityId, startsAt: item.startsAt })}
-        onToggleFavorite={() => toggleFav(item)}
-        onPress={() => {
-          router.push({
-            pathname: '/session/[id]',
-            params: {
-              id: item.id,
-              activity: item.activity,
-              date: item.date,
-              time: item.time,
-              endTime: item.endTime,
-              coach: item.coach,
-              duration: String(item.duration),
-              capacity: String(item.capacity),
-              booked: String(item.booked),
-            },
-          })
-        }}
-      />
-    ),
-    [favorites, toggleFav],
+    ({ item }: { item: DayEntry<ScheduleSlot> }) =>
+      item.kind === 'openGym' ? (
+        <OpenGymListCard group={item.group} onSelectSlot={openSlot} />
+      ) : (
+        <SlotListCard
+          slot={item.slot}
+          isFavorite={isFavorite({ activityId: item.slot.activityId, startsAt: item.slot.startsAt })}
+          onToggleFavorite={() => toggleFav(item.slot)}
+          onPress={() => openSlot(item.slot)}
+        />
+      ),
+    [favorites, toggleFav, openSlot, isFavorite],
   )
 
   const renderSectionHeader = useCallback(
@@ -71,7 +87,10 @@ export default function Schedule() {
     [],
   )
 
-  const keyExtractor = useCallback((item: ScheduleSlot) => item.id, [])
+  const keyExtractor = useCallback(
+    (item: DayEntry<ScheduleSlot>) => (item.kind === 'openGym' ? item.group.key : item.slot.id),
+    [],
+  )
 
   return (
     <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>

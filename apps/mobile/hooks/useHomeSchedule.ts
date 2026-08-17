@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useBookingStore } from '../stores/useBookingStore'
 import { GYM_ID } from '../constants/dopamine'
+import { groupDayEntries } from '../lib/openGymGroup'
 
 export interface HomeSlot {
   id: string
@@ -20,6 +21,15 @@ export interface HomeSlot {
   imageUrl: string | null
   /** GYM-220 — activities.icon (nom de composant lucide). Vide/inconnu → icône par défaut. */
   icon: string | null
+  /**
+   * GYM-228 — activité en ACCÈS LIBRE (pas de coach, GYM-229). C'est le critère de
+   * regroupement en carte unique.
+   *
+   * ⚠️ Repli sur `true` : une activité lue avant la migration GYM-229 garde le
+   * comportement historique (cours encadré, une carte par créneau). Ne JAMAIS replier sur
+   * `false` — cela agrégerait des cours collectifs en une carte « Open Gym ».
+   */
+  requiresCoach: boolean
 }
 
 import { formatTime, formatDateStr, toLocalTime } from '../utils/timezone'
@@ -57,7 +67,7 @@ export function useHomeSchedule() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count,
-          activities(name, color, duration_min, image_url, icon),
+          activities(name, color, duration_min, image_url, icon, requires_coach),
           coaches(name)
         `)
         .eq('gym_id', GYM_ID)
@@ -87,6 +97,7 @@ export function useHomeSchedule() {
           booked: (row.bookings_count as number) ?? 0,
           imageUrl: (act?.image_url as string | null) ?? null,
           icon: (act?.icon as string | null) ?? null,
+          requiresCoach: (act?.requires_coach as boolean | undefined) ?? true,
         }
       }))
     } catch (e) {
@@ -172,7 +183,13 @@ export function useHomeSchedule() {
         return end > nowLocal
       })
     }
-    return { date: d, slots: daySlots }
+    // GYM-228 — `entries` est ce qu'on REND (cours normaux + cartes agrégées d'accès
+    // libre) ; `slots` reste exposé pour l'état vide, qui doit continuer de raisonner sur
+    // les créneaux réels et non sur des entrées de liste.
+    //
+    // ⚠️ Regroupement APRÈS le filtrage des créneaux passés : à 18 h, la carte du jour doit
+    // annoncer « de 18h à 22h » et non l'amplitude du matin, déjà écoulée.
+    return { date: d, slots: daySlots, entries: groupDayEntries(daySlots) }
   })
 
   const isFavorite = useCallback(
