@@ -352,7 +352,8 @@
     "filter_statuses": "Status",
     "filter_reset": "Reset",
     "hidden_activities": "{{names}} hidden",
-    "hidden_activities_hint": "Click to show these slots in the planning."
+    "hidden_activities_hint": "Click to show these slots in the planning.",
+    "overbooked_by": "+{{count}} over"
   },
   "open_gym": {
     "action": "Open Gym",
@@ -758,6 +759,16 @@
     "payment": {
       "next_step": "Sell {{name}} a plan from their member sheet, then come back to book them.",
       "back_to_search": "Back to search"
+    },
+    "toast_overbooked": "{{name}} is booked beyond capacity.",
+    "overbook": {
+      "confirm": "Book anyway",
+      "reason_label": "Reason for going over capacity",
+      "reason_placeholder": "e.g. member at the front desk, make-up session…",
+      "traced": "This override will be recorded in the gym log: who, when, for whom, and why.",
+      "equity_headline": "{{count}} member(s) are already waiting for a seat in this class.",
+      "equity_explain": "Booking them in turn is fairer: from the slot's waitlist, promote the first in line. Forcing a booking here puts someone ahead of them.",
+      "log_failed": "Booking done, but the reason could not be recorded — note the decision elsewhere."
     }
   },
   "settings": {
@@ -918,13 +929,18 @@
       "slug_required": "Slug is required",
       "duration_min": "Minimum 5 minutes",
       "capacity_min": "Minimum 1 spot",
-      "capacity_max": "Maximum 100 spots"
+      "capacity_max": "Maximum 100 spots",
+      "overbook_min": "Extra seats cannot be negative",
+      "overbook_max": "Maximum 20 extra seats"
     },
     "requires_coach": "This activity requires a coach",
     "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym).",
     "hidden_in_planning": "Hide by default in the planning",
     "hidden_in_planning_hint": "For high-volume activities such as Open Gym. The activity stays visible and bookable for members.",
-    "toast_save_failed": "The activity could not be saved. Try again."
+    "toast_save_failed": "The activity could not be saved. Try again.",
+    "max_overbook": "Extra seats allowed",
+    "max_overbook_hint": "How many people you can add beyond a slot's capacity when booking someone from the planning. 0 = strict capacity. Members never see this option: for them, a full class stays full.",
+    "max_overbook_active": "You will be able to add up to {{count}} seat(s) beyond capacity, with a mandatory reason."
   },
   "coaches": {
     "title": "Coaches",
@@ -1284,6 +1300,7 @@
     "MEMBER_QUOTA_REACHED": "Your gym has reached the number of members included in its Viniz plan. Contact support to increase it.",
     "BADGE_CODE_TAKEN": "This code is already assigned to {{holder}}.",
     "INVALID_BADGE_CODE": "This badge code is not valid.",
-    "default_other_member": "another member"
+    "default_other_member": "another member",
+    "OVERBOOK_REASON_REQUIRED": "A reason is required to go over capacity."
   }
 }

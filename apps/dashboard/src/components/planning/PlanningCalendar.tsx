@@ -17,6 +17,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { getDisplayStatus, type TimeSlot, type DisplayStatus } from '@/types/planning'
+import { fillPercent, isOverbooked } from '@/lib/capacity'
 
 export type CalendarView = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
 
@@ -70,7 +71,9 @@ function MonthCompactEvent({ slot }: { slot: TimeSlot }) {
 }
 
 function EventContent({ slot, t }: { slot: TimeSlot; t: (key: string) => string }) {
-  const fillPercent = Math.round((slot.booked / slot.capacity) * 100)
+  // GYM-231 — cf. lib/capacity : barre bornée, compteur fidèle.
+  const fill = fillPercent(slot.booked, slot.capacity)
+  const over = isOverbooked(slot.booked, slot.capacity)
   const displayStatus = getDisplayStatus(slot)
   const isLive = displayStatus === 'in_progress'
   const isActivitySuspended = slot.activity.active === false
@@ -117,10 +120,10 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-dark/10">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${fillPercent}%`, backgroundColor: slot.activity.color }}
+              style={{ width: `${fill}%`, backgroundColor: over ? '#B45309' : slot.activity.color }}
             />
           </div>
-          <span className="font-body text-[9px] font-medium text-muted">
+          <span className={`font-body text-[9px] ${over ? 'font-bold text-amber-700' : 'font-medium text-muted'}`}>
             {slot.booked}/{slot.capacity}
           </span>
         </div>

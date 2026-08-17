@@ -6,6 +6,7 @@ import { getDisplayStatus, canTrackAttendance, canBookFutureSlot } from '@/types
 import { Button } from '@/components/ui/Button'
 import { AttendanceSection } from '@/components/planning/AttendanceSection'
 import type { MarkAttendanceResult, MemberSearchResult } from '@/hooks/usePlanning'
+import { fillPercent, isOverbooked, overbookedBy } from '@/lib/capacity'
 
 interface SlotDrawerProps {
   slot: TimeSlot | null
@@ -130,8 +131,17 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
                 )}
                 <div>
                   <p className="font-body text-xs text-muted">{t('planning.capacity')}</p>
-                  <p className="font-body text-sm font-medium text-dark">
+                  {/* GYM-231 — « 13 / 12 » tel quel, et signalé : le gérant doit voir
+                      d'un coup d'œil qu'il a surchargé ce cours. */}
+                  <p className={`font-body text-sm font-medium ${
+                    isOverbooked(slot.booked, slot.capacity) ? 'font-bold text-amber-700' : 'text-dark'
+                  }`}>
                     {slot.booked} / {slot.capacity}
+                    {isOverbooked(slot.booked, slot.capacity) && (
+                      <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                        {t('planning.overbooked_by', { count: overbookedBy(slot.booked, slot.capacity) })}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -141,8 +151,10 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.round((slot.booked / slot.capacity) * 100)}%`,
-                    backgroundColor: slot.activity.color,
+                    width: `${fillPercent(slot.booked, slot.capacity)}%`,
+                    backgroundColor: isOverbooked(slot.booked, slot.capacity)
+                      ? '#B45309'
+                      : slot.activity.color,
                   }}
                 />
               </div>

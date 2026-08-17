@@ -29,6 +29,7 @@ export type Database = {
           id: string
           image_url: string | null
           name: string
+          max_overbook: number
           requires_coach: boolean
           requires_medical_check: boolean | null
           slug: string
@@ -49,6 +50,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           name: string
+          max_overbook?: number
           requires_coach?: boolean
           requires_medical_check?: boolean | null
           slug: string
@@ -69,6 +71,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           name?: string
+          max_overbook?: number
           requires_coach?: boolean
           requires_medical_check?: boolean | null
           slug?: string
