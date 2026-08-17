@@ -261,12 +261,42 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
     const target = e.target as HTMLElement | null
     if (!target) return
 
-    // ⚠️ ON NE BLOQUE LE MENU NATIF QUE SUR UNE CASE VIDE DE LA GRILLE HORAIRE.
-    // Sur un cours existant, du texte, l'en-tête, la vue mois ou la vue liste, `closest`
-    // ne trouve rien et on laisse le navigateur faire : copier-coller et inspection
-    // doivent rester possibles partout ailleurs.
+    // ── Garde 1 : un COURS EXISTANT garde son menu natif. ────────────────────
+    //
+    // ⚠️ CELLE-CI FONCTIONNE PAR ASCENDANCE, et c'est vérifié dans le source de
+    // FullCalendar : les événements sont rendus dans `.fc-timegrid-col-events`, lui-même
+    // dans `.fc-timegrid-col-frame`, lui-même dans la colonne. Un événement EST donc
+    // descendant de sa colonne — contrairement aux lanes. `closest` remonte bien.
     if (target.closest('.fc-event')) return
-    const col = target.closest<HTMLElement>('.fc-timegrid-col[data-date]')
+
+    // ── Garde 2 : la colonne, DÉTERMINÉE PAR POSITION et non par ascendance. ──
+    //
+    // 🔴 C'EST ICI QUE LE PREMIER JET ÉCHOUAIT. Il faisait
+    // `target.closest('.fc-timegrid-col[data-date]')`, qui renvoyait TOUJOURS null : la
+    // cible d'un clic sur une case vide est une LANE horizontale
+    // (`.fc-timegrid-slot-lane`), pleine largeur, qui traverse tous les jours. Lanes et
+    // colonnes sont deux couches SŒURS et superposées — le source le confirme,
+    // `.fc-timegrid-cols` est en `position:absolute` par-dessus la table des lanes. Aucune
+    // ascendance ne relie l'une à l'autre.
+    //
+    // J'avais pourtant décrit cette superposition au lot précédent, pour écarter le survol
+    // par case en CSS. La conséquence sur le clic n'en avait pas été tirée.
+    //
+    // On balaie donc les colonnes et on retient celle dont le rectangle contient clientX —
+    // exactement la logique que le calcul de l'heure applique déjà sur l'axe vertical.
+    const root = rootRef.current
+    if (!root) return
+
+    // `[data-date]` exclut au passage l'AXE DES HEURES, qui porte aussi la classe
+    // `fc-timegrid-col` mais n'est pas une cellule de jour (vérifié dans le source).
+    const cols = root.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]')
+    let col: HTMLElement | null = null
+    for (const candidate of cols) {
+      const r = candidate.getBoundingClientRect()
+      if (e.clientX >= r.left && e.clientX < r.right) { col = candidate; break }
+    }
+    // Aucune colonne sous le curseur → vue mois, vue liste, axe des heures, en-tête, ou
+    // hors calendrier. On ne fait RIEN et le menu natif s'affiche.
     if (!col) return
 
     // ⚠️ REPÈRE DE `data-date` : le calendrier n'a PAS de prop `timeZone` — les créneaux
@@ -276,14 +306,13 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
     const date = col.dataset.date
     if (!date) return
 
-    // Le cadre de la colonne couvre exactement slotMinTime → slotMaxTime.
-    const frame = col.querySelector<HTMLElement>('.fc-timegrid-col-frame') ?? col
-    const rect = frame.getBoundingClientRect()
+    // La colonne (un <td> de `.fc-timegrid-cols`, lui-même en absolu top:0/bottom:0 sur le
+    // corps de la grille) couvre exactement slotMinTime → slotMaxTime.
+    const rect = col.getBoundingClientRect()
     if (rect.height <= 0) return
+    if (e.clientY < rect.top || e.clientY > rect.bottom) return
 
     const ratio = (e.clientY - rect.top) / rect.height
-    if (ratio < 0 || ratio > 1) return
-
     const raw = ratio * GRID_SPAN_MIN
     const floored = Math.floor(raw / SLOT_STEP_MIN) * SLOT_STEP_MIN
     // Borné pour qu'un clic tout en bas ne propose pas un cours démarrant à la fermeture.
