@@ -10,7 +10,15 @@
 // historique. Ce module ne touche donc qu'aux listes d'offre (accueil, planning) — les
 // favoris, réservations et historique passent par d'autres chemins, non modifiés.
 
-/** Forme minimale attendue : les deux hooks (accueil, planning) la satisfont. */
+/**
+ * Forme minimale attendue : les deux hooks (accueil, planning) la satisfont.
+ *
+ * ⚠️ STRICTEMENT CE QU'IL FAUT POUR REGROUPER, rien de plus. `HomeSlot` et `ScheduleSlot`
+ * ont divergé (l'un porte `activityColor` et `imageUrl`, l'autre `color` et pas d'image) :
+ * exiger ici une couleur ou une capacité forcerait à renommer des champs dans un hook
+ * pour satisfaire l'autre. Les cartes lisent ces champs sur LEURS créneaux, qu'elles
+ * connaissent précisément (le groupe est générique).
+ */
 export interface GroupableSlot {
   id: string
   activityId: string
@@ -18,10 +26,7 @@ export interface GroupableSlot {
   time: string      // 'HH:MM' local
   endTime: string   // 'HH:MM' local
   activity: string
-  activityColor: string
   requiresCoach: boolean
-  capacity: number
-  booked: number
 }
 
 export interface OpenGymGroup<T extends GroupableSlot> {
@@ -29,7 +34,6 @@ export interface OpenGymGroup<T extends GroupableSlot> {
   key: string
   activityId: string
   activity: string
-  activityColor: string
   date: string
   /** Amplitude RÉELLE de la journée. */
   from: string
@@ -108,7 +112,6 @@ export function groupDayEntries<T extends GroupableSlot>(daySlots: T[]): DayEntr
       key: `og-${activityId}-${ordered[0].date}`,
       activityId,
       activity: ordered[0].activity,
-      activityColor: ordered[0].activityColor,
       date: ordered[0].date,
       from,
       to,
@@ -134,4 +137,16 @@ export function groupDayEntries<T extends GroupableSlot>(daySlots: T[]): DayEntr
   }
 
   return entries
+}
+
+/**
+ * 'HH:MM' → '7h' / '7h30'. Un membre lit une heure, pas un horaire de train.
+ *
+ * Partagé par les deux cartes (accueil, planning) : deux formatages de la même amplitude
+ * finiraient par diverger, et le membre verrait « de 7h à 22h » ici et « 07:00 » là.
+ */
+export function formatAmplitudeHour(time: string): string {
+  const [h, m] = time.split(':')
+  const hh = String(Number(h))
+  return m === '00' ? `${hh}h` : `${hh}h${m}`
 }

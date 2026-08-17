@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useBookingStore } from '../stores/useBookingStore'
 import { GYM_ID } from '../constants/dopamine'
+import { groupDayEntries } from '../lib/openGymGroup'
 
 export interface HomeSlot {
   id: string
@@ -182,7 +183,13 @@ export function useHomeSchedule() {
         return end > nowLocal
       })
     }
-    return { date: d, slots: daySlots }
+    // GYM-228 — `entries` est ce qu'on REND (cours normaux + cartes agrégées d'accès
+    // libre) ; `slots` reste exposé pour l'état vide, qui doit continuer de raisonner sur
+    // les créneaux réels et non sur des entrées de liste.
+    //
+    // ⚠️ Regroupement APRÈS le filtrage des créneaux passés : à 18 h, la carte du jour doit
+    // annoncer « de 18h à 22h » et non l'amplitude du matin, déjà écoulée.
+    return { date: d, slots: daySlots, entries: groupDayEntries(daySlots) }
   })
 
   const isFavorite = useCallback(
