@@ -11,6 +11,7 @@ import { CoachCard } from '@/components/settings/CoachCard'
 import { CoachModal } from '@/components/settings/CoachModal'
 import { CoachDeleteModal } from '@/components/settings/CoachDeleteModal'
 import { GymSettingsCard } from '@/components/settings/GymSettingsCard'
+import { OpeningHoursCard } from '@/components/settings/OpeningHoursCard'
 import { LegalBillingCard } from '@/components/settings/LegalBillingCard'
 import { NoshowPolicyCard } from '@/components/settings/NoshowPolicyCard'
 import { TeamSection } from '@/components/settings/TeamSection'
@@ -292,6 +293,10 @@ export default function Settings() {
         {activeTab === 'gym' && (
           <div className="flex flex-col gap-4">
             <GymSettingsCard />
+            {/* GYM-228 — horaires d'ouverture. Dans l'onglet SALLE, pas sous l'Open Gym :
+                ce sont les heures de Dopamine, et elles serviront aussi à les afficher
+                au membre et à contrôler la cohérence des créneaux. */}
+            <OpeningHoursCard />
             {/* GYM-175 — politique d'absences (table noshow_rules, distincte de nexxia_gyms). */}
             <NoshowPolicyCard />
             {/* GYM-180 — identité légale de l'émetteur + régime TVA des factures. */}

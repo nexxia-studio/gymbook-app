@@ -20,6 +20,8 @@ export interface Activity {
    * exige un. L'affichage se décide sur la PRÉSENCE du coach, jamais sur cette exigence.
    */
   requiresCoach?: boolean
+  /** GYM-228 — masquée par défaut dans /planning (Open Gym). */
+  hiddenInPlanning?: boolean
 }
 
 export type SlotStatus = 'scheduled' | 'completed' | 'cancelled'

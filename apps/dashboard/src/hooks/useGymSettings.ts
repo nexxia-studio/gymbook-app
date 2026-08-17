@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { Json } from '@/types/database'
 import { useGymStore } from '@/stores/useGymStore'
+import { parseOpeningHours, type OpeningHours } from '@/lib/openingHours'
 
 export interface GymSettings {
   waitlistConfirmationMinutes: number
   /** GYM-196 — null = aucune limite de réservations simultanées. */
   maxActiveBookings: number | null
+  /**
+   * GYM-228 — horaires d'ouverture, en heure LOCALE de la salle.
+   *
+   * `null` = JAMAIS RENSEIGNÉS, ce qui n'est pas « fermé tous les jours » : l'écran de
+   * réglages propose alors une suggestion à valider, et la génération Open Gym refuse de
+   * tourner. Un horaire deviné produirait des centaines de créneaux à des heures que
+   * personne n'a choisies.
+   */
+  openingHours: OpeningHours | null
 }
 
 export function useGymSettings() {
@@ -18,7 +29,7 @@ export function useGymSettings() {
     setIsLoading(true)
     const { data, error } = await supabase
       .from('nexxia_gyms')
-      .select('waitlist_confirmation_minutes, max_active_bookings')
+      .select('waitlist_confirmation_minutes, max_active_bookings, opening_hours')
       .eq('id', gym.id)
       .single()
     setIsLoading(false)
@@ -27,10 +38,32 @@ export function useGymSettings() {
       waitlistConfirmationMinutes: data.waitlist_confirmation_minutes ?? 30,
       // NULL est une VALEUR (« aucune limite »), jamais un défaut à remplacer.
       maxActiveBookings: data.max_active_bookings ?? null,
+      openingHours: parseOpeningHours(data.opening_hours),
     })
   }, [gym?.id])
 
   useEffect(() => { load() }, [load])
+
+  /**
+   * GYM-228 — enregistrement des horaires.
+   *
+   * Écriture RLS directe comme les deux réglages voisins ; la migration de ce lot ajoute
+   * le GRANT UPDATE sur la colonne (liste blanche GYM-180 — sans lui, PostgREST rejette
+   * la requête entière).
+   */
+  const updateOpeningHours = useCallback(async (hours: OpeningHours): Promise<{ error?: string }> => {
+    if (!gym?.id) return { error: 'no_gym' }
+    const { error } = await supabase
+      .from('nexxia_gyms')
+      // Le type généré attend `Json` ; OpeningHours en est une forme valide mais
+      // TypeScript ne peut pas le déduire (pas d'index signature). Cast explicite,
+      // la CONTRAINTE de forme étant posée en base (CHECK sur les clés de jour).
+      .update({ opening_hours: hours as unknown as Json })
+      .eq('id', gym.id)
+    if (error) return { error: error.message }
+    setSettings((s) => (s ? { ...s, openingHours: hours } : s))
+    return {}
+  }, [gym?.id])
 
   const updateWaitlistDelay = useCallback(async (minutes: number): Promise<{ error?: string }> => {
     if (!gym?.id) return { error: 'no_gym' }
@@ -69,5 +102,5 @@ export function useGymSettings() {
     [gym?.id],
   )
 
-  return { settings, isLoading, updateWaitlistDelay, updateMaxActiveBookings }
+  return { settings, isLoading, updateOpeningHours, updateWaitlistDelay, updateMaxActiveBookings }
 }

@@ -350,7 +350,28 @@
     "filter_coaches": "Coachs",
     "filter_activities": "Activités",
     "filter_statuses": "Statut",
-    "filter_reset": "Réinitialiser"
+    "filter_reset": "Réinitialiser",
+    "hidden_activities": "{{names}} masqué",
+    "hidden_activities_hint": "Cliquez pour afficher ces créneaux dans le planning."
+  },
+  "open_gym": {
+    "action": "Open Gym",
+    "title": "Générer les créneaux Open Gym",
+    "intro": "Crée des créneaux de 2 h démarrant toutes les heures, dans les horaires d'ouverture. Les créneaux qui chevauchent un cours collectif ne sont pas créés.",
+    "no_hours": "Renseignez d'abord les horaires d'ouverture dans Réglages > Salle. Sans eux, aucun créneau ne peut être généré.",
+    "activity": "Activité",
+    "activity_placeholder": "Choisir l'activité Open Gym…",
+    "activity_hint": "La capacité et le niveau des créneaux viennent de cette activité.",
+    "from": "Du",
+    "to": "Au",
+    "estimate_one": "Jusqu'à {{count}} créneau",
+    "estimate_other": "Jusqu'à {{count}} créneaux",
+    "estimate_hint": "Estimation haute, sur {{days}} jours d'ouverture par semaine. Les créneaux qui tombent pendant un cours ne seront pas créés.",
+    "idempotent_hint": "Relancer la génération ne crée pas de doublon : les créneaux déjà présents sont conservés tels quels.",
+    "horizon_hint": "Un an maximum ({{days}} jours).",
+    "confirm": "Générer",
+    "done": "{{created}} créneaux créés · {{skipped}} écartés (cours) · {{existing}} déjà présents.",
+    "error": "La génération n'a pas abouti. Réessaie."
   },
   "filters": {
     "search_placeholder": "Rechercher…",
@@ -834,6 +855,19 @@
       "late_cancel_helper": "Une annulation moins de N heures avant le cours est traitée comme une absence : le crédit est perdu et la sanction ci-dessous s'applique.",
       "preview_late_cancel_one": "Ce barème vaut aussi pour les annulations faites moins d'{{count}} heure avant le cours : la séance n'est pas re-créditée.",
       "preview_late_cancel_other": "Ce barème vaut aussi pour les annulations faites moins de {{count}} heures avant le cours : la séance n'est pas re-créditée."
+    },
+    "opening_hours": {
+      "title": "Horaires d'ouverture",
+      "intro": "Les heures pendant lesquelles la salle est accessible. Elles servent à générer les créneaux Open Gym.",
+      "never_set": "Horaires jamais enregistrés. Les valeurs ci-dessous sont une proposition : vérifiez-les puis enregistrez.",
+      "open": "Ouvert",
+      "closed": "Fermé",
+      "opens_at": "Heure d'ouverture",
+      "closes_at": "Heure de fermeture",
+      "day_invalid": "La fermeture doit suivre l'ouverture",
+      "error_range": "Vérifiez les horaires : {{days}}. La fermeture doit suivre l'ouverture.",
+      "error_save": "Les horaires n'ont pas pu être enregistrés. Réessaie.",
+      "saved": "Horaires enregistrés."
     }
   },
   "activities": {
@@ -886,7 +920,9 @@
       "capacity_max": "Maximum 100 places"
     },
     "requires_coach": "Cette activité nécessite un coach",
-    "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym)."
+    "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym).",
+    "hidden_in_planning": "Masquer par défaut dans le planning",
+    "hidden_in_planning_hint": "Pour les activités à forte volumétrie comme l'Open Gym. L'activité reste visible et réservable par les membres."
   },
   "coaches": {
     "title": "Coaches",

@@ -21,7 +21,7 @@
 // apps/mobile, un autre fichier, corrigé à l'époque. Celui-ci n'a jamais eu ce défaut.
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, EyeOff } from 'lucide-react'
 import { MultiSelectFilter, type MultiSelectOption } from '@/components/ui/MultiSelectFilter'
 import type { Activity, Coach } from '@/types/planning'
 
@@ -36,6 +36,9 @@ interface FilterPillsProps {
   onStatusChange: (v: string[]) => void
   hasActiveFilters: boolean
   onReset: () => void
+  /** GYM-228 — activités masquées par défaut (Open Gym). Vide = rien n'est masqué. */
+  hiddenActivityIds: string[]
+  onShowHidden: () => void
 }
 
 // Statuts d'affichage filtrables. 'in_progress' est volontairement absent : il était déjà
@@ -53,6 +56,8 @@ export function FilterPills({
   onStatusChange,
   hasActiveFilters,
   onReset,
+  hiddenActivityIds,
+  onShowHidden,
 }: FilterPillsProps) {
   const { t } = useTranslation()
 
@@ -103,6 +108,27 @@ export function FilterPills({
         selected={filterStatus}
         onChange={onStatusChange}
       />
+
+      {/* GYM-228 — UN PLANNING INCOMPLET DOIT LE DIRE. Des créneaux masqués sans mention,
+          c'est un gérant qui croit voir sa semaine entière et prend des décisions sur une
+          vue tronquée. La mention nomme les activités concernées et les réaffiche d'un
+          clic — elle disparaît dès qu'il n'y a plus rien de masqué. */}
+      {hiddenActivityIds.length > 0 && (
+        <button
+          type="button"
+          onClick={onShowHidden}
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-amber-50 px-3 py-1.5 font-body text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100"
+          title={t('planning.hidden_activities_hint')}
+        >
+          <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('planning.hidden_activities', {
+            names: hiddenActivityIds
+              .map((id) => activities.find((a) => a.id === id)?.name)
+              .filter(Boolean)
+              .join(', '),
+          })}
+        </button>
+      )}
 
       {/* Réinitialiser — UNIQUEMENT quand il y a quelque chose à réinitialiser. */}
       {hasActiveFilters && (

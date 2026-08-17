@@ -27,6 +27,7 @@ function mapRow(row: Record<string, unknown>): ActivityItem {
     // GYM-229 — repli sur `true` : une activité lue avant l'application de la migration
     // (ou par un build antérieur) doit se comporter comme avant, coach obligatoire.
     requiresCoach: (row.requires_coach as boolean) ?? true,
+    hiddenInPlanning: (row.hidden_in_planning as boolean) ?? false,
     active: (row.active as boolean) ?? true,
   }
 }
@@ -74,6 +75,7 @@ export function useActivities() {
       color: data.color,
       requires_medical_check: data.requiresMedicalCheck,
       requires_coach: data.requiresCoach,
+      hidden_in_planning: data.hiddenInPlanning,
     })
     fetchActivities()
   }, [gymId, fetchActivities])
@@ -90,6 +92,7 @@ export function useActivities() {
       color: data.color,
       requires_medical_check: data.requiresMedicalCheck,
       requires_coach: data.requiresCoach,
+      hidden_in_planning: data.hiddenInPlanning,
     }).eq('id', id)
     fetchActivities()
   }, [fetchActivities])
@@ -129,6 +132,7 @@ export function useActivities() {
       color: original.color,
       requires_medical_check: original.requiresMedicalCheck,
       requires_coach: original.requiresCoach,
+      hidden_in_planning: original.hiddenInPlanning,
     }).select().single()
     fetchActivities()
     return data ? mapRow(data) : null
