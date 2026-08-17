@@ -1535,6 +1535,7 @@ export type Database = {
           name: string
           onboarding_completed: boolean | null
           onboarding_step: number | null
+          opening_hours: Json | null
           phone: string | null
           plan: string | null
           postal_code: string | null
@@ -1571,6 +1572,7 @@ export type Database = {
           name: string
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          opening_hours?: Json | null
           phone?: string | null
           plan?: string | null
           postal_code?: string | null
@@ -1607,6 +1609,7 @@ export type Database = {
           name?: string
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          opening_hours?: Json | null
           phone?: string | null
           plan?: string | null
           postal_code?: string | null
