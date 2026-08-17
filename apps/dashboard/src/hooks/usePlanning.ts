@@ -182,11 +182,6 @@ export interface CreateSlotInput {
   recurrence?: RecurrenceInput
 }
 
-function addMinutes(time: string, mins: number): string {
-  const [h, m] = time.split(':').map(Number)
-  const total = h * 60 + m + mins
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
-}
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -505,20 +500,54 @@ export function usePlanning() {
     return dates.length
   }
 
-  async function updateSlot(id: string, input: CreateSlotInput) {
-    const startsAtUtc = fromZonedTime(new Date(`${input.date}T${input.startTime}:00`), tz)
-    const endsAtUtc = fromZonedTime(new Date(`${input.date}T${addMinutes(input.startTime, input.duration)}:00`), tz)
-
-    await supabase.from('time_slots').update({
-      activity_id: input.activityId,
-      coach_id: input.coachId || null,
-      starts_at: startsAtUtc.toISOString(),
-      ends_at: endsAtUtc.toISOString(),
-      capacity: input.capacity,
-      level: input.level,
-      notes: input.notes || null,
-    }).eq('id', id)
-    fetchSlots()
+  /**
+   * Modification d'UN créneau — ponctuel comme membre d'une série.
+   *
+   * 🔴 GYM-236. Cette fonction écrivait en PostgREST DIRECT, et ne notifiait donc
+   * personne : Nico décalait le HIIT de jeudi de 18 h à 19 h, dix inscrits, et personne
+   * n'était prévenu. Le défaut était invisible — la modification réussissait, le créneau
+   * était correct, rien ne signalait le manque.
+   *
+   * C'est le MÊME geste que la correction de GYM-230 ce matin : router vers
+   * slot-series-op plutôt que d'extraire la notification ailleurs. Cela SUPPRIME un chemin
+   * d'écriture au lieu d'en ajouter un — deux implémentations de la notification
+   * divergeraient, comme ont divergé les prédicats d'abonnement (GYM-191/195) et les
+   * moteurs de sanction (GYM-218).
+   *
+   * `scope: 'single'` : la fonction traite un lot d'un seul créneau. Elle accepte
+   * désormais un créneau sans série et retombe alors sur le fuseau du gym.
+   */
+  async function updateSlot(id: string, input: CreateSlotInput): Promise<SeriesOpResult> {
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: {
+        op: 'update',
+        slot_id: id,
+        scope: 'single',
+        patch: {
+          activity_id: input.activityId,
+          coach_id: input.coachId || null,
+          capacity: input.capacity,
+          level: input.level,
+          notes: input.notes || null,
+          // ⚠️ Date et heure LOCALES, jamais un instant UTC : c'est le serveur qui
+          // recompose avec le fuseau, seule façon d'absorber le changement d'heure.
+          starts_local_time: input.startTime,
+          starts_local_date: input.date,
+          duration_min: input.duration,
+        },
+      },
+    })
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0, notified: 0 }
+    await fetchSlots()
+    return {
+      ok: true,
+      slots: (data?.slots_updated as number) ?? 0,
+      // ⚠️ COMPTE RÉEL, jamais codé en dur : c'est précisément un `notified: 0` figé qui a
+      // masqué le défaut de ce matin (GYM-230).
+      notified: (data?.members_notified as number) ?? 0,
+      failed: ((data?.failed_slot_ids as string[]) ?? []).length,
+      skippedExceptions: 0,
+    }
   }
 
   // GYM-143 — l'annulation passe par l'Edge Function cancel-slot (annulation atomique

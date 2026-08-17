@@ -132,10 +132,26 @@ export default function Planning() {
       setEditSlot(null)
       return
     }
-    planning.updateSlot(editSlot.id, data)
-    setEditSlot(null)
-    planning.setSelectedSlot(null)
-    addToast(t('slots.toast_updated'))
+    // GYM-236 — créneau PONCTUEL : pas de question de portée à poser (il n'y a rien
+    // « après »), mais la modification passe désormais par la même Edge, donc les inscrits
+    // sont prévenus comme pour une série.
+    void (async () => {
+      const res = await planning.updateSlot(editSlot.id, data)
+      setEditSlot(null)
+      planning.setSelectedSlot(null)
+      if (!res.ok) {
+        addToast(t('slots.toast_update_failed'), 'error')
+        return
+      }
+      // Le toast DIT combien de membres ont été prévenus. Sans ça, le gérant se demande
+      // s'il doit les appeler lui-même — et un compte figé à 0 masquerait un envoi qui
+      // n'a pas eu lieu, ce qui est exactement le défaut corrigé ce matin (GYM-230).
+      addToast(
+        res.notified > 0
+          ? `${t('slots.toast_updated')} ${t('series.toast_notified', { count: res.notified })}`
+          : t('slots.toast_updated'),
+      )
+    })()
   }
 
   // Le compte n'est demandé QU'À L'OUVERTURE du dialogue, jamais à chaque frappe : c'est
