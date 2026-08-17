@@ -146,6 +146,36 @@ export interface BookMemberResult {
   suspendedUntil?: string
   /** Un crédit a-t-il été débité (vs abonnement) — à dire au gérant, pas à deviner. */
   creditDebited?: boolean
+  // ── GYM-231 — de quoi rendre DEUX issues sur un cours complet, et pas une. ──
+  /** Refus FULL : l'activité autorise-t-elle « inscrire quand même » (marge > 0) ? */
+  overbookAllowed?: boolean
+  /** Refus FULL : la marge paramétrée sur l'activité, pour la nommer. */
+  overbookMargin?: number
+  /**
+   * Refus FULL : combien de membres attendent DÉJÀ une place. LE POINT D'ÉQUITÉ — forcer
+   * l'inscription d'un tiers pendant que d'autres patientent depuis plus longtemps est un
+   * choix, et le gérant doit le faire en connaissance de cause.
+   */
+  waitlistCount?: number
+  /** Succès : la place accordée était-elle au-delà de la capacité ? */
+  overbooked?: boolean
+  /** Succès en dépassement : la trace en journal a échoué — décision sans justification. */
+  logFailed?: boolean
+}
+
+/**
+ * GYM-231 — options d'une inscription par le gérant.
+ *
+ * Objet plutôt qu'un troisième booléen positionnel : `bookMember(id, id, false, true, '…')`
+ * serait illisible sur l'appel, et chaque ajout futur déplacerait les suivants.
+ */
+export interface BookMemberOptions {
+  /** Le gérant accepte la liste d'attente (second appel après un refus FULL). */
+  allowWaitlist?: boolean
+  /** Le gérant force l'inscription au-delà de la capacité (second appel après FULL). */
+  allowOverbook?: boolean
+  /** Motif du dépassement — OBLIGATOIRE dès que `allowOverbook` est vrai. */
+  overbookReason?: string
 }
 
 /** GYM-230 — retour d'une opération de série. `failed` > 0 = série à moitié traitée. */
@@ -638,10 +668,19 @@ export function usePlanning() {
   async function bookMember(
     slotId: string,
     memberId: string,
-    allowWaitlist = false,
+    options: BookMemberOptions = {},
   ): Promise<BookMemberResult> {
     const { data, error } = await invokeEdge('admin-book-member', {
-      body: { slot_id: slotId, member_id: memberId, allow_waitlist: allowWaitlist },
+      body: {
+        slot_id: slotId,
+        member_id: memberId,
+        allow_waitlist: options.allowWaitlist ?? false,
+        // GYM-231 — envoyés seulement quand le gérant a tranché. Le serveur exige le motif
+        // dès que le drapeau est vrai (400 OVERBOOK_REASON_REQUIRED) : c'est lui l'autorité,
+        // le contrôle côté écran ne fait qu'éviter un aller-retour perdu.
+        allow_overbook: options.allowOverbook ?? false,
+        overbook_reason: options.overbookReason,
+      },
     })
 
     if (error) {
@@ -652,6 +691,9 @@ export function usePlanning() {
         limit: body.limit,
         suspendedUntil: body.suspended_until,
         waitlistPosition: body.waitlist_position,
+        overbookAllowed: body.overbook_allowed,
+        overbookMargin: body.overbook_margin,
+        waitlistCount: body.waitlist_count,
       }
     }
 
@@ -661,6 +703,8 @@ export function usePlanning() {
       status: (data?.status as 'confirmed' | 'waitlisted') ?? 'confirmed',
       waitlistPosition: data?.position as number | undefined,
       creditDebited: (data?.credit_debited as boolean | undefined) ?? false,
+      overbooked: (data?.overbooked as boolean | undefined) ?? false,
+      logFailed: (data?.log_failed as boolean | undefined) ?? false,
     }
   }
 

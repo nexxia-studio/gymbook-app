@@ -34,6 +34,13 @@ export interface EdgeErrorBody {
   waitlist_position?: number
   /** BADGE_CODE_TAKEN (GYM-224) — prénom du membre qui porte DÉJÀ ce code. */
   holder_first_name?: string | null
+  // ── GYM-231 — ce qui transforme un refus FULL en DEUX issues ouvertes. ──
+  /** FULL — l'activité autorise-t-elle le dépassement (activities.max_overbook > 0) ? */
+  overbook_allowed?: boolean
+  /** FULL — la marge paramétrée, pour la nommer plutôt que de dire « c'est possible ». */
+  overbook_margin?: number
+  /** FULL — combien de membres attendent déjà. Le point d'équité, avant de forcer. */
+  waitlist_count?: number
 }
 
 /**
@@ -116,6 +123,12 @@ export const KNOWN_EDGE_ERROR_CODES = [
   //  · MEMBER_QUOTA_REACHED — quota de membres du plan Viniz (limite d'abonnement de la
   //    salle, pas du membre) : rien à faire au comptoir, c'est un sujet de facturation.
   'ALREADY_WAITLISTED', 'SLOT_PAST', 'MEMBER_QUOTA_REACHED',
+  // ── admin-book-member (GYM-231, dépassement de capacité) ──
+  //  · OVERBOOK_REASON_REQUIRED — le serveur refuse un dépassement sans motif. Normalement
+  //    inatteignable depuis la modale (le bouton reste inerte tant que le champ est vide) ;
+  //    il reste listé parce qu'un refus muet serait pire qu'un refus redondant, et parce
+  //    que le contrôle qui compte est celui du serveur, pas celui de l'écran.
+  'OVERBOOK_REASON_REQUIRED',
   // ── create-refund (GYM-209 / GYM-189) ──
   'MOLLIE_SCOPE_MISSING', 'MOLLIE_TOKEN_EXPIRED', 'MOLLIE_ERROR', 'INSUFFICIENT_BALANCE',
   'SUBSCRIPTION_PAYMENT', 'MANUAL_PAYMENT', 'NOT_REFUNDABLE', 'NOTHING_TO_REFUND',
