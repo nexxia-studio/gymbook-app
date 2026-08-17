@@ -30,6 +30,19 @@ interface SlotModalProps {
   coaches: Coach[]
   editSlot?: TimeSlot | null
   checkOverlap?: (coachId: string, date: string, startTime: string, duration: number, excludeId?: string) => boolean
+  /**
+   * GYM-234 — amorçage depuis un clic sur la grille de /planning.
+   *
+   * Le gérant vient de regarder la case vide où il veut poser son cours : lui redemander
+   * la date et l'heure à la main, c'est lui faire ressaisir ce qu'il vient de désigner.
+   * Sur une grille de douze cours hebdomadaires, c'était douze saisies.
+   *
+   * `undefined` = ouverture par le bouton « Nouveau créneau » : on retombe sur les valeurs
+   * par défaut historiques (aujourd'hui, 07:00). Ignoré en édition, où les valeurs viennent
+   * du créneau.
+   */
+  initialDate?: string
+  initialStartTime?: string
 }
 
 // Ordre RRule : 0 = lundi. Les libellés courts sont ceux du planning (MobileDayList).
@@ -53,7 +66,10 @@ function todayStr(): string {
 
 type FormErrors = Partial<Record<keyof SlotFormData, string>>
 
-export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSlot, checkOverlap }: SlotModalProps) {
+export function SlotModal({
+  open, onClose, onSubmit, activities, coaches, editSlot, checkOverlap,
+  initialDate, initialStartTime,
+}: SlotModalProps) {
   const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -91,8 +107,9 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
       setForm({
         activityId: '',
         coachId: '',
-        date: todayStr(),
-        startTime: '07:00',
+        // GYM-234 — amorce du clic sur la grille, sinon les valeurs historiques.
+        date: initialDate ?? todayStr(),
+        startTime: initialStartTime ?? '07:00',
         duration: 60,
         capacity: 16,
         level: 'all',
@@ -101,7 +118,7 @@ export function SlotModal({ open, onClose, onSubmit, activities, coaches, editSl
       })
     }
     setErrors({})
-  }, [open, editSlot])
+  }, [open, editSlot, initialDate, initialStartTime])
 
   // Dialog open/close
   useEffect(() => {

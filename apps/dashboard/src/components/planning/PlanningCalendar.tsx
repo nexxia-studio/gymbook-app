@@ -5,7 +5,6 @@ import type {
   EventInput,
   EventClickArg,
   EventContentArg,
-  DateSelectArg,
   EventDropArg,
   DatesSetArg,
 } from '@fullcalendar/core'
@@ -41,14 +40,7 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-function isoDateInTz(date: Date): string {
-  // FullCalendar passes local-time dates; we read y/m/d via local getters
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
 
-function timeInTz(date: Date): string {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
 
 const STATUS_BADGE: Record<DisplayStatus, string> = {
   cancelled: 'bg-red-500/90 text-white',
@@ -151,6 +143,25 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
   )
 }
 
+/**
+ * GYM-234 — BORNES DE LA GRILLE, en un seul endroit.
+ *
+ * Elles étaient écrites en dur dans le JSX de FullCalendar. Le clic droit doit convertir
+ * une position verticale en heure, donc les relire : les laisser en double garantissait
+ * qu'élargir la grille (ouvrir à 05:00, passer au pas de 15 min) désaligne SILENCIEUSEMENT
+ * le clic droit — il créerait des cours à une heure décalée sans que rien ne le signale.
+ */
+const SLOT_MIN_HOUR = 6
+const SLOT_MAX_HOUR = 22
+const SLOT_STEP_MIN = 30
+const GRID_SPAN_MIN = (SLOT_MAX_HOUR - SLOT_MIN_HOUR) * 60
+
+/** Minutes depuis SLOT_MIN_HOUR → 'HH:mm'. */
+function minutesToTime(minutesFromStart: number): string {
+  const total = SLOT_MIN_HOUR * 60 + minutesFromStart
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
+}
+
 export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalendarProps>(function PlanningCalendar(
   { slots, weekStart, onSlotClick, onSlotCreate, onDatesChange },
   ref,
@@ -158,6 +169,9 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
   const { t } = useTranslation()
   const tz = useGymTimezone()
   const calendarRef = useRef<FullCalendar | null>(null)
+  // GYM-234 — support de l'écoute `contextmenu` : FullCalendar n'expose pas de rappel
+  // pour un clic droit sur une case vide, on écoute donc l'événement DOM.
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const lastReportedRangeRef = useRef<string>('')
   const isInternalNavRef = useRef(false)
   const slotsById = useMemo(() => {
@@ -221,12 +235,99 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
     if (slot) onSlotClick(slot)
   }, [slotsById, onSlotClick])
 
-  const handleDateClick = useCallback((info: DateSelectArg) => {
+  /**
+   * GYM-234 (QA Antoine, 18/08) — CRÉATION AU CLIC DROIT.
+   *
+   * 🔴 DÉCISION INVERSÉE. Le ticket demandait le clic droit ; j'avais tranché pour le clic
+   * gauche en invoquant Notion Calendar. C'était mon arbitrage, pas celui d'Antoine, et il
+   * le redresse. La sélection FullCalendar (selectable/select/selectAllow/selectMirror) est
+   * retirée : vérifié, ces quatre props n'existaient QUE pour la création — le
+   * glisser-déposer d'événements passe par `editable`/`eventDrop`, indépendants.
+   *
+   * ⚠️ FullCalendar N'EXPOSE AUCUN utilitaire public de conversion position → date
+   * (vérifié dans ses types : ni positionToDate, ni dateFromPoint). Deux moitiés, donc :
+   *
+   *   · LA DATE ne se calcule pas — FullCalendar la pose lui-même en `data-date`
+   *     (YYYY-MM-DD) sur chaque colonne de jour. On la lit, on ne la déduit pas.
+   *   · L'HEURE se calcule, et il a fallu AJOUTER L'ARRONDI que `select` donnait
+   *     gratuitement : ratio vertical dans le cadre de la colonne, converti en minutes,
+   *     puis PLANCHER au pas de 30 min. Plancher et non arrondi au plus proche : cliquer
+   *     dans la case 14:00–14:30 doit donner 14:00, c'est la case désignée. Un arrondi au
+   *     plus proche aurait basculé à 14:30 dès la moitié basse de la case.
+   */
+  const handleContextMenu = useCallback((e: MouseEvent) => {
     if (!onSlotCreate) return
-    const date = isoDateInTz(info.start)
-    const startTime = timeInTz(info.start)
-    onSlotCreate(date, startTime)
+
+    const target = e.target as HTMLElement | null
+    if (!target) return
+
+    // ── Garde 1 : un COURS EXISTANT garde son menu natif. ────────────────────
+    //
+    // ⚠️ CELLE-CI FONCTIONNE PAR ASCENDANCE, et c'est vérifié dans le source de
+    // FullCalendar : les événements sont rendus dans `.fc-timegrid-col-events`, lui-même
+    // dans `.fc-timegrid-col-frame`, lui-même dans la colonne. Un événement EST donc
+    // descendant de sa colonne — contrairement aux lanes. `closest` remonte bien.
+    if (target.closest('.fc-event')) return
+
+    // ── Garde 2 : la colonne, DÉTERMINÉE PAR POSITION et non par ascendance. ──
+    //
+    // 🔴 C'EST ICI QUE LE PREMIER JET ÉCHOUAIT. Il faisait
+    // `target.closest('.fc-timegrid-col[data-date]')`, qui renvoyait TOUJOURS null : la
+    // cible d'un clic sur une case vide est une LANE horizontale
+    // (`.fc-timegrid-slot-lane`), pleine largeur, qui traverse tous les jours. Lanes et
+    // colonnes sont deux couches SŒURS et superposées — le source le confirme,
+    // `.fc-timegrid-cols` est en `position:absolute` par-dessus la table des lanes. Aucune
+    // ascendance ne relie l'une à l'autre.
+    //
+    // J'avais pourtant décrit cette superposition au lot précédent, pour écarter le survol
+    // par case en CSS. La conséquence sur le clic n'en avait pas été tirée.
+    //
+    // On balaie donc les colonnes et on retient celle dont le rectangle contient clientX —
+    // exactement la logique que le calcul de l'heure applique déjà sur l'axe vertical.
+    const root = rootRef.current
+    if (!root) return
+
+    // `[data-date]` exclut au passage l'AXE DES HEURES, qui porte aussi la classe
+    // `fc-timegrid-col` mais n'est pas une cellule de jour (vérifié dans le source).
+    const cols = root.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]')
+    let col: HTMLElement | null = null
+    for (const candidate of cols) {
+      const r = candidate.getBoundingClientRect()
+      if (e.clientX >= r.left && e.clientX < r.right) { col = candidate; break }
+    }
+    // Aucune colonne sous le curseur → vue mois, vue liste, axe des heures, en-tête, ou
+    // hors calendrier. On ne fait RIEN et le menu natif s'affiche.
+    if (!col) return
+
+    // ⚠️ REPÈRE DE `data-date` : le calendrier n'a PAS de prop `timeZone` — les créneaux
+    // lui sont fournis déjà convertis dans le fuseau du gym (cf. `events` plus bas). La
+    // date lue ici est donc exactement dans le même repère que `slot.date`, celui qu'attend
+    // SlotModal. Aucune conversion, et aucun décalage possible.
+    const date = col.dataset.date
+    if (!date) return
+
+    // La colonne (un <td> de `.fc-timegrid-cols`, lui-même en absolu top:0/bottom:0 sur le
+    // corps de la grille) couvre exactement slotMinTime → slotMaxTime.
+    const rect = col.getBoundingClientRect()
+    if (rect.height <= 0) return
+    if (e.clientY < rect.top || e.clientY > rect.bottom) return
+
+    const ratio = (e.clientY - rect.top) / rect.height
+    const raw = ratio * GRID_SPAN_MIN
+    const floored = Math.floor(raw / SLOT_STEP_MIN) * SLOT_STEP_MIN
+    // Borné pour qu'un clic tout en bas ne propose pas un cours démarrant à la fermeture.
+    const minutes = Math.min(Math.max(floored, 0), GRID_SPAN_MIN - SLOT_STEP_MIN)
+
+    e.preventDefault()
+    onSlotCreate(date, minutesToTime(minutes))
   }, [onSlotCreate])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || !onSlotCreate) return
+    root.addEventListener('contextmenu', handleContextMenu)
+    return () => root.removeEventListener('contextmenu', handleContextMenu)
+  }, [handleContextMenu, onSlotCreate])
 
   // Drag&drop: update starts_at / ends_at directly via Supabase.
   // The Realtime subscription in usePlanning picks up the change and refreshes the UI.
@@ -262,7 +363,7 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
   }, [slotsById, tz, t])
 
   return (
-    <div className="hidden overflow-hidden rounded-2xl border border-border bg-card md:block">
+    <div ref={rootRef} className="hidden overflow-hidden rounded-2xl border border-border bg-card md:block">
       <FullCalendar
         ref={calendarRef}
         plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin, listPlugin]}
@@ -272,9 +373,12 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
         firstDay={1}
         headerToolbar={false}
         dayHeaderFormat={{ weekday: 'short', day: 'numeric', omitCommas: true }}
-        slotMinTime="06:00:00"
-        slotMaxTime="22:00:00"
-        slotDuration="00:30:00"
+        // GYM-234 — dérivées des MÊMES constantes que le calcul du clic droit. Les laisser
+        // en dur ici, c'était garantir qu'élargir la grille désaligne silencieusement la
+        // création : le clic droit aurait continué de compter depuis 06:00.
+        slotMinTime={`${pad(SLOT_MIN_HOUR)}:00:00`}
+        slotMaxTime={`${pad(SLOT_MAX_HOUR)}:00:00`}
+        slotDuration={`00:${pad(SLOT_STEP_MIN)}:00`}
         allDaySlot={false}
         nowIndicator
         height="auto"
@@ -282,10 +386,6 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
         events={events}
         editable
         droppable={false}
-        selectable={!!onSlotCreate}
-        selectMirror={false}
-        selectAllow={() => !!onSlotCreate}
-        select={handleDateClick}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}
         eventOverlap

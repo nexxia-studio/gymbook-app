@@ -188,8 +188,31 @@ body {
 .fc .gymbook-event.fc-event-dragging,
 .fc .gymbook-event.fc-event-resizing { opacity: 0.8; }
 
-/* Selectable empty area */
-.fc .fc-timegrid-col.fc-day { cursor: pointer; }
+/* GYM-234 — Zone vide : un CLIC DROIT y ouvre la modale de création, pré-remplie avec la
+   date et l'heure de la case (pas de la grille : 30 min).
+
+   ⚠️ CLIC DROIT, pas gauche (décision Antoine, QA 18/08). D'où le retrait de
+   `cursor: pointer` : il annonçait un clic GAUCHE actionnable, et le clic gauche ne fait
+   plus rien sur une case vide. Un curseur qui promet un geste inexistant est pire que pas
+   de curseur — c'était déjà son défaut avant ce lot, dans l'autre sens.
+
+   L'INDICE DE SURVOL porte sur la COLONNE DE JOUR, pas sur la case. C'est une contrainte
+   de structure, pas un choix de confort : en timeGrid, FullCalendar superpose une table de
+   lanes horizontales (pleine largeur, non subdivisées par jour) et des colonnes en
+   absolu — aucun élément ne correspond à une case « jour × demi-heure », donc aucun
+   sélecteur CSS ne peut la cibler seule.
+
+   Teinte très faible (3 %) et transition douce : la grille doit répondre au survol, pas
+   clignoter. Un « + » par case aurait demandé de rendre des cellules fantômes en JS sur
+   les 32 créneaux × 7 jours de la vue — beaucoup de nœuds pour un indice que la teinte
+   donne déjà. */
+.fc .fc-timegrid-col.fc-day:hover {
+  background-color: color-mix(in srgb, var(--color-dark) 3%, transparent);
+  transition: background-color 120ms ease-out;
+}
+/* L'événement reprend la main : survoler un cours existant ne doit pas suggérer qu'on
+   va en créer un par-dessus — son propre survol (brightness) s'applique déjà. */
+.fc .fc-timegrid-col.fc-day:has(.gymbook-event:hover) { background-color: transparent; }
 .fc .fc-highlight { background-color: var(--fc-highlight-color); }
 
 /* Month view — compact cells */
