@@ -185,6 +185,13 @@
     "no_results_hint": "Try adjusting your filters",
     "reset_filters": "Reset filters"
   },
+  "open_gym": {
+    "free_access": "Free access",
+    "range": "from {{from}} to {{to}}",
+    "choose_slot": "Pick your time slot",
+    "show": "Slots",
+    "hide": "Hide"
+  },
   "planning": {
     "status": {
       "scheduled": "Scheduled",

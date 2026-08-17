@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { GYM_ID } from '../constants/dopamine'
+import { groupDayEntries, type DayEntry } from '../lib/openGymGroup'
 
 export interface ScheduleSlot {
   id: string
@@ -18,12 +19,26 @@ export interface ScheduleSlot {
   color: string
   /** GYM-220 — activities.icon (nom de composant lucide). Vide/inconnu → icône par défaut. */
   icon: string | null
+  /**
+   * GYM-228 — activité en ACCÈS LIBRE (pas de coach, GYM-229). Critère de regroupement.
+   *
+   * ⚠️ Repli sur `true` : une activité lue avant la migration GYM-229 garde le
+   * comportement historique (une carte par créneau). Replier sur `false` agrégerait des
+   * cours collectifs sous une carte « Open Gym ».
+   */
+  requiresCoach: boolean
 }
 
 export interface DaySection {
   date: Date
   dateStr: string
-  data: ScheduleSlot[]
+  /**
+   * GYM-228 — entrées de la journée : un cours normal, ou UNE carte agrégée pour tous les
+   * créneaux d'une même activité en accès libre. La SectionList rend donc un type
+   * discriminé, pas des créneaux bruts : sans cela, les 14 créneaux Open Gym générés
+   * chaque jour repousseraient le premier vrai cours hors de l'écran.
+   */
+  data: DayEntry<ScheduleSlot>[]
 }
 
 import { formatTime, formatDateStr as formatDateStrTz, toLocalTime } from '../utils/timezone'
@@ -59,7 +74,7 @@ export function useSchedule() {
         .from('time_slots')
         .select(`
           id, activity_id, starts_at, ends_at, capacity, bookings_count,
-          activities(name, color, duration_min, icon),
+          activities(name, color, duration_min, icon, requires_coach),
           coaches(name)
         `)
         .eq('gym_id', GYM_ID)
@@ -90,6 +105,7 @@ export function useSchedule() {
           booked: (row.bookings_count as number) ?? 0,
           color: (act?.color as string) ?? '#4ECDC4',
           icon: (act?.icon as string | null) ?? null,
+          requiresCoach: (act?.requires_coach as boolean | undefined) ?? true,
         }
       }))
     } catch (e) {
@@ -174,9 +190,12 @@ export function useSchedule() {
       if (!map.has(slot.date)) map.set(slot.date, [])
       map.get(slot.date)!.push(slot)
     }
-    return Array.from(map.entries()).map(([dateStr, data]) => {
+    return Array.from(map.entries()).map(([dateStr, daySlots]) => {
       const [y, mo, d] = dateStr.split('-').map(Number)
-      return { date: new Date(y, mo - 1, d), dateStr, data }
+      // ⚠️ REGROUPEMENT APRÈS FILTRAGE : la carte agrégée ne doit annoncer que des
+      // créneaux réellement affichés. Grouper avant, puis filtrer, laisserait une
+      // amplitude « de 7h à 22h » au-dessus de deux créneaux survivants.
+      return { date: new Date(y, mo - 1, d), dateStr, data: groupDayEntries(daySlots) }
     })
   }, [filteredSlots])
 
