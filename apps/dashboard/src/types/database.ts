@@ -24,6 +24,7 @@ export type Database = {
           description: string | null
           duration_min: number
           gym_id: string
+          hidden_in_planning: boolean
           icon: string | null
           id: string
           image_url: string | null
@@ -43,6 +44,7 @@ export type Database = {
           description?: string | null
           duration_min?: number
           gym_id: string
+          hidden_in_planning?: boolean
           icon?: string | null
           id?: string
           image_url?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           description?: string | null
           duration_min?: number
           gym_id?: string
+          hidden_in_planning?: boolean
           icon?: string | null
           id?: string
           image_url?: string | null

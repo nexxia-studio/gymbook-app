@@ -350,7 +350,9 @@
     "filter_coaches": "Coachs",
     "filter_activities": "Activités",
     "filter_statuses": "Statut",
-    "filter_reset": "Réinitialiser"
+    "filter_reset": "Réinitialiser",
+    "hidden_activities": "{{names}} masqué",
+    "hidden_activities_hint": "Cliquez pour afficher ces créneaux dans le planning."
   },
   "open_gym": {
     "action": "Open Gym",
@@ -918,7 +920,9 @@
       "capacity_max": "Maximum 100 places"
     },
     "requires_coach": "Cette activité nécessite un coach",
-    "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym)."
+    "requires_coach_hint": "Décochez pour les créneaux en accès libre, sans encadrement (Open Gym).",
+    "hidden_in_planning": "Masquer par défaut dans le planning",
+    "hidden_in_planning_hint": "Pour les activités à forte volumétrie comme l'Open Gym. L'activité reste visible et réservable par les membres."
   },
   "coaches": {
     "title": "Coaches",

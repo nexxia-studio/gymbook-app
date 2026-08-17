@@ -372,6 +372,8 @@ export default function Planning() {
           onStatusChange={planning.setFilterStatus}
           hasActiveFilters={planning.hasActiveFilters}
           onReset={planning.resetFilters}
+          hiddenActivityIds={planning.hiddenActivityIds}
+          onShowHidden={planning.showHiddenActivities}
         />
       </div>
 

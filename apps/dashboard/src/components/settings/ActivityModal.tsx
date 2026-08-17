@@ -35,6 +35,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
     // GYM-229 — coché par défaut : l'immense majorité des cours ont un coach, et c'est
     // le comportement historique. Décocher est la décision, pas cocher.
     requiresCoach: true,
+    hiddenInPlanning: false,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [slugManual, setSlugManual] = useState(false)
@@ -53,13 +54,14 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
         color: editActivity.color,
         requiresMedicalCheck: editActivity.requiresMedicalCheck,
         requiresCoach: editActivity.requiresCoach,
+        hiddenInPlanning: editActivity.hiddenInPlanning,
       })
       setSlugManual(true)
     } else {
       setForm({
         name: '', slug: '', description: '', durationMin: 60,
         defaultCapacity: 16, level: 'all', icon: 'Dumbbell',
-        color: '#4ECDC4', requiresMedicalCheck: false, requiresCoach: true,
+        color: '#4ECDC4', requiresMedicalCheck: false, requiresCoach: true, hiddenInPlanning: false,
       })
       setSlugManual(false)
     }

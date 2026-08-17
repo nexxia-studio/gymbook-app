@@ -350,7 +350,9 @@
     "filter_coaches": "Coaches",
     "filter_activities": "Activities",
     "filter_statuses": "Status",
-    "filter_reset": "Reset"
+    "filter_reset": "Reset",
+    "hidden_activities": "{{names}} hidden",
+    "hidden_activities_hint": "Click to show these slots in the planning."
   },
   "open_gym": {
     "action": "Open Gym",
@@ -918,7 +920,9 @@
       "capacity_max": "Maximum 100 spots"
     },
     "requires_coach": "This activity requires a coach",
-    "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym)."
+    "requires_coach_hint": "Uncheck for open-access slots with no supervision (Open Gym).",
+    "hidden_in_planning": "Hide by default in the planning",
+    "hidden_in_planning_hint": "For high-volume activities such as Open Gym. The activity stays visible and bookable for members."
   },
   "coaches": {
     "title": "Coaches",
