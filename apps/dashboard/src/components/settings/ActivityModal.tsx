@@ -288,6 +288,29 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
                 </span>
               </span>
             </label>
+
+            {/* GYM-228 — 🔴 CETTE CASE MANQUAIT À L'ÉCRAN. L'état du formulaire portait
+                `hiddenInPlanning`, le payload l'envoyait, l'écriture réussissait — mais rien
+                ne permettait de le cocher. La valeur restait donc à `false` et était
+                fidèlement enregistrée à `false`. Un champ correct de bout en bout, sauf là
+                où on le manipule.
+
+                Confort de lecture du planning GÉRANT : l'activité reste visible côté membre
+                et reste réservable. Ce n'est jamais une règle métier. */}
+            <label className="flex items-start gap-3 rounded-xl border border-border p-4">
+              <input
+                type="checkbox"
+                checked={form.hiddenInPlanning}
+                onChange={(e) => setForm((f) => ({ ...f, hiddenInPlanning: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 rounded accent-accent"
+              />
+              <span>
+                <span className={`${labelClass} block`}>{t('activities.hidden_in_planning')}</span>
+                <span className="mt-0.5 block font-body text-xs text-muted">
+                  {t('activities.hidden_in_planning_hint')}
+                </span>
+              </span>
+            </label>
           </div>
         </form>
 
