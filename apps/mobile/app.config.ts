@@ -13,9 +13,15 @@ export default {
     // Gym) et GYM-224 (numéro de badge d'accès dans le hero de /profile) — deux
     // ajustements d'affichage, aucune fonctionnalité nouvelle côté membre.
     //
+    // 1.0.4 — build 20, ouvert après approbation du build 19 par Apple le 17/08 (train
+    // 1.0.3 fermé). Incrément PATCH : GYM-228 volet 5 (les créneaux Open Gym d'une même
+    // journée regroupés en une carte unique sur /accueil et /planning) et GYM-239 (minimum
+    // ramené à 8 caractères, aligné sur la politique serveur, et espaces de bordure rognées
+    // à la saisie du mot de passe).
+    //
     // Le buildNumber, lui, n'est PAS déclaré ici : eas.json le gère
     // (appVersionSource "remote" + autoIncrement).
-    version: '1.0.3',
+    version: '1.0.4',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,

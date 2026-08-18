@@ -9,7 +9,10 @@ export interface PasswordRule {
   test: (pwd: string) => boolean
 }
 
-// minLength : 8 (politique serveur) côté reset/changement ; 12 conservé à l'inscription.
+// minLength : 8 partout — c'est la valeur de la politique serveur (Supabase Auth, prod).
+// GYM-239 a supprimé le 12 de l'inscription, qui rendait l'app plus stricte que le serveur
+// sans raison documentée. Le paramètre reste explicite chez les appelants plutôt que
+// caché ici : le jour où le serveur bougera, on veut voir QUELS écrans suivent.
 export function passwordRules(minLength = 8): PasswordRule[] {
   return [
     { id: 'length', test: (p) => p.length >= minLength },

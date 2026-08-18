@@ -4,7 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import * as Linking from 'expo-linking'
 import { useTranslation } from 'react-i18next'
-import { TextInput } from '../../components/ui/TextInput'
+// GYM-239 — PasswordInput, PAS le TextInput générique. C'est lui qui rogne les espaces de
+// bordure ajoutées par le clavier iOS (cf. le composant). Cet écran est celui où un membre
+// DÉFINIT un nouveau mot de passe : s'il y échappait, on enregistrerait ici un mot de passe
+// avec une espace finale que l'écran de connexion — lui rogné — ne pourrait plus jamais
+// reproduire. Le membre serait enfermé dehors par le correctif censé l'aider.
+import { PasswordInput } from '../../components/ui/PasswordInput'
 import { PasswordRules } from '../../components/ui/PasswordRules'
 import { supabase } from '../../lib/supabase'
 import { validatePassword, mapPasswordError } from '../../lib/passwordPolicy'
@@ -168,9 +173,8 @@ export default function ResetPassword() {
 
             <View className="gap-4">
               <View className="gap-2">
-                <TextInput
+                <PasswordInput
                   label={t('reset.new_password')}
-                  secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
                   textContentType="newPassword"
@@ -179,9 +183,8 @@ export default function ResetPassword() {
                 />
                 <PasswordRules password={password} minLength={MIN_PASSWORD} />
               </View>
-              <TextInput
+              <PasswordInput
                 label={t('reset.confirm_password')}
-                secureTextEntry
                 autoCapitalize="none"
                 autoComplete="password-new"
                 textContentType="newPassword"
