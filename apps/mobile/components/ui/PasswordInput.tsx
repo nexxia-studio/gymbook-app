@@ -1,3 +1,21 @@
+// GYM-239 — Champ de mot de passe. C'EST ICI QUE LES ESPACES SONT ROGNÉES.
+//
+// VÉCU LE 18/08 : un futur client de Dopamine n'a pas pu créer son compte. Son mot de
+// passe de 17 caractères validait les cinq règles en vert, et la confirmation répondait
+// « les mots de passe ne correspondent pas ». Le clavier iOS avait ajouté une espace après
+// le caractère spécial final — invisible dans un champ masqué, impossible à diagnostiquer
+// pour lui. Il a abandonné.
+//
+// ⚠️ POURQUOI À LA SAISIE, ET SURTOUT PAS À LA VALIDATION. Rogner au moment de valider
+// l'INSCRIPTION créerait un compte enregistré SANS l'espace ; à la connexion, le membre
+// retaperait son mot de passe AVEC, et serait refusé sans jamais comprendre pourquoi. Le
+// trim doit valoir PARTOUT ou NULLE PART — et le seul endroit qui garantit « partout »,
+// c'est le composant que tous les écrans utilisent. Un écran ne peut pas l'oublier.
+//
+// ⚠️ CE QUE ÇA NE FAIT PAS. `trim()` ne retire que les espaces de DÉBUT et de FIN :
+// « Mon mot 2026! » reste intact, espaces intérieures comprises. Aucun mot de passe
+// légitime ne se distingue d'un autre par une espace en bordure — un champ masqué ne
+// permet ni de la voir ni de la retaper de façon fiable.
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, type TextInputProps } from 'react-native'
 import { Eye, EyeOff } from 'lucide-react-native'
@@ -7,7 +25,7 @@ interface PasswordInputProps extends Omit<TextInputProps, 'secureTextEntry'> {
   error?: string
 }
 
-export function PasswordInput({ label, error, style, ...props }: PasswordInputProps) {
+export function PasswordInput({ label, error, style, onChangeText, ...props }: PasswordInputProps) {
   const [visible, setVisible] = useState(false)
 
   return (
@@ -16,6 +34,9 @@ export function PasswordInput({ label, error, style, ...props }: PasswordInputPr
       <View className="relative">
         <TextInput
           secureTextEntry={!visible}
+          // Rogné À CHAQUE FRAPPE : l'appelant ne voit jamais la valeur non rognée, donc
+          // aucun écran ne peut en enregistrer une par inadvertance.
+          onChangeText={(v) => onChangeText?.(v.trim())}
           placeholderTextColor="#9A9890"
           style={style}
           className={`rounded-2xl border bg-white px-4 py-3.5 pr-12 font-dmsans text-sm text-move-dark ${
