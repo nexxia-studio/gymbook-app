@@ -23,9 +23,18 @@ interface FormErrors {
   privacy?: string
 }
 
-// Le compte membre conserve le minimum plus élevé (12) déjà imposé à l'inscription —
-// mêmes règles de caractères (miroir de la politique serveur).
-const SIGNUP_MIN_LENGTH = 12
+// GYM-239 — MÊME MINIMUM QUE LE SERVEUR : 8 caractères (Supabase Auth, prod).
+//
+// L'inscription exigeait 12 là où le serveur se contente de 8. Personne ne pouvait dire
+// d'où venait l'écart : le commentaire invoquait un « miroir de la politique serveur »
+// pour justifier une valeur qui, précisément, ne la reflétait pas. Un membre de salle de
+// sport n'est pas un utilisateur technique, et cette sévérité gratuite se payait à
+// l'endroit le plus coûteux du produit — la création de compte.
+//
+// ⚠️ SEUL LE NOMBRE BAISSE. Les quatre règles de caractères (minuscule, majuscule,
+// chiffre, spécial) sont conservées : c'est la longueur qui bloquait inutilement, pas la
+// complexité. `validatePassword` les applique toutes, quel que soit ce minimum.
+const SIGNUP_MIN_LENGTH = 8
 
 export default function Signup() {
   const { t } = useTranslation()
