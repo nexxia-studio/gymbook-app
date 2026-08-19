@@ -488,7 +488,9 @@
     "timeout_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
     "check_again": "Vérifier à nouveau",
     "modal_success_title": "Paiement réussi",
-    "modal_success_body": "Ton paiement a bien été confirmé."
+    "modal_success_body": "Ton paiement a bien été confirmé.",
+    "offline_title": "Connexion perdue",
+    "offline_hint": "Ton paiement n'est pas perdu — on réessaie dès que la connexion revient."
   },
   "payments": {
     "title": "Historique des paiements",

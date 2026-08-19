@@ -16,6 +16,7 @@ import Svg, { Circle } from 'react-native-svg'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useProgression } from '../../hooks/useProgression'
 import { getLevelInfo } from '../../utils/gamification'
+import { getGymMonday } from '../../utils/timezone'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 const EASE_OUT = Easing.out(Easing.cubic)
@@ -249,10 +250,10 @@ function HistoBar({ count, maxCount, index, recent }: { count: number; maxCount:
 
 function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
   const weekMap = new Map(data.map((d) => [d.week, d.count]))
-  const now = new Date()
-  const thisMonday = new Date(now)
-  thisMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-  thisMonday.setHours(0, 0, 0, 0)
+  // GYM-93 — frontières de semaine sur l'horloge de la SALLE, pas du téléphone. Même
+  // défaut que le filtre de période du planning : le dimanche soir à Bruxelles est déjà
+  // lundi plus à l'est, et toute la grille des 26 semaines glissait d'une colonne.
+  const thisMonday = getGymMonday()
 
   const weeks: { key: string; count: number }[] = []
   for (let w = 25; w >= 0; w--) {
