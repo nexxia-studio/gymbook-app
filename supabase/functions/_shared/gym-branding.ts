@@ -171,7 +171,15 @@ function headerHtml(b: GymBranding): string {
   const inner = isUsablePng
     ? `<img src="${escapeAttr(logo!)}" alt="${escapeAttr(b.name)}" width="160" style="display:block;margin:0 auto;width:160px;max-width:160px;height:auto;border:0;" />`
     : `<span style="font-family:'Arial Black',Arial,sans-serif;color:${escapeAttr(b.primaryColor)};font-size:24px;letter-spacing:2px;">${escapeHtml(b.name.toUpperCase())}</span>`
-  return `<div style="background:${escapeAttr(b.secondaryColor)};padding:24px;border-radius:16px 16px 0 0;text-align:center;">${inner}</div>`
+  // ⚠️ LE FOND VIENT DE `secondary_color`, LU EN BASE — il n'a jamais été écrit en dur, et
+  // il ne l'est toujours pas. Le passage de #111111 à #000000 demandé en QA (le logo de
+  // Dopamine a un fond noir pur, et le carré se détachait sur le #111111) est donc un
+  // geste de COCKPIT sur nexxia_gyms.secondary_color : rien à coder ici, et c'est
+  // exactement ce que la lecture en base devait permettre.
+  //
+  // `background-color` explicite plutôt que le raccourci `background`, et `color-scheme`
+  // inline : sans couleur déclarée sur l'élément, c'est ici que l'inversion frappait.
+  return `<div style="background-color:${escapeAttr(b.secondaryColor)};color-scheme:light only;padding:24px;border-radius:16px 16px 0 0;text-align:center;">${inner}</div>`
 }
 
 /**
@@ -186,15 +194,26 @@ function headerHtml(b: GymBranding): string {
  * leçon de GYM-229 (le « Coach : » vide des créneaux Open Gym) appliquée ici.
  */
 function footerHtml(b: GymBranding): string {
+  // GYM-238 (finitions QA du 19/08) — TROIS LIGNES, dans cet ordre : nom, adresse
+  // complète, contact. Tout tenait sur une ligne séparée par des points médians, ce qui
+  // rendait l'adresse illisible sur un écran de téléphone.
+  //
+  // ⚠️ SÉPARÉES PAR DES <br>, PAS PAR DES RETOURS À LA LIGNE. Un saut de ligne dans le
+  // source HTML est rendu comme une espace : les trois lignes seraient revenues sur une.
+  //
+  // ⚠️ CHAQUE LIGNE N'APPARAÎT QUE SI SA DONNÉE EXISTE. `phone` est NULL en production et
+  // le restera tant que le gérant ne l'aura pas renseigné : pas de ligne vide, pas de
+  // libellé orphelin, pas de séparateur suspendu. C'est la règle GYM-229, appliquée
+  // ligne par ligne plutôt qu'au bloc entier.
   const place = [b.address, [b.postalCode, b.city].filter(Boolean).join(' ')]
     .filter(Boolean)
     .join(', ')
-  const identity = [b.name, place].filter(Boolean).join(' · ')
+  // Le contact tient sur la même ligne quand les deux existent — le téléphone n'a pas de
+  // ligne à lui : il complète l'email, il ne le remplace pas.
   const contact = [b.email, b.phone].filter(Boolean).join(' · ')
-  const contactLine = contact
-    ? `<p style="text-align:center;color:#9A9890;font-size:11px;margin:4px 0 0;">${escapeHtml(contact)}</p>`
-    : ''
-  return `<p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">${escapeHtml(identity)}</p>${contactLine}`
+  const lines = [b.name, place, contact].filter(Boolean).map(escapeHtml)
+  if (lines.length === 0) return ''
+  return `<div style="background-color:#F5F4F0;color-scheme:light only;padding:16px 0 0;"><p style="text-align:center;color:#6B6861;font-size:11px;line-height:1.7;margin:0;">${lines.join('<br />')}</p></div>`
 }
 
 export interface EmailShellOptions {
@@ -225,11 +244,45 @@ export interface EmailShellOptions {
 export function emailShell(b: GymBranding, o: EmailShellOptions): string {
   const href = o.ctaUrl ?? (o.ctaPath ? memberLink(b, o.ctaPath) : '')
   const cta = o.ctaLabel && href
-    ? `<div style="text-align:center;margin:24px 0 0;"><a href="${escapeAttr(href)}" style="display:inline-block;background:${escapeAttr(b.primaryColor)};color:${escapeAttr(b.secondaryColor)};font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">${escapeHtml(o.ctaLabel)}</a></div>`
+    // ⚠️ CONTRASTE : fond = `primary_color` (le lime #C8F000 chez Dopamine), texte =
+    // `secondary_color`, donc SOMBRE SUR CLAIR. L'inverse — un texte clair sur ce lime —
+    // serait illisible. Les deux valeurs viennent de la base, elles n'ont jamais été
+    // écrites en dur ici.
+    ? `<div style="text-align:center;margin:24px 0 0;"><a href="${escapeAttr(href)}" style="display:inline-block;background-color:${escapeAttr(b.primaryColor)};color:${escapeAttr(b.secondaryColor)};color-scheme:light only;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">${escapeHtml(o.ctaLabel)}</a></div>`
     : ''
   const emoji = o.emoji ? `<div style="font-size:28px;margin-bottom:12px;">${o.emoji}</div>` : ''
   const width = o.width ?? 520
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:${width}px;margin:0 auto;">${headerHtml(b)}<div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;">${emoji}<h2 style="margin:0 0 8px;color:#111111;font-size:20px;">${escapeHtml(o.title)}</h2>${o.bodyHtml}${cta}</div>${footerHtml(b)}</div></div>`
+  // 🔴 GYM-238 (QA du 19/08) — L'EMAIL EST RENDU EN DOCUMENT COMPLET, ET C'EST CE QUI
+  // CORRIGE L'INVERSION EN MODE SOMBRE. Il n'était qu'un fragment `<div>` : sans <head>,
+  // aucune directive de thème ne pouvait être posée, et Apple Mail appliquait sa PROPRE
+  // inversion sur iPhone — Antoine a reçu un email au corps #111111 sous un en-tête blanc
+  // cassé, exactement l'inverse de ce qui était prévu. Illisible pour tout membre en mode
+  // sombre, c'est-à-dire pour beaucoup de monde.
+  //
+  // ⚠️ ON NE FAIT PAS UN EMAIL ADAPTATIF. L'objectif est qu'il s'affiche TOUJOURS comme
+  // prévu, pas qu'il se décline en deux thèmes — c'est un chantier à part.
+  //
+  // TROIS NIVEAUX, PARCE QU'UN SEUL NE SUFFIT PAS :
+  //  1. les deux <meta> de thème, comprises par Apple Mail et iOS ;
+  //  2. `color-scheme: light only` en ligne sur chaque bloc porteur de couleur, pour les
+  //     clients qui ignorent le <head> mais lisent les styles inline ;
+  //  3. ⚠️ LE PLUS IMPORTANT : un `background-color` EXPLICITE sur chaque élément, y
+  //     compris ceux qui n'en avaient pas besoin visuellement (le <body>, la colonne
+  //     centrale, le pied). L'inversion frappe d'abord les zones SANS couleur déclarée —
+  //     compter sur un fond hérité, c'est précisément ce qui a laissé Apple Mail décider.
+  return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<style>:root { color-scheme: light only; supported-color-schemes: light only; }</style>
+</head>
+<body style="margin:0;padding:0;background-color:#F5F4F0;color-scheme:light only;">
+<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background-color:#F5F4F0;color-scheme:light only;padding:40px 20px;"><div style="max-width:${width}px;margin:0 auto;background-color:#F5F4F0;color-scheme:light only;">${headerHtml(b)}<div style="background-color:#FFFFFF;color-scheme:light only;padding:32px 28px;border-radius:0 0 16px 16px;">${emoji}<h2 style="margin:0 0 8px;color:#111111;font-size:20px;">${escapeHtml(o.title)}</h2>${o.bodyHtml}${cta}</div>${footerHtml(b)}</div></div>
+</body>
+</html>`
 }
 
 /**
