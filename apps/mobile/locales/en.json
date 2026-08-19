@@ -205,7 +205,10 @@
     "range": "from {{from}} to {{to}}",
     "choose_slot": "Pick your time slot",
     "show": "Slots",
-    "hide": "Hide"
+    "hide": "Hide",
+    "slots_left": "{{count}} slots",
+    "slots_one": "1 slot",
+    "full_day": "Full"
   },
   "planning": {
     "status": {

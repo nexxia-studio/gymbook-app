@@ -150,3 +150,29 @@ export function formatAmplitudeHour(time: string): string {
   const hh = String(Number(h))
   return m === '00' ? `${hh}h` : `${hh}h${m}`
 }
+
+/**
+ * GYM-242 — Nombre de créneaux ENCORE DISPONIBLES dans un groupe d'accès libre.
+ *
+ * 🔴 CE QU'ON REMPLACE. La carte agrégée affichait « 60 places » : la SOMME des capacités
+ * de créneaux INDÉPENDANTS. Pour un membre, ce nombre ne veut rien dire — il ne peut
+ * réserver qu'UN créneau, à 8 places. Additionner des capacités qui ne se cumulent nulle
+ * part produisait un chiffre impressionnant et faux.
+ *
+ * Ce qui l'aide à décider, c'est COMBIEN DE CRÉNEAUX lui restent ouverts aujourd'hui :
+ * « 8 créneaux » = il a le choix, « 2 créneaux » = ça se remplit, « 0 » = complet.
+ *
+ * ⚠️ MÊME PRÉDICAT QUE LES CARTES DE COURS NORMALES : `booked < capacity`, celui
+ * qu'emploient déjà WeekSlots et les cartes de créneau. On n'écrit pas un second calcul de
+ * disponibilité — deux définitions de « disponible » finiraient par diverger.
+ *
+ * ⚠️ LES CARTES DE COURS NORMALES NE CHANGENT PAS. Elles continuent d'annoncer des PLACES
+ * (« 12 places », « 2 places »), et c'est juste : sur un créneau unique, la place est
+ * l'unité qui compte. Seule la carte AGRÉGÉE change de langage, parce qu'elle seule
+ * additionnait des capacités indépendantes.
+ */
+export function availableSlotCount<T extends GroupableSlot & { capacity: number; booked: number }>(
+  slots: T[],
+): number {
+  return slots.filter((s) => s.booked < s.capacity).length
+}

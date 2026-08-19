@@ -205,7 +205,10 @@
     "range": "de {{from}} à {{to}}",
     "choose_slot": "Choisissez votre créneau",
     "show": "Créneaux",
-    "hide": "Masquer"
+    "hide": "Masquer",
+    "slots_left": "{{count}} créneaux",
+    "slots_one": "1 créneau",
+    "full_day": "Complet"
   },
   "planning": {
     "status": {
