@@ -1556,6 +1556,7 @@ export type Database = {
           legal_name: string | null
           legal_postal_code: string | null
           logo_url: string | null
+          booking_horizon_days: number
           max_active_bookings: number | null
           mollie_profile_id: string | null
           mollie_vault_secret_id: string | null
@@ -1603,6 +1604,7 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           logo_url?: string | null
+          booking_horizon_days?: number
           max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
@@ -1651,6 +1653,7 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           logo_url?: string | null
+          booking_horizon_days?: number
           max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
@@ -1893,6 +1896,7 @@ export type Database = {
           gym_id: string
           id: string
           late_cancel_hours: number | null
+          booking_horizon_days: number
           max_active_bookings: number | null
           reset_after_days: number | null
           suspension_at: number | null
@@ -1908,6 +1912,7 @@ export type Database = {
           gym_id: string
           id?: string
           late_cancel_hours?: number | null
+          booking_horizon_days?: number
           max_active_bookings?: number | null
           reset_after_days?: number | null
           suspension_at?: number | null
@@ -1923,6 +1928,7 @@ export type Database = {
           gym_id?: string
           id?: string
           late_cancel_hours?: number | null
+          booking_horizon_days?: number
           max_active_bookings?: number | null
           reset_after_days?: number | null
           suspension_at?: number | null
