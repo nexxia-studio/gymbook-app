@@ -8,6 +8,8 @@
 //  - notifie chaque inscrit (push Expo + email Resend brandé), best-effort et jamais
 //    bloquant (pattern GYM-134 : une notification qui échoue n'annule pas l'annulation).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — en-tête, pied, bouton et expéditeur composés depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,6 +38,7 @@ function errorResponse(status: number, code: string, message?: string) {
 }
 
 function cancelEmailHtml(
+  gym: GymBranding,
   firstName: string | null,
   activityName: string,
   dateStr: string,
@@ -50,7 +53,19 @@ function cancelEmailHtml(
   const creditBlock = creditRefunded
     ? `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Bonne nouvelle : ton crédit t'a été rendu, tu peux réserver un autre cours.</p>`
     : ''
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><div style="font-size:28px;margin-bottom:12px;">⚠️</div><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Cours annulé</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ton cours <strong>${activityName}</strong> du ${dateStr} à ${timeStr} a été annulé.</p>${reasonBlock}${creditBlock}<a href="dopamine://bookings" style="display:inline-block;background:#C8F000;color:#111111;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;margin-top:8px;">Voir le planning →</a></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
+  // GYM-238 — le corps seul ; l'en-tête (logo ou nom de la salle), le pied (adresse
+  // composée en base) et le bouton sont rendus par la coquille partagée.
+  return emailShell(gym, {
+    emoji: '⚠️',
+    title: 'Cours annulé',
+    bodyHtml:
+      `<p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ton cours <strong>${activityName}</strong> du ${dateStr} à ${timeStr} a été annulé.</p>` +
+      reasonBlock + creditBlock,
+    ctaLabel: 'Voir le planning →',
+    // 🔴 ÉTAIT `dopamine://bookings` : inerte dans tout client mail. Universal Link.
+    ctaPath: 'bookings',
+  })
 }
 
 Deno.serve(async (req) => {
@@ -128,6 +143,11 @@ Deno.serve(async (req) => {
       timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
     })
 
+    // GYM-238 — UNE seule lecture de l'identité de la salle pour tout le lot d'emails,
+    // hors de la boucle : la relire par destinataire ferait N requêtes pour une donnée qui
+    // ne change pas d'un membre à l'autre.
+    const gym = await loadGymBranding(admin, adminProfile.gym_id as string)
+
     let notified = 0
     for (const m of affected) {
       let reached = false
@@ -160,10 +180,10 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
-              from: 'Dopamine Performance Club <noreply@viniz.app>',
+              from: emailSender(gym),
               to: m.email,
               subject: `Cours annulé — ${activityName} du ${dateStr}`,
-              html: cancelEmailHtml(m.first_name, activityName, dateStr, timeStr, reason, m.credit_refunded),
+              html: cancelEmailHtml(gym, m.first_name, activityName, dateStr, timeStr, reason, m.credit_refunded),
             }),
           })
           if (resp.ok) reached = true

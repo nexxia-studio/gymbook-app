@@ -1,4 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell } from '../_shared/gym-branding.ts'
+
+// L'embed to-one (activities, coaches) est typé en TABLEAU par le client généré ; à
+// l'exécution PostgREST renvoie un objet unique. Même contournement qu'admin-book-member.
+function embeddedName(rel: unknown, fallback: string): string {
+  const value = rel as { name?: string } | { name?: string }[] | null
+  const one = Array.isArray(value) ? value[0] ?? null : value
+  return one?.name ?? fallback
+}
 // GYM-226 — les quatre lectures de garde (quota salle, abonnement ouvrant, crédit
 // disponible, plafond de réservations à venir) vivent désormais dans _shared, partagées
 // avec admin-book-member. EXTRACTION PURE : requêtes, filtres et replis inchangés.
@@ -234,8 +244,13 @@ Deno.serve(async (req) => {
 
     // 9. Send confirmation email (non-blocking)
     // (trigger trg_update_bookings_count maintains time_slots.bookings_count)
-    const activityName = (slot.activities as { name: string } | null)?.name ?? 'Cours'
-    const coachName = (slot.coaches as { name: string } | null)?.name ?? ''
+    // ⚠️ CORRECTIF PRÉALABLE (GYM-238) : ces deux casts faisaient ÉCHOUER `deno check` sur
+    // cette fonction, AVANT ce lot — l'embed to-one est typé en TABLEAU par le client
+    // généré alors que PostgREST renvoie un objet unique. Le dépôt a déjà la parade, dans
+    // admin-book-member et mark-attendance : passer par `unknown`, puis tolérer les deux
+    // formes. Sans ça, le gate « deno check → exit 0 » de ce lot était inatteignable ici.
+    const activityName = embeddedName(slot.activities, 'Cours')
+    const coachName = embeddedName(slot.coaches, '')
     // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
     // aucun : un libellé « Coach » suivi d'un blanc n'informe de rien et se lit comme une
     // donnée manquante. Le bloc entier disparaît, libellé compris.
@@ -255,6 +270,11 @@ Deno.serve(async (req) => {
           timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
         })
 
+        // GYM-238 — 🔴 C'EST CET EMAIL QU'ANTOINE A REÇU EN QA LE 18/08 : le bouton
+        // « Voir ma réservation » pointait `dopamine://bookings`, inerte dans Gmail comme
+        // dans Apple Mail. Il devient un Universal Link, et toute la chrome est lue en base.
+        const gym = await loadGymBranding(supabaseAdmin, slot.gym_id as string)
+
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -262,27 +282,19 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${resendKey}`,
           },
           body: JSON.stringify({
-            from: 'Dopamine <noreply@viniz.app>',
+            from: emailSender(gym),
             to: profile.email,
             subject: `Réservation confirmée — ${activityName}`,
-            html: `
-              <div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;">
-                <div style="max-width:480px;margin:0 auto;">
-                  <div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;">
-                    <span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span>
-                  </div>
-                  <div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;">
-                    <h2 style="margin:0 0 16px;color:#111111;">Réservation confirmée</h2>
-                    <p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p>
-                    <p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p>
-                    ${coachLine}
-                    <a href="dopamine://bookings" style="display:inline-block;margin-top:24px;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-                      Voir ma réservation
-                    </a>
-                  </div>
-                </div>
-              </div>
-            `,
+            html: emailShell(gym, {
+              title: 'Réservation confirmée',
+              width: 480,
+              bodyHtml:
+                `<p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p>` +
+                `<p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p>` +
+                coachLine,
+              ctaLabel: 'Voir ma réservation',
+              ctaPath: 'bookings',
+            }),
           }),
         })
       }

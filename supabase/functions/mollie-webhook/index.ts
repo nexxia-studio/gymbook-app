@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell } from '../_shared/gym-branding.ts'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
 
@@ -294,14 +296,26 @@ Deno.serve(async (req) => {
 
       if (RESEND_KEY && profile?.email) {
         try {
+          // GYM-238 — chrome de la salle, et bouton en Universal Link (il pointait
+          // `dopamine://bookings`, inerte dans tout client mail).
+          const gym = await loadGymBranding(supabase, payment.gym_id as string)
           await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
-              from: 'Dopamine <noreply@viniz.app>',
+              from: emailSender(gym),
               to: profile.email,
               subject: `Paiement confirmé — ${payment.plan_name}`,
-              html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">✅ Paiement confirmé !</h2><p style="color:#6B6861;margin:0 0 8px;"><strong>${payment.plan_name}</strong></p><p style="color:#6B6861;margin:0 0 8px;">Montant : <strong>${payment.amount}€</strong></p><p style="color:#6B6861;margin:0 0 24px;">${deliveredLine}</p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Réserver un cours</a></div></div></div>`,
+              html: emailShell(gym, {
+                title: '✅ Paiement confirmé !',
+                width: 480,
+                bodyHtml:
+                  `<p style="color:#6B6861;margin:0 0 8px;"><strong>${payment.plan_name}</strong></p>` +
+                  `<p style="color:#6B6861;margin:0 0 8px;">Montant : <strong>${payment.amount}€</strong></p>` +
+                  `<p style="color:#6B6861;margin:0 0 24px;">${deliveredLine}</p>`,
+                ctaLabel: 'Réserver un cours',
+                ctaPath: 'bookings',
+              }),
             }),
           })
           console.log('[mollie-webhook] email sent to:', profile.email)

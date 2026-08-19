@@ -8,6 +8,9 @@
 //   booking_id, member_id, gym_id, slot_id, slot_starts_at,
 //   activity_name, coach_name, member_email, member_first_name, push_token, reminder_type
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
@@ -26,11 +29,26 @@ interface PendingReminder {
   reminder_type: '24h' | '2h'
 }
 
-function emailHtml(title: string, body: string, ctaText: string, ctaHref: string): string {
-  return `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">${title}</h2>${body}<div style="margin-top:24px;"><a href="${ctaHref}" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">${ctaText}</a></div></div></div></div>`
+/**
+ * GYM-238 — identité de salle, mise en cache LE TEMPS D'UNE EXÉCUTION.
+ *
+ * ⚠️ SPÉCIFICITÉ DE CETTE FONCTION : c'est un cron qui traite un LOT de rappels, et
+ * `get_pending_reminders` ne borne pas les résultats à une salle. Lire nexxia_gyms par
+ * rappel ferait une requête par membre à prévenir, pour une donnée identique à tous ceux
+ * de la même salle. Le cache est local à l'appel — aucun état ne survit à l'exécution,
+ * donc aucun risque de servir une marque périmée au prochain passage du cron.
+ */
+const brandingCache = new Map<string, GymBranding>()
+
+async function brandingFor(supabase: SupabaseClient, gymId: string): Promise<GymBranding> {
+  const hit = brandingCache.get(gymId)
+  if (hit) return hit
+  const b = await loadGymBranding(supabase, gymId)
+  brandingCache.set(gymId, b)
+  return b
 }
 
-async function sendReminderEmail(reminder: PendingReminder, dateStr: string, timeStr: string) {
+async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingReminder, dateStr: string, timeStr: string) {
   if (!RESEND_KEY || !reminder.member_email) return
   const activityName = reminder.activity_name ?? 'Cours'
   // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
@@ -41,16 +59,20 @@ async function sendReminderEmail(reminder: PendingReminder, dateStr: string, tim
   const coachLine = reminder.coach_name
     ? `<p style="color:#6B6861;">Coach : ${reminder.coach_name}</p>`
     : ''
-  const html = emailHtml(
-    'Rappel — votre cours demain',
-    `<p style="color:#6B6861;">Vous avez un cours demain : <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p>${coachLine}`,
-    'Voir ma réservation', 'dopamine://bookings',
-  )
+  const gym = await brandingFor(supabase, reminder.gym_id)
+  const html = emailShell(gym, {
+    title: 'Rappel — votre cours demain',
+    width: 480,
+    bodyHtml: `<p style="color:#6B6861;">Vous avez un cours demain : <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p>${coachLine}`,
+    ctaLabel: 'Voir ma réservation',
+    // 🔴 ÉTAIT `dopamine://bookings` : inerte dans tout client mail.
+    ctaPath: 'bookings',
+  })
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
     body: JSON.stringify({
-      from: 'Dopamine <noreply@viniz.app>',
+      from: emailSender(gym),
       to: reminder.member_email,
       subject: `Rappel — ${activityName} demain à ${timeStr}`,
       html,
@@ -104,7 +126,7 @@ Deno.serve(async (req) => {
         const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
         if (r.reminder_type === '24h') {
-          await sendReminderEmail(r, dateStr, timeStr)
+          await sendReminderEmail(supabase, r, dateStr, timeStr)
           await sendReminderPush(supabaseUrl, serviceKey, r, timeStr)
         } else if (r.reminder_type === '2h') {
           await sendReminderPush(supabaseUrl, serviceKey, r, timeStr)

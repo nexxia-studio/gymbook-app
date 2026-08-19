@@ -2,6 +2,8 @@
 // prod) : le CLI saute un bundle identique ("No change found"), ce marqueur force un nouveau déploiement.
 // Aucun changement de logique.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,19 +28,26 @@ function errorResponse(status: number, message: string, code?: string) {
   return jsonResponse({ error: true, code: code ?? 'ERROR', message }, status)
 }
 
-function emailHtml(title: string, body: string, ctaText?: string, ctaHref?: string): string {
+function emailHtml(gym: GymBranding, title: string, body: string, ctaText?: string, ctaHref?: string): string {
   const cta = ctaText
     ? `<a href="${ctaHref}" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">${ctaText}</a>`
     : ''
-  return `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">${title}</h2>${body}${cta ? `<div style="margin-top:24px;">${cta}</div>` : ''}</div></div></div>`
+  // GYM-238 — la chrome vient de la salle ; `cta` reste un bloc déjà composé par
+  // l'appelant, donc il est passé dans le corps plutôt que via `ctaLabel`.
+  return emailShell(gym, {
+    title,
+    width: 480,
+    bodyHtml: body + (cta ? `<div style="margin-top:24px;">${cta}</div>` : ''),
+  })
 }
 
-async function sendEmail(resendKey: string, to: string, subject: string, html: string) {
+async function sendEmail(gym: GymBranding, resendKey: string, to: string, subject: string, html: string) {
   try {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-      body: JSON.stringify({ from: 'Dopamine <noreply@viniz.app>', to, subject, html }),
+      // GYM-238 — nom d'expéditeur lu en base ; l'adresse reste le domaine vérifié Resend.
+      body: JSON.stringify({ from: emailSender(gym), to, subject, html }),
     })
   } catch {
     // Non-blocking
@@ -88,6 +97,10 @@ Deno.serve(async (req) => {
     if (!['confirmed', 'waitlisted'].includes(booking.status)) {
       return errorResponse(400, 'Réservation non annulable', 'ALREADY_CANCELLED')
     }
+
+    // GYM-238 — identité de la salle, lue UNE fois : cette fonction peut envoyer jusqu'à
+    // deux emails (l'annulation, et l'avertissement ou la suspension qui l'accompagne).
+    const gym = await loadGymBranding(admin, booking.gym_id as string)
 
     const wasWaitlisted = booking.status === 'waitlisted'
 
@@ -295,14 +308,15 @@ Deno.serve(async (req) => {
               ? new Date(p.suspended_until).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
               : ''
             if (isSuspension) {
-              await sendEmail(resendKey, profile.email,
-                'Compte suspendu — Dopamine',
-                emailHtml('Compte suspendu',
+              await sendEmail(gym, resendKey, profile.email,
+                // GYM-238 — l'objet portait « Dopamine » en dur : il porte le nom de la salle.
+                `Compte suspendu — ${gym.name}`,
+                emailHtml(gym, 'Compte suspendu',
                   `<p style="color:#6B6861;">Votre annulation pour <strong>${activityName}</strong> (${dateStr} à ${timeStr}) est intervenue moins de ${lateCancelHours}h avant le début du cours : elle est traitée comme une absence.</p><p style="color:#6B6861;">Votre compte est suspendu jusqu'au <strong>${untilStr}</strong>. Vous ne pourrez pas réserver pendant cette période.</p>`))
             } else {
-              await sendEmail(resendKey, profile.email,
+              await sendEmail(gym, resendKey, profile.email,
                 'Annulation tardive — avertissement',
-                emailHtml('Annulation tardive',
+                emailHtml(gym, 'Annulation tardive',
                   `<p style="color:#6B6861;">Votre annulation pour <strong>${activityName}</strong> (${dateStr} à ${timeStr}) est intervenue moins de ${lateCancelHours}h avant le début du cours : elle est traitée comme une absence, et la séance n'est pas re-créditée.</p><p style="color:#6B6861;">Ceci est un <strong>avertissement</strong>. En cas de récidive, votre compte pourra être suspendu.</p>`))
             }
           }
@@ -361,9 +375,9 @@ Deno.serve(async (req) => {
       const lateWarning = isLateCancellation
         ? '<p style="color:#EF4444;font-weight:bold;margin-top:16px;">Annulation tardive détectée — voir avertissement séparé.</p>'
         : ''
-      await sendEmail(resendKey, profile.email,
+      await sendEmail(gym, resendKey, profile.email,
         `Réservation annulée — ${activityName}`,
-        emailHtml('Réservation annulée',
+        emailHtml(gym, 'Réservation annulée',
           `<p style="color:#6B6861;"><strong>${activityName}</strong></p><p style="color:#6B6861;">${dateStr} à ${timeStr}</p>${coachLine}${lateWarning}`))
     }
 

@@ -26,6 +26,8 @@
 // différence assumée avec le walk-in, qui l'omet volontairement (le membre y est
 // physiquement présent). Le refus est explicite ; il n'existe aucun contournement silencieux.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 import {
   checkMemberQuota,
   countFutureConfirmedBookings,
@@ -104,6 +106,7 @@ function embeddedMaxOverbook(rel: unknown): number {
 // réservation ni notification push. Le mail est leur seule trace de l'inscription.
 // Best-effort et jamais bloquant : la réservation est faite, un mail perdu ne l'annule pas.
 async function notifyMember(
+  gym: GymBranding,
   supabaseUrl: string,
   serviceKey: string,
   member: { email: string | null; first_name: string | null; push_token: string | null },
@@ -145,10 +148,22 @@ async function notifyMember(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
       body: JSON.stringify({
-        from: 'Dopamine <noreply@viniz.app>',
+        from: emailSender(gym),
         to: member.email,
         subject: `Réservation confirmée — ${activityName}`,
-        html: `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Réservation confirmée</h2><p style="color:#9A9890;font-size:13px;margin:0 0 16px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Ta salle t'a inscrit à ce cours :</p><p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p><p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p>${coachLine}<p style="color:#9A9890;font-size:12px;margin:24px 0 0;">Tu ne peux pas venir ? Préviens l'accueil de ta salle.</p></div></div></div>`,
+        html: emailShell(gym, {
+          title: 'Réservation confirmée',
+          width: 480,
+          bodyHtml:
+            `<p style="color:#9A9890;font-size:13px;margin:0 0 16px;">${greeting}</p>` +
+            `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Ta salle t'a inscrit à ce cours :</p>` +
+            `<p style="color:#6B6861;margin:0 0 8px;"><strong>${activityName}</strong></p>` +
+            `<p style="color:#6B6861;margin:0 0 4px;">${dateStr} à ${timeStr}</p>` +
+            coachLine +
+            `<p style="color:#9A9890;font-size:12px;margin:24px 0 0;">Tu ne peux pas venir ? Préviens l'accueil de ta salle.</p>`,
+          ctaLabel: 'Voir ma réservation',
+          ctaPath: 'bookings',
+        }),
       }),
     }).catch((e) => console.error('[admin-book-member] email error:', e))
   }
@@ -506,8 +521,10 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Identité de la salle lue ici : `gymId` vient du PROFIL de l'appelant, déjà validé.
+    const gym = await loadGymBranding(admin, gymId)
     await notifyMember(
-      supabaseUrl, serviceKey,
+      gym, supabaseUrl, serviceKey,
       {
         email: member.email as string | null,
         first_name: member.first_name as string | null,
