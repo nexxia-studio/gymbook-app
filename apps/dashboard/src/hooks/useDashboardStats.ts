@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { toGymWallClock } from '@/lib/timezone'
+import { gymDateString, gymDayBounds } from '@/lib/timezone'
 
 // ── Heure locale gym (buckets en Europe/Brussels, pas UTC) — mêmes helpers que
 //    pages/Revenue.tsx (source de vérité, cohérence /dashboard ↔ /revenue). ──
@@ -69,8 +70,12 @@ export function useDashboardStats() {
     setLoading(true)
     try {
       const now = new Date()
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+      // 🔴 GYM-93 — LA JOURNÉE CIVILE VENAIT DU NAVIGATEUR. `now.getFullYear/getMonth/
+      // getDate()` lisent l'horloge de l'appareil : les bornes de « aujourd'hui » ne
+      // délimitaient pas le jour de la SALLE. Les deux valeurs restent des instants — c'est
+      // ce qu'attend le serveur — mais la journée dont on prend les bords est désormais
+      // celle du gym.
+      const { startIso: todayStart, endIso: todayEnd } = gymDayBounds(gymDateString(now, tz), tz)
 
       // Repères en heure locale gym.
       const nowB = toGymWallClock(now, tz)
@@ -187,7 +192,7 @@ export function useDashboardStats() {
     } finally {
       setLoading(false)
     }
-  }, [gymId])
+  }, [gymId, tz])
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
