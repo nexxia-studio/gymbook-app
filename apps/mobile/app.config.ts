@@ -19,9 +19,21 @@ export default {
     // ramené à 8 caractères, aligné sur la politique serveur, et espaces de bordure rognées
     // à la saisie du mot de passe).
     //
+    // 1.0.5 — build 21. ⚠️ OUVERT ALORS QUE LE BUILD 20 EST ENCORE EN REVIEW, et c'est
+    // délibéré : le train 1.0.4 sera fermé à son approbation, donc attendre ne changerait
+    // pas le numéro à poser ici — cela ne ferait que retarder le build. Le seul risque
+    // serait un REJET du build 20 : 1.0.4 resterait alors libre, et 1.0.5 sauterait
+    // simplement un numéro. Sauter un numéro n'a aucune conséquence côté App Store ; le
+    // réutiliser après publication en a une (ITMS-90186 / ITMS-90062).
+    // Incrément PATCH : GYM-241 (icônes Dopamine, écran de démarrage noir, logo dans
+    // l'animation d'accueil), GYM-242 (horizon de planning réglable à 30 jours, filtres en
+    // feuille modale, carte Open Gym annonçant des créneaux et non une somme de places),
+    // GYM-93 (frontières de semaine sur le fuseau de la salle, heure juste dans les
+    // rappels) et GYM-240 (rejets réseau capturés au lieu d'alerter Sentry pour rien).
+    //
     // Le buildNumber, lui, n'est PAS déclaré ici : eas.json le gère
     // (appVersionSource "remote" + autoIncrement).
-    version: '1.0.4',
+    version: '1.0.5',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
