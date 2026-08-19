@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — nom d'expéditeur lu depuis nexxia_gyms.
+import { loadGymBranding, emailSender } from '../_shared/gym-branding.ts'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { isEngaged } from '../_shared/subscription-engagement.ts'
 
@@ -156,7 +158,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
           body: JSON.stringify({
-            from: 'Dopamine <noreply@viniz.app>',
+            from: emailSender(await loadGymBranding(supabase, sub.gym_id as string)),
             to: profile.email,
             subject: `Résiliation confirmée — ${sub.plan_name ?? ''}`,
             html: `<p>Votre abonnement ${sub.plan_name ?? ''} a été résilié.${endsAtFormatted ? ` Il reste actif jusqu'au ${endsAtFormatted}.` : ''}</p>`,

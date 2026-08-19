@@ -1,4 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell } from '../_shared/gym-branding.ts'
+
+// Embed to-one typé en TABLEAU par le client généré, objet unique à l'exécution.
+function embeddedName(rel: unknown, fallback: string): string {
+  const value = rel as { name?: string } | { name?: string }[] | null | undefined
+  const one = Array.isArray(value) ? value[0] ?? null : value ?? null
+  return one?.name ?? fallback
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -143,7 +152,10 @@ Deno.serve(async (req) => {
       .single()
 
     // 6. Send confirmation
-    const activityName = (slot?.activities as { name: string } | null)?.name ?? 'Cours'
+    // ⚠️ Cast qui faisait ÉCHOUER `deno check` AVANT ce lot (embed to-one typé en tableau
+    // par le client généré, objet unique à l'exécution). Même parade que create-booking et
+    // admin-book-member — sans elle, le gate de ce lot était inatteignable ici.
+    const activityName = embeddedName(slot?.activities, 'Cours')
 
     const { data: profile } = await admin
       .from('profiles')
@@ -156,14 +168,24 @@ Deno.serve(async (req) => {
       const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
       const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
 
+      // GYM-238 — chrome de la salle, et bouton en Universal Link (il pointait
+      // `dopamine://bookings`, inerte dans tout client mail).
+      const gym = await loadGymBranding(admin, booking.gym_id as string)
+
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
-          from: 'Dopamine <noreply@viniz.app>',
+          from: emailSender(gym),
           to: profile.email,
           subject: `Place confirmée — ${activityName}`,
-          html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place confirmée !</h2><p style="color:#6B6861;">Vous êtes inscrit à <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><a href="dopamine://bookings" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px;">Voir ma réservation</a></div></div></div>`,
+          html: emailShell(gym, {
+            title: 'Place confirmée !',
+            width: 480,
+            bodyHtml: `<p style="color:#6B6861;">Vous êtes inscrit à <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p>`,
+            ctaLabel: 'Voir ma réservation',
+            ctaPath: 'bookings',
+          }),
         }),
       }).catch(() => {})
     }

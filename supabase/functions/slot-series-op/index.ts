@@ -16,6 +16,8 @@
 // série ne l'écrase pas. Le gérant avait pris une décision sur cette date précise ; la
 // série n'a pas à la défaire dans son dos.
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — en-tête, pied, bouton et expéditeur composés depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 
 // Même clé, même fournisseur que cancel-slot et admin-book-member.
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -397,7 +399,7 @@ Deno.serve(async (req) => {
       // ne le faisait pas — et c'est le cas le plus dangereux des deux. Une annulation se
       // voit dans l'app, le cours disparaît. Un décalage de 18 h à 18 h 30 NE SE VOIT PAS :
       // le membre croit savoir, et se présente devant une salle vide.
-      const notify = await notifyAffectedMembers(admin, supabaseUrl, serviceKey, {
+      const notify = await notifyAffectedMembers(admin, supabaseUrl, serviceKey, gymId, {
         slotIds: targets.map((s) => s.id),
         activityId: (patch.activity_id as string | undefined) ?? null,
         // Sans série, l'activité de référence est celle du créneau lui-même.
@@ -440,6 +442,7 @@ Deno.serve(async (req) => {
  * divergeraient au premier ajustement.
  */
 function seriesUpdateEmailHtml(
+  gym: GymBranding,
   firstName: string | null,
   activityName: string,
   whatChanged: string,
@@ -450,7 +453,20 @@ function seriesUpdateEmailHtml(
   const scopeBlock = slotCount > 1
     ? `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ce changement concerne <strong>${slotCount} séances</strong> à venir.</p>`
     : ''
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><div style="font-size:28px;margin-bottom:12px;">📅</div><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Ton cours a été modifié</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ton cours <strong>${activityName}</strong> a changé : ${whatChanged}.</p>${scopeBlock}<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Tes réservations sont conservées — rien à refaire de ton côté.</p><a href="dopamine://bookings" style="display:inline-block;background:#C8F000;color:#111111;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;margin-top:8px;">Voir mes réservations →</a></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
+  // GYM-238 — corps seul : la chrome vient de la coquille partagée, aux couleurs et au
+  // nom de la salle lus en base.
+  return emailShell(gym, {
+    emoji: '📅',
+    title: 'Ton cours a été modifié',
+    bodyHtml:
+      `<p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Ton cours <strong>${activityName}</strong> a changé : ${whatChanged}.</p>` +
+      scopeBlock +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Tes réservations sont conservées — rien à refaire de ton côté.</p>`,
+    ctaLabel: 'Voir mes réservations →',
+    // 🔴 ÉTAIT `dopamine://bookings` : inerte dans tout client mail.
+    ctaPath: 'bookings',
+  })
 }
 
 /**
@@ -478,6 +494,9 @@ async function notifyAffectedMembers(
   admin: SupabaseClient,
   supabaseUrl: string,
   serviceKey: string,
+  // GYM-238 — la salle dont on emprunte l'identité pour les emails. Passée plutôt que
+  // relue ici : l'appelant l'a déjà validée (gym_id du PROFIL, jamais du body).
+  gymId: string,
   ctx: {
     slotIds: string[]
     activityId: string | null
@@ -583,6 +602,10 @@ async function notifyAffectedMembers(
     // Un envoi PAR MEMBRE et non un envoi groupé : Resend accepte un tableau dans `to`,
     // mais tous les destinataires s'y verraient mutuellement, et le prénom ne pourrait pas
     // être personnalisé. Même forme que cancel-slot.
+    // UNE lecture pour tout le lot : l'identité de la salle ne change pas d'un
+    // destinataire à l'autre.
+    const gym = await loadGymBranding(admin, gymId)
+
     let emailNotified = 0
     if (RESEND_KEY) {
       for (const [id, m] of members) {
@@ -592,10 +615,10 @@ async function notifyAffectedMembers(
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
-              from: 'Dopamine Performance Club <noreply@viniz.app>',
+              from: emailSender(gym),
               to: m.email,
               subject: `Cours modifié — ${activityName}`,
-              html: seriesUpdateEmailHtml(m.firstName, activityName, what, ctx.slotCount),
+              html: seriesUpdateEmailHtml(gym, m.firstName, activityName, what, ctx.slotCount),
             }),
           })
           if (resp.ok) {

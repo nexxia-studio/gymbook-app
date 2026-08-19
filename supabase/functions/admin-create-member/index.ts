@@ -22,6 +22,8 @@
 // Le comportement de cette fonction est inchangé, y compris l'ordre : le plan est résolu
 // AVANT createUser (échec de plan = aucun compte créé), l'encaissement n'a lieu qu'après.
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, escapeHtml, type GymBranding } from '../_shared/gym-branding.ts'
 import {
   collectCounterPayment,
   isPaymentMethod,
@@ -81,21 +83,42 @@ function isDuplicateEmailError(err: { code?: string; status?: number; message?: 
   return msg.includes('already been registered') || msg.includes('already registered') || msg.includes('already exists')
 }
 
-// Email d'invitation brandé Dopamine (charte : fond #F5F4F0, header noir #111111,
-// wordmark DOPAMINE en #C8F000, footer Neupré). Aligné sur send-communication.
-function buildInviteEmailHtml(firstName: string | null, actionLink: string): string {
+// GYM-238 — Email d'invitation aux couleurs DE LA SALLE.
+//
+// ⚠️ ICI LE NOM N'ÉTAIT PAS QUE DANS LA CHROME, IL ÉTAIT DANS LE TEXTE : « Bienvenue chez
+// Dopamine », « Ton compte Dopamine », « l'application Dopamine ». Une seconde salle aurait
+// souhaité la bienvenue à ses membres au nom d'une salle concurrente. Corriger l'en-tête
+// sans corriger la copie n'aurait rien réglé.
+function buildInviteEmailHtml(gym: GymBranding, firstName: string | null, actionLink: string): string {
   const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Bienvenue chez Dopamine 💪</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 24px;">Ton compte Dopamine a été créé par la salle. Définis ton mot de passe pour accéder à l'app et retrouver tes réservations et ta carte de séances.</p><div style="text-align:center;margin:0 0 8px;"><a href="${actionLink}" style="display:inline-block;background:#C8F000;color:#111111;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">Définir mon mot de passe →</a></div><div style="border-top:1px solid #E8E6E0;margin:24px 0 0;padding-top:20px;"><p style="color:#111111;font-size:14px;font-weight:bold;margin:0 0 6px;">Prochaine étape</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Réserve tes cours depuis l'application Dopamine.</p><div style="text-align:center;"><a href="${APP_DOWNLOAD_URL}" style="display:inline-block;background:#111111;color:#C8F000;font-weight:bold;font-size:14px;text-decoration:none;padding:12px 24px;border-radius:12px;">Télécharger l'app Dopamine →</a></div></div></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
+  const gymName = escapeHtml(gym.name)
+  return emailShell(gym, {
+    title: `Bienvenue chez ${gym.name} 💪`,
+    bodyHtml:
+      `<p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 24px;">Ton compte ${gymName} a été créé par la salle. Définis ton mot de passe pour accéder à l'app et retrouver tes réservations et ta carte de séances.</p>` +
+      `<div style="border-top:1px solid #E8E6E0;margin:24px 0 0;padding-top:20px;">` +
+      `<p style="color:#111111;font-size:14px;font-weight:bold;margin:0 0 6px;">Prochaine étape</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 16px;">Réserve tes cours depuis l'application ${gymName}.</p>` +
+      `<div style="text-align:center;"><a href="${APP_DOWNLOAD_URL}" style="display:inline-block;background:${gym.secondaryColor};color:${gym.primaryColor};font-weight:bold;font-size:14px;text-decoration:none;padding:12px 24px;border-radius:12px;">Télécharger l'app ${gymName} →</a></div></div>`,
+    // Le lien d'activation est une URL Supabase déjà construite : `ctaUrl`, pas `ctaPath`.
+    ctaLabel: 'Définir mon mot de passe →',
+    ctaUrl: actionLink,
+  })
 }
 
 // Génère le lien de définition de mot de passe (type recovery) et l'envoie via Resend.
 // Best-effort : le résultat (true/false) n'interrompt jamais la création du membre.
 async function sendInviteEmail(
   admin: SupabaseClient,
+  // GYM-238 — la salle qui invite. Passée plutôt que relue : l'appelant a déjà lu et
+  // validé `gymId` sur le profil du gérant.
+  gymId: string,
   email: string,
   firstName: string | null,
 ): Promise<boolean> {
   try {
+    const gym = await loadGymBranding(admin, gymId)
     // redirectTo explicite vers la page publique /reset-password du dashboard (GYM-157),
     // sinon le lien retombe sur la Site URL par défaut du projet Supabase. Aucune constante
     // partagée d'URL dashboard n'existe côté functions → env DASHBOARD_URL avec fallback.
@@ -120,10 +143,11 @@ async function sendInviteEmail(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
       body: JSON.stringify({
-        from: 'Dopamine <noreply@viniz.app>',
+        from: emailSender(gym),
         to: email,
-        subject: 'Ton compte Dopamine est prêt — définis ton mot de passe',
-        html: buildInviteEmailHtml(firstName, actionLink),
+        // L'objet portait « Dopamine » en dur — premier mot que voit le destinataire.
+        subject: `Ton compte ${gym.name} est prêt — définis ton mot de passe`,
+        html: buildInviteEmailHtml(gym, firstName, actionLink),
       }),
     })
     if (!resp.ok) {
@@ -222,7 +246,7 @@ Deno.serve(async (req) => {
     const userId = created.user.id
 
     // 5. Email d'invitation (best-effort — n'échoue jamais la création).
-    const emailSent = await sendInviteEmail(supabaseAdmin, email, firstName)
+    const emailSent = await sendInviteEmail(supabaseAdmin, gymId, email, firstName)
 
     // 6. Carte de séances payée sur place (optionnelle).
     let paymentInfo: {

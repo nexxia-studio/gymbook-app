@@ -11,6 +11,8 @@
 // Shape retourné par get_communication_recipients(p_gym_id, p_segment) :
 //   member_id, email, first_name, push_token
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -59,11 +61,17 @@ function templateIcon(template: string): string {
   }
 }
 
-function buildEmailHtml(title: string, body: string, template: string, firstName: string | null): string {
+function buildEmailHtml(gym: GymBranding, title: string, body: string, template: string, firstName: string | null): string {
   const icon = templateIcon(template)
   const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
   const safeBody = body.replace(/\n/g, '<br>')
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><div style="font-size:28px;margin-bottom:12px;">${icon}</div><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">${title}</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0;">${safeBody}</p></div></div></div>`
+  return emailShell(gym, {
+    emoji: icon,
+    title,
+    bodyHtml:
+      `<p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0;">${safeBody}</p>`,
+  })
 }
 
 Deno.serve(async (req) => {
@@ -118,6 +126,10 @@ Deno.serve(async (req) => {
     let pushSent = 0
     let emailSent = 0
 
+    // GYM-238 — UNE lecture pour toute la campagne, HORS de la boucle : une communication
+    // part à toute la salle, la relire par destinataire ferait N requêtes identiques.
+    const gym = await loadGymBranding(supabaseAdmin, c.gym_id)
+
     for (const r of recipients) {
       let pushOk = false
       let emailOk = false
@@ -153,10 +165,10 @@ Deno.serve(async (req) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
-              from: 'Dopamine <noreply@viniz.app>',
+              from: emailSender(gym),
               to: r.email,
               subject: c.title,
-              html: buildEmailHtml(c.title, c.body, c.template, r.first_name),
+              html: buildEmailHtml(gym, c.title, c.body, c.template, r.first_name),
             }),
           })
           emailOk = resp.ok

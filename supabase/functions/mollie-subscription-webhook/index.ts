@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — nom d'expéditeur lu depuis nexxia_gyms.
+import { loadGymBranding, emailSender } from '../_shared/gym-branding.ts'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
@@ -383,7 +385,7 @@ Deno.serve(async (req) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
               body: JSON.stringify({
-                from: 'Dopamine <noreply@viniz.app>', to: profile.email,
+                from: emailSender(await loadGymBranding(supabase, gymId as string)), to: profile.email,
                 subject: `Abonnement activé — ${plan.name}`,
                 html: `<p>Votre abonnement ${plan.name} est activé. ${(plan.price_cents / 100).toFixed(2)}€/mois × ${plan.duration_months ?? 1} mois.</p>`,
               }),
