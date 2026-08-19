@@ -26,10 +26,20 @@ export default {
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
     newArchEnabled: true,
+    // GYM-241 — ÉCRAN DE DÉMARRAGE NATIF. Il affichait `splash-icon.png`, qui était le
+    // PLACEHOLDER PAR DÉFAUT D'EXPO (cercles gris concentriques) : même fichier, au SHA
+    // près, qu'`adaptive-icon.png`. Jamais remplacé depuis la création du projet — encore
+    // le motif « la ressource existe, le consommateur ne la lit pas » (GYM-216/220/224/228),
+    // sauf qu'ici c'est la toute première image que voit un membre à l'ouverture.
+    //
+    // ⚠️ FOND #000000 ET NON #F5F4F0, ET C'EST LE POINT. L'écran animé qui suit
+    // (app/index.tsx) est passé au noir pur lui aussi, et affiche EXACTEMENT ce fichier :
+    // le passage du natif à l'animé ne se voit plus. Un fond beige suivi d'un fond noir
+    // produisait un flash à chaque lancement.
     splash: {
-      image: './assets/splash-icon.png',
+      image: './assets/splash-dopamine.png',
       resizeMode: 'contain' as const,
-      backgroundColor: '#F5F4F0',
+      backgroundColor: '#000000',
     },
     ios: {
       supportsTablet: false,
@@ -45,9 +55,24 @@ export default {
       },
     },
     android: {
+      // GYM-241 — ICÔNE ANDROID. `adaptive-icon.png` était le placeholder Expo : c'est le
+      // logo que Nico et les membres voyaient dans la liste des applications.
+      //
+      // ⚠️ CE FICHIER EST GÉNÉRÉ, ET IL FALLAIT LE GÉNÉRER. Android ne garantit d'afficher
+      // que le CERCLE CENTRAL de 66 % de l'avant-plan ; tout ce qui déborde est rogné par
+      // le masque du lanceur. Mesuré sur `icon-dopamine.png` (le « D » en 1024) : le motif
+      // atteint 75 % du demi-côté — les pointes de la lettre auraient été coupées.
+      // `adaptive-icon-dopamine.png` est ce même « D » remis à l'échelle sur un fond noir
+      // 1024×1024, mesuré à 64,1 % : il tient dans la zone sûre avec une marge.
+      //
+      // ⚠️ `dopamine-logo-d.png` N'A PAS ÉTÉ RETENU malgré son nom : 256×256, soit un
+      // quart de la résolution attendue. Il aurait été agrandi par le lanceur, donc flou.
+      //
+      // backgroundColor NOIR, accordé au fond du logo : l'avant-plan est opaque, un fond
+      // beige serait apparu en anneau autour du masque circulaire.
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#F5F4F0',
+        foregroundImage: './assets/adaptive-icon-dopamine.png',
+        backgroundColor: '#000000',
       },
       package: 'be.dopamineclub.app',
       edgeToEdgeEnabled: true,
