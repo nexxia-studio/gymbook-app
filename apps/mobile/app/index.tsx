@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text } from 'react-native'
+import { View, Text, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import Animated, {
@@ -9,6 +9,27 @@ import { Button } from '../components/ui/Button'
 import { useAuthStore } from '../stores/useAuthStore'
 
 const SPLASH_DURATION = 2500
+
+/**
+ * GYM-241 — LE LOGO, À LA PLACE DU TEXTE.
+ *
+ * L'écran affichait « DOPAMINE » composé en BarlowCondensed : une approximation du logo,
+ * pas le logo. C'est le premier écran de l'app, et le seul endroit où la marque était
+ * dessinée par une police plutôt que par son fichier.
+ *
+ * ⚠️ LE FICHIER EST OPAQUE, DONC LE FOND DOIT ÊTRE EXACTEMENT LE SIEN. `splash-dopamine.png`
+ * vient d'un JPG : aucune transparence, son fond est un carré NOIR PUR (coins mesurés à
+ * 0,0,0). Posé sur le #111111 de `bg-move-dark`, ce carré se serait vu — un rectangle plus
+ * sombre autour du logo, exactement le défaut qu'on corrige sur l'en-tête des emails au
+ * même moment (GYM-238). D'où le #000000 explicite sur cet écran.
+ *
+ * ⚠️ ET C'EST AUSSI CE QUI SOUDE LES DEUX ÉCRANS. Le démarrage natif (app.config.ts) est
+ * réglé sur le MÊME fichier et le MÊME noir : le passage du natif à l'animé ne se voit
+ * plus. Changer l'un sans l'autre ferait réapparaître le flash.
+ */
+const SPLASH_BG = '#000000'
+/** Largeur maîtrisée + `contain` : un logo étiré serait pire que le texte qu'il remplace. */
+const LOGO_SIZE = 260
 
 export default function Welcome() {
   const { t } = useTranslation()
@@ -79,15 +100,20 @@ export default function Welcome() {
   }))
 
   return (
-    <View className="flex-1 bg-move-dark">
-      {/* Logo area */}
+    <View className="flex-1" style={{ backgroundColor: SPLASH_BG }}>
+      {/* Logo area — ⚠️ L'ANIMATION EST INCHANGÉE : fondu, montée en échelle et « beat »
+          gardent leurs durées et leurs courbes d'origine. Seul le CONTENU de la vue animée
+          change, jamais le mouvement. Le logo porte déjà « DOPAMINE / PERFORMANCE CLUB »,
+          les deux lignes de texte disparaissent donc avec lui — les conserver aurait
+          dédoublé le nom de la salle à l'écran. */}
       <Animated.View style={logoStyle} className="flex-1 items-center justify-center">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 56, color: '#FFFFFF', letterSpacing: 4 }}>
-          DOPAMINE
-        </Text>
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#9A9890', letterSpacing: 6, textAlign: 'center', marginTop: 4 }}>
-          PERFORMANCE CLUB
-        </Text>
+        <Image
+          source={require('../assets/splash-dopamine.png')}
+          style={{ width: LOGO_SIZE, height: LOGO_SIZE }}
+          resizeMode="contain"
+          accessibilityRole="image"
+          accessibilityLabel="Dopamine Performance Club"
+        />
 
         {/* Accent line */}
         <Animated.View

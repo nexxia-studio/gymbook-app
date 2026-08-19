@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { View, Text, SectionList, RefreshControl } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'expo-router'
@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSchedule, type DaySection, type ScheduleSlot } from '../../hooks/useSchedule'
 import type { DayEntry } from '../../lib/openGymGroup'
 import { useBookingStore } from '../../stores/useBookingStore'
-import { FilterPills } from '../../components/schedule/FilterPills'
+// GYM-242 — les deux rangées de pastilles deviennent une ligne + une feuille modale.
+import { FilterBar } from '../../components/schedule/FilterBar'
+import { FilterSheet } from '../../components/schedule/FilterSheet'
 import { SlotListCard } from '../../components/schedule/SlotListCard'
 import { OpenGymListCard } from '../../components/schedule/OpenGymListCard'
 import { SectionHeader } from '../../components/schedule/SectionHeader'
@@ -17,12 +19,19 @@ export default function Schedule() {
   const { t } = useTranslation()
   const router = useRouter()
   const {
-    groupedByDay, isLoading,
-    activityFilter, setActivityFilter,
-    weekFilter, setWeekFilter,
-    coachFilter, setCoachFilter,
-    resetFilters, hasActiveFilters, coaches, activities, refetch,
+    groupedByDay, filteredSlots, isLoading,
+    activityFilters, toggleActivity,
+    coachFilters, toggleCoach,
+    periodFilter, setPeriodFilter,
+    laterAvailable,
+    resetFilters, hasActiveFilters, activeFilterCount,
+    coaches, activities, refetch,
   } = useSchedule()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Ce que le bouton de la feuille annonce : des COURS, pas des entrées de liste — une
+  // carte Open Gym agrégée en représente plusieurs, l'annoncer comme un seul mentirait.
+  const resultCount = useMemo(() => filteredSlots.length, [filteredSlots])
   const { favorites, addFavorite, removeFavorite, isFavorite } = useBookingStore()
   const [refreshing, setRefreshing] = useState(false)
 
@@ -105,16 +114,11 @@ export default function Schedule() {
       </View>
 
       <View className="flex-1 bg-move-bg">
-        {/* Filters */}
-        <FilterPills
-          activityFilter={activityFilter}
-          weekFilter={weekFilter}
-          coachFilter={coachFilter}
-          coaches={coaches}
-          activities={activities}
-          onActivityChange={setActivityFilter}
-          onWeekChange={setWeekFilter}
-          onCoachChange={setCoachFilter}
+        {/* GYM-242 — une seule ligne dans l'écran ; tout le reste vit dans la feuille. */}
+        <FilterBar
+          activeCount={activeFilterCount}
+          resultCount={resultCount}
+          onPress={() => setFiltersOpen(true)}
         />
 
         {/* List */}
@@ -139,6 +143,23 @@ export default function Schedule() {
           />
         )}
       </View>
+
+      <FilterSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        activities={activities}
+        coaches={coaches}
+        activityFilters={activityFilters}
+        coachFilters={coachFilters}
+        periodFilter={periodFilter}
+        laterAvailable={laterAvailable}
+        resultCount={resultCount}
+        onToggleActivity={toggleActivity}
+        onToggleCoach={toggleCoach}
+        onPeriodChange={setPeriodFilter}
+        onReset={resetFilters}
+        hasActiveFilters={hasActiveFilters}
+      />
     </SafeAreaView>
   )
 }

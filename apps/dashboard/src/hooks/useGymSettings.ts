@@ -17,7 +17,21 @@ export interface GymSettings {
    * personne n'a choisies.
    */
   openingHours: OpeningHours | null
+  /**
+   * GYM-242 — jours de planning visibles par le MEMBRE dans l'app, à partir d'aujourd'hui.
+   *
+   * Remplace le `+ 14` écrit en dur dans useSchedule.ts, que Nico a constaté le 19/08 :
+   * « j'ai une visibilité jusqu'au 1er septembre, il faudrait un mois ». NOT NULL en base,
+   * donc jamais absent — mais le repli à 30 tient si la ligne est illisible.
+   *
+   * ⚠️ NE BORNE PAS le planning du GÉRANT : /planning n'utilise pas cette valeur.
+   */
+  bookingHorizonDays: number
 }
+
+/** GYM-242 — bornes du CHECK en base, rejouées à l'écran pour refuser avant l'aller-retour. */
+export const HORIZON_MIN_DAYS = 1
+export const HORIZON_MAX_DAYS = 366
 
 export function useGymSettings() {
   const gym = useGymStore((s) => s.gym)
@@ -29,7 +43,7 @@ export function useGymSettings() {
     setIsLoading(true)
     const { data, error } = await supabase
       .from('nexxia_gyms')
-      .select('waitlist_confirmation_minutes, max_active_bookings, opening_hours')
+      .select('waitlist_confirmation_minutes, max_active_bookings, opening_hours, booking_horizon_days')
       .eq('id', gym.id)
       .single()
     setIsLoading(false)
@@ -39,6 +53,9 @@ export function useGymSettings() {
       // NULL est une VALEUR (« aucune limite »), jamais un défaut à remplacer.
       maxActiveBookings: data.max_active_bookings ?? null,
       openingHours: parseOpeningHours(data.opening_hours),
+      // ⚠️ Suivi jusqu'à l'OBJET RENDU, pas seulement jusqu'au SELECT : c'est au mapping
+      // que GYM-228 avait perdu `requires_coach`, pourtant bien demandée dans la requête.
+      bookingHorizonDays: data.booking_horizon_days ?? 30,
     })
   }, [gym?.id])
 
@@ -102,5 +119,35 @@ export function useGymSettings() {
     [gym?.id],
   )
 
-  return { settings, isLoading, updateOpeningHours, updateWaitlistDelay, updateMaxActiveBookings }
+  /**
+   * GYM-242 — horizon de visibilité. Écriture RLS directe comme ses deux voisines ; la
+   * migration de ce lot pose le GRANT UPDATE sur la colonne (liste blanche GYM-180 —
+   * sans lui, PostgREST rejetterait l'enregistrement ENTIER de la salle, pas ce seul champ).
+   */
+  const updateBookingHorizon = useCallback(
+    async (days: number): Promise<{ error?: string }> => {
+      if (!gym?.id) return { error: 'no_gym' }
+      if (!Number.isInteger(days) || days < HORIZON_MIN_DAYS || days > HORIZON_MAX_DAYS) {
+        return { error: 'range' }
+      }
+
+      const { data, error } = await supabase
+        .from('nexxia_gyms')
+        .update({ booking_horizon_days: days })
+        .eq('id', gym.id)
+        .select('id')
+
+      if (error) return { error: error.message }
+      // Un UPDATE bloqué par RLS ne lève PAS d'erreur : il porte sur 0 ligne (GYM-180).
+      if (!data || data.length === 0) return { error: 'forbidden' }
+      setSettings((s) => (s ? { ...s, bookingHorizonDays: days } : s))
+      return {}
+    },
+    [gym?.id],
+  )
+
+  return {
+    settings, isLoading,
+    updateOpeningHours, updateWaitlistDelay, updateMaxActiveBookings, updateBookingHorizon,
+  }
 }

@@ -20,11 +20,11 @@ import { View, Text, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown } from 'lucide-react-native'
 import { LinearGradient } from './Gradient'
-import { CapacityBadge } from './CapacityBadge'
+import { OpenGymAvailability } from '../schedule/OpenGymAvailability'
 import { ActivityImage } from '../shared/ActivityImage'
 import { WeekSlots } from '../session/WeekSlots'
 import { resolveActivityIcon } from '../../lib/activityIcons'
-import { formatAmplitudeHour, type OpenGymGroup } from '../../lib/openGymGroup'
+import { availableSlotCount, formatAmplitudeHour, type OpenGymGroup } from '../../lib/openGymGroup'
 import type { HomeSlot } from '../../hooks/useHomeSchedule'
 
 interface OpenGymCardProps {
@@ -45,8 +45,10 @@ export function OpenGymCard({ group, onSelectSlot }: OpenGymCardProps) {
   // Places CUMULÉES sur la journée, dans le badge habituel des cartes. C'est la question du
   // membre — « est-ce qu'il reste de la place aujourd'hui ? » — là où un ratio par créneau
   // n'a plus de sens une fois agrégé.
-  const capacity = group.slots.reduce((sum, s) => sum + s.capacity, 0)
-  const booked = group.slots.reduce((sum, s) => sum + s.booked, 0)
+  // GYM-242 — CRÉNEAUX DISPONIBLES, plus la somme des capacités. « 60 places » était le
+  // total de créneaux INDÉPENDANTS : un membre ne peut en réserver qu'un, à 8 places.
+  // Le calcul est partagé (lib/openGymGroup) et reprend le prédicat des cartes normales.
+  const available = availableSlotCount(group.slots)
 
   return (
     <View className="mb-4 overflow-hidden rounded-2xl bg-move-card shadow-sm">
@@ -103,7 +105,7 @@ export function OpenGymCard({ group, onSelectSlot }: OpenGymCardProps) {
           </View>
 
           <View className="mx-3">
-            <CapacityBadge booked={booked} capacity={capacity} />
+            <OpenGymAvailability available={available} />
           </View>
 
           <View className="flex-row items-center gap-1 rounded-lg bg-move-dark px-3 py-2.5">

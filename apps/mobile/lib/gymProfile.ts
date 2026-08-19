@@ -29,7 +29,26 @@ export interface GymProfile {
   /** Identité d'URL — consommée par lib/gymUrls.ts. */
   slug: string | null
   subdomain: string | null
+  /**
+   * GYM-242 — jours de planning que le membre peut voir, à partir d'aujourd'hui.
+   *
+   * Remplace le `+ 14` écrit en dur dans useSchedule. Réglé par le gérant dans /settings.
+   * NOT NULL en base : jamais absent d'une ligne lue — mais si la LIGNE est illisible,
+   * c'est `DEFAULT_HORIZON_DAYS` qui s'applique (cf. `getBookingHorizonDays`).
+   */
+  bookingHorizonDays: number
 }
+
+/**
+ * ⚠️ REPLI QUAND LA SALLE EST ILLISIBLE — et il ne doit JAMAIS valoir 0.
+ *
+ * Ces écrans se chargent parfois avant que la session soit établie, ou hors ligne : la
+ * policy membre (« Members voient leur salle ») ne renvoie alors aucune ligne. Un repli à
+ * 0 — ou une absence de repli — donnerait un planning VIDE, c'est-à-dire une app qui a
+ * l'air cassée. 30 est la valeur par défaut en base : le repli et le défaut disent la même
+ * chose, ce qui évite qu'ils divergent.
+ */
+export const DEFAULT_HORIZON_DAYS = 30
 
 // Cache module : l'identité de la salle ne change pas pendant la vie du process.
 // Une seule lecture, partagée par tous les appelants (dédoublonnage via `inFlight`).
@@ -57,7 +76,7 @@ export async function getGymProfile(): Promise<GymProfile | null> {
       const { data, error } = await supabase
         .from('nexxia_gyms')
         // ⚠️ Aucune colonne legal_* ici — voir l'en-tête du module.
-        .select('name, address, postal_code, city, email, slug, subdomain')
+        .select('name, address, postal_code, city, email, slug, subdomain, booking_horizon_days')
         .eq('id', GYM_ID)
         .maybeSingle()
 
@@ -71,6 +90,9 @@ export async function getGymProfile(): Promise<GymProfile | null> {
         email: nullIfBlank(data.email as string | null),
         slug: nullIfBlank(data.slug as string | null),
         subdomain: nullIfBlank(data.subdomain as string | null),
+        // ⚠️ Suivi jusqu'à l'OBJET RENDU, pas seulement jusqu'au SELECT : c'est au mapping
+        // que GYM-228 avait perdu `requires_coach`, pourtant bien demandée dans la requête.
+        bookingHorizonDays: sanitizeHorizon(data.booking_horizon_days),
       }
       return cached
     } catch {
@@ -81,6 +103,31 @@ export async function getGymProfile(): Promise<GymProfile | null> {
   })()
 
   return inFlight
+}
+
+/**
+ * GYM-242 — horizon lu en base, ramené à une valeur utilisable.
+ *
+ * Le CHECK en base borne déjà 1..366, mais cette lecture ne peut pas en dépendre : un
+ * client déployé avant la migration lirait `undefined`, et une ligne écrite hors chemin
+ * normal pourrait porter autre chose. Une valeur non entière ou hors bornes retombe sur le
+ * défaut plutôt que de produire une date de fin absurde.
+ */
+function sanitizeHorizon(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(n) || n < 1 || n > 366) return DEFAULT_HORIZON_DAYS
+  return n
+}
+
+/**
+ * Horizon de la salle, avec repli. C'EST LE SEUL POINT D'ENTRÉE des hooks de planning.
+ *
+ * Jamais `null` : un appelant qui doit calculer une date de fin ne peut rien faire d'une
+ * absence, et le forcer à choisir son propre repli ferait diverger les deux écrans.
+ */
+export async function getBookingHorizonDays(): Promise<number> {
+  const profile = await getGymProfile()
+  return profile?.bookingHorizonDays ?? DEFAULT_HORIZON_DAYS
 }
 
 /** Une colonne renseignée avec des espaces vaut une colonne vide. */

@@ -792,7 +792,11 @@
       "max_bookings_label": "Maximum simultaneous bookings per member",
       "max_bookings_helper": "How many upcoming classes a member can have booked at once, Open Gym included. Past classes drop out of the count automatically. Leave empty for no limit.",
       "max_bookings_range_error": "Must be a whole number of at least 1, or empty for no limit",
-      "save_error": "Couldn't save the settings"
+      "save_error": "Couldn't save the settings",
+      "horizon_label": "Schedule visibility for your members",
+      "horizon_helper": "Your members see the next N days of classes in the app. Your own planning is unaffected.",
+      "horizon_unit": "Between 1 and 366 days",
+      "horizon_range_error": "Enter a number of days between 1 and 366"
     },
     "payments": {
       "title": "Payments",
