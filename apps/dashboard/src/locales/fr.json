@@ -792,7 +792,11 @@
       "max_bookings_label": "Réservations simultanées maximum par membre",
       "max_bookings_helper": "Nombre de cours à venir qu'un membre peut avoir réservés en même temps, Open Gym compris. Un cours passé sort du décompte automatiquement. Laissez vide pour ne pas limiter.",
       "max_bookings_range_error": "Doit être un nombre entier supérieur ou égal à 1, ou vide pour aucune limite",
-      "save_error": "Impossible d'enregistrer les réglages"
+      "save_error": "Impossible d'enregistrer les réglages",
+      "horizon_label": "Visibilité du planning pour vos membres",
+      "horizon_helper": "Vos membres voient les cours des N prochains jours dans l'application. Votre propre planning n'est pas concerné.",
+      "horizon_unit": "Entre 1 et 366 jours",
+      "horizon_range_error": "Indiquez un nombre de jours entre 1 et 366"
     },
     "payments": {
       "title": "Paiements",
