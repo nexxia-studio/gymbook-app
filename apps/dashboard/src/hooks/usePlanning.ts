@@ -11,6 +11,7 @@ import {
 } from '@/lib/recurrence'
 import { getDisplayStatus, type TimeSlot, type Activity, type Coach, type SlotStatus, type AttendanceStatus } from '@/types/planning'
 import { invokeEdge } from '@/lib/edgeInvoke'
+import { gymDayBounds } from '@/lib/timezone'
 
 // GYM-174 — statuts d'une réservation "inscrite" (pointable), hors cancelled/waitlisted.
 const ATTENDANCE_STATUSES = ['confirmed', 'attended', 'no_show', 'excused']
@@ -285,8 +286,12 @@ export function usePlanning() {
     if (!gymId) return
     setLoading(true)
     try {
-      const startIso = new Date(`${dateRange.start}T00:00:00`).toISOString()
-      const endIso = new Date(`${dateRange.end}T23:59:59`).toISOString()
+      // 🔴 GYM-93 — `new Date('YYYY-MM-DDT00:00:00')` est parsé dans le fuseau du
+      // NAVIGATEUR. Les bornes de la plage visible désignaient donc la journée du gérant,
+      // pas celle de la salle : un cours de 23:30 pouvait manquer à l'appel, ou celui de
+      // 00:30 apparaître la veille. Les valeurs transmises restent des instants UTC.
+      const { startIso } = gymDayBounds(dateRange.start, tz)
+      const { endIso } = gymDayBounds(dateRange.end, tz)
       const { data, error } = await supabase
         .from('time_slots')
         .select(`

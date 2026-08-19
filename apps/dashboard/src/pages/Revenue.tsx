@@ -9,6 +9,7 @@ import { RefundModal, type RefundTarget } from '@/components/revenue/RefundModal
 import { InvoiceMenu } from '@/components/revenue/InvoiceMenu'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { toGymWallClock } from '@/lib/timezone'
+import { gymDateString } from '@/lib/timezone'
 
 // GYM-167 — statuts pour lesquels une facture est disponible (encaissement réel).
 const INVOICEABLE = new Set(['paid', 'partially_refunded', 'refunded'])
@@ -263,7 +264,12 @@ export default function Revenue() {
   const exportCSV = useCallback(() => {
     const headers = ['Date', 'Membre', 'Email', 'Formule', 'Type', 'Méthode', 'Montant (€)', 'Statut', 'Facture']
     const lines = filtered.map((r) => [
-      new Date(r.createdAt).toLocaleDateString('fr-BE'),
+      // 🔴 GYM-93 — LA COLONNE DATE DE L'EXPORT COMPTABLE. Elle était formatée SANS
+      // `timeZone` : le fuseau du navigateur décidait du jour d'une écriture. Un paiement
+      // encaissé à 00:30 heure de Bruxelles sortait daté de la veille pour un gérant
+      // consultant depuis un autre fuseau — et une écriture datée du mauvais jour est un
+      // problème comptable, pas un détail d'affichage.
+      new Date(r.createdAt).toLocaleDateString('fr-BE', { timeZone: tz }),
       r.memberName, r.memberEmail, r.planName,
       r.isOneTime ? 'À l\'unité' : 'Abonnement',
       r.method ?? '-', r.amount.toFixed(2), r.status, r.invoiceNumber ?? '-',
@@ -273,10 +279,13 @@ export default function Revenue() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `revenus-${new Date().toISOString().slice(0, 10)}.csv`
+    // 🔴 GYM-93 — `toISOString()` donne la date en UTC. Un export lancé à 00:30 le
+    // 20 août s'appelait `revenus-2026-08-19.csv` : le fichier annonce la veille, toute
+    // l'année, sans qu'aucune bascule d'heure soit en cause.
+    a.download = `revenus-${gymDateString(new Date(), tz)}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [filtered])
+  }, [filtered, tz])
 
   const selectClass = 'rounded-xl border border-border bg-card px-3 py-2 font-body text-sm focus:border-dark focus:outline-none'
 
