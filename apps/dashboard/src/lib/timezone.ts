@@ -20,6 +20,8 @@
 // (`formatToParts`) : aucun offset n'est jamais écrit, aucune chaîne n'est reparsée, et le
 // changement d'heure est absorbé parce qu'Intl applique les règles du fuseau À CETTE DATE.
 
+import { fromZonedTime } from 'date-fns-tz'
+
 /** Repli quand la salle n'a pas encore été chargée. Jamais un offset — un vrai fuseau. */
 export const DEFAULT_TIMEZONE = 'Europe/Brussels'
 
@@ -63,6 +65,30 @@ export function gymDateParts(instant: Date | string, timeZone: string): GymDateP
 export function gymDateString(instant: Date | string, timeZone: string): string {
   const p = gymDateParts(instant, timeZone)
   return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`
+}
+
+/**
+ * GYM-93 (suite) — Minuit civil d'une date, DANS LA SALLE, rendu comme instant absolu.
+ *
+ * ⚠️ LA DISTINCTION QUE CE MODULE DOIT TENIR. `new Date('2026-08-19T00:00:00')` est parsé
+ * dans le fuseau du NAVIGATEUR : le gérant à Bruxelles obtient 22:00Z la veille, celui qui
+ * consulte depuis Montréal 04:00Z le jour même. La borne de requête désigne alors deux
+ * journées différentes pour la même salle.
+ *
+ * Le résultat EST un instant, et c'est normal : une borne se transmet en UTC. Ce qui était
+ * faux, c'est la JOURNÉE CIVILE dont on prenait le bord.
+ *
+ * `endOfDay` monte à 23:59:59.999 plutôt que d'ajouter un jour : les requêtes existantes
+ * comparent en `lte`, changer la borne changerait leur sémantique.
+ */
+export function gymDayBounds(
+  dateStr: string,
+  timeZone: string,
+): { startIso: string; endIso: string } {
+  return {
+    startIso: fromZonedTime(`${dateStr}T00:00:00`, timeZone).toISOString(),
+    endIso: fromZonedTime(`${dateStr}T23:59:59.999`, timeZone).toISOString(),
+  }
 }
 
 /**
