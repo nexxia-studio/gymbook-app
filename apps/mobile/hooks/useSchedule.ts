@@ -52,18 +52,12 @@ export interface DaySection {
   data: DayEntry<ScheduleSlot>[]
 }
 
-import { formatTime, formatDateStr as formatDateStrTz, toLocalTime } from '../utils/timezone'
+// GYM-241 / GYM-93 — `getGymMonday` remplace le `getMonday` local, qui lisait le fuseau
+// du TÉLÉPHONE. Les frontières de semaine se calculent sur l'horloge de la SALLE.
+import { formatTime, formatDateStr as formatDateStrTz, toLocalTime, getGymMonday } from '../utils/timezone'
 
 function toDateStr(d: Date): string {
   return formatDateStrTz(d)
-}
-
-function getMonday(d: Date): Date {
-  const r = new Date(d)
-  const day = r.getDay()
-  r.setDate(r.getDate() - (day === 0 ? 6 : day - 1))
-  r.setHours(0, 0, 0, 0)
-  return r
 }
 
 export function useSchedule() {
@@ -191,7 +185,7 @@ export function useSchedule() {
     if (coachFilters.length > 0) result = result.filter((s) => coachFilters.includes(s.coach))
 
     if (periodFilter) {
-      const monday = getMonday(new Date())
+      const monday = getGymMonday()
       const nextMonday = new Date(monday)
       nextMonday.setDate(nextMonday.getDate() + 7)
       const afterNext = new Date(monday)
@@ -259,7 +253,7 @@ export function useSchedule() {
    * défaut que ce lot corrige, pas un défaut qu'il installe ailleurs.
    */
   const laterAvailable = useMemo(() => {
-    const monday = getMonday(new Date())
+    const monday = getGymMonday()
     const afterNext = new Date(monday)
     afterNext.setDate(afterNext.getDate() + 14)
     const startStr = toDateStr(afterNext)
