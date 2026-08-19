@@ -183,7 +183,22 @@
     "no_slots": "No slots available",
     "no_results": "No classes found",
     "no_results_hint": "Try adjusting your filters",
-    "reset_filters": "Reset filters"
+    "reset_filters": "Reset filters",
+    "filters": {
+      "title": "Filters",
+      "button": "Filter",
+      "period": "Period",
+      "classes": "Classes",
+      "coach": "Coach",
+      "this_week": "This week",
+      "next_week": "Next week",
+      "later": "Later",
+      "clear_all": "Clear all",
+      "show_count": "Show {{count}} classes",
+      "show_none": "No classes",
+      "result_count": "{{count}} classes",
+      "open_a11y": "Open filters, {{count}} active"
+    }
   },
   "open_gym": {
     "free_access": "Free access",

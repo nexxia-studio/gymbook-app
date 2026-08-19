@@ -2,6 +2,17 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { GYM_ID } from '../constants/dopamine'
 import { groupDayEntries, type DayEntry } from '../lib/openGymGroup'
+import { getBookingHorizonDays, DEFAULT_HORIZON_DAYS } from '../lib/gymProfile'
+
+/**
+ * GYM-242 — les trois périodes proposées au membre.
+ *
+ * ⚠️ « PLUS TARD » EST NÉ DE L'ÉLARGISSEMENT DE L'HORIZON. Sur 14 jours, « cette semaine »
+ * et « semaine prochaine » couvraient TOUT le planning. Sur 30, elles n'en couvrent plus
+ * que la moitié, et rien ne permettait d'atteindre le reste : le filtre serait devenu un
+ * piège — l'activer aurait CACHÉ des cours sans dire qu'il en existe d'autres.
+ */
+export type PeriodFilter = 'current' | 'next' | 'later'
 
 export interface ScheduleSlot {
   id: string
@@ -58,17 +69,33 @@ function getMonday(d: Date): Date {
 export function useSchedule() {
   const [allSlots, setAllSlots] = useState<ScheduleSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activityFilter, setActivityFilter] = useState<string | null>(null)
-  const [weekFilter, setWeekFilter] = useState<'current' | 'next' | null>(null)
-  const [coachFilter, setCoachFilter] = useState<string | null>(null)
+  // GYM-242 — MULTI-SÉLECTION. Un filtre unique obligeait à basculer d'un coach à l'autre ;
+  // Nico veut voir « Marie ET Julie ». C'est l'acquis de GYM-128 côté dashboard, porté ici.
+  // Liste VIDE = aucun filtre, jamais `null` : une seule forme à tester chez l'appelant.
+  const [activityFilters, setActivityFilters] = useState<string[]>([])
+  const [coachFilters, setCoachFilters] = useState<string[]>([])
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter | null>(null)
+  // Horizon de la salle. Initialisé au défaut plutôt qu'à 0 : le premier rendu se fait
+  // AVANT la lecture, et un horizon de 0 afficherait brièvement un planning vide.
+  const [horizonDays, setHorizonDays] = useState(DEFAULT_HORIZON_DAYS)
 
   const fetchSlots = useCallback(async () => {
     setIsLoading(true)
     try {
+      // 🔴 GYM-242 — C'ÉTAIT LA CAUSE. `end.setDate(end.getDate() + 14)` : quatorze jours
+      // écrits en dur. Le 19 août + 14 = le 2 septembre, très exactement la limite que Nico
+      // a constatée. La valeur vient désormais de nexxia_gyms.booking_horizon_days.
+      //
+      // ⚠️ REPLI PLUTÔT QUE PLANNING VIDE : `getBookingHorizonDays` ne renvoie jamais
+      // `null` — hors ligne ou avant l'établissement de la session, elle rend le défaut.
+      // Un membre dans le métro doit voir un planning, pas une app qui a l'air cassée.
+      const days = await getBookingHorizonDays()
+      setHorizonDays(days)
+
       const start = new Date()
       start.setHours(0, 0, 0, 0)
       const end = new Date(start)
-      end.setDate(end.getDate() + 14)
+      end.setDate(end.getDate() + days)
 
       const { data, error } = await supabase
         .from('time_slots')
@@ -159,30 +186,35 @@ export function useSchedule() {
   const filteredSlots = useMemo(() => {
     let result = allSlots
 
-    if (activityFilter) result = result.filter((s) => s.activity === activityFilter)
-    if (coachFilter) result = result.filter((s) => s.coach === coachFilter)
+    // Multi-sélection : une liste vide ne filtre RIEN (elle ne vide pas le planning).
+    if (activityFilters.length > 0) result = result.filter((s) => activityFilters.includes(s.activity))
+    if (coachFilters.length > 0) result = result.filter((s) => coachFilters.includes(s.coach))
 
-    if (weekFilter) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const monday = getMonday(today)
-      const start = new Date(monday)
-      const end = new Date(monday)
+    if (periodFilter) {
+      const monday = getMonday(new Date())
+      const nextMonday = new Date(monday)
+      nextMonday.setDate(nextMonday.getDate() + 7)
+      const afterNext = new Date(monday)
+      afterNext.setDate(afterNext.getDate() + 14)
 
-      if (weekFilter === 'current') {
-        end.setDate(end.getDate() + 6)
+      if (periodFilter === 'current') {
+        const endStr = toDateStr(new Date(nextMonday.getTime() - 86400000))
+        result = result.filter((s) => s.date <= endStr)
+      } else if (periodFilter === 'next') {
+        const startStr = toDateStr(nextMonday)
+        const endStr = toDateStr(new Date(afterNext.getTime() - 86400000))
+        result = result.filter((s) => s.date >= startStr && s.date <= endStr)
       } else {
-        start.setDate(start.getDate() + 7)
-        end.setDate(end.getDate() + 13)
+        // « Plus tard » = tout ce qui reste jusqu'au bout de l'horizon. BORNE OUVERTE côté
+        // fin, volontairement : c'est déjà la requête qui borne à l'horizon de la salle.
+        // Poser ici une seconde borne créerait deux sources de vérité pour la même limite.
+        const startStr = toDateStr(afterNext)
+        result = result.filter((s) => s.date >= startStr)
       }
-
-      const startStr = toDateStr(start)
-      const endStr = toDateStr(end)
-      result = result.filter((s) => s.date >= startStr && s.date <= endStr)
     }
 
     return result
-  }, [allSlots, activityFilter, coachFilter, weekFilter])
+  }, [allSlots, activityFilters, coachFilters, periodFilter])
 
   const groupedByDay = useMemo<DaySection[]>(() => {
     const map = new Map<string, ScheduleSlot[]>()
@@ -200,12 +232,39 @@ export function useSchedule() {
   }, [filteredSlots])
 
   const resetFilters = useCallback(() => {
-    setActivityFilter(null)
-    setWeekFilter(null)
-    setCoachFilter(null)
+    setActivityFilters([])
+    setCoachFilters([])
+    setPeriodFilter(null)
   }, [])
 
-  const hasActiveFilters = activityFilter !== null || weekFilter !== null || coachFilter !== null
+  /** Bascule une valeur dans une liste — même geste pour les activités et les coachs. */
+  const toggleActivity = useCallback((name: string) => {
+    setActivityFilters((prev) => (prev.includes(name) ? prev.filter((v) => v !== name) : [...prev, name]))
+  }, [])
+  const toggleCoach = useCallback((name: string) => {
+    setCoachFilters((prev) => (prev.includes(name) ? prev.filter((v) => v !== name) : [...prev, name]))
+  }, [])
+
+  const hasActiveFilters = activityFilters.length > 0 || coachFilters.length > 0 || periodFilter !== null
+  /** Nombre de filtres actifs, annoncé sur le bouton : la période compte pour un. */
+  const activeFilterCount = activityFilters.length + coachFilters.length + (periodFilter ? 1 : 0)
+
+  /**
+   * GYM-242 — « Plus tard » a-t-il quelque chose à montrer ?
+   *
+   * ⚠️ MESURÉ SUR LES CRÉNEAUX RÉELS, pas déduit de l'horizon. Avec un horizon court (une
+   * salle qui règle 7 jours), ou simplement un planning pas encore rempli au-delà de deux
+   * semaines, l'option ne renverrait RIEN — un filtre qui vide l'écran sans expliquer
+   * pourquoi. Elle est alors masquée : proposer un geste qui ne peut rien donner est le
+   * défaut que ce lot corrige, pas un défaut qu'il installe ailleurs.
+   */
+  const laterAvailable = useMemo(() => {
+    const monday = getMonday(new Date())
+    const afterNext = new Date(monday)
+    afterNext.setDate(afterNext.getDate() + 14)
+    const startStr = toDateStr(afterNext)
+    return allSlots.some((s) => s.date >= startStr)
+  }, [allSlots])
 
   // Extract unique coaches from fetched data
   const coaches = useMemo(() => {
@@ -223,9 +282,11 @@ export function useSchedule() {
 
   return {
     allSlots, filteredSlots, groupedByDay, isLoading,
-    activityFilter, setActivityFilter,
-    weekFilter, setWeekFilter,
-    coachFilter, setCoachFilter,
-    resetFilters, hasActiveFilters, coaches, activities, refetch: fetchSlots,
+    activityFilters, toggleActivity,
+    coachFilters, toggleCoach,
+    periodFilter, setPeriodFilter,
+    laterAvailable, horizonDays,
+    resetFilters, hasActiveFilters, activeFilterCount,
+    coaches, activities, refetch: fetchSlots,
   }
 }

@@ -183,7 +183,22 @@
     "no_slots": "Aucun créneau disponible",
     "no_results": "Aucun cours trouvé",
     "no_results_hint": "Essayez de modifier vos filtres",
-    "reset_filters": "Réinitialiser les filtres"
+    "reset_filters": "Réinitialiser les filtres",
+    "filters": {
+      "title": "Filtres",
+      "button": "Filtrer",
+      "period": "Période",
+      "classes": "Cours",
+      "coach": "Coach",
+      "this_week": "Cette semaine",
+      "next_week": "Semaine prochaine",
+      "later": "Plus tard",
+      "clear_all": "Tout effacer",
+      "show_count": "Voir {{count}} cours",
+      "show_none": "Aucun cours",
+      "result_count": "{{count}} cours",
+      "open_a11y": "Ouvrir les filtres, {{count}} actifs"
+    }
   },
   "open_gym": {
     "free_access": "Accès libre",
