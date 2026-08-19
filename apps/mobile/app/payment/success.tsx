@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
+// GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
+import { runNetworkSafe } from '../../lib/networkError'
 
 interface Payment {
   id: string
@@ -196,6 +198,9 @@ function ClassicPaymentScreen({
 }) {
   const [payment, setPayment] = useState<Payment | null>(null)
   const [status, setStatus] = useState<ClassicStatus>('polling')
+  // GYM-240 — la connexion est-elle tombée pendant le poll ? État d'AFFICHAGE seulement :
+  // il ne change ni le cycle de poll, ni l'issue du paiement.
+  const [offline, setOffline] = useState(false)
   const [successVisible, setSuccessVisible] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -229,6 +234,13 @@ function ClassicPaymentScreen({
     else goToBookings()
   }, [router, stopPolling, goToBookings])
 
+  // GYM-240 — 🔴 C'EST ICI QUE LE REJET PARTAIT EN ERREUR NON GÉRÉE. Cette fonction est
+  // `async` et passée à `setInterval` : la promesse qu'elle renvoie n'est attendue par
+  // personne. Une coupure réseau pendant les 5 minutes de poll rejetait donc dans le vide,
+  // et Sentry la recevait en `onunhandledrejection` sous le message trompeur
+  // « Edge Function returned a non-2xx status code » — alors qu'aucune Edge n'était
+  // appelée. Le poll est un cas d'école : il tourne en arrière-plan, longtemps, sur un
+  // écran que le membre laisse ouvert pendant qu'il bascule d'application.
   const poll = useCallback(async () => {
     if (settledRef.current) return
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
@@ -238,7 +250,18 @@ function ClassicPaymentScreen({
     if (rowId) query = query.eq('id', rowId)
     else if (mollieId) query = query.eq('mollie_payment_id', mollieId)
     else return
-    const { data } = await query.maybeSingle()
+    // ⚠️ UNE COUPURE N'INTERROMPT PAS LE POLL : on repassera au tick suivant, et le
+    // timeout global reste le seul juge de l'abandon. Un refus SERVEUR, lui, est relancé
+    // par `runNetworkSafe` et remonte comme avant — le taire masquerait un vrai problème.
+    // `query.maybeSingle()` renvoie un PostgrestBuilder (thenable, pas une vraie Promise) :
+    // on l'enveloppe pour que `runNetworkSafe` reçoive bien une promesse.
+    const res = await runNetworkSafe(async () => await query.maybeSingle())
+    if (res.offline) {
+      setOffline(true)
+      return
+    }
+    setOffline(false)
+    const { data } = res.data
     if (!data || settledRef.current) return
     setPayment(data as Payment)
     const s = data.status as string
@@ -336,6 +359,20 @@ function ClassicPaymentScreen({
             <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
               {t('payment.waiting_confirmation')}
             </Text>
+            {/* GYM-240 — la connexion est tombée pendant la vérification. On le DIT plutôt
+                que de laisser tourner un indicateur qui ne progressera pas, et on rassure :
+                le paiement n'est pas perdu, c'est la lecture de son état qui l'est. Le poll
+                continue tout seul — le message disparaît au premier tick qui aboutit. */}
+            {offline && (
+              <View className="mt-6 rounded-xl bg-orange-50 px-4 py-3">
+                <Text className="text-center font-dmsans-bold text-sm text-orange-800">
+                  {t('payment.offline_title')}
+                </Text>
+                <Text className="mt-1 text-center font-dmsans text-xs text-orange-700">
+                  {t('payment.offline_hint')}
+                </Text>
+              </View>
+            )}
           </>
         )}
 

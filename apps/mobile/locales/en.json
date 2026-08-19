@@ -488,7 +488,9 @@
     "timeout_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, you don't need to do anything.",
     "check_again": "Check again",
     "modal_success_title": "Payment successful",
-    "modal_success_body": "Your payment has been confirmed."
+    "modal_success_body": "Your payment has been confirmed.",
+    "offline_title": "Connection lost",
+    "offline_hint": "Your payment is safe — we'll retry as soon as you're back online."
   },
   "payments": {
     "title": "Payment history",

@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useGymTimezone } from '@/hooks/useGymTimezone'
+import { toGymWallClock } from '@/lib/timezone'
 
 // ── Heure locale gym (buckets en Europe/Brussels, pas UTC) — mêmes helpers que
 //    pages/Revenue.tsx (source de vérité, cohérence /dashboard ↔ /revenue). ──
-const GYM_TZ = 'Europe/Brussels'
-function toBxl(iso: string | null): Date | null {
+// GYM-93 — le fuseau vient de nexxia_gyms.timezone, plus d'une constante de module.
+function toBxl(iso: string | null, tz: string): Date | null {
   if (!iso) return null
-  return new Date(new Date(iso).toLocaleString('en-US', { timeZone: GYM_TZ }))
+  return toGymWallClock(iso, tz)
 }
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}`
@@ -59,6 +61,8 @@ export function useDashboardStats() {
   // précalculés à partir des créneaux du mois courant). Défaut = semaine.
   const [fillPeriod, setFillPeriod] = useState<FillPeriod>('week')
   const gymId = useAuthStore((s) => s.gym_id)
+  // GYM-93 — fuseau de la SALLE (nexxia_gyms.timezone), jamais une constante de module.
+  const tz = useGymTimezone()
 
   const fetchStats = useCallback(async () => {
     if (!gymId) return
@@ -69,7 +73,7 @@ export function useDashboardStats() {
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
 
       // Repères en heure locale gym.
-      const nowB = new Date(now.toLocaleString('en-US', { timeZone: GYM_TZ }))
+      const nowB = toGymWallClock(now, tz)
       const curMonthKey = monthKey(nowB)
       const curWeekKey = weekKey(nowB)
       const curDayKey = dayKey(nowB)
@@ -133,7 +137,7 @@ export function useDashboardStats() {
       // Taux de remplissage par période (heure locale).
       let capD = 0, bkD = 0, capW = 0, bkW = 0, capM = 0, bkM = 0
       for (const s of slotsRes.data ?? []) {
-        const b = toBxl(s.starts_at)
+        const b = toBxl(s.starts_at, tz)
         if (!b) continue
         const cap = s.capacity ?? 0
         const booked = s.bookings_count ?? 0
@@ -150,7 +154,7 @@ export function useDashboardStats() {
       // CA du mois courant : Σ amount des paiements 'paid' dont paid_at ∈ mois en cours (BXL).
       let thisMonthRevenue = 0
       for (const p of paymentsRes.data ?? []) {
-        const b = toBxl(p.paid_at)
+        const b = toBxl(p.paid_at, tz)
         if (b && monthKey(b) === curMonthKey) thisMonthRevenue += p.amount ?? 0
       }
 
