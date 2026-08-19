@@ -7,11 +7,13 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { RevenueChart, type RevenueBucket } from '@/components/revenue/RevenueChart'
 import { RefundModal, type RefundTarget } from '@/components/revenue/RefundModal'
 import { InvoiceMenu } from '@/components/revenue/InvoiceMenu'
+import { useGymTimezone } from '@/hooks/useGymTimezone'
+import { toGymWallClock } from '@/lib/timezone'
 
 // GYM-167 — statuts pour lesquels une facture est disponible (encaissement réel).
 const INVOICEABLE = new Set(['paid', 'partially_refunded', 'refunded'])
 
-const GYM_TZ = 'Europe/Brussels'
+// GYM-93 — le fuseau vient de nexxia_gyms.timezone (useGymTimezone), plus d'une constante.
 type PaymentStatus = 'paid' | 'pending' | 'failed' | 'expired' | 'canceled'
   | 'refunded' | 'partially_refunded' | 'charged_back'
 type ChartMode = '12m' | '8w'
@@ -38,10 +40,12 @@ interface PaymentRow {
   createdAtBxl: Date | null
 }
 
-// ── Heure locale gym (buckets en Europe/Brussels, pas UTC) ──
-function toBxl(iso: string | null): Date | null {
+// ── Heure locale gym (buckets dans le fuseau de la SALLE, pas UTC) ──
+// GYM-93 — passe par lib/timezone : plus de détour par une chaîne 'en-US' reparsée, et le
+// fuseau est un paramètre, plus une constante de module.
+function toBxl(iso: string | null, tz: string): Date | null {
   if (!iso) return null
-  return new Date(new Date(iso).toLocaleString('en-US', { timeZone: GYM_TZ }))
+  return toGymWallClock(iso, tz)
 }
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}`
@@ -120,6 +124,8 @@ function KpiCard({ label, value, subtitle, subtitleClass = 'text-muted', Icon, o
 export default function Revenue() {
   const { t } = useTranslation()
   const gymId = useAuthStore((s) => s.gym_id)
+  // GYM-93 — fuseau de la SALLE (nexxia_gyms.timezone), jamais une constante de module.
+  const tz = useGymTimezone()
 
   const [rows, setRows] = useState<PaymentRow[]>([])
   const [mrr, setMrr] = useState(0)
@@ -170,20 +176,20 @@ export default function Revenue() {
         invoiceNumber: (p.invoice_number as string | null) ?? null,
         paidAt: (p.paid_at as string | null) ?? null,
         createdAt: (p.created_at as string) ?? '',
-        paidAtBxl: toBxl((p.paid_at as string | null) ?? null),
-        createdAtBxl: toBxl((p.created_at as string | null) ?? null),
+        paidAtBxl: toBxl((p.paid_at as string | null) ?? null, tz),
+        createdAtBxl: toBxl((p.created_at as string | null) ?? null, tz),
       }
     })
     setRows(mapped)
     setMrr((subsRes.data ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0))
     setIsLoading(false)
-  }, [gymId, t])
+  }, [gymId, t, tz])
 
   useEffect(() => { loadData() }, [loadData])
 
   // ── KPIs (mois en cours en heure locale gym) ──
   const kpis = useMemo(() => {
-    const nowB = new Date(new Date().toLocaleString('en-US', { timeZone: GYM_TZ }))
+    const nowB = toGymWallClock(new Date(), tz)
     const curKey = monthKey(nowB)
     const prevKey = monthKey(new Date(nowB.getFullYear(), nowB.getMonth() - 1, 1))
     let thisMonth = 0, lastMonth = 0, failedPending = 0
@@ -200,11 +206,11 @@ export default function Revenue() {
     }
     const growth = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth) * 100 : thisMonth > 0 ? 100 : 0
     return { thisMonth, lastMonth, growth, failedPending }
-  }, [rows])
+  }, [rows, tz])
 
   // ── Buckets chart (heure locale gym) ──
   const buckets = useMemo<RevenueBucket[]>(() => {
-    const nowB = new Date(new Date().toLocaleString('en-US', { timeZone: GYM_TZ }))
+    const nowB = toGymWallClock(new Date(), tz)
     const defs: { key: string; label: string }[] = []
     if (chartMode === '12m') {
       for (let i = 11; i >= 0; i--) {
