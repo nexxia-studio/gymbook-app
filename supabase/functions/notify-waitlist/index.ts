@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, memberLink, type GymBranding } from '../_shared/gym-branding.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -80,6 +82,9 @@ Deno.serve(async (req) => {
 
     // Feature critique waitlist : on lit le vrai statut d'envoi et on LOG explicitement
     // tout échec (avec booking_id) pour le voir dans les logs.
+    // GYM-238 — identité de la salle : une lecture, pour l'expéditeur, la chrome ET le lien.
+    const gym = await loadGymBranding(admin, booking.gym_id as string)
+
     let emailOk = false
     if (resendKey && profile.email) {
       try {
@@ -87,10 +92,21 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
           body: JSON.stringify({
-            from: 'Dopamine <noreply@viniz.app>',
+            from: emailSender(gym),
             to: profile.email,
             subject: `Place disponible — ${activityName}`,
-            html: `<div style="font-family:'DM Sans',sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:480px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 24px;border-radius:0 0 16px 16px;"><h2 style="margin:0 0 16px;color:#111111;">Place disponible !</h2><p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p><p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${minutes} minutes pour confirmer.</p><a href="https://links.viniz.app/dopamine/confirm-waitlist?booking=${bookingId}" style="display:inline-block;background:#111111;color:#C8F000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Confirmer ma place</a></div></div></div>`,
+            html: emailShell(gym, {
+              title: 'Place disponible !',
+              width: 480,
+              bodyHtml:
+                `<p style="color:#6B6861;">Une place vient de se libérer pour <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p>` +
+                `<p style="color:#EF4444;font-weight:bold;margin:16px 0;">Vous avez ${minutes} minutes pour confirmer.</p>`,
+              ctaLabel: 'Confirmer ma place',
+              // 🔴 LE SLUG « dopamine » ÉTAIT ÉCRIT EN DUR DANS CETTE URL. Le lien était le
+              // seul du dépôt déjà en https — donc fonctionnel — mais il aurait envoyé les
+              // membres d'une seconde salle confirmer leur place sur la page de Dopamine.
+              ctaUrl: `${memberLink(gym, 'confirm-waitlist')}?booking=${bookingId}`,
+            }),
           }),
         })
         emailOk = resp.ok

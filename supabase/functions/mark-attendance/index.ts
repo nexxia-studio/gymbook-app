@@ -10,6 +10,8 @@
 //
 // gym_id n'est JAMAIS pris du body : il vient du profil de l'appelant (isolation multi-tenant).
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-238 — chrome des emails composée depuis nexxia_gyms.
+import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 import { ACTIVE_SUBSCRIPTION_STATUSES, notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
@@ -53,6 +55,7 @@ function formatSuspensionDuration(fromIso: string | null, toIso: string): string
 }
 
 function suspensionEmailHtml(
+  gym: GymBranding,
   firstName: string | null,
   activityName: string,
   dateStr: string,
@@ -60,12 +63,22 @@ function suspensionEmailHtml(
   durationLabel: string,
 ): string {
   const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
-  return `<div style="font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;background:#F5F4F0;padding:40px 20px;"><div style="max-width:520px;margin:0 auto;"><div style="background:#111111;padding:24px;border-radius:16px 16px 0 0;text-align:center;"><span style="font-family:'Arial Black',Arial,sans-serif;color:#C8F000;font-size:24px;letter-spacing:2px;">DOPAMINE</span></div><div style="background:#FFFFFF;padding:32px 28px;border-radius:0 0 16px 16px;"><div style="font-size:28px;margin-bottom:12px;">⚠️</div><h2 style="margin:0 0 8px;color:#111111;font-size:20px;">Compte suspendu ${durationLabel}</h2><p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Une absence a été enregistrée pour ton cours <strong>${activityName}</strong> du ${dateStr}. Suite à tes absences répétées, ton compte est suspendu jusqu'au <strong>${untilStr}</strong>.</p><p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Tu ne pourras pas réserver de cours pendant cette période. Pour toute question, contacte l'accueil de ta salle.</p></div><p style="text-align:center;color:#9A9890;font-size:11px;margin:16px 0 0;">Dopamine Performance Club · Neupré</p></div></div>`
+  return emailShell(gym, {
+    emoji: '⚠️',
+    title: `Compte suspendu ${durationLabel}`,
+    bodyHtml:
+      `<p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Une absence a été enregistrée pour ton cours <strong>${activityName}</strong> du ${dateStr}. Suite à tes absences répétées, ton compte est suspendu jusqu'au <strong>${untilStr}</strong>.</p>` +
+      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0 0 12px;">Tu ne pourras pas réserver de cours pendant cette période. Pour toute question, contacte l'accueil de ta salle.</p>`,
+  })
 }
 
 // Notifie best-effort le membre suspendu (push + email). Ne lève jamais.
 async function notifySuspension(
   admin: SupabaseClient,
+  // GYM-238 — la salle dont on emprunte l'identité. Passée plutôt que relue : l'appelant
+  // l'a lue sur le PROFIL de l'appelant et validée contre le créneau.
+  gymId: string,
   supabaseUrl: string,
   serviceKey: string,
   bookingId: string,
@@ -125,15 +138,18 @@ async function notifySuspension(
       }).catch((e) => console.error('[mark-attendance] push error:', e))
     }
 
+    const gym = await loadGymBranding(admin, gymId)
+
     if (RESEND_KEY && profile.email) {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
         body: JSON.stringify({
-          from: 'Dopamine Performance Club <noreply@viniz.app>',
+          from: emailSender(gym),
           to: profile.email,
-          subject: `Compte suspendu ${durationLabel} — Dopamine`,
-          html: suspensionEmailHtml(profile.first_name, activityName, dateStr, untilStr, durationLabel),
+          // L'objet portait « Dopamine » en dur : il porte le nom de la salle.
+          subject: `Compte suspendu ${durationLabel} — ${gym.name}`,
+          html: suspensionEmailHtml(gym, profile.first_name, activityName, dateStr, untilStr, durationLabel),
         }),
       }).catch((e) => console.error('[mark-attendance] email error:', e))
     }
@@ -215,7 +231,7 @@ Deno.serve(async (req) => {
         | { action?: string; type?: string; applied_at?: string | null; expires_at?: string | null }
         | null
       if (penalty?.action === 'applied' && penalty.expires_at) {
-        await notifySuspension(admin, supabaseUrl, serviceKey, bookingId, penalty.applied_at ?? null, penalty.expires_at)
+        await notifySuspension(admin, gymId, supabaseUrl, serviceKey, bookingId, penalty.applied_at ?? null, penalty.expires_at)
       }
 
       return jsonResponse({ ...result })
