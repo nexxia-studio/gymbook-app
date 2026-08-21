@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
@@ -21,11 +22,20 @@ import { useToastStore } from '@/hooks/useToast'
 import type { ActivityItem, ActivityFormData } from '@/types/activity'
 import type { CoachItem, CoachFormData } from '@/types/coach'
 import { MollieConnectCard } from '@/components/settings/MollieConnectCard'
+// GYM-247 — abonnement Viniz de la salle (plan, quotas consommés, grille).
+import { SubscriptionSection } from '@/components/settings/SubscriptionSection'
 
 // GYM-56 — l'onglet "plans" est retiré : le CRUD des formules vit sur la page /plans.
 // GYM-200 — onglet "team" : qui a accès au dashboard de la salle (invitations comprises).
-const TABS = ['activities', 'coaches', 'team', 'gym', 'payments'] as const
+// GYM-247 — onglet "subscription" : l'abonnement VINIZ de la salle. À ne pas confondre
+// avec "plans" (les formules que la salle vend à ses membres, page /plans) ni avec
+// "payments" (le branchement Mollie).
+const TABS = ['activities', 'coaches', 'team', 'gym', 'payments', 'subscription'] as const
 type Tab = (typeof TABS)[number]
+
+function isTab(v: string | null): v is Tab {
+  return v !== null && (TABS as readonly string[]).includes(v)
+}
 
 export default function Settings() {
   const { t } = useTranslation()
@@ -37,7 +47,12 @@ export default function Settings() {
     toggleActivity, getActivityFutureSlots, duplicateActivity, deleteActivity, slugify,
   } = useActivities()
 
-  const [activeTab, setActiveTab] = useState<Tab>('activities')
+  // GYM-247 — l'onglet est amorçable par l'URL (?tab=subscription) pour que les CTA
+  // d'upsell pointent directement sur l'abonnement. La navigation interne reste en state :
+  // seul l'AMORÇAGE lit l'URL, changer d'onglet ne réécrit pas l'historique.
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<Tab>(isTab(requestedTab) ? requestedTab : 'activities')
   const [actCreateOpen, setActCreateOpen] = useState(false)
   const [editActivity, setEditActivity] = useState<ActivityItem | null>(null)
   const [deleteActTarget, setDeleteActTarget] = useState<ActivityItem | null>(null)
@@ -317,6 +332,9 @@ export default function Settings() {
             <LegalBillingCard />
           </div>
         )}
+
+        {/* ========= SUBSCRIPTION TAB (GYM-247) ========= */}
+        {activeTab === 'subscription' && <SubscriptionSection />}
 
         {/* ========= PAYMENTS TAB ========= */}
         {activeTab === 'payments' && (

@@ -34,6 +34,13 @@ export interface EdgeErrorBody {
   waitlist_position?: number
   /** BADGE_CODE_TAKEN (GYM-224) — prénom du membre qui porte DÉJÀ ce code. */
   holder_first_name?: string | null
+  // ── GYM-246/247 — plafonds de plan Viniz. Le serveur JOINT son propre décompte au
+  // refus : c'est lui qui a dit non, c'est son compte qui fait foi. « 15 / 15 » se lit,
+  // « limite atteinte » non — et un toast générique est le défaut que GYM-219 a corrigé.
+  /** PLAN_MEMBER_LIMIT / PLAN_ADMIN_LIMIT — nombre actuellement consommé. */
+  current?: number
+  /** PLAN_MEMBER_LIMIT / PLAN_ADMIN_LIMIT — plafond du plan. */
+  max?: number
   // ── GYM-231 — ce qui transforme un refus FULL en DEUX issues ouvertes. ──
   /** FULL — l'activité autorise-t-elle le dépassement (activities.max_overbook > 0) ? */
   overbook_allowed?: boolean
@@ -135,6 +142,13 @@ export const KNOWN_EDGE_ERROR_CODES = [
   'AMOUNT_TOO_HIGH', 'INVALID_AMOUNT', 'PAYMENT_NOT_FOUND',
   // ── adjust-credits (GYM-182) ──
   'INVALID_DELTA', 'REASON_REQUIRED', 'MEMBER_NOT_IN_GYM', 'ADJUST_FAILED',
+  // ── GYM-246 — gardes serveur de plan Viniz ──
+  //  · PLAN_MEMBER_LIMIT / PLAN_ADMIN_LIMIT sont interceptés AVANT le mapping par une
+  //    modale d'upsell (PlanLimitModal) : ils portent des chiffres qu'un toast perdrait.
+  //    Ils restent listés ici pour le cas où un appelant non encore migré les rencontre.
+  //  · PLAN_RESOLUTION_FAILED est une PANNE, pas un refus de droit : son message ne doit
+  //    jamais parler de plan, sinon une coupure passagère se lit comme une rétrogradation.
+  'PLAN_MEMBER_LIMIT', 'PLAN_ADMIN_LIMIT', 'PLAN_PAYMENTS_DISABLED', 'PLAN_RESOLUTION_FAILED',
   // ── admin-create-member ──
   'EMAIL_EXISTS', 'INVALID_EMAIL', 'PLAN_NOT_FOUND', 'PLAN_MISCONFIGURED',
   'PLAN_NOT_ONE_TIME', 'INVALID_PAYMENT_METHOD', 'CREATE_FAILED', 'MISSING_FIELDS',

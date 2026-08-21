@@ -9,6 +9,11 @@ import { MemberDrawer } from '@/components/members/MemberDrawer'
 import { AddMemberModal } from '@/components/members/AddMemberModal'
 import { LiftSuspensionModal } from '@/components/members/LiftSuspensionModal'
 import { useMembers, type Member, type MemberStatusFilter } from '@/hooks/useMembers'
+// GYM-247 — prévenir avant que le serveur refuse (PLAN_MEMBER_LIMIT), et expliquer
+// le refus avec ses chiffres quand il tombe quand même.
+import { PlanLimitBanner } from '@/components/subscription/PlanLimitBanner'
+import { PlanLimitModal } from '@/components/subscription/PlanLimitModal'
+import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 import type { MemberPlan } from '@/lib/subscription'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { useGymStore } from '@/stores/useGymStore'
@@ -412,6 +417,11 @@ export default function Members() {
   const [selected, setSelected] = useState<Member | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [liftTarget, setLiftTarget] = useState<Member | null>(null)
+  // Chiffres du refus SERVEUR. La bannière, elle, s'appuie sur `totalCount` déjà chargé
+  // par useMembers — même prédicat que la garde serveur (role='member', deleted_at IS
+  // NULL), donc aucune requête supplémentaire et aucun risque de compter autre chose.
+  const [limitHit, setLimitHit] = useState<{ current?: number; max?: number } | null>(null)
+  const { limits } = useEffectivePlan()
 
   // GYM-204 — la levée passe par une modale à motif obligatoire. L'ancienne version
   // appelait l'écriture avec un motif en dur ('Lifted by admin') puis affichait un toast de
@@ -447,6 +457,10 @@ export default function Members() {
 
   return (
     <DashboardLayout>
+      {/* GYM-247 — persistante dès 80 % du quota : apprendre le plafond au comptoir, un
+          membre en face, est exactement ce que ce lot doit éviter. */}
+      <PlanLimitBanner current={totalCount} max={limits?.max_members ?? null} labelKey="subscription.quota.members" />
+
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
@@ -565,7 +579,12 @@ export default function Members() {
         )}
       </div>
 
-      <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onCreated={refetch} />
+      <AddMemberModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={refetch}
+        onPlanLimit={(info) => setLimitHit(info)}
+      />
 
       {/* GYM-204 — motif obligatoire, erreurs visibles, liste rafraîchie après succès. */}
       <LiftSuspensionModal
@@ -583,6 +602,7 @@ export default function Members() {
         onClose={() => setSelected(null)}
         onUpdated={() => refetch()}
       />
+      <PlanLimitModal kind={limitHit ? 'members' : null} current={limitHit?.current} max={limitHit?.max} onClose={() => setLimitHit(null)} />
     </DashboardLayout>
   )
 }

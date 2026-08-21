@@ -28,8 +28,8 @@ export type Database = {
           icon: string | null
           id: string
           image_url: string | null
-          name: string
           max_overbook: number
+          name: string
           requires_coach: boolean
           requires_medical_check: boolean | null
           slug: string
@@ -49,8 +49,8 @@ export type Database = {
           icon?: string | null
           id?: string
           image_url?: string | null
-          name: string
           max_overbook?: number
+          name: string
           requires_coach?: boolean
           requires_medical_check?: boolean | null
           slug: string
@@ -70,8 +70,8 @@ export type Database = {
           icon?: string | null
           id?: string
           image_url?: string | null
-          name?: string
           max_overbook?: number
+          name?: string
           requires_coach?: boolean
           requires_medical_check?: boolean | null
           slug?: string
@@ -413,6 +413,61 @@ export type Database = {
           {
             foreignKeyName: "consent_history_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_adjustments: {
+        Row: {
+          applied_delta: number
+          created_at: string | null
+          delta: number
+          granted_by: string
+          gym_id: string
+          id: string
+          member_id: string
+          reason: string
+        }
+        Insert: {
+          applied_delta: number
+          created_at?: string | null
+          delta: number
+          granted_by: string
+          gym_id: string
+          id?: string
+          member_id: string
+          reason: string
+        }
+        Update: {
+          applied_delta?: number
+          created_at?: string | null
+          delta?: number
+          granted_by?: string
+          gym_id?: string
+          id?: string
+          member_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_adjustments_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_adjustments_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_adjustments_member_id_fkey"
+            columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1359,6 +1414,13 @@ export type Database = {
             referencedRelation: "gym_sites"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "member_subscriptions_source_payment_id_fkey"
+            columns: ["source_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
         ]
       }
       mollie_connections: {
@@ -1536,6 +1598,7 @@ export type Database = {
       nexxia_gyms: {
         Row: {
           address: string | null
+          booking_horizon_days: number
           city: string | null
           commercial_name: string | null
           commission_cb_rate_override: number | null
@@ -1556,7 +1619,6 @@ export type Database = {
           legal_name: string | null
           legal_postal_code: string | null
           logo_url: string | null
-          booking_horizon_days: number
           max_active_bookings: number | null
           mollie_profile_id: string | null
           mollie_vault_secret_id: string | null
@@ -1585,7 +1647,9 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          booking_horizon_days?: number
           city?: string | null
+          commercial_name?: string | null
           commission_cb_rate_override?: number | null
           commission_sepa_rate_override?: number | null
           company_name?: string | null
@@ -1604,7 +1668,6 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           logo_url?: string | null
-          booking_horizon_days?: number
           max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
@@ -1633,6 +1696,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          booking_horizon_days?: number
           city?: string | null
           commercial_name?: string | null
           commission_cb_rate_override?: number | null
@@ -1653,7 +1717,6 @@ export type Database = {
           legal_name?: string | null
           legal_postal_code?: string | null
           logo_url?: string | null
-          booking_horizon_days?: number
           max_active_bookings?: number | null
           mollie_profile_id?: string | null
           mollie_vault_secret_id?: string | null
@@ -1769,6 +1832,7 @@ export type Database = {
           payments_enabled: boolean | null
           plan: string
           price_cents: number | null
+          price_yearly_cents: number
           qr_checkin_enabled: boolean | null
           trial_days: number | null
         }
@@ -1792,6 +1856,7 @@ export type Database = {
           payments_enabled?: boolean | null
           plan: string
           price_cents?: number | null
+          price_yearly_cents?: number
           qr_checkin_enabled?: boolean | null
           trial_days?: number | null
         }
@@ -1815,6 +1880,7 @@ export type Database = {
           payments_enabled?: boolean | null
           plan?: string
           price_cents?: number | null
+          price_yearly_cents?: number
           qr_checkin_enabled?: boolean | null
           trial_days?: number | null
         }
@@ -1896,8 +1962,6 @@ export type Database = {
           gym_id: string
           id: string
           late_cancel_hours: number | null
-          booking_horizon_days: number
-          max_active_bookings: number | null
           reset_after_days: number | null
           suspension_at: number | null
           suspension_hours: number | null
@@ -1912,8 +1976,6 @@ export type Database = {
           gym_id: string
           id?: string
           late_cancel_hours?: number | null
-          booking_horizon_days?: number
-          max_active_bookings?: number | null
           reset_after_days?: number | null
           suspension_at?: number | null
           suspension_hours?: number | null
@@ -1928,8 +1990,6 @@ export type Database = {
           gym_id?: string
           id?: string
           late_cancel_hours?: number | null
-          booking_horizon_days?: number
-          max_active_bookings?: number | null
           reset_after_days?: number | null
           suspension_at?: number | null
           suspension_hours?: number | null
@@ -2119,61 +2179,6 @@ export type Database = {
           },
           {
             foreignKeyName: "payments_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      credit_adjustments: {
-        Row: {
-          applied_delta: number
-          created_at: string | null
-          delta: number
-          granted_by: string
-          gym_id: string
-          id: string
-          member_id: string
-          reason: string
-        }
-        Insert: {
-          applied_delta: number
-          created_at?: string | null
-          delta: number
-          granted_by: string
-          gym_id: string
-          id?: string
-          member_id: string
-          reason: string
-        }
-        Update: {
-          applied_delta?: number
-          created_at?: string | null
-          delta?: number
-          granted_by?: string
-          gym_id?: string
-          id?: string
-          member_id?: string
-          reason?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "credit_adjustments_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_adjustments_gym_id_fkey"
-            columns: ["gym_id"]
-            isOneToOne: false
-            referencedRelation: "nexxia_gyms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_adjustments_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -2409,6 +2414,85 @@ export type Database = {
         }
         Relationships: []
       }
+      slot_series: {
+        Row: {
+          activity_id: string
+          capacity: number
+          coach_id: string | null
+          created_at: string | null
+          created_by: string | null
+          duration_min: number
+          generated_until: string
+          gym_id: string
+          id: string
+          level: string | null
+          notes: string | null
+          rrule: string
+          starts_local_time: string
+          starts_on: string
+          timezone: string
+          updated_at: string | null
+        }
+        Insert: {
+          activity_id: string
+          capacity: number
+          coach_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_min: number
+          generated_until: string
+          gym_id: string
+          id?: string
+          level?: string | null
+          notes?: string | null
+          rrule: string
+          starts_local_time: string
+          starts_on: string
+          timezone: string
+          updated_at?: string | null
+        }
+        Update: {
+          activity_id?: string
+          capacity?: number
+          coach_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duration_min?: number
+          generated_until?: string
+          gym_id?: string
+          id?: string
+          level?: string | null
+          notes?: string | null
+          rrule?: string
+          starts_local_time?: string
+          starts_on?: string
+          timezone?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slot_series_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slot_series_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "slot_series_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           created_at: string | null
@@ -2530,63 +2614,6 @@ export type Database = {
           },
         ]
       }
-      slot_series: {
-        Row: {
-          activity_id: string
-          capacity: number
-          coach_id: string | null
-          created_at: string | null
-          created_by: string | null
-          duration_min: number
-          generated_until: string
-          gym_id: string
-          id: string
-          level: string | null
-          notes: string | null
-          rrule: string
-          starts_local_time: string
-          starts_on: string
-          timezone: string
-          updated_at: string | null
-        }
-        Insert: {
-          activity_id: string
-          capacity: number
-          coach_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          duration_min: number
-          generated_until: string
-          gym_id: string
-          id?: string
-          level?: string | null
-          notes?: string | null
-          rrule: string
-          starts_local_time: string
-          starts_on: string
-          timezone: string
-          updated_at?: string | null
-        }
-        Update: {
-          activity_id?: string
-          capacity?: number
-          coach_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          duration_min?: number
-          generated_until?: string
-          gym_id?: string
-          id?: string
-          level?: string | null
-          notes?: string | null
-          rrule?: string
-          starts_local_time?: string
-          starts_on?: string
-          timezone?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       time_slots: {
         Row: {
           activity_id: string
@@ -2671,6 +2698,13 @@ export type Database = {
             columns: ["gym_id"]
             isOneToOne: false
             referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_slots_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "slot_series"
             referencedColumns: ["id"]
           },
           {
@@ -2781,9 +2815,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_member_credits_atomic: {
+        Args: {
+          p_delta: number
+          p_granted_by: string
+          p_gym_id: string
+          p_member_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       allocate_invoice_number: {
         Args: { p_payment_id: string }
         Returns: string
+      }
+      apply_noshow_penalty: {
+        Args: {
+          p_booking_id: string
+          p_gym_id: string
+          p_incident_label?: string
+          p_member_id: string
+        }
+        Returns: Json
       }
       apply_paid_payment: {
         Args: {
@@ -2791,7 +2844,7 @@ export type Database = {
           p_payment_id: string
           p_payment_method: string
         }
-        Returns: string
+        Returns: Json
       }
       apply_refund_atomic: {
         Args: {
@@ -2826,6 +2879,7 @@ export type Database = {
       cleanup_oauth_states: { Args: never; Returns: undefined }
       create_booking_atomic: {
         Args: {
+          p_allow_overbook?: boolean
           p_existing_booking_id?: string
           p_gym_id: string
           p_has_subscription: boolean
@@ -2857,6 +2911,16 @@ export type Database = {
         Args: { plaintext: string; secret_id: string }
         Returns: string
       }
+      expire_subscriptions: {
+        Args: never
+        Returns: {
+          ends_at: string
+          gym_id: string
+          id: string
+          member_id: string
+          plan_name: string
+        }[]
+      }
       expire_waitlist_confirmations: { Args: never; Returns: undefined }
       get_communication_recipients: {
         Args: { p_gym_id: string; p_segment?: string }
@@ -2867,6 +2931,7 @@ export type Database = {
           push_token: string
         }[]
       }
+      get_effective_plan: { Args: { p_gym_id: string }; Returns: Json }
       get_gym_mollie_tokens: {
         Args: { p_gym_id: string }
         Returns: {
@@ -2900,6 +2965,10 @@ export type Database = {
       }
       is_gym_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      mark_attendance_atomic: {
+        Args: { p_booking_id: string; p_new_status: string }
+        Returns: Json
+      }
       mark_reminder_sent: {
         Args: { p_booking_id: string; p_reminder_type: string }
         Returns: undefined
@@ -2908,16 +2977,24 @@ export type Database = {
       process_no_shows: {
         Args: never
         Returns: {
+          finalized_booking_id: string
           gym_id: string
           member_id: string
-          new_noshow_count: number
-          penalty_applied: string
-          processed_booking_id: string
         }[]
       }
       promote_waitlist_atomic: { Args: { p_booking_id: string }; Returns: Json }
       reorder_waitlist: { Args: { p_slot_id: string }; Returns: undefined }
       request_account_deletion: { Args: { p_user_id: string }; Returns: string }
+      reset_noshow_counters: {
+        Args: never
+        Returns: {
+          gym_id: string
+          last_absence_at: string
+          member_id: string
+          orphan_counter: boolean
+          previous_count: number
+        }[]
+      }
       resolve_plan_for_payment: {
         Args: { p_gym_id: string; p_plan_id: string }
         Returns: {
@@ -2929,6 +3006,7 @@ export type Database = {
           is_one_time: boolean
           name: string
           plan_id: string
+          plan_type: string
           price_cents: number
         }[]
       }

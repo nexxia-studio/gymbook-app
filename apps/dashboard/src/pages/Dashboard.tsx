@@ -14,6 +14,10 @@ import { UpcomingSessions } from '@/components/dashboard/UpcomingSessions'
 import { RecentMembers } from '@/components/dashboard/RecentMembers'
 import { WeeklyChart } from '@/components/dashboard/WeeklyChart'
 import { useDashboardStats, type FillPeriod } from '@/hooks/useDashboardStats'
+// GYM-247 — le graphe hebdomadaire est la seule analyse avancée du dashboard ; il n'y a
+// pas d'écran statistiques dédié (grep). On gate donc LE BLOC, pas la page : le reste du
+// tableau de bord (KPI, planning du jour) n'est conditionné à aucun plan.
+import { PlanGate } from '@/components/subscription/PlanGate'
 
 // Toggle Jour/Semaine/Mois du taux de remplissage — même style que le toggle 12m/8w
 // de Revenue.tsx (bg-dark/5 p-*, bouton actif bg-card shadow-sm), version compacte
@@ -95,7 +99,9 @@ export default function Dashboard() {
           <RecentMembers members={stats?.recentMembers ?? []} loading={loading} />
         </div>
         <div className="lg:col-span-7">
-          <WeeklyChart loading={loading} />
+          <PlanGate feature="analytics_enabled" labelKey="subscription.features.analytics_enabled" variant="block">
+            <WeeklyChart loading={loading} />
+          </PlanGate>
         </div>
       </div>
     </DashboardLayout>
