@@ -52,8 +52,18 @@ export function mapPaymentError(code?: string): PaymentErrorInfo {
       return { messageKey: 'payments.errors.GYM_FORBIDDEN', retryable: false, refetch: false }
     case 'PLAN_NOT_FOUND':
       return { messageKey: 'payments.errors.PLAN_NOT_FOUND', retryable: false, refetch: true }
+    // GYM-246 — la garde serveur renvoie désormais PLAN_PAYMENTS_DISABLED (résolu par
+    // get_effective_plan, overrides par salle compris). PAYMENTS_DISABLED est conservé :
+    // les builds mobiles DÉJÀ EN CIRCULATION n'envoient rien, mais un backend antérieur
+    // peut encore le renvoyer le temps du déploiement. Même message pour les deux.
     case 'PAYMENTS_DISABLED':
+    case 'PLAN_PAYMENTS_DISABLED':
       return { messageKey: 'payments.errors.PAYMENTS_DISABLED', retryable: false, refetch: false }
+    // GYM-246 — le plan n'a pas pu être résolu : c'est une PANNE, pas un refus de droit.
+    // retryable, et surtout PAS le message « pas activé pour cette salle », qui ferait
+    // lire une indisponibilité passagère comme une rétrogradation d'abonnement.
+    case 'PLAN_RESOLUTION_FAILED':
+      return { messageKey: 'payments.errors.PLAN_RESOLUTION_FAILED', retryable: true, refetch: false }
     case 'PLAN_MISCONFIGURED':
       return { messageKey: 'payments.errors.PLAN_MISCONFIGURED', retryable: false, refetch: false }
     case 'MOLLIE_TOKEN_EXPIRED':
