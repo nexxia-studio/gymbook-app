@@ -115,7 +115,7 @@ BEGIN
       AND t.relname = 'nexxia_features'
       AND c.contype IN ('u', 'p')
       AND (
-        SELECT array_agg(a.attname ORDER BY a.attname)
+        SELECT array_agg(a.attname::text ORDER BY a.attname::text)
         FROM unnest(c.conkey) k
         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
       ) = ARRAY['feature', 'gym_id']
