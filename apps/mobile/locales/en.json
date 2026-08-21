@@ -527,6 +527,7 @@
       "MOLLIE_CUSTOMER_ERROR": "Could not create the mandate, please try again.",
       "SUBSCRIPTION_ACTIVE": "You already have unlimited access — no need to buy credits.",
       "SUBSCRIPTION_ALREADY_ACTIVE": "A subscription is already active.",
+      "DB_INSERT_FAILED": "Nothing was charged: the order could not be saved. Please try again.",
       "FALLBACK": "Something went wrong, please try again."
     }
   },
