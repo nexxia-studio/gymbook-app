@@ -21,6 +21,8 @@
 // Modèle suivi : admin-create-member (GYM-144) — mêmes contrôles d'appelant, même envoi
 // Resend best-effort, mêmes formes de réponse.
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-246 — porte d'entrée unique du gating (GYM-245).
+import { getEffectivePlan } from '../_shared/effective-plan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -296,6 +298,53 @@ Deno.serve(async (req) => {
         email_sent: resent,
         ...(resent ? {} : { warning: 'EMAIL_NOT_SENT' }),
       })
+    }
+
+    // ── GYM-246 — garde serveur : plafond de sièges d'équipe ────────────────────
+    // ⚠️ PLACÉE ICI, ET PAS PLUS HAUT. Le bloc `if (existing)` ci-dessus traite le RENVOI
+    // d'une invitation en attente : il ne crée aucun profil, donc ne consomme aucune
+    // place. Gater avant lui empêcherait de relancer une invitation alors même que le
+    // siège est déjà compté — un blocage que le gérant ne pourrait pas comprendre.
+    //
+    // PÉRIMÈTRE DU COMPTE : role = 'gym_admin'. C'est le SEUL rôle attribuable par cette
+    // fonction (INVITABLE_ROLES), et 'coach' n'existe pas encore en base — cf. le
+    // commentaire de INVITABLE_ROLES et GYM-176. Aucune Edge Function ne crée de profil
+    // role='coach' : les coachs sont des lignes de la table `coaches` (createCoachEntry),
+    // pas des comptes. Compter un rôle que rien ne crée rendrait la limite illisible.
+    // Le jour où 'coach' sera attribuable, l'ajouter ici EN MÊME TEMPS qu'à INVITABLE_ROLES.
+    //
+    // ⚠️ null = PANNE DE RÉSOLUTION, jamais « aucun droit » : 503, aucune écriture.
+    const effectivePlan = await getEffectivePlan(admin, gymId)
+    if (!effectivePlan) {
+      return errorResponse(503, 'PLAN_RESOLUTION_FAILED', 'Plan indisponible — réessayez dans un instant')
+    }
+
+    const maxAdmins = effectivePlan.limits.max_admins
+    if (maxAdmins !== null) {
+      const { count, error: countErr } = await admin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('gym_id', gymId)
+        .eq('role', 'gym_admin')
+        .is('deleted_at', null)
+
+      if (countErr || count === null) {
+        // Sans le compte, on ne sait pas si la limite est atteinte : on ne tranche pas.
+        console.error('[invite-team-member] admin count failed:', countErr)
+        return errorResponse(503, 'PLAN_RESOLUTION_FAILED', 'Plan indisponible — réessayez dans un instant')
+      }
+
+      if (count >= maxAdmins) {
+        // Même règle de rétrogradation que les membres : on bloque les nouveaux sièges,
+        // on ne retire jamais un gérant déjà en place.
+        return jsonResponse({
+          error: true,
+          code: 'PLAN_ADMIN_LIMIT',
+          message: "Limite de comptes d'équipe atteinte pour votre plan Viniz",
+          current: count,
+          max: maxAdmins,
+        }, 403)
+      }
     }
 
     // 5. Création du compte + lien d'invitation en UN appel.

@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, memberLink, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-246 — porte d'entrée unique du gating (GYM-245).
+import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,6 +47,24 @@ Deno.serve(async (req) => {
     if (!booking) return jsonResponse({ skipped: true, reason: 'booking_not_found' })
     if (booking.status !== 'waitlisted') return jsonResponse({ skipped: true, reason: 'not_waitlisted' })
     if (!booking.waitlist_notified_at) return jsonResponse({ skipped: true, reason: 'not_notified' })
+
+    // ── GYM-246 — garde serveur : notifications ─────────────────────────────────
+    // Placée dès que gym_id est connu et AVANT toute lecture supplémentaire : inutile de
+    // charger le créneau et le profil d'un membre qu'on ne préviendra pas.
+    //
+    // ⚠️ null = PANNE DE RÉSOLUTION, jamais « aucun droit ». On refuse en 503 : cette
+    // fonction est appelée par un trigger (net.http_post), un 503 est retenté, un skip
+    // silencieux perdrait définitivement la notification d'une salle qui y a droit.
+    const effectivePlan = await getEffectivePlan(admin, booking.gym_id)
+    if (!effectivePlan) {
+      console.error('[notify-waitlist] plan resolution failed, gym', booking.gym_id)
+      return jsonResponse({ error: true, code: 'PLAN_RESOLUTION_FAILED' }, 503)
+    }
+    if (!hasFeature(effectivePlan, 'notifications_enabled')) {
+      // Un rappel ne 403 pas : il passe son tour.
+      console.log('[plan-gate] notifications off, gym', booking.gym_id)
+      return jsonResponse({ skipped: true, reason: 'notifications_disabled' })
+    }
 
     const { data: slot } = await admin
       .from('time_slots')

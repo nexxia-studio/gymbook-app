@@ -11,6 +11,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-246 — porte d'entrée unique du gating (GYM-245).
+import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
@@ -46,6 +48,27 @@ async function brandingFor(supabase: SupabaseClient, gymId: string): Promise<Gym
   const b = await loadGymBranding(supabase, gymId)
   brandingCache.set(gymId, b)
   return b
+}
+
+/**
+ * GYM-246 — notifications autorisées ? Mis en cache LE TEMPS D'UNE EXÉCUTION, exactement
+ * comme brandingCache ci-dessus et pour la même raison : `get_pending_reminders` ne borne
+ * pas ses résultats à une salle, et résoudre le plan par rappel ferait un aller-retour par
+ * membre à prévenir pour une réponse identique à toute la salle.
+ *
+ * `null` en valeur = résolution ÉCHOUÉE pour cette salle sur cette exécution. On ne la met
+ * pas en cache comme un « non » : c'est une panne, et elle est retentée au passage suivant.
+ */
+const notificationsCache = new Map<string, boolean>()
+
+async function notificationsAllowed(supabase: SupabaseClient, gymId: string): Promise<boolean | null> {
+  const hit = notificationsCache.get(gymId)
+  if (hit !== undefined) return hit
+  const plan = await getEffectivePlan(supabase, gymId)
+  if (!plan) return null
+  const allowed = hasFeature(plan, 'notifications_enabled')
+  notificationsCache.set(gymId, allowed)
+  return allowed
 }
 
 async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingReminder, dateStr: string, timeStr: string) {
@@ -121,6 +144,23 @@ Deno.serve(async (req) => {
     let sent = 0
     for (const r of (reminders ?? []) as PendingReminder[]) {
       try {
+        // ── GYM-246 — garde serveur : notifications, par salle ──────────────────
+        // Un cron ne 403 pas, il passe son tour. Le rappel n'est PAS marqué envoyé :
+        // rien n'est parti, et si la salle repasse sur un plan qui les autorise avant
+        // la fin de la fenêtre, le rappel part encore. `mark_reminder_sent` mentirait.
+        const allowed = await notificationsAllowed(supabase, r.gym_id)
+        if (allowed === null) {
+          // Panne de résolution : ne JAMAIS laisser passer, ne JAMAIS lire comme un refus.
+          // On saute ce rappel sans le marquer — il sera retenté au prochain passage. Le
+          // reste du lot continue : une salle en panne ne doit pas priver les autres.
+          console.error('[send-reminders] plan resolution failed, gym', r.gym_id, '— rappel reporté')
+          continue
+        }
+        if (!allowed) {
+          console.log('[plan-gate] notifications off, gym', r.gym_id)
+          continue
+        }
+
         const startDate = new Date(r.slot_starts_at)
         const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
         const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })

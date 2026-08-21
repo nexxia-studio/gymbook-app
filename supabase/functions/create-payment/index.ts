@@ -1,6 +1,8 @@
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
+// GYM-246 — porte d'entrée unique du gating (GYM-245).
+import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
 import { notExpiredFilter } from '../_shared/active-subscription.ts'
 
@@ -13,27 +15,6 @@ interface PaymentRequest {
   gym_id: string
   plan_id: string
   redirect_url: string
-}
-
-async function getGymPlanLimits(
-  supabase: SupabaseClient,
-  gymId: string,
-): Promise<{ commission_cb_rate: number; payments_enabled: boolean } | null> {
-  const { data: gym } = await supabase
-    .from('nexxia_gyms')
-    .select('plan')
-    .eq('id', gymId)
-    .single()
-
-  if (!gym?.plan) return null
-
-  const { data: limits } = await supabase
-    .from('nexxia_plan_limits')
-    .select('commission_cb_rate, payments_enabled')
-    .eq('plan', gym.plan)
-    .single()
-
-  return limits ?? null
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -90,10 +71,21 @@ Deno.serve(async (req) => {
     if (!profile) return errorResponse(404, 'Profil introuvable', 'PROFILE_NOT_FOUND')
     if (profile.gym_id !== gymId) return errorResponse(403, 'Accès interdit à ce gym', 'GYM_FORBIDDEN')
 
-    const planLimits = await getGymPlanLimits(supabaseAdmin, gymId)
-    if (!planLimits) return errorResponse(404, 'Plan Viniz introuvable', 'PLAN_NOT_FOUND')
-    if (!planLimits.payments_enabled) {
-      return errorResponse(403, 'Paiements non disponibles sur votre plan Viniz', 'PAYMENTS_DISABLED')
+    // ── GYM-246 — garde serveur : paiement EN LIGNE ─────────────────────────────
+    // Le gating d'interface est contournable par appel direct : la décision se prend ici.
+    // Source UNIQUE (GYM-245) — cette fonction lisait nexxia_plan_limits en direct, ce qui
+    // faisait deux chemins pour la même question et ignorait les overrides par salle.
+    //
+    // ⚠️ null = PANNE DE RÉSOLUTION, jamais « aucun droit ». Une base indisponible ne doit
+    // pas se lire comme une rétrogradation : on refuse en 503 (retryable), on n'écrit rien,
+    // et on ne dégrade JAMAIS en 403.
+    const effectivePlan = await getEffectivePlan(supabaseAdmin, gymId)
+    if (!effectivePlan) {
+      return errorResponse(503, 'Plan indisponible — réessayez dans un instant', 'PLAN_RESOLUTION_FAILED')
+    }
+    if (!hasFeature(effectivePlan, 'payments_enabled')) {
+      // Refus AVANT tout appel Mollie : aucun paiement créé chez le prestataire.
+      return errorResponse(403, 'Paiements en ligne non disponibles sur votre plan Viniz', 'PLAN_PAYMENTS_DISABLED')
     }
 
     // Résolution autoritative du plan (gym_plans = source de vérité).
@@ -230,7 +222,7 @@ Deno.serve(async (req) => {
     const applicationFeeCents = Math.round(amountCents * effectiveCbRate)
     const feeValue = applicationFeeCents / 100
 
-    console.log('[create-payment] gym plan limits:', planLimits)
+    console.log('[create-payment] effective plan:', effectivePlan.effective_plan, 'payments_enabled:', effectivePlan.features.payments_enabled)
     console.log('[create-payment] plan:', plan.plan_id, plan.name, 'amountCents:', amountCents, 'credits:', creditsGranted, 'applicationFeeCents:', applicationFeeCents)
     console.log('[create-payment] isTestMode:', isTestMode, 'mollieApiKey length:', mollieApiKey?.length, 'profileId:', profileId)
 
