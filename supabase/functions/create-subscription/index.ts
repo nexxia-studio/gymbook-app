@@ -235,6 +235,79 @@ Deno.serve(async (req) => {
       return errorResponse(502, 'Mollie n\'a pas retourné d\'URL de checkout', 'MOLLIE_NO_CHECKOUT')
     }
 
+    // ── GYM-243 — la ligne payments est écrite ICI, AVANT de rendre l'URL de checkout ──
+    //
+    // 🔴 DÉFAUT CORRIGÉ (prod, 21/08 — alerte Sentry sur tr_kzY6Yio9bxNAyGBMWTgVJ).
+    // Cette fonction n'insérait AUCUNE ligne : elle créait le paiement chez Mollie et
+    // rendait l'URL, point. Or mollie-subscription-webhook résout la salle en lisant
+    // `payments.gym_id` (lookup sur mollie_payment_id) pour aller chercher le jeton :
+    //
+    //     let gymIdForToken = existingPayment?.gym_id ?? null
+    //     ...
+    //     } else if (gymIdForToken) { accessToken = await getValidMollieToken(...) }
+    //
+    // Sans ligne → gymIdForToken null → le jeton n'était même pas DEMANDÉ → sortie 503
+    // « no Mollie access token available », Gym: (none). Le message était trompeur : le
+    // jeton était valide et disponible. Le gym_id est bien dans la metadata Mollie, mais
+    // il faut le jeton pour la lire — l'œuf et la poule.
+    //
+    // ⚠️ INDÉPENDANT DE L'ABANDON : un paiement RÉUSSI échouait exactement pareil.
+    // L'abandon a seulement déclenché le webhook plus tôt. Aucun abonnement ne pouvait
+    // aboutir — member_subscriptions est vide en production.
+    //
+    // MOTIF REPRIS DE create-payment (v42, déployée et fonctionnelle) À L'IDENTIQUE :
+    // même moment (après la création Mollie, seule à fournir mollie_payment_id et
+    // checkout_url, et AVANT le retour de l'URL), même statut initial 'pending', même
+    // traitement de l'échec. Faire résoudre le gym_id autrement côté webhook aurait
+    // créé un SECOND chemin pour retrouver une salle — deux chemins finissent par
+    // diverger, c'est le motif déjà corrigé quatre fois sur ce projet.
+    //
+    // BÉNÉFICE SECONDAIRE : une trace existe même si le membre abandonne. Le gérant voit
+    // la tentative dans /revenus, et le webhook peut la passer en 'expired'/'canceled'
+    // (branche de fin de mollie-subscription-webhook), ce qu'il ne pouvait pas faire non
+    // plus jusqu'ici faute de ligne à mettre à jour.
+    //
+    // ⚠️ AUCUN numéro de facture ici : la facture se génère à l'encaissement CONFIRMÉ
+    // (generate-invoice, appelé par le webhook), jamais à l'intention de payer.
+    const { error: insertError } = await supabaseAdmin
+      .from('payments')
+      .insert({
+        gym_id: gymId,
+        member_id: memberId,
+        // plan.plan_id (résolu par resolve_plan_for_payment), et non le planId brut du
+        // body — c'est ce que fait create-payment. Les deux valeurs coïncident (le RPC
+        // est un lookup sur gym_plans.id), mais la source de vérité reste le plan résolu.
+        plan_id: plan.plan_id,
+        plan_name: plan.name,
+        amount: priceEur,
+        currency: plan.currency ?? 'EUR',
+        mollie_payment_id: paymentData.id,
+        checkout_url: checkoutUrl,
+        // 0 et non NULL : c'est la valeur que l'upsert du webhook posera à la
+        // confirmation (« credits_granted=0 → classé abonnement côté /revenus »). Les
+        // deux satisfont le critère `credits_granted > 0 ⇒ vente à l'unité`; prendre 0
+        // évite une bascule NULL → 0 en cours de vie de la ligne.
+        credits_granted: 0,
+        // MÊME valeur que create-payment. 'open' n'existe pas : payments_status_check
+        // n'admet que pending|paid|failed|expired|canceled|refunded|partially_refunded|
+        // charged_back (migration gym112), et 'pending' est aussi le DEFAULT de la colonne.
+        status: 'pending',
+        // Commission SEPA effective, comme l'applicationFee demandé à Mollie ci-dessus.
+        // Le webhook la recalcule et la réécrit à la confirmation.
+        nexxia_fee: feeValue > 0 ? feeValue : null,
+      })
+
+    if (insertError) {
+      // ⚠️ ON NE REND PAS L'URL DE CHECKOUT. Un membre qui paierait sans ligne en base
+      // reproduirait EXACTEMENT le défaut corrigé ici : webhook incapable de retrouver
+      // la salle, 503, et un euro encaissé sans abonnement ouvert. Échec explicite : le
+      // paiement Mollie créé juste au-dessus expirera de lui-même, personne n'est débité.
+      console.error('[create-subscription] DB insert failed:', insertError)
+      return errorResponse(500, 'Abonnement créé mais non sauvegardé', 'DB_INSERT_FAILED')
+    }
+
+    console.log('[create-subscription] payment row saved:', paymentData.id, 'plan:', plan.plan_id)
+
     return jsonResponse({
       success: true,
       payment_id: paymentData.id,
