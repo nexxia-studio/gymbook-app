@@ -779,7 +779,8 @@
       "team": "Team",
       "gym": "Gym",
       "payments": "Payments",
-      "plans": "Plans"
+      "plans": "Plans",
+      "subscription": "Subscription"
     },
     "gym": {
       "booking_rules_title": "Booking rules",
@@ -1306,5 +1307,69 @@
     "INVALID_BADGE_CODE": "This badge code is not valid.",
     "default_other_member": "another member",
     "OVERBOOK_REASON_REQUIRED": "A reason is required to go over capacity."
+  },
+  "subscription": {
+    "gate": {
+      "checking": "Checking your subscription…",
+      "retry": "Try again",
+      "locked_title": "{{feature}} is not included in your plan",
+      "locked_message": "This feature is available from the next plan up.",
+      "cta": "See plans"
+    },
+    "banner": {
+      "count": "{{current}}/{{max}} {{unit}}",
+      "approaching": "You're approaching your plan's limit — upgrade to keep growing.",
+      "reached": "Limit reached: you can't add more without changing plan.",
+      "cta": "Change plan"
+    },
+    "limit_modal": {
+      "count": "{{current}} / {{max}}",
+      "cta": "See plans",
+      "members": {
+        "title": "Member limit reached",
+        "message": "Your plan doesn't allow another member. Your current members are unaffected — upgrade to sign up new ones."
+      },
+      "admins": {
+        "title": "Team seat limit reached",
+        "message": "Your plan doesn't allow another team access. Existing accesses are unaffected — upgrade to add more."
+      }
+    },
+    "errors": {
+      "resolution_failed": "Couldn't check your subscription right now. Please try again in a moment."
+    },
+    "current": {
+      "title": "Your plan",
+      "trial": "Trial — {{plan}} plan limits"
+    },
+    "quota": {
+      "members": "Members",
+      "admins": "Team seats",
+      "unlimited": "Unlimited",
+      "unlimited_value": "{{current}} · unlimited"
+    },
+    "catalog": {
+      "title": "Viniz plans",
+      "subtitle": "No commitment. The yearly total is billed in one go.",
+      "per_month": "{{price}}/month",
+      "per_year": "{{price}}/year",
+      "free": "Free",
+      "your_plan": "Your plan"
+    },
+    "features": {
+      "payments_enabled": "Online payments",
+      "qr_checkin_enabled": "QR code check-in",
+      "ios_app_enabled": "iOS app",
+      "android_app_enabled": "Android app",
+      "analytics_enabled": "Advanced statistics",
+      "export_enabled": "Data export",
+      "multi_site_enabled": "Multi-site",
+      "api_access_enabled": "API access",
+      "custom_domain": "Custom domain"
+    },
+    "upgrade": {
+      "hint": "Billing is handled manually during Beta: drop us a line and we'll take care of it.",
+      "cta": "Request a plan change",
+      "mail_subject": "Plan change — {{gym}}"
+    }
   }
 }

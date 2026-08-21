@@ -3,7 +3,7 @@
 // enregistre une carte de séances one_time payée sur place (cash / terminal).
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { extractErrorCode } from '@/lib/edgeErrors'
+import { extractErrorBody } from '@/lib/edgeErrors'
 import { X, ChevronDown, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useGymPlans } from '@/hooks/useGymPlans'
@@ -14,6 +14,12 @@ interface AddMemberModalProps {
   open: boolean
   onClose: () => void
   onCreated: () => void
+  /**
+   * GYM-247 — le serveur a refusé sur le plafond de membres (PLAN_MEMBER_LIMIT).
+   * Optionnel : la modale reste utilisable sans, le refus retombe alors sur le toast
+   * générique. Les chiffres sont ceux du refus SERVEUR, jamais un compte local.
+   */
+  onPlanLimit?: (info: { current?: number; max?: number }) => void
 }
 
 type PaymentMethod = 'cash' | 'card_terminal'
@@ -31,7 +37,7 @@ function isValidEmail(email: string): boolean {
 }
 
 
-export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps) {
+export function AddMemberModal({ open, onClose, onCreated, onPlanLimit }: AddMemberModalProps) {
   const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const addToast = useToastStore((s) => s.addToast)
@@ -104,9 +110,19 @@ export function AddMemberModal({ open, onClose, onCreated }: AddMemberModalProps
       const { data, error } = await invokeEdge('admin-create-member', { body })
 
       if (error) {
-        const code = await extractErrorCode(error)
-        if (code === 'EMAIL_EXISTS') {
+        // ⚠️ UNE Response NE SE LIT QU'UNE FOIS (cf. edgeErrors) : on lit le corps ENTIER
+        // une seule fois, parce que PLAN_MEMBER_LIMIT a besoin du code ET des chiffres.
+        const body = await extractErrorBody(error)
+        if (body.code === 'EMAIL_EXISTS') {
           setErrors((prev) => ({ ...prev, email: t('members.add.error_email_exists') }))
+        } else if (body.code === 'PLAN_MEMBER_LIMIT') {
+          // GYM-247 — refus de plafond : la modale d'upsell prend le relais, avec le
+          // décompte du serveur. On ferme la saisie, le geste ne peut pas aboutir ici.
+          onClose()
+          onPlanLimit?.({ current: body.current, max: body.max })
+        } else if (body.code === 'PLAN_RESOLUTION_FAILED') {
+          // Panne, pas refus de droit : message réessayable, aucune mention de plan.
+          addToast(t('subscription.errors.resolution_failed'), 'error')
         } else {
           addToast(t('members.add.error_generic'), 'error')
         }

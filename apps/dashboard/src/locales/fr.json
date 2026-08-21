@@ -779,7 +779,8 @@
       "team": "Équipe",
       "gym": "Salle",
       "payments": "Paiements",
-      "plans": "Formules"
+      "plans": "Formules",
+      "subscription": "Abonnement"
     },
     "gym": {
       "booking_rules_title": "Règles de réservation",
@@ -1306,5 +1307,69 @@
     "INVALID_BADGE_CODE": "Ce code de badge n'est pas valide.",
     "default_other_member": "un autre membre",
     "OVERBOOK_REASON_REQUIRED": "Un motif est obligatoire pour dépasser la capacité."
+  },
+  "subscription": {
+    "gate": {
+      "checking": "Vérification de votre abonnement…",
+      "retry": "Réessayer",
+      "locked_title": "{{feature}} n'est pas incluse dans votre plan",
+      "locked_message": "Cette fonctionnalité est disponible à partir du plan supérieur.",
+      "cta": "Voir les plans"
+    },
+    "banner": {
+      "count": "{{current}}/{{max}} {{unit}}",
+      "approaching": "Vous approchez de la limite de votre plan — passez au plan supérieur pour continuer à grandir.",
+      "reached": "Limite atteinte : vous ne pouvez plus en ajouter sans changer de plan.",
+      "cta": "Changer de plan"
+    },
+    "limit_modal": {
+      "count": "{{current}} / {{max}}",
+      "cta": "Voir les plans",
+      "members": {
+        "title": "Limite de membres atteinte",
+        "message": "Votre plan ne permet pas d'ajouter un membre supplémentaire. Vos membres actuels ne sont pas affectés — passez au plan supérieur pour en inscrire de nouveaux."
+      },
+      "admins": {
+        "title": "Limite de comptes d'équipe atteinte",
+        "message": "Votre plan ne permet pas d'inviter un accès supplémentaire. Les accès existants ne sont pas affectés — passez au plan supérieur pour en ajouter."
+      }
+    },
+    "errors": {
+      "resolution_failed": "Impossible de vérifier votre abonnement pour le moment. Réessayez dans un instant."
+    },
+    "current": {
+      "title": "Votre plan",
+      "trial": "Essai — limites du plan {{plan}}"
+    },
+    "quota": {
+      "members": "Membres",
+      "admins": "Comptes d'équipe",
+      "unlimited": "Illimité",
+      "unlimited_value": "{{current}} · illimité"
+    },
+    "catalog": {
+      "title": "Les plans Viniz",
+      "subtitle": "Tarifs sans engagement. Le total annuel est facturé en une fois.",
+      "per_month": "{{price}}/mois",
+      "per_year": "{{price}}/an",
+      "free": "Gratuit",
+      "your_plan": "Votre plan"
+    },
+    "features": {
+      "payments_enabled": "Paiements en ligne",
+      "qr_checkin_enabled": "Check-in QR code",
+      "ios_app_enabled": "Application iOS",
+      "android_app_enabled": "Application Android",
+      "analytics_enabled": "Statistiques avancées",
+      "export_enabled": "Export des données",
+      "multi_site_enabled": "Multi-sites",
+      "api_access_enabled": "Accès API",
+      "custom_domain": "Domaine personnalisé"
+    },
+    "upgrade": {
+      "hint": "La facturation est gérée manuellement pendant la Beta : écrivez-nous et nous nous occupons du reste.",
+      "cta": "Demander un changement de plan",
+      "mail_subject": "Changement de plan — {{gym}}"
+    }
   }
 }
