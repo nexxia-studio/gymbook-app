@@ -10,6 +10,10 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { InviteTeamModal } from '@/components/settings/InviteTeamModal'
 import { useTeam, type TeamMember } from '@/hooks/useTeam'
 import { useToastStore } from '@/hooks/useToast'
+// GYM-247 — refus de plafond expliqué avec ses chiffres, pas un toast générique.
+import { PlanLimitModal } from '@/components/subscription/PlanLimitModal'
+import { PlanLimitBanner } from '@/components/subscription/PlanLimitBanner'
+import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 
 export function TeamSection() {
   const { t } = useTranslation()
@@ -19,6 +23,9 @@ export function TeamSection() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<TeamMember | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // GYM-247 — chiffres du refus SERVEUR (jamais un compte local) pour la modale d'upsell.
+  const [limitHit, setLimitHit] = useState<{ current?: number; max?: number } | null>(null)
+  const { limits } = useEffectivePlan()
 
   function displayName(m: TeamMember): string {
     return `${m.firstName} ${m.lastName}`.trim() || m.email
@@ -26,6 +33,17 @@ export function TeamSection() {
 
   async function handleInvite(input: Parameters<typeof inviteMember>[0]) {
     const res = await inviteMember(input)
+    // GYM-247 — plafond de sièges : modale d'upsell avec le décompte du serveur, plutôt
+    // qu'un « erreur » qui laisserait le gérant réessayer indéfiniment le même refus.
+    if (!res.ok && res.code === 'PLAN_ADMIN_LIMIT') {
+      setLimitHit({ current: res.current, max: res.max })
+      return res
+    }
+    if (!res.ok && res.code === 'PLAN_RESOLUTION_FAILED') {
+      // Panne et non refus de droit : message réessayable, aucune mention de plan.
+      addToast(t('subscription.errors.resolution_failed'), 'error')
+      return res
+    }
     if (res.ok) {
       if (res.resent) addToast(t('team.toast_resent'))
       // L'envoi est best-effort côté serveur : le compte existe même si l'email a échoué.
@@ -66,6 +84,8 @@ export function TeamSection() {
 
   return (
     <>
+      {/* GYM-247 — approche du plafond de sièges d'équipe. */}
+      <PlanLimitBanner current={adminCount} max={limits?.max_admins ?? null} labelKey="subscription.quota.admins" />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-black tracking-tight text-dark">
@@ -165,6 +185,7 @@ export function TeamSection() {
         onConfirm={() => { void handleRevoke() }}
         onCancel={() => setRevokeTarget(null)}
       />
+      <PlanLimitModal kind={limitHit ? 'admins' : null} current={limitHit?.current} max={limitHit?.max} onClose={() => setLimitHit(null)} />
     </>
   )
 }

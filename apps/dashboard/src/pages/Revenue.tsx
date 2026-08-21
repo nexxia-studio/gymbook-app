@@ -10,6 +10,11 @@ import { InvoiceMenu } from '@/components/revenue/InvoiceMenu'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
 import { toGymWallClock } from '@/lib/timezone'
 import { gymDateString } from '@/lib/timezone'
+// GYM-247 — deux drapeaux DISTINCTS sur cet écran : payments_enabled ouvre la page
+// (elle n'a aucun sens sans encaissement en ligne), export_enabled ne gouverne que le
+// bouton CSV — un plan peut voir ses revenus sans pouvoir les exporter.
+import { PlanGate } from '@/components/subscription/PlanGate'
+import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 
 // GYM-167 — statuts pour lesquels une facture est disponible (encaissement réel).
 const INVOICEABLE = new Set(['paid', 'partially_refunded', 'refunded'])
@@ -287,14 +292,24 @@ export default function Revenue() {
     URL.revokeObjectURL(url)
   }, [filtered, tz])
 
+  // `features === null` = plan non résolu : on n'affiche PAS le bouton d'export plutôt
+  // que de l'afficher inerte. Le verrou de page (PlanGate) porte déjà l'explication et
+  // le réessai ; deux messages d'indisponibilité sur le même écran ne s'additionnent pas.
+  const { features } = useEffectivePlan()
+  const canExport = features?.export_enabled === true
+
   const selectClass = 'rounded-xl border border-border bg-card px-3 py-2 font-body text-sm focus:border-dark focus:outline-none'
 
   return (
     <DashboardLayout>
+      {/* Le titre reste HORS du verrou : on montre ce qu'on rate. Masquer l'écran ou son
+          entrée de menu laisserait croire que la fonction n'existe pas. */}
       <h1 className="font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('revenue.title')}
       </h1>
       <p className="mt-1 font-body text-sm text-muted">{t('revenue.subtitle')}</p>
+
+      <PlanGate feature="payments_enabled" labelKey="subscription.features.payments_enabled">
 
       {isLoading ? (
         <div className="mt-8 flex h-64 items-center justify-center">
@@ -388,7 +403,7 @@ export default function Revenue() {
                 <option value="charged_back">{t('revenue.status_charged_back')}</option>
                 <option value="failed_pending">{t('revenue.status_failed_pending')}</option>
               </select>
-              <button
+              {canExport && <button
                 type="button"
                 onClick={exportCSV}
                 disabled={filtered.length === 0}
@@ -396,7 +411,7 @@ export default function Revenue() {
               >
                 <Download className="h-4 w-4" />
                 {t('revenue.export_csv')}
-              </button>
+              </button>}
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-border bg-card">
@@ -496,6 +511,7 @@ export default function Revenue() {
         onClose={() => setRefundTarget(null)}
         onDone={loadData}
       />
+      </PlanGate>
     </DashboardLayout>
   )
 }

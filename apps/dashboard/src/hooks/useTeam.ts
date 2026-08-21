@@ -7,7 +7,7 @@
 //   - le retrait d'accès écrit profiles.role, colonne retirée du GRANT UPDATE de
 //     `authenticated` par GYM-203.
 import { useState, useEffect, useCallback } from 'react'
-import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
+import { extractErrorBody, EdgeError } from '@/lib/edgeErrors'
 import { invokeEdge } from '@/lib/edgeInvoke'
 
 export interface TeamMember {
@@ -40,6 +40,10 @@ export interface ActionResult {
   emailSent?: boolean
   /** L'invitation existait déjà et a été renvoyée. */
   resent?: boolean
+  /** GYM-247 — PLAN_ADMIN_LIMIT : décompte joint par le serveur au refus. */
+  current?: number
+  /** GYM-247 — PLAN_ADMIN_LIMIT : plafond du plan, tel que le serveur l'a appliqué. */
+  max?: number
 }
 
 export function useTeam() {
@@ -54,7 +58,7 @@ export function useTeam() {
       const { data, error } = await invokeEdge('team-access', {
         body: { action: 'list' },
       })
-      if (error) throw new EdgeError(await extractErrorCode(error))
+      if (error) throw new EdgeError(await extractErrorBody(error))
       const rows = (data?.members ?? []) as TeamMemberRow[]
       setMembers(rows.map((m) => ({
         id: m.id,
@@ -88,7 +92,12 @@ export function useTeam() {
         ...(input.lastName?.trim() ? { last_name: input.lastName.trim() } : {}),
       },
     })
-    if (error) return { ok: false, code: await extractErrorCode(error) }
+    if (error) {
+      // GYM-247 — une seule lecture du corps (cf. edgeErrors) : PLAN_ADMIN_LIMIT a besoin
+      // du code ET du décompte serveur, qu'un simple extractErrorCode jetterait.
+      const body = await extractErrorBody(error)
+      return { ok: false, code: body.code, current: body.current, max: body.max }
+    }
     await fetchTeam()
     return { ok: true, emailSent: data?.email_sent === true, resent: data?.resent === true }
   }, [fetchTeam])
@@ -109,7 +118,7 @@ export function useTeam() {
     const { error } = await invokeEdge('team-access', {
       body: { action: 'revoke', member_id: memberId },
     })
-    if (error) return { ok: false, code: await extractErrorCode(error) }
+    if (error) return { ok: false, code: await extractErrorBody(error) }
     await fetchTeam()
     return { ok: true }
   }, [fetchTeam])
