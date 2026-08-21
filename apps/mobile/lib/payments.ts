@@ -76,6 +76,13 @@ export function mapPaymentError(code?: string): PaymentErrorInfo {
       return { messageKey: 'payments.errors.SUBSCRIPTION_ACTIVE', retryable: false, refetch: true }
     case 'SUBSCRIPTION_ALREADY_ACTIVE':
       return { messageKey: 'payments.errors.SUBSCRIPTION_ALREADY_ACTIVE', retryable: false, refetch: true }
+    // GYM-243 — les DEUX flux (create-payment, create-subscription) refusent de rendre
+    // l'URL de checkout quand la ligne payments n'a pas pu être écrite : sans elle, le
+    // webhook ne retrouve pas la salle et l'euro encaissé ne délivre rien. Rien n'a été
+    // débité, l'action est donc réessayable. Sans ce cas le refus tombait dans FALLBACK
+    // (« une erreur est survenue »), qui ne dit pas que le paiement N'A PAS eu lieu.
+    case 'DB_INSERT_FAILED':
+      return { messageKey: 'payments.errors.DB_INSERT_FAILED', retryable: true, refetch: false }
     default:
       return { messageKey: 'payments.errors.FALLBACK', retryable: true, refetch: false }
   }
