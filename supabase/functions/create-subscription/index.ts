@@ -188,7 +188,14 @@ Deno.serve(async (req) => {
     const feeValue = applicationFeeCents / 100
 
     const webhookSecret = Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''
-    const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${webhookSecret}`
+    // GYM-244 — le gym_id voyage à côté du secret, par le même chemin. Sur CE rappel-ci
+    // il n'est qu'une ceinture : la ligne payments insérée plus bas (GYM-243) reste la
+    // source prioritaire, et le webhook ne descend au paramètre que si elle manque. Le
+    // paramètre est en revanche INDISPENSABLE sur le rappel de l'ABONNEMENT, posé par
+    // mollie-subscription-webhook au moment où il crée l'abonnement Mollie : aucune ligne
+    // payments n'existe pour une échéance. Un seul mécanisme d'identité pour les deux
+    // rappels, plutôt qu'une seconde façon de retrouver une salle.
+    const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${webhookSecret}&gym_id=${encodeURIComponent(gymId)}`
 
     const firstPaymentPayload: Record<string, unknown> = {
       amount: { currency: plan.currency ?? 'EUR', value: formatAmount(priceEur) },

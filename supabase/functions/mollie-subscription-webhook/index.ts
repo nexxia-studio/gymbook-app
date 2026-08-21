@@ -140,6 +140,31 @@ Deno.serve(async (req) => {
     let gymIdForToken = existingPayment?.gym_id ?? null
     let accessToken: string | null = null
 
+    // ── GYM-244 — repli sur le gym_id porté par l'URL de rappel ────────────────────
+    //
+    // 🔴 DÉFAUT COUVERT ICI : les ÉCHÉANCES. GYM-243 garantit une ligne payments pour le
+    // PREMIER paiement (create-subscription l'insère avant de rendre le checkout), mais
+    // les paiements de renouvellement sont générés par Mollie : aucune ligne ne peut être
+    // pré-insérée, l'upsert de la branche 'recurring' n'a lieu qu'APRÈS l'obtention du
+    // jeton. Sans repli, le tout premier webhook d'échéance sortait donc en 503
+    // « no Mollie access token available » — exactement le blocage de GYM-243, décalé
+    // d'un mois. Invisible tant qu'aucun abonnement n'a atteint son deuxième mois.
+    //
+    // ORDRE VOLONTAIRE — la base locale PRIME, le paramètre n'est qu'un repli : une ligne
+    // payments a été écrite par nous, un paramètre d'URL a fait un aller-retour chez un
+    // tiers. On ne descend au paramètre que si la ligne est absente.
+    //
+    // ⚠️ Ce gym_id ne sert QU'À OBTENIR LE JETON. Il n'autorise rien par lui-même : la
+    // garde inter-tenant plus bas exige que la metadata du paiement porte le MÊME gym_id
+    // avant la moindre écriture. Le secret dit que l'appel est permis, pas au nom de qui.
+    const urlGymId = url.searchParams.get('gym_id')
+    let gymIdFromUrl = false
+    if (!gymIdForToken && urlGymId) {
+      gymIdForToken = urlGymId
+      gymIdFromUrl = true
+      console.log('[sub-webhook] gym_id from callback URL (no payments row):', urlGymId)
+    }
+
     if (IS_TEST_MODE) {
       accessToken = MOLLIE_TEST_API_KEY
       console.log('[sub-webhook] Using TEST API KEY')
@@ -198,6 +223,42 @@ Deno.serve(async (req) => {
       return new Response('missing metadata', { status: 503 })
     }
 
+    // ╔═══════════════════════════════════════════════════════════════════════════╗
+    // ║  🔴 GYM-244 — GARDE INTER-TENANT. Ne pas retirer, ne pas assouplir.        ║
+    // ╚═══════════════════════════════════════════════════════════════════════════╝
+    // Le gym_id qui a servi à OBTENIR LE JETON doit être celui que le paiement déclare
+    // dans sa metadata. Sans cette vérification, quelqu'un connaissant le secret pourrait
+    // appeler la fonction avec le gym_id de la salle A et l'identifiant d'un paiement de
+    // la salle B : le jeton de A serait utilisé et les données de B écrites sous
+    // l'identité de A. C'est une élévation de privilège inter-tenant — le motif de
+    // GYM-203. Le secret autorise l'APPEL, il ne dit pas AU NOM DE QUI.
+    //
+    // Comparaison sur `metadata.gym_id` et non sur `gymId` : ce dernier retombe sur
+    // `existingPayment.gym_id`, donc se comparerait partiellement à lui-même.
+    //
+    // La garde vaut pour les DEUX sources (ligne payments ET paramètre d'URL) : une
+    // divergence entre notre propre base et ce que Mollie déclare est tout aussi
+    // anormale, et une règle unique ne peut pas diverger d'elle-même. Elle ne mord que
+    // si les deux valeurs sont présentes — l'absence est déjà traitée juste au-dessus.
+    //
+    // 403 et non 503 : un rejeu ne résoudra jamais une divergence d'identité, et il ne
+    // faut pas que Mollie retente. Refus journalisé, AUCUNE écriture métier.
+    const metadataGymId = metadata.gym_id ?? null
+    if (gymIdForToken && metadataGymId && metadataGymId !== gymIdForToken) {
+      await recordWebhookFailure(supabase, {
+        functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+        gymId: metadataGymId, stage: 'gym_mismatch',
+        detail: {
+          reason: 'gym_id used for token does not match payment metadata',
+          gymIdForToken,
+          metadataGymId,
+          source: gymIdFromUrl ? 'callback_url' : 'payments_row',
+        },
+      })
+      console.error('[sub-webhook] gym mismatch — refused:', { gymIdForToken, metadataGymId })
+      return new Response('gym mismatch', { status: 403 })
+    }
+
     if (!IS_TEST_MODE && !gymIdForToken && gymId) {
       accessToken = await getValidMollieToken(supabase, gymId) ?? accessToken
       gymIdForToken = gymId
@@ -246,7 +307,11 @@ Deno.serve(async (req) => {
             interval: '1 month',
             times: renewalTimes,
             description: `${plan.name} — Dopamine Performance Club`,
-            webhookUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}`,
+            // GYM-244 — C'EST ICI QUE TOUT SE JOUE : cette URL est celle que Mollie
+            // appellera à CHAQUE échéance, et le seul endroit où l'on puisse encore
+            // attacher l'identité de la salle. Aucune ligne payments n'existera alors
+            // pour la porter. Le gym_id voyage à côté du secret, par le même chemin.
+            webhookUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mollie-subscription-webhook?secret=${Deno.env.get('MOLLIE_WEBHOOK_SECRET') ?? ''}&gym_id=${encodeURIComponent(gymId)}`,
             metadata: { member_id: memberId, gym_id: gymId, plan_id: planId, type: 'subscription_renewal' },
           }
           if (!IS_TEST_MODE && feeCents > 0) {
