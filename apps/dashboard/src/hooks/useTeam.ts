@@ -7,7 +7,7 @@
 //   - le retrait d'accès écrit profiles.role, colonne retirée du GRANT UPDATE de
 //     `authenticated` par GYM-203.
 import { useState, useEffect, useCallback } from 'react'
-import { extractErrorBody, EdgeError } from '@/lib/edgeErrors'
+import { EdgeError, extractErrorBody, extractErrorCode } from '@/lib/edgeErrors'
 import { invokeEdge } from '@/lib/edgeInvoke'
 
 export interface TeamMember {
@@ -58,7 +58,7 @@ export function useTeam() {
       const { data, error } = await invokeEdge('team-access', {
         body: { action: 'list' },
       })
-      if (error) throw new EdgeError(await extractErrorBody(error))
+      if (error) throw new EdgeError(await extractErrorCode(error))
       const rows = (data?.members ?? []) as TeamMemberRow[]
       setMembers(rows.map((m) => ({
         id: m.id,
@@ -118,7 +118,7 @@ export function useTeam() {
     const { error } = await invokeEdge('team-access', {
       body: { action: 'revoke', member_id: memberId },
     })
-    if (error) return { ok: false, code: await extractErrorBody(error) }
+    if (error) return { ok: false, code: await extractErrorCode(error) }
     await fetchTeam()
     return { ok: true }
   }, [fetchTeam])
