@@ -31,6 +31,8 @@ import {
   type PaymentMethod,
 } from '../_shared/counter-sale.ts'
 import type { ResolvedPlan } from '../_shared/plan-resolver.ts'
+// GYM-246 — porte d'entrée unique du gating (GYM-245).
+import { getEffectivePlan } from '../_shared/effective-plan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -205,6 +207,53 @@ Deno.serve(async (req) => {
     }
     if (planId && !isPaymentMethod(paymentMethod)) {
       return errorResponse(400, 'INVALID_PAYMENT_METHOD', 'Méthode de paiement invalide')
+    }
+
+    // ── GYM-246 — garde serveur : plafond de membres ────────────────────────────
+    // Placée après la validation d'entrée (un champ manquant mérite son propre message)
+    // et AVANT la résolution de formule et la création du compte : rien n'est créé, rien
+    // n'est encaissé sur un refus.
+    //
+    // ⚠️ null = PANNE DE RÉSOLUTION, jamais « aucun droit » : 503, aucune écriture.
+    const effectivePlan = await getEffectivePlan(supabaseAdmin, gymId)
+    if (!effectivePlan) {
+      return errorResponse(503, 'PLAN_RESOLUTION_FAILED', 'Plan indisponible — réessayez dans un instant')
+    }
+
+    const maxMembers = effectivePlan.limits.max_members
+    if (maxMembers !== null) {
+      // Périmètre du compte : les MEMBRES actifs de cette salle. Les gérants et coachs
+      // relèvent de max_admins, les comptes supprimés ne consomment pas de place.
+      const { count, error: countErr } = await supabaseAdmin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('gym_id', gymId)
+        .eq('role', 'member')
+        .is('deleted_at', null)
+
+      if (countErr || count === null) {
+        // Compter est une PRÉCONDITION du refus : sans le compte, on ne sait pas si la
+        // limite est atteinte. Laisser passer ouvrirait la porte à l'infini, refuser
+        // punirait une salle en règle — dans les deux cas on trancherait sans savoir.
+        console.error('[admin-create-member] member count failed:', countErr)
+        return errorResponse(503, 'PLAN_RESOLUTION_FAILED', 'Plan indisponible — réessayez dans un instant')
+      }
+
+      if (count >= maxMembers) {
+        // ⚠️ RÈGLE DE RÉTROGRADATION : on bloque les NOUVEAUX ajouts, on ne supprime
+        // jamais l'existant. Une salle à 60 membres passée sur un plan à 50 garde ses 60 ;
+        // elle ne peut simplement plus en ajouter. D'où `>=` sur le compte courant et
+        // aucune action sur les profils déjà là.
+        // `current` et `max` alimentent l'upsell GYM-247 : « 50 / 50 » se lit, « limite
+        // atteinte » non.
+        return jsonResponse({
+          error: true,
+          code: 'PLAN_MEMBER_LIMIT',
+          message: 'Limite de membres atteinte pour votre plan Viniz',
+          current: count,
+          max: maxMembers,
+        }, 403)
+      }
     }
 
     // 3. Si une carte est demandée : résoudre le plan AVANT de créer le compte

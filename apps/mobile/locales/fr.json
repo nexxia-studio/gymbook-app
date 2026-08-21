@@ -528,6 +528,7 @@
       "SUBSCRIPTION_ACTIVE": "Tu as déjà un accès illimité actif — inutile d'acheter des crédits.",
       "SUBSCRIPTION_ALREADY_ACTIVE": "Un abonnement est déjà actif.",
       "DB_INSERT_FAILED": "Rien n'a été débité : la commande n'a pas pu être enregistrée. Réessaie.",
+      "PLAN_RESOLUTION_FAILED": "Impossible de vérifier le plan de la salle pour le moment. Réessaie.",
       "FALLBACK": "Une erreur est survenue, réessaie."
     }
   },

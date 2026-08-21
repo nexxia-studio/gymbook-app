@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// GYM-246 — porte d'entrée unique du gating (GYM-245).
+import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,12 +20,43 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { tokens, title, body, data, priority } = await req.json() as {
+    const { tokens, title, body, data, priority, gym_id: gymId } = await req.json() as {
       tokens: string | string[]
       title: string
       body: string
       data?: Record<string, unknown>
       priority?: 'default' | 'normal' | 'high'
+      /**
+       * GYM-246 — salle au nom de laquelle la notification part. OPTIONNEL : cette
+       * fonction est un tuyau appelé par d'autres, et toutes ne savent pas à quelle salle
+       * elles s'adressent. Fourni ⇒ la garde s'applique ; absent ⇒ on laisse passer, la
+       * décision appartient à l'appelant qui, lui, connaît la salle.
+       */
+      gym_id?: string
+    }
+
+    // ── GYM-246 — garde serveur : notifications, si la salle est résolue ────────
+    // ⚠️ null = PANNE DE RÉSOLUTION, jamais « aucun droit » : 503, rien n'est envoyé.
+    if (gymId) {
+      const admin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      const effectivePlan = await getEffectivePlan(admin, gymId)
+      if (!effectivePlan) {
+        console.error('[send-notification] plan resolution failed, gym', gymId)
+        return new Response(
+          JSON.stringify({ ok: false, code: 'PLAN_RESOLUTION_FAILED' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+      if (!hasFeature(effectivePlan, 'notifications_enabled')) {
+        console.log('[plan-gate] notifications off, gym', gymId)
+        return new Response(
+          JSON.stringify({ ok: true, sent: 0, failed: 0, skipped: 'notifications_disabled' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
     }
 
     const recipients = Array.isArray(tokens) ? tokens : [tokens]
