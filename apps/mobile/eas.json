@@ -19,7 +19,6 @@
     },
     "preview-staging": {
       "distribution": "internal",
-      "channel": "preview-staging",
       "ios": { "resourceClass": "m-medium" },
       "env": {
         "EXPO_PUBLIC_APP_VARIANT": "staging",
