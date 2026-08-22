@@ -1,4 +1,19 @@
-export default {
+// GYM-258 — VARIANTE D'APPLICATION.
+//
+// `EXPO_PUBLIC_APP_VARIANT=staging` (posé par le profil EAS "preview-staging") produit une
+// app iOS/Android DISTINCTE — bundle, nom, scheme et icône propres — depuis le MÊME code
+// source, pointée sur le Supabase de staging et le clone Dopamine.
+//
+// ⚠️ RÈGLE DE CE FICHIER : sans la variable, l'objet résolu doit être STRICTEMENT celui
+// d'avant ce lot. C'est pourquoi la configuration Dopamine reste écrite telle quelle, d'un
+// seul tenant, et que la variante l'ALTÈRE ensuite dans un bloc isolé — plutôt que de
+// truffer chaque champ de ternaires, où une faute de frappe changerait la build de
+// production sans que personne ne le voie. L'ordre des clés est préservé au passage, donc
+// `npx expo config --json` sans variante rend un diff vide (prouvé en PR).
+const variant = process.env.EXPO_PUBLIC_APP_VARIANT
+const isStaging = variant === 'staging'
+
+const config = {
   expo: {
     name: 'Dopamine',
     slug: 'dopamine',
@@ -138,3 +153,43 @@ export default {
     },
   },
 }
+
+// ── Variante « Viniz Staging » ────────────────────────────────────────────────────
+// Tout ce qui suit ne s'exécute QUE si EXPO_PUBLIC_APP_VARIANT vaut 'staging'. La build
+// de production ne traverse jamais ce bloc.
+if (isStaging) {
+  const e = config.expo
+
+  e.name = 'Viniz Staging'
+  // ⚠️ `slug` et `extra.eas.projectId` NE CHANGENT PAS : ils identifient le PROJET EAS,
+  // pas l'application. Les deux variantes vivent dans le même projet EAS et se
+  // distinguent par leur profil de build et leur canal — changer le slug reviendrait à
+  // créer un second projet et à perdre l'historique de builds et les credentials.
+
+  e.ios.bundleIdentifier = 'app.viniz.staging'
+  e.android.package = 'app.viniz.staging'
+  e.scheme = 'viniz-staging'
+
+  // ⚠️ AUCUN associatedDomains. Les Universal Links https://links.viniz.app/* sont
+  // revendiqués par l'app de PRODUCTION via son AASA ; les revendiquer aussi ici ferait
+  // se disputer deux apps le même lien sur un même appareil. Conséquence assumée et
+  // documentée en PR : sur la variante staging, les liens de réinitialisation de mot de
+  // passe et de retour de paiement Mollie ouvrent la page web de repli, pas l'app.
+  delete (e.ios as { associatedDomains?: string[] }).associatedDomains
+
+  // Marque Viniz + bandeau STAGING. Générés par scripts/generate-viniz-staging-assets.js
+  // à partir des assets du dépôt viniz-site ; AUCUN asset Dopamine n'est touché.
+  e.icon = './assets/viniz/icon-staging.png'
+  e.splash.image = './assets/viniz/splash-staging.png'
+  e.splash.backgroundColor = '#4827B4'
+  e.android.adaptiveIcon.foregroundImage = './assets/viniz/adaptive-icon-staging.png'
+  e.android.adaptiveIcon.backgroundColor = '#4827B4'
+
+  // La chaîne de permission est affichée par iOS dans une alerte système : y laisser
+  // « Dopamine » sur une app nommée « Viniz Staging » désigne la mauvaise application au
+  // testeur. Hors de la liste du lot, mais sans effet possible sur la production.
+  e.ios.infoPlist.NSFaceIDUsageDescription =
+    'Viniz Staging utilise Face ID pour sécuriser ta connexion.'
+}
+
+export default config
