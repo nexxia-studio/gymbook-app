@@ -23,7 +23,18 @@ export const GYM_ID: string =
 //
 // GYM_SLUG reste : c'est le REPLI de build de lib/gymUrls quand nexxia_gyms est
 // illisible (écrans consultés déconnecté), pas une donnée d'affichage.
-export const GYM_SLUG = 'dopamine'
+//
+// GYM-258 — variabilisé, avec REPLI SUR LA VALEUR ACTUELLE : sans EXPO_PUBLIC_GYM_SLUG,
+// la valeur reste 'dopamine' et le comportement de l'app de production est inchangé.
+//
+// ⚠️ POURQUOI CE N'ÉTAIT PAS ANODIN. lib/gymUrls construit les liens membres sur
+// https://links.viniz.app/{slug}/… Sur la variante staging, un membre DÉCONNECTÉ (le cas
+// où le repli sert, précisément : « mot de passe oublié ») aurait produit un lien
+// .../dopamine/reset-password — c'est-à-dire le chemin que l'app de PRODUCTION revendique
+// par son AASA. Le lien de staging aurait pu ouvrir l'app Dopamine de production sur
+// l'appareil du testeur. Le profil EAS staging pose donc 'dopamine-staging', le slug réel
+// du clone en base (vérifié : nexxia_gyms.slug = 'dopamine-staging').
+export const GYM_SLUG: string = process.env.EXPO_PUBLIC_GYM_SLUG ?? 'dopamine'
 
 // Identifiant de build, dupliqué de app.config.ts. Sans import aujourd'hui : à retirer
 // ou à faire lire depuis expo-constants, mais changer de bundle exige un build de toute
