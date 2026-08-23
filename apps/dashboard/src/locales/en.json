@@ -1417,6 +1417,7 @@
     "finish": "Finish",
     "save_error": "Couldn't save. Please try again in a moment.",
     "saved_locally": "Progress saved on this device only.",
+    "objective_done": "Done — you can move on.",
     "step1": {
       "title": "Your gym",
       "description": "Your logo and colours, exactly as members will see them in the app.",
@@ -1433,26 +1434,25 @@
       "cta": "Create an activity"
     },
     "step3": {
+      "title": "Your first coach",
+      "description": "A session requires a coach: add at least one person before filling your schedule.",
+      "cta": "Add a coach"
+    },
+    "step4": {
       "title": "Your first session",
       "description": "Put a session on the schedule — that's what members will book.",
       "cta": "Open the schedule"
     },
-    "step4": {
+    "step5": {
       "title": "Your cancellation policy",
       "description": "Cancellation window and no-show penalties. You can change it any time.",
       "cta": "Set my policy"
     },
-    "step5": {
+    "step6": {
       "title": "Invite your members",
       "description": "Add your first members: they get an email and access to the app.",
       "cta": "Add a member"
     },
-    "done": {
-      "title": "Your gym is ready",
-      "message": "{{gym}} is live. You can revisit every setting whenever you like.",
-      "cta": "Let's go"
-    },
-    "objective_done": "Done — you can move on.",
     "welcome": {
       "title": "Welcome to Viniz",
       "subtitle": "Your gym is live. You're on the {{plan}} plan — here's what it includes.",
@@ -1470,6 +1470,11 @@
       "limits_unavailable": "Your plan details aren't available right now. You'll find them under Settings → Subscription.",
       "start": "Start setting up",
       "see_plans": "See the plans"
+    },
+    "done": {
+      "title": "Your gym is ready",
+      "message": "{{gym}} is live. You can revisit every setting whenever you like.",
+      "cta": "Let's go"
     }
   }
 }

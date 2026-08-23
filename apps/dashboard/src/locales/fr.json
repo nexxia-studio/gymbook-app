@@ -1417,6 +1417,7 @@
     "finish": "Terminer",
     "save_error": "Enregistrement impossible. Réessaie dans un instant.",
     "saved_locally": "Progression gardée sur cet appareil seulement.",
+    "objective_done": "C'est fait — tu peux passer à la suite.",
     "step1": {
       "title": "Ta salle",
       "description": "Ton logo et tes couleurs, tels que tes membres les verront dans l'app.",
@@ -1433,26 +1434,25 @@
       "cta": "Créer une activité"
     },
     "step3": {
+      "title": "Ton premier coach",
+      "description": "Un créneau exige un coach : ajoute au moins une personne avant de remplir ton planning.",
+      "cta": "Ajouter un coach"
+    },
+    "step4": {
       "title": "Ton premier créneau",
       "description": "Place une séance au planning : c'est ce que tes membres réserveront.",
       "cta": "Ouvrir le planning"
     },
-    "step4": {
+    "step5": {
       "title": "Ta politique d'annulation",
       "description": "Délai d'annulation et sanctions en cas d'absence. Tu peux la changer quand tu veux.",
       "cta": "Régler ma politique"
     },
-    "step5": {
+    "step6": {
       "title": "Invite tes membres",
       "description": "Ajoute tes premiers membres : ils reçoivent un email et l'accès à l'app.",
       "cta": "Ajouter un membre"
     },
-    "done": {
-      "title": "Ta salle est prête",
-      "message": "{{gym}} est en ligne. Tu peux revenir sur chaque réglage à tout moment.",
-      "cta": "C'est parti"
-    },
-    "objective_done": "C'est fait — tu peux passer à la suite.",
     "welcome": {
       "title": "Bienvenue sur Viniz",
       "subtitle": "Ta salle est créée. Tu es sur le plan {{plan}} — voici ce qu'il comprend.",
@@ -1470,6 +1470,11 @@
       "limits_unavailable": "Le détail de ton plan n'est pas disponible pour le moment. Tu le retrouveras dans Réglages → Abonnement.",
       "start": "Commencer la configuration",
       "see_plans": "Découvrir les plans"
+    },
+    "done": {
+      "title": "Ta salle est prête",
+      "message": "{{gym}} est en ligne. Tu peux revenir sur chaque réglage à tout moment.",
+      "cta": "C'est parti"
     }
   }
 }
