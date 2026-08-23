@@ -6,6 +6,9 @@
 -- ─── RÈGLE ZÉRO — lectures live STAGING (buovgpokubrkejunmauq, 22/08, cockpit) ────
 --
 -- 1. handle_new_user() DÉPLOYÉE = un INSERT profiles pur depuis raw_user_meta_data.
+--    Corps VERBATIM relu (pg_get_functiondef, cockpit 23/08) et diffé contre la
+--    réécriture ci-dessous : les 15 colonnes et leurs expressions sont reprises à
+--    l'identique, seules `role` et `gym_id` changent — c'est l'objet de ce lot.
 --    ⚠️ ELLE NE CONTIENT AUCUN HEAL GYM-154 : le rattachement de rattrapage vit dans
 --    l'app mobile (apps/mobile/lib/ensureProfile.ts → healProfile()), PAS ici. Ce
 --    fichier n'invente donc aucun heal SQL ; la garde max_members s'applique au seul
@@ -336,11 +339,20 @@ GRANT EXECUTE ON FUNCTION public.create_gym_self_serve(text, text) TO authentica
 --        de gérant. Le discriminant retenu est NEW.invited_at : il est posé par
 --        l'endpoint GoTrue `invite`, qui exige service_role, et n'est atteignable par
 --        AUCUN signup public.
---        ⚠️ CETTE HYPOTHÈSE EST À VÉRIFIER AVANT APPLICATION (cf. PR, test ⑧) : selon
---        la version de GoTrue, invited_at peut être posé par un UPDATE POSTÉRIEUR à
---        l'INSERT, auquel cas le trigger le verrait NULL. Le sens de l'échec est
---        volontairement le sens SÛR — un gérant invité atterrirait en 'member'
---        (dégradation réparable) et jamais l'inverse.
+--
+--        Les DEUX moitiés du discriminant, et ce qui est établi pour chacune :
+--          · la metadata `role` — ÉTABLIE. invite-team-member/index.ts:354-366 :
+--                generateLink({ type: 'invite', email,
+--                               options: { data: { …, gym_id: gymId,
+--                                                  role: requestedRole } } })
+--            `requestedRole` est validé contre INVITABLE_ROLES (ligne 40, ['gym_admin'])
+--            avant d'arriver là. La metadata est donc bien posée, et bornée.
+--          · la colonne `invited_at` — NON ÉTABLIE. C'est GoTrue qui la pose, et selon
+--            la version elle peut l'être par un UPDATE POSTÉRIEUR à l'INSERT, auquel cas
+--            ce trigger la verrait NULL.
+--        ⚠️ SECONDE MOITIÉ À VÉRIFIER AVANT APPLICATION (cf. PR, test ⑧). Le sens de
+--        l'échec est volontairement le sens SÛR — un gérant invité atterrirait en
+--        'member' (dégradation réparable par un super_admin) et jamais l'inverse.
 --
 -- (ii) ANTI-CAPTURE signup_intent='gym_owner' — ce compte est destiné à
 --      create_gym_self_serve : ni rôle, ni rattachement, quoi que disent les metadata.
@@ -403,19 +415,28 @@ BEGIN
       -- déjà rattaché à la salle. Ici auth.uid() est NULL (on est dans la transaction
       -- GoTrue) et le profil n'existe pas encore : sans ce set_config, la fonction
       -- lèverait 42501 à CHAQUE inscription et plus personne ne serait rattaché.
-      -- La portée est la transaction (is_local = true) et la valeur est restaurée
-      -- juste après ; un abort de sous-transaction la restaure de toute façon.
+      --
+      -- ⚠️ `is_local = true` borne la portée à LA TRANSACTION, pas à cet appel — et ce
+      -- trigger tourne DANS la transaction GoTrue, qui continue après lui (identities,
+      -- sessions…). Laisser un claim service_role derrière soi contaminerait tout ce qui
+      -- suit dans cette même transaction. La restauration ci-dessous est donc
+      -- INCONDITIONNELLE et sortie du bloc : elle s'exécute sur le chemin nominal comme
+      -- sur le chemin d'exception, sans dépendre de l'ordre des handlers.
       v_claims := current_setting('request.jwt.claims', true);
       BEGIN
         PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
         v_plan := public.get_effective_plan(v_wanted_gym);
-        PERFORM set_config('request.jwt.claims', coalesce(v_claims, ''), true);
       EXCEPTION WHEN OTHERS THEN
-        PERFORM set_config('request.jwt.claims', coalesce(v_claims, ''), true);
         -- Salle introuvable, supprimée, plan absent de la grille, panne : on ne
         -- tranche pas sans savoir → rattachement REFUSÉ.
         v_plan := NULL;
       END;
+
+      -- Un GUC ne se « désactive » pas : quand la valeur d'origine était absente,
+      -- current_setting(…, true) rend NULL et le plus proche équivalent est la chaîne
+      -- vide — que get_effective_plan traite déjà comme absente (nullif(…, '')), tout
+      -- comme les autres lecteurs de ce claim dans le schéma.
+      PERFORM set_config('request.jwt.claims', coalesce(v_claims, ''), true);
 
       IF v_plan IS NULL THEN
         RAISE LOG '[plan-gate] member limit, gym %', v_wanted_gym;
@@ -484,10 +505,10 @@ BEGIN
     COALESCE(meta->>'preferred_language', 'fr'),
     CASE WHEN meta->>'privacy_policy_accepted' = 'true' THEN now() ELSE NULL END,
     CASE WHEN meta->>'privacy_policy_accepted' = 'true'
-         THEN NULLIF(meta->>'legal_version','') ELSE NULL END,
+         THEN meta->>'legal_version' ELSE NULL END,
     CASE WHEN meta->>'terms_accepted' = 'true' THEN now() ELSE NULL END,
     CASE WHEN meta->>'terms_accepted' = 'true'
-         THEN NULLIF(meta->>'legal_version','') ELSE NULL END,
+         THEN meta->>'legal_version' ELSE NULL END,
     COALESCE((meta->>'marketing_consent')::boolean, false),
     now(),
     now()
