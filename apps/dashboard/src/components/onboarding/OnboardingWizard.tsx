@@ -11,6 +11,12 @@
 //  · Les étapes 2 à 5 ne dupliquent AUCUN formulaire existant : elles renvoient vers
 //    l'écran qui sait déjà le faire (Planning, Réglages, Membres). Recopier ces
 //    formulaires ici, c'est créer une seconde vérité qui divergera.
+//  · ⚠️ LE CTA D'UNE ÉTAPE DÉLÉGUÉE N'AVANCE PAS L'ÉTAPE. Il ouvre l'écran cible et met le
+//    wizard en retrait. C'est l'OBJET qui valide l'étape — ≥1 activité, ≥1 créneau, une
+//    politique d'absences, ≥1 membre (cf. detectSatisfiedSteps dans useOnboarding).
+//    Première version : le CTA avançait PUIS naviguait, si bien que « Configurer » se
+//    comportait exactement comme « Passer » — le wizard se croyait plus loin que la salle.
+//    Constaté au premier parcours gérant réel. NE PAS réintroduire d'avancement ici.
 //  · Seule l'étape 1 écrit directement — logo_url / primary_color / secondary_color sont
 //    dans la liste blanche GYM-180, vérifié.
 import { useEffect, useState } from 'react'
@@ -18,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   X, Check, ArrowRight, Palette, Dumbbell, CalendarPlus, ShieldAlert, UserPlus, PartyPopper,
+  Sparkles, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -25,8 +32,9 @@ import { supabase } from '@/lib/supabase'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
 import { useOnboarding } from '@/hooks/useOnboarding'
-import { ONBOARDING_LAST_STEP } from '@/lib/onboarding'
+import { ONBOARDING_LAST_STEP, hasSeenWelcome, markWelcomeSeen } from '@/lib/onboarding'
 import type { SaveOutcome } from '@/lib/onboarding'
+import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 
 const STEP_ICONS = [Palette, Dumbbell, CalendarPlus, ShieldAlert, UserPlus] as const
 
@@ -35,9 +43,14 @@ export function OnboardingWizard() {
   const navigate = useNavigate()
   const gym = useGymStore((s) => s.gym)
   const addToast = useToastStore((s) => s.addToast)
-  const { step, completed, isOpen, dismiss, advance, complete } = useOnboarding()
+  const { step, completed, isOpen, satisfied, dismiss, advance, complete } = useOnboarding()
+  const { plan, limits } = useEffectivePlan()
 
   const [celebrating, setCelebrating] = useState(false)
+  // Écran de bienvenue : lu une seule fois à l'initialisation (pas d'effet, donc pas de
+  // rendu en cascade). `gym?.id` peut être null au premier rendu — on retombe alors sur
+  // « déjà vu » et le calcul est refait dès que la salle arrive, via la clé du composant.
+  const [welcomeDone, setWelcomeDone] = useState(false)
 
   // Étape 1 — marque de la salle.
   const [logoUrl, setLogoUrl] = useState('')
@@ -86,10 +99,12 @@ export function OnboardingWizard() {
     setCelebrating(true)
   }
 
-  /** Renvoie vers l'écran qui sait faire, en avançant l'étape au passage. */
-  async function handleGo(path: string) {
-    const outcome = await advance()
-    reportOutcome(outcome)
+  /**
+   * Ouvre l'écran qui sait faire et met le wizard en RETRAIT — sans toucher à l'étape.
+   * L'étape sera validée au retour sur le dashboard, quand la détection verra l'objet.
+   */
+  function handleGo(path: string) {
+    dismiss()
     navigate(path)
   }
 
@@ -134,6 +149,74 @@ export function OnboardingWizard() {
           </Button>
         </div>
       </Shell>
+    )
+  }
+
+  // ── Écran de BIENVENUE — premier atterrissage après création de la salle ──
+  //
+  // Choix assumé : c'est un écran À PART, AVANT le wizard, pas une « étape 0 ». L'étape est
+  // une valeur DB bornée par un CHECK 1..5 (nexxia_gyms_onboarding_step_check) ; y glisser
+  // un 0 aurait demandé une migration, que ce lot n'a pas le droit de faire. Et le contenu
+  // n'a pas la même nature : le wizard fait AGIR, celui-ci ne fait qu'ACCUEILLIR.
+  //
+  // ⚠️ AUCUNE limite en dur : tout vient de useEffectivePlan → get_effective_plan, la porte
+  // d'entrée unique du gating (GYM-245). `null` y signifie ILLIMITÉ, pas « inconnu ».
+  if (!welcomeDone && gym?.id && !hasSeenWelcome(gym.id)) {
+    const dismissWelcome = () => {
+      if (gym?.id) markWelcomeSeen(gym.id)
+      setWelcomeDone(true)
+    }
+    return (
+      <div className="mb-6 rounded-2xl border border-[#E8E6E0] bg-card p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-dim/10">
+            <Sparkles className="h-5 w-5 text-accent-dim" />
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-black tracking-tight text-dark">
+              {t('onboarding.welcome.title')}
+            </h2>
+            <p className="mt-1 font-body text-sm leading-relaxed text-dark/50">
+              {t('onboarding.welcome.subtitle', {
+                plan: t(`onboarding.welcome.plan_names.${plan ?? 'free'}`, {
+                  defaultValue: plan ?? 'free',
+                }),
+              })}
+            </p>
+          </div>
+        </div>
+
+        {/* ⚠️ DEUX `null` DE SENS OPPOSÉ, à ne surtout pas confondre :
+            · `limits` null      = le plan n'a PAS pu être résolu (panne, accès refusé) ;
+            · `limits.max_*` null = la limite est ILLIMITÉE (convention de la grille GYM-245).
+            Rendre le premier comme le second annoncerait « illimité » alors qu'on ne sait
+            rien — exactement l'erreur que _shared/effective-plan.ts met en garde de faire. */}
+        {limits ? (
+          <ul className="mt-5 flex flex-col gap-2">
+            <LimitRow label={t('onboarding.welcome.limit_members')} value={limits.max_members} />
+            <LimitRow label={t('onboarding.welcome.limit_slots')} value={limits.max_slots_per_month} />
+            <LimitRow label={t('onboarding.welcome.limit_admins')} value={limits.max_admins} />
+          </ul>
+        ) : (
+          <p className="mt-5 rounded-xl bg-dark/[0.03] px-4 py-3 font-body text-sm text-dark/50">
+            {t('onboarding.welcome.limits_unavailable')}
+          </p>
+        )}
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Button onClick={dismissWelcome} className="sm:flex-1">
+            {t('onboarding.welcome.start')}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => { dismissWelcome(); navigate('/settings?tab=subscription') }}
+            className="sm:flex-1"
+          >
+            {t('onboarding.welcome.see_plans')}
+          </Button>
+        </div>
+      </div>
     )
   }
 
@@ -204,7 +287,17 @@ export function OnboardingWizard() {
 
       {/* ── Étapes 2 à 5 : renvoi vers l'écran qui sait déjà faire. ── */}
       {step !== 1 && (
-        <div className="mt-5">
+        <div className="mt-5 flex flex-col gap-3">
+          {/* L'objectif est déjà atteint : on le DIT, plutôt que de proposer une action que
+              le gérant vient de faire. Il ne reste qu'à confirmer. */}
+          {satisfied[step] && (
+            <div className="flex items-center gap-2 rounded-xl bg-accent-dim/10 px-4 py-2.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-accent-dim" />
+              <p className="font-body text-sm font-semibold text-dark/70">
+                {t('onboarding.objective_done')}
+              </p>
+            </div>
+          )}
           <Button onClick={() => handleGo(STEP_TARGETS[step])} className="w-full">
             {t(`onboarding.step${step}.cta`)}
             <ArrowRight className="h-4 w-4" />
@@ -233,11 +326,16 @@ export function OnboardingWizard() {
   )
 }
 
-/** Destination de chaque étape. L'étape 1 n'y figure pas : elle est traitée sur place. */
+/**
+ * Destination de chaque étape. L'étape 1 n'y figure pas : elle est traitée sur place.
+ * Les onglets de Réglages sont amorçables par l'URL (GYM-247, `?tab=`) — les clés sont
+ * celles de TABS dans pages/Settings.tsx, en anglais : 'activities', 'subscription'…
+ * La politique d'absences vit dans l'onglet 'gym' (table noshow_rules, GYM-175).
+ */
 const STEP_TARGETS: Record<number, string> = {
-  2: '/settings',
+  2: '/settings?tab=activities',
   3: '/planning',
-  4: '/settings',
+  4: '/settings?tab=gym',
   5: '/members',
 }
 
@@ -257,6 +355,23 @@ function Shell({ children, onClose }: { children: React.ReactNode; onClose: () =
       </div>
       {children}
     </div>
+  )
+}
+
+/**
+ * Une limite du plan. ⚠️ `null` = ILLIMITÉ — c'est la convention de la grille
+ * nexxia_plan_limits (GYM-245), pas une valeur manquante : on l'écrit en toutes lettres
+ * plutôt que d'afficher un tiret qui se lirait comme « non renseigné ».
+ */
+function LimitRow({ label, value }: { label: string; value: number | null }) {
+  const { t } = useTranslation()
+  return (
+    <li className="flex items-center justify-between rounded-xl bg-dark/[0.03] px-4 py-2.5">
+      <span className="font-body text-sm text-dark/60">{label}</span>
+      <span className="font-body text-sm font-bold text-dark">
+        {value === null ? t('onboarding.welcome.unlimited') : value}
+      </span>
+    </li>
   )
 }
 

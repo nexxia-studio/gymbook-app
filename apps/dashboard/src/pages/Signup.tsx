@@ -31,9 +31,12 @@ import { validatePassword } from '@/lib/passwordPolicy'
 import { supabase } from '@/lib/supabase'
 import { SIGNUP_CONFIRMED_PATH } from '@/lib/signupLink'
 
-// Le compte gérant conserve le minimum plus élevé de l'ancienne page (12) — un compte qui
-// commande une salle entière n'a pas le même seuil qu'un compte membre.
-const SIGNUP_MIN_LENGTH = 12
+// RÈGLE UNIQUE DU PRODUIT : 8, comme GoTrue des deux côtés (staging et prod), comme
+// /reset-password et /welcome. Un seuil front plus élevé que le seuil auth ne protège rien
+// — le compte reste créable à 8 par tout autre chemin — et ment à l'utilisateur sur ce qui
+// est réellement exigé. Le 12 hérité de l'ancienne page a coûté un aller-retour au premier
+// gérant self-serve réel : il n'y a pas de seuil à deux vitesses.
+const SIGNUP_MIN_LENGTH = 8
 
 interface FormErrors {
   firstName?: string

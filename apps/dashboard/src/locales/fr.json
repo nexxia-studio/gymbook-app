@@ -1451,6 +1451,25 @@
       "title": "Ta salle est prête",
       "message": "{{gym}} est en ligne. Tu peux revenir sur chaque réglage à tout moment.",
       "cta": "C'est parti"
+    },
+    "objective_done": "C'est fait — tu peux passer à la suite.",
+    "welcome": {
+      "title": "Bienvenue sur Viniz",
+      "subtitle": "Ta salle est créée. Tu es sur le plan {{plan}} — voici ce qu'il comprend.",
+      "plan_names": {
+        "free": "Free",
+        "starter": "Starter",
+        "pro": "Pro",
+        "premium": "Premium",
+        "studio": "Studio"
+      },
+      "limit_members": "Membres",
+      "limit_slots": "Créneaux par mois",
+      "limit_admins": "Comptes gérants",
+      "unlimited": "Illimité",
+      "limits_unavailable": "Le détail de ton plan n'est pas disponible pour le moment. Tu le retrouveras dans Réglages → Abonnement.",
+      "start": "Commencer la configuration",
+      "see_plans": "Découvrir les plans"
     }
   }
 }
