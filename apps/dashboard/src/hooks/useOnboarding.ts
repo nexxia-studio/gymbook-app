@@ -54,12 +54,17 @@ export interface OnboardingState {
  * Chacune des quatre étapes déléguées a un objet observable, et c'est la détection la plus
  * simple possible — un `count` en tête, aucune donnée rapatriée :
  *   2 · au moins une activité ................. activities
- *   3 · au moins un créneau ................... time_slots   (⚠️ PAS `slots` : la table
+ *   3 · au moins un coach ..................... coaches      (⚠️ AVANT le créneau : un
+ *                                                créneau EXIGE un coach — GYM-229,
+ *                                                activity_requires_coach. L'ordre inverse
+ *                                                envoyait un gérant neuf sur un planning
+ *                                                où il ne pouvait rien poser.)
+ *   4 · au moins un créneau ................... time_slots   (⚠️ PAS `slots` : la table
  *                                                s'appelle time_slots)
- *   4 · la politique d'absences existe ........ noshow_rules (une salle neuve n'a PAS de
+ *   5 · la politique d'absences existe ........ noshow_rules (une salle neuve n'a PAS de
  *                                                ligne — le formulaire la crée par upsert,
  *                                                donc sa présence VAUT configuration)
- *   5 · au moins un membre .................... profiles role='member', deleted_at NULL
+ *   6 · au moins un membre .................... profiles role='member', deleted_at NULL
  *                                                (le gérant est gym_admin : il ne se
  *                                                compte pas lui-même)
  *
@@ -69,7 +74,7 @@ export interface OnboardingState {
  */
 async function detectSatisfiedSteps(gymId: string): Promise<Record<number, boolean>> {
   const countOf = async (
-    table: 'activities' | 'time_slots' | 'noshow_rules',
+    table: 'activities' | 'coaches' | 'time_slots' | 'noshow_rules',
   ): Promise<boolean> => {
     const { count, error } = await supabase
       .from(table)
@@ -82,8 +87,8 @@ async function detectSatisfiedSteps(gymId: string): Promise<Record<number, boole
     return (count ?? 0) > 0
   }
 
-  const [activities, slots, noshow] = await Promise.all([
-    countOf('activities'), countOf('time_slots'), countOf('noshow_rules'),
+  const [activities, coaches, slots, noshow] = await Promise.all([
+    countOf('activities'), countOf('coaches'), countOf('time_slots'), countOf('noshow_rules'),
   ])
 
   const { count: members, error: membersError } = await supabase
@@ -95,9 +100,10 @@ async function detectSatisfiedSteps(gymId: string): Promise<Record<number, boole
 
   return {
     2: activities,
-    3: slots,
-    4: noshow,
-    5: !membersError && (members ?? 0) > 0,
+    3: coaches,
+    4: slots,
+    5: noshow,
+    6: !membersError && (members ?? 0) > 0,
   }
 }
 

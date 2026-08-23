@@ -25,7 +25,12 @@
 //     confondre les deux masquerait une vraie panne derrière un repli silencieux.
 import { supabase } from '@/lib/supabase'
 
-/** Nom du RPC proposé dans la PR. Absent en base à ce stade — cf. l'en-tête. */
+/**
+ * RPC de progression. APPLIQUÉ en staging par le cockpit (migration
+ * 20260823120000_gym248_onboarding_step_6.sql, versionnée dans le dépôt).
+ * Le repli local ci-dessous reste en place : il couvre un environnement où la migration
+ * n'aurait pas encore été appliquée, prod comprise.
+ */
 const RPC_NAME = 'set_gym_onboarding_progress'
 
 const storageKey = (gymId: string) => `viniz.onboarding.${gymId}`
@@ -57,9 +62,15 @@ export interface OnboardingProgress {
   completed: boolean
 }
 
-/** Bornes du CHECK en base (nexxia_gyms_onboarding_step_check : 1 ≤ step ≤ 5). */
+/**
+ * Bornes du CHECK en base (nexxia_gyms_onboarding_step_check : 1 ≤ step ≤ 6).
+ *
+ * ⚠️ Trois endroits doivent rester d'accord — la colonne (CHECK), le RPC
+ * set_gym_onboarding_progress (bornes 1..6) et cette constante. Migration de référence :
+ * supabase/migrations/20260823120000_gym248_onboarding_step_6.sql.
+ */
 export const ONBOARDING_FIRST_STEP = 1
-export const ONBOARDING_LAST_STEP = 5
+export const ONBOARDING_LAST_STEP = 6
 
 export function clampStep(step: number): number {
   if (!Number.isFinite(step)) return ONBOARDING_FIRST_STEP

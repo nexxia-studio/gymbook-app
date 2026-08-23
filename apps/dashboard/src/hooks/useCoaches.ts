@@ -12,7 +12,12 @@ function mapRow(row: Record<string, unknown>): CoachItem {
     bio: (row.bio as string) ?? '',
     photoUrl: (row.photo_url as string) ?? null,
     specialties: (row.specialties as string[]) ?? [],
-    sites: ['Neupré'],
+    // GYM-248 — ce champ FABRIQUAIT « Neupré » : un site écrit en dur, faux pour toute
+    // salle autre que Dopamine, et affiché comme s'il venait de la base.
+    // ⚠️ L'affectation coach↔site n'est PERSISTÉE NULLE PART : la table coach_sites existe
+    // mais aucun chemin du dépôt n'y écrit (grep). La valeur honnête est donc la liste
+    // vide. Brancher la persistance est un sujet à part, signalé dans la PR.
+    sites: [],
     sortOrder: (row.sort_order as number) ?? 0,
     active: (row.active as boolean) ?? true,
   }

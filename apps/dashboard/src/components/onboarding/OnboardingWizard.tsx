@@ -12,8 +12,8 @@
 //    l'écran qui sait déjà le faire (Planning, Réglages, Membres). Recopier ces
 //    formulaires ici, c'est créer une seconde vérité qui divergera.
 //  · ⚠️ LE CTA D'UNE ÉTAPE DÉLÉGUÉE N'AVANCE PAS L'ÉTAPE. Il ouvre l'écran cible et met le
-//    wizard en retrait. C'est l'OBJET qui valide l'étape — ≥1 activité, ≥1 créneau, une
-//    politique d'absences, ≥1 membre (cf. detectSatisfiedSteps dans useOnboarding).
+//    wizard en retrait. C'est l'OBJET qui valide l'étape — ≥1 activité, ≥1 coach,
+//    ≥1 créneau, une politique d'absences, ≥1 membre (cf. detectSatisfiedSteps).
 //    Première version : le CTA avançait PUIS naviguait, si bien que « Configurer » se
 //    comportait exactement comme « Passer » — le wizard se croyait plus loin que la salle.
 //    Constaté au premier parcours gérant réel. NE PAS réintroduire d'avancement ici.
@@ -23,8 +23,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
-  X, Check, ArrowRight, Palette, Dumbbell, CalendarPlus, ShieldAlert, UserPlus, PartyPopper,
-  Sparkles, CheckCircle2,
+  X, Check, ArrowRight, Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus,
+  PartyPopper, Sparkles, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -36,7 +36,7 @@ import { ONBOARDING_LAST_STEP, hasSeenWelcome, markWelcomeSeen } from '@/lib/onb
 import type { SaveOutcome } from '@/lib/onboarding'
 import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 
-const STEP_ICONS = [Palette, Dumbbell, CalendarPlus, ShieldAlert, UserPlus] as const
+const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus] as const
 
 export function OnboardingWizard() {
   const { t } = useTranslation()
@@ -334,9 +334,10 @@ export function OnboardingWizard() {
  */
 const STEP_TARGETS: Record<number, string> = {
   2: '/settings?tab=activities',
-  3: '/planning',
-  4: '/settings?tab=gym',
-  5: '/members',
+  3: '/settings?tab=coaches',
+  4: '/planning',
+  5: '/settings?tab=gym',
+  6: '/members',
 }
 
 function Shell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
