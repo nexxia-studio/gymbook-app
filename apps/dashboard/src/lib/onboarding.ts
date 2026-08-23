@@ -29,6 +29,28 @@ import { supabase } from '@/lib/supabase'
 const RPC_NAME = 'set_gym_onboarding_progress'
 
 const storageKey = (gymId: string) => `viniz.onboarding.${gymId}`
+const welcomeKey = (gymId: string) => `viniz.welcome.${gymId}`
+
+/**
+ * GYM-248 — l'écran de bienvenue ne se voit QU'UNE FOIS, par salle et par navigateur.
+ * Purement cosmétique : s'il réapparaît (mode privé, autre poste), personne n'est bloqué —
+ * c'est pourquoi il n'a pas besoin d'aller en base, contrairement à la progression.
+ */
+export function hasSeenWelcome(gymId: string): boolean {
+  try {
+    return window.localStorage.getItem(welcomeKey(gymId)) === '1'
+  } catch {
+    // Stockage indisponible : on considère l'écran comme déjà vu plutôt que de le
+    // réafficher à chaque rendu, ce qui serait bien plus pénible que de le manquer.
+    return true
+  }
+}
+
+export function markWelcomeSeen(gymId: string): void {
+  try {
+    window.localStorage.setItem(welcomeKey(gymId), '1')
+  } catch { /* cf. hasSeenWelcome */ }
+}
 
 export interface OnboardingProgress {
   step: number

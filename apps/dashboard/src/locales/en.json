@@ -1451,6 +1451,25 @@
       "title": "Your gym is ready",
       "message": "{{gym}} is live. You can revisit every setting whenever you like.",
       "cta": "Let's go"
+    },
+    "objective_done": "Done — you can move on.",
+    "welcome": {
+      "title": "Welcome to Viniz",
+      "subtitle": "Your gym is live. You're on the {{plan}} plan — here's what it includes.",
+      "plan_names": {
+        "free": "Free",
+        "starter": "Starter",
+        "pro": "Pro",
+        "premium": "Premium",
+        "studio": "Studio"
+      },
+      "limit_members": "Members",
+      "limit_slots": "Sessions per month",
+      "limit_admins": "Manager accounts",
+      "unlimited": "Unlimited",
+      "limits_unavailable": "Your plan details aren't available right now. You'll find them under Settings → Subscription.",
+      "start": "Start setting up",
+      "see_plans": "See the plans"
     }
   }
 }

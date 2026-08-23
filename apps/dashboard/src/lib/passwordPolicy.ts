@@ -9,7 +9,8 @@ export interface PasswordRule {
   test: (pwd: string) => boolean
 }
 
-// minLength : 8 (politique serveur) côté membre ; 12 conservé là où c'est déjà imposé
+// minLength : 8 partout — c'est la politique GoTrue, et aucun écran n'impose plus 12
+// (GYM-248 a aligné /signup, dernier survivant d'un seuil à deux vitesses).
 // (inscription). Les règles de caractères sont identiques partout.
 export function passwordRules(minLength = 8): PasswordRule[] {
   return [
