@@ -18,6 +18,10 @@ import { useDashboardStats, type FillPeriod } from '@/hooks/useDashboardStats'
 // pas d'écran statistiques dédié (grep). On gate donc LE BLOC, pas la page : le reste du
 // tableau de bord (KPI, planning du jour) n'est conditionné à aucun plan.
 import { PlanGate } from '@/components/subscription/PlanGate'
+// GYM-248 — le wizard se monte ICI et décide LUI-MÊME de s'afficher (il rend null tant que
+// onboarding_completed est vrai ou que la salle n'est pas chargée). Le dashboard n'a donc
+// aucune condition à porter : une garde de plus ici serait une seconde vérité.
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 
 // Toggle Jour/Semaine/Mois du taux de remplissage — même style que le toggle 12m/8w
 // de Revenue.tsx (bg-dark/5 p-*, bouton actif bg-card shadow-sm), version compacte
@@ -59,6 +63,8 @@ export default function Dashboard() {
       <h1 className="mb-6 font-display text-3xl font-black tracking-tight text-dark lg:text-4xl">
         {t('dashboard.greeting', { name: firstName })}
       </h1>
+
+      <OnboardingWizard />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {loading || !stats ? (
