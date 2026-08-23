@@ -7,9 +7,16 @@
 //
 // Ici, l'invitation PORTE la salle et le rôle, scellés côté serveur :
 //   generateLink(type:'invite', options.data) → user_metadata → handle_new_user() (GYM-150)
-//   pose un profil COMPLET (gym_id, role, first_name, last_name) dès la création.
+//   pose l'identité (first_name, last_name) dès la création, puis un UPDATE service_role
+//   scelle `role` et `gym_id` (étape 6).
 // L'invité arrive donc sur /welcome (page d'activation GYM-202) avec sa salle et son rôle
-// déjà connus, les définit son mot de passe, et entre DIRECTEMENT sur le dashboard.
+// déjà connus, définit son mot de passe, et entre DIRECTEMENT sur le dashboard.
+//
+// ⚠️ GYM-248 — LA PROMOTION NE PASSE PLUS PAR LE TRIGGER. handle_new_user() force
+// role='member' sans exception : il ne peut pas distinguer une invitation serveur d'un
+// signup public, et la tentative de tri sur NEW.invited_at a été réfutée empiriquement
+// (GoTrue pose invited_at APRÈS l'INSERT — le trigger le voit toujours NULL). Un rôle
+// privilégié est désormais posé par CETTE fonction, en service_role, après création.
 //
 // ⚠️ PRINCIPE NON NÉGOCIABLE — le rôle est décidé par CELUI QUI INVITE :
 //   - le gym_id vient TOUJOURS du profil de l'appelant, JAMAIS du body ;
@@ -349,8 +356,13 @@ Deno.serve(async (req) => {
 
     // 5. Création du compte + lien d'invitation en UN appel.
     //    generateLink(type:'invite') crée l'utilisateur SANS envoyer l'email Supabase (c'est
-    //    la différence avec inviteUserByEmail) : on garde donc la main sur le contenu, tout
-    //    en scellant salle et rôle dans les user_metadata que handle_new_user() recopie.
+    //    la différence avec inviteUserByEmail) : on garde donc la main sur le contenu.
+    //
+    //    Les user_metadata gym_id/role sont CONSERVÉES — elles portent l'identité de
+    //    l'invité (first_name, last_name) que le trigger recopie, et documentent
+    //    l'intention de l'invitant. Mais depuis GYM-248 elles ne DÉCIDENT plus rien :
+    //    handle_new_user() force role='member' et ne rattache que par le chemin membre.
+    //    C'est l'UPDATE de l'étape 6 qui scelle le rôle et la salle réels.
     const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'invite',
       email,
@@ -376,12 +388,48 @@ Deno.serve(async (req) => {
     const invitedId = link.user.id
     const actionLink = link.properties.action_link
 
-    // 6. Entrée coach inactive (§2) — best-effort.
+    // 6. GYM-248 — PROMOTION EXPLICITE, scellée ici et nulle part ailleurs.
+    //
+    //    Le trigger handle_new_user() ne nomme JAMAIS un rôle privilégié : il n'a aucun
+    //    moyen fiable de distinguer une invitation serveur d'un signup public. La tentative
+    //    de tri sur NEW.invited_at a été réfutée empiriquement en staging (test ⑧,
+    //    GYM-248) — GoTrue pose invited_at par un UPDATE POSTÉRIEUR à l'INSERT, donc le
+    //    trigger le voit toujours NULL. Le rôle est donc posé ICI, par celui qui invite.
+    //
+    //    `gym_id` est scellé en même temps, et ce n'est pas redondant : le trigger fait
+    //    passer l'invité par le chemin MEMBRE, soumis au plafond max_members — il peut
+    //    donc en ressortir NON rattaché sur une salle pleine. Or un gérant relève de
+    //    max_admins, déjà gardé à l'étape 4 ci-dessus. Cet UPDATE rétablit le rattachement
+    //    voulu quoi qu'ait décidé le trigger.
+    //
+    //    Écriture idempotente et compatible avec le scellement GYM-203 :
+    //      - trg_gym_id_immutable autorise la transition NULL → valeur ;
+    //      - si le trigger avait déjà rattaché, on repose la MÊME valeur, et la clause
+    //        WHEN du trigger (OLD.gym_id IS DISTINCT FROM NEW.gym_id) ne le déclenche même
+    //        pas ;
+    //      - le client est service_role : la liste blanche de colonnes GYM-203 ne
+    //        s'applique pas (elle ne vise que `authenticated`), et l'early-return
+    //        `current_user IN ('service_role', …)` du trigger le confirme.
+    //
+    //    ⚠️ BLOQUANT, pas best-effort : un compte au rôle non scellé est un compte MAL
+    //    FORMÉ. Mieux vaut échouer avant l'email que d'inviter quelqu'un à activer un
+    //    accès qu'il n'aura pas.
+    const { error: sealErr } = await admin
+      .from('profiles')
+      .update({ role: requestedRole, gym_id: gymId })
+      .eq('id', invitedId)
+
+    if (sealErr) {
+      console.error('[invite-team-member] seal role/gym_id failed:', sealErr)
+      return errorResponse(500, 'CREATE_FAILED', 'Création du compte impossible')
+    }
+
+    // 7. Entrée coach inactive (§2) — best-effort.
     const coachCreated = requestedRole === 'gym_admin'
       ? await createCoachEntry(admin, { gymId, profileId: invitedId, firstName, lastName, email })
       : true
 
-    // 7. Email d'invitation — best-effort, mais le résultat est remonté.
+    // 8. Email d'invitation — best-effort, mais le résultat est remonté.
     const emailSent = await sendInviteEmail({
       actionLink,
       email,
