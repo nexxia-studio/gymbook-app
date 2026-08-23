@@ -64,6 +64,10 @@ export function markInviteConsumed(): void {
 // n'y touche pas.
 const EXCLUDED_PREFIXES = [
   ACTIVATION_PATH,
+  // GYM-248 — /signup et /signup/confirmed gèrent leur PROPRE fragment (type=signup, cf.
+  // lib/signupLink.ts). Sans cette exclusion, un lien de confirmation expiré atterrissant
+  // là serait pris pour une invitation expirée et détourné vers /welcome.
+  '/signup',
   '/reset-password',
   '/forgot-password',
   '/legal',

@@ -4,13 +4,17 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useSessionKeepAlive } from '@/hooks/useSessionKeepAlive'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ACTIVATION_PATH, shouldInterceptInvite } from '@/lib/inviteLink'
+import { SIGNUP_CONFIRMED_PATH } from '@/lib/signupLink'
 import { ToastContainer } from '@/components/ui/Toast'
 import MollieCallback from '@/pages/MollieCallback'
 import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCancel from '@/pages/PaymentCancel'
 
 const Login = lazy(() => import('@/pages/Login'))
-// GYM-200 §5 — pages/Signup.tsx n'est plus monté : voir la route /signup ci-dessous.
+// GYM-248 — inscription gérant self-serve REBRANCHÉE (voir l'en-tête de pages/Signup.tsx :
+// le client ne transmet plus ni rôle ni gym_id, le serveur crée et scelle).
+const Signup = lazy(() => import('@/pages/Signup'))
+const SignupConfirmed = lazy(() => import('@/pages/SignupConfirmed'))
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
@@ -33,6 +37,29 @@ function Loading() {
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent-dim border-t-transparent" />
     </div>
   )
+}
+
+/**
+ * GYM-248 — aiguillage de /pending.
+ *
+ * Un compte destiné à devenir gérant (signup_intent='gym_owner') qui n'a pas encore de
+ * salle doit repartir vers la création, PAS vers l'écran d'attente. La metadata est lue sur
+ * l'utilisateur de la session — elle est posée par le signUp et GoTrue la conserve.
+ *
+ * ⚠️ On ne se sert de cette metadata QUE pour AIGUILLER. Elle ne décide d'aucun droit :
+ * c'est create_gym_self_serve, côté serveur, qui vérifie l'éligibilité réelle et refuse le
+ * cas échéant (PT409 si une salle existe déjà). Un utilisateur qui la forgerait n'y
+ * gagnerait qu'un formulaire qui lui répondra non.
+ */
+function PendingOrCreateGym() {
+  const user = useAuthStore((s) => s.user)
+  const gymId = useAuthStore((s) => s.gym_id)
+  const intent = user?.user_metadata?.signup_intent
+
+  if (!gymId && intent === 'gym_owner') {
+    return <Navigate to={SIGNUP_CONFIRMED_PATH} replace />
+  }
+  return <PendingActivation />
 }
 
 function AppRoutes() {
@@ -65,14 +92,15 @@ function AppRoutes() {
           path="/login"
           element={session ? <Navigate to="/dashboard" replace /> : <Login />}
         />
-        {/* GYM-200 §5 — INSCRIPTION GÉRANT PUBLIQUE FERMÉE.
-            pages/Signup.tsx envoyait role:'gym_admin' dans les user_metadata, que
-            handle_new_user() recopiait tel quel : n'importe qui pouvait se créer un compte
-            gérant sur app.viniz.app. L'accès au dashboard s'obtient désormais uniquement
-            par invitation (invite-team-member), où le rôle est décidé par l'invitant.
-            La route est conservée en redirection plutôt que supprimée : un signet ou un
-            ancien lien ne doit pas tomber sur une page blanche. */}
-        <Route path="/signup" element={<Navigate to="/login" replace />} />
+        {/* GYM-248 — INSCRIPTION GÉRANT ROUVERTE. Ce qui l'avait fermée (GYM-200 §5) était
+            l'attribution de gym_admin CÔTÉ CLIENT ; elle n'existe plus : handle_new_user
+            force role='member' et seule create_gym_self_serve promeut, côté serveur.
+            Une session déjà ouverte n'a rien à faire sur le formulaire d'inscription. */}
+        <Route path="/signup" element={session ? <Navigate to="/dashboard" replace /> : <Signup />} />
+        {/* Atterrissage du lien de confirmation d'email → création de la salle.
+            Publique au sens du routeur — comme /welcome, la session vient du fragment —
+            mais la page exige une session valide et se redirige elle-même sinon. */}
+        <Route path={SIGNUP_CONFIRMED_PATH} element={<SignupConfirmed />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* GYM-157 — page publique de reset/définition MDP (MEMBRES). HORS ProtectedRoute et
             SANS redirection de session : le lien recovery établit une session member qui ne
@@ -86,7 +114,18 @@ function AppRoutes() {
         <Route path="/legal/privacy" element={<PrivacyPolicy />} />
         <Route path="/legal/terms" element={<Terms />} />
         <Route path="/support" element={<Support />} />
-        <Route path="/pending" element={session ? <PendingActivation /> : <Navigate to="/login" replace />} />
+        {/* GYM-248 — REPRISE D'UN PARCOURS INTERROMPU.
+            Un gérant qui a confirmé son email puis fermé l'onglet avant de créer sa salle a
+            un profil SANS gym_id : ProtectedRoute l'envoie vers /pending, un écran qui lui
+            dit d'attendre alors qu'il n'attend rien — c'est LUI qui doit agir. La metadata
+            signup_intent='gym_owner', posée au signUp et conservée par GoTrue, permet de le
+            reconnaître et de le remettre sur le chemin. */}
+        <Route
+          path="/pending"
+          element={
+            !session ? <Navigate to="/login" replace /> : <PendingOrCreateGym />
+          }
+        />
         <Route
           path="/dashboard"
           element={
