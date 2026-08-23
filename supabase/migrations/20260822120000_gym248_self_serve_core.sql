@@ -331,28 +331,26 @@ GRANT EXECUTE ON FUNCTION public.create_gym_self_serve(text, text) TO authentica
 --                                                       validé contre
 --                                                       INVITABLE_ROLES = ['gym_admin']
 --
---      → Côté CLIENT, la seule valeur légitime est 'member', qui est déjà le défaut :
---        aucune liste blanche à ouvrir, `role` est forcé.
---      → MAIS invite-team-member fait naître de VRAIS gym_admin par ce trigger, et ne
---        repasse JAMAIS sur profiles.role ensuite (il enchaîne sur createCoachEntry
---        puis l'email). Forcer 'member' sans discriminant casserait toute invitation
---        de gérant. Le discriminant retenu est NEW.invited_at : il est posé par
---        l'endpoint GoTrue `invite`, qui exige service_role, et n'est atteignable par
---        AUCUN signup public.
+--      → Côté CLIENT, la seule valeur légitime est 'member', qui est déjà le défaut.
 --
---        Les DEUX moitiés du discriminant, et ce qui est établi pour chacune :
---          · la metadata `role` — ÉTABLIE. invite-team-member/index.ts:354-366 :
---                generateLink({ type: 'invite', email,
---                               options: { data: { …, gym_id: gymId,
---                                                  role: requestedRole } } })
---            `requestedRole` est validé contre INVITABLE_ROLES (ligne 40, ['gym_admin'])
---            avant d'arriver là. La metadata est donc bien posée, et bornée.
---          · la colonne `invited_at` — NON ÉTABLIE. C'est GoTrue qui la pose, et selon
---            la version elle peut l'être par un UPDATE POSTÉRIEUR à l'INSERT, auquel cas
---            ce trigger la verrait NULL.
---        ⚠️ SECONDE MOITIÉ À VÉRIFIER AVANT APPLICATION (cf. PR, test ⑧). Le sens de
---        l'échec est volontairement le sens SÛR — un gérant invité atterrirait en
---        'member' (dégradation réparable par un super_admin) et jamais l'inverse.
+--      ⚠️ `role` est désormais forcé à 'member' SANS AUCUNE EXCEPTION. Ce trigger ne
+--      nomme JAMAIS un rôle privilégié — il n'a aucun moyen fiable de distinguer une
+--      invitation serveur d'un signup public :
+--
+--        Une première version tentait ce tri sur NEW.invited_at, en pariant que GoTrue
+--        le posait à l'INSERT. Le test ⑧ en staging (cockpit, 23/08) a tranché
+--        EMPIRIQUEMENT le contraire : GoTrue pose invited_at par un UPDATE POSTÉRIEUR
+--        à l'INSERT. NEW.invited_at est donc NULL quand ce trigger s'exécute, et la
+--        branche ne s'ouvrait jamais. Elle est SUPPRIMÉE — ne pas la réintroduire.
+--
+--      → LES RÔLES PRIVILÉGIÉS SONT POSÉS PAR LES EDGE FUNCTIONS service_role APRÈS
+--        LA CRÉATION DU COMPTE, JAMAIS ICI. La promotion est le geste EXPLICITE de
+--        l'inviteur, pas un effet de bord d'une metadata recopiée.
+--        Chemin de référence : invite-team-member/index.ts — après generateLink, un
+--        UPDATE service_role scelle `role` ET `gym_id` sur le profil fraîchement créé.
+--        Ce chemin est aussi ce qui affranchit un gérant invité du plafond
+--        max_members appliqué plus bas : il relève de max_admins, gardé en amont dans
+--        cette même Edge Function.
 --
 -- (ii) ANTI-CAPTURE signup_intent='gym_owner' — ce compte est destiné à
 --      create_gym_self_serve : ni rôle, ni rattachement, quoi que disent les metadata.
@@ -365,11 +363,6 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  -- Rôles qu'une INVITATION serveur peut légitimement sceller. Miroir exact de
-  -- INVITABLE_ROLES dans supabase/functions/invite-team-member/index.ts:40 —
-  -- les deux listes se modifient ENSEMBLE.
-  c_invitable   CONSTANT text[] := ARRAY['gym_admin'];
-
   meta          jsonb := coalesce(NEW.raw_user_meta_data, '{}'::jsonb);
   v_intent      text  := meta->>'signup_intent';
   v_wanted_gym  uuid;
@@ -390,83 +383,79 @@ BEGIN
   END;
 
   -- ── Rôle ───────────────────────────────────────────────────────────────────────
+  -- INCONDITIONNEL. Signup public, OAuth, admin-create-member, invitation d'équipe :
+  -- tout le monde naît 'member'. Une promotion se fait APRÈS, par une Edge Function
+  -- service_role qui en porte la responsabilité explicite.
+  v_role := 'member';
+
   IF v_intent = 'gym_owner' THEN
-    -- Anti-capture : aucun rôle, aucun rattachement. create_gym_self_serve promouvra.
-    v_role       := 'member';
+    -- Anti-capture : en plus du rôle, aucun rattachement. Ce compte est destiné à
+    -- create_gym_self_serve, qui le promouvra en gym_admin sur SA propre salle.
     v_wanted_gym := NULL;
-  ELSIF NEW.invited_at IS NOT NULL AND (meta->>'role') = ANY (c_invitable) THEN
-    -- Invitation émise par le serveur (service_role) : le rôle a été décidé par
-    -- l'invitant, validé contre une liste fermée des deux côtés.
-    v_role := meta->>'role';
-  ELSE
-    -- Tout le reste — signup public, OAuth, admin-create-member : membre, point.
-    v_role := 'member';
   END IF;
 
   -- ── Rattachement + garde de plan (GYM-257) ─────────────────────────────────────
+  -- Tout le monde étant 'member' à ce stade, il n'y a plus qu'UN chemin : celui du
+  -- plafond max_members. Un gérant invité y passe lui aussi et peut donc en ressortir
+  -- non rattaché — c'est sans conséquence : l'UPDATE service_role d'invite-team-member
+  -- scelle ensuite `role` ET `gym_id` à la valeur voulue, et le plafond qui le concerne
+  -- (max_admins) est gardé en amont dans cette même Edge Function.
   IF v_wanted_gym IS NOT NULL THEN
-    IF v_role <> 'member' THEN
-      -- Un gérant invité relève de max_admins, PAS de max_members : le plafond de
-      -- membres ne doit pas bloquer l'arrivée d'un gérant. (Le plafond d'admins est
-      -- déjà appliqué en amont par invite-team-member, GYM-246.)
-      v_gym_id := v_wanted_gym;
+    -- get_effective_plan() est SECURITY DEFINER et exige service_role OU un profil
+    -- déjà rattaché à la salle. Ici auth.uid() est NULL (on est dans la transaction
+    -- GoTrue) et le profil n'existe pas encore : sans ce set_config, la fonction
+    -- lèverait 42501 à CHAQUE inscription et plus personne ne serait rattaché.
+    --
+    -- ⚠️ `is_local = true` borne la portée à LA TRANSACTION, pas à cet appel — et ce
+    -- trigger tourne DANS la transaction GoTrue, qui continue après lui (identities,
+    -- sessions…). Laisser un claim service_role derrière soi contaminerait tout ce qui
+    -- suit dans cette même transaction. La restauration ci-dessous est donc
+    -- INCONDITIONNELLE et sortie du bloc : elle s'exécute sur le chemin nominal comme
+    -- sur le chemin d'exception, sans dépendre de l'ordre des handlers.
+    v_claims := current_setting('request.jwt.claims', true);
+    BEGIN
+      PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+      v_plan := public.get_effective_plan(v_wanted_gym);
+    EXCEPTION WHEN OTHERS THEN
+      -- Salle introuvable, supprimée, plan absent de la grille, panne : on ne
+      -- tranche pas sans savoir → rattachement REFUSÉ.
+      v_plan := NULL;
+    END;
+
+    -- Un GUC ne se « désactive » pas : quand la valeur d'origine était absente,
+    -- current_setting(…, true) rend NULL et le plus proche équivalent est la chaîne
+    -- vide — que get_effective_plan traite déjà comme absente (nullif(…, '')), tout
+    -- comme les autres lecteurs de ce claim dans le schéma.
+    PERFORM set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+
+    IF v_plan IS NULL THEN
+      RAISE LOG '[plan-gate] member limit, gym %', v_wanted_gym;
+      v_gym_id := NULL;
     ELSE
-      -- get_effective_plan() est SECURITY DEFINER et exige service_role OU un profil
-      -- déjà rattaché à la salle. Ici auth.uid() est NULL (on est dans la transaction
-      -- GoTrue) et le profil n'existe pas encore : sans ce set_config, la fonction
-      -- lèverait 42501 à CHAQUE inscription et plus personne ne serait rattaché.
-      --
-      -- ⚠️ `is_local = true` borne la portée à LA TRANSACTION, pas à cet appel — et ce
-      -- trigger tourne DANS la transaction GoTrue, qui continue après lui (identities,
-      -- sessions…). Laisser un claim service_role derrière soi contaminerait tout ce qui
-      -- suit dans cette même transaction. La restauration ci-dessous est donc
-      -- INCONDITIONNELLE et sortie du bloc : elle s'exécute sur le chemin nominal comme
-      -- sur le chemin d'exception, sans dépendre de l'ordre des handlers.
-      v_claims := current_setting('request.jwt.claims', true);
-      BEGIN
-        PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
-        v_plan := public.get_effective_plan(v_wanted_gym);
-      EXCEPTION WHEN OTHERS THEN
-        -- Salle introuvable, supprimée, plan absent de la grille, panne : on ne
-        -- tranche pas sans savoir → rattachement REFUSÉ.
-        v_plan := NULL;
-      END;
+      -- NULL = illimité (convention de la grille GYM-245).
+      v_max_members := nullif(v_plan->'limits'->>'max_members', '')::integer;
 
-      -- Un GUC ne se « désactive » pas : quand la valeur d'origine était absente,
-      -- current_setting(…, true) rend NULL et le plus proche équivalent est la chaîne
-      -- vide — que get_effective_plan traite déjà comme absente (nullif(…, '')), tout
-      -- comme les autres lecteurs de ce claim dans le schéma.
-      PERFORM set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-
-      IF v_plan IS NULL THEN
-        RAISE LOG '[plan-gate] member limit, gym %', v_wanted_gym;
-        v_gym_id := NULL;
+      IF v_max_members IS NULL THEN
+        v_gym_id := v_wanted_gym;
       ELSE
-        -- NULL = illimité (convention de la grille GYM-245).
-        v_max_members := nullif(v_plan->'limits'->>'max_members', '')::integer;
+        -- MÊME prédicat que GYM-246 (admin-create-member/index.ts:227-232) :
+        -- les MEMBRES actifs de cette salle. Gérants et coachs relèvent de
+        -- max_admins ; les comptes supprimés ne consomment pas de place.
+        SELECT count(*) INTO v_members
+          FROM public.profiles p
+         WHERE p.gym_id = v_wanted_gym
+           AND p.role = 'member'
+           AND p.deleted_at IS NULL;
 
-        IF v_max_members IS NULL THEN
-          v_gym_id := v_wanted_gym;
+        IF v_members >= v_max_members THEN
+          -- ⚠️ PAS D'EXCEPTION : elle annulerait la transaction GoTrue et le compte
+          -- auth ne naîtrait pas. Décision produit actée : le compte EXISTE, sans
+          -- rattachement. L'écran mobile « salle complète » relève du chantier
+          -- mobile (reste-à-faire documenté dans la PR).
+          RAISE LOG '[plan-gate] member limit, gym %', v_wanted_gym;
+          v_gym_id := NULL;
         ELSE
-          -- MÊME prédicat que GYM-246 (admin-create-member/index.ts:227-232) :
-          -- les MEMBRES actifs de cette salle. Gérants et coachs relèvent de
-          -- max_admins ; les comptes supprimés ne consomment pas de place.
-          SELECT count(*) INTO v_members
-            FROM public.profiles p
-           WHERE p.gym_id = v_wanted_gym
-             AND p.role = 'member'
-             AND p.deleted_at IS NULL;
-
-          IF v_members >= v_max_members THEN
-            -- ⚠️ PAS D'EXCEPTION : elle annulerait la transaction GoTrue et le compte
-            -- auth ne naîtrait pas. Décision produit actée : le compte EXISTE, sans
-            -- rattachement. L'écran mobile « salle complète » relève du chantier
-            -- mobile (reste-à-faire documenté dans la PR).
-            RAISE LOG '[plan-gate] member limit, gym %', v_wanted_gym;
-            v_gym_id := NULL;
-          ELSE
-            v_gym_id := v_wanted_gym;
-          END IF;
+          v_gym_id := v_wanted_gym;
         END IF;
       END IF;
     END IF;
@@ -519,9 +508,11 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.handle_new_user() IS
-  'GYM-248/GYM-257 — role n''est PLUS recopié depuis les user_metadata client (forcé à '
-  '''member'', sauf invitation serveur reconnue par NEW.invited_at et validée contre '
-  'INVITABLE_ROLES). Le rattachement à une salle est soumis au plafond max_members du '
+  'GYM-248/GYM-257 — role n''est PLUS recopié depuis les user_metadata client : il vaut '
+  'INCONDITIONNELLEMENT ''member''. Ce trigger ne nomme jamais un rôle privilégié — les '
+  'promotions sont posées APRÈS création par les Edge Functions service_role '
+  '(invite-team-member) ou par create_gym_self_serve. '
+  'Le rattachement à une salle est soumis au plafond max_members du '
   'plan (get_effective_plan) : salle pleine ou plan irrésolu → profil créé SANS gym_id '
   'et RAISE LOG, jamais d''exception (elle casserait la transaction GoTrue). '
   'signup_intent=''gym_owner'' → aucun rattachement, compte destiné à create_gym_self_serve.';
