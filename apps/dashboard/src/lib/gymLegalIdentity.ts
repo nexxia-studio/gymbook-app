@@ -28,10 +28,13 @@
 //
 // La réponse est une fonction SECURITY DEFINER étroite qui ne rend QUE l'identité légale
 // — celle qui figure déjà sur les factures que la salle envoie à ses membres, donc rien
-// de confidentiel. Elle est livrée en migration NON DÉPLOYÉE :
+// de confidentiel. Elle vit dans :
 //   supabase/migrations/20260824140000_gym265_public_gym_legal_identity.sql
 //
-// ⚠️ TANT QU'ELLE N'EST PAS DÉPLOYÉE, `fetchGymLegalIdentity` rend `null` et la page
+// ✅ DÉPLOYÉE EN STAGING (par le cockpit, 24/08/2026) — vérifiée en anon par curl : la
+// fonction répond et rend bien l'identité de la salle. Elle reste à déployer en PROD.
+//
+// ⚠️ LÀ OÙ ELLE N'EST PAS ENCORE APPLIQUÉE, `fetchGymLegalIdentity` rend `null` et la page
 // affiche sa version générique. C'est un repli VOULU, pas une panne : la machinerie est
 // complète, la page ne casse jamais, et le jour du déploiement les CGV se remplissent
 // sans toucher une ligne de front.
@@ -98,16 +101,33 @@ export function resolveGymSlug(search: string, hostname: string): string | null 
 export async function fetchGymLegalIdentity(slug: string): Promise<GymLegalIdentity | null> {
   try {
     // ⚠️ APPEL NON TYPÉ, VOLONTAIREMENT. `types/database.ts` est GÉNÉRÉ depuis le schéma
-    // déployé : la fonction n'y figure pas encore, puisque sa migration n'est pas appliquée.
-    // Sans cette échappatoire, le simple fait de livrer la machinerie casserait le build.
-    // 👉 APRÈS DÉPLOIEMENT : régénérer les types, puis remplacer ce cast par un appel
+    // du projet de référence : la fonction n'y figure pas tant que les types n'ont pas été
+    // régénérés après son déploiement. Sans cette échappatoire, livrer la machinerie
+    // casserait le build.
+    // 👉 APRÈS RÉGÉNÉRATION DES TYPES : remplacer ce cast par un appel
     //    `supabase.rpc('public_gym_legal_identity', …)` direct — le typage reviendra seul.
-    const rpc = supabase.rpc as unknown as (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: unknown }>
-
-    const { data, error } = await rpc('public_gym_legal_identity', { p_slug: slug })
+    //
+    // 🔴 LE CAST PORTE SUR LE CLIENT, PAS SUR LA MÉTHODE. C'est la correction du défaut
+    // livré avec GYM-265 :
+    //
+    //     const rpc = supabase.rpc as unknown as (…)   // ❌ DÉTACHE la méthode
+    //     await rpc('public_gym_legal_identity', …)    //    → TypeError, avalé par le catch
+    //
+    // `rpc` est une méthode de PROTOTYPE de SupabaseClient, et son corps fait `this.rest`.
+    // L'affecter à une variable perd le receveur : l'appel lève
+    // « Cannot read properties of undefined (reading 'rest') » — vérifié sur la version
+    // installée de @supabase/supabase-js. Le `catch` de cette fonction avalait l'erreur et
+    // rendait `null` : la page affichait le gabarit GÉNÉRIQUE alors que la fonction SQL,
+    // elle, répondait parfaitement. Un défaut qui se lit comme un repli normal — le pire
+    // genre, parce qu'il n'a aucune signature.
+    //
+    // En castant le CLIENT et en appelant `.rpc(…)` comme une méthode, le receveur reste
+    // lié par construction. `supabase.rpc.bind(supabase)` marche tout autant ; cette forme
+    // a l'avantage de rendre la faute IMPOSSIBLE À RÉINTRODUIRE : il n'y a plus de variable
+    // intermédiaire à détacher.
+    const { data, error } = await (supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+    }).rpc('public_gym_legal_identity', { p_slug: slug })
     if (error || !data) return null
 
     // La fonction rend un SETOF : supabase-js donne un tableau (vide si slug inconnu).
