@@ -637,7 +637,10 @@
       "canceling": "Résiliation en cours",
       "paused": "En pause",
       "suspended": "Suspendu",
-      "completed": "Terminé"
+      "completed": "Terminé",
+      "past_due": "Paiement en échec",
+      "expired": "Expiré",
+      "cancelled": "Résilié"
     },
     "recent_bookings": "Dernières réservations",
     "no_bookings": "Aucune réservation",

@@ -21,8 +21,19 @@
  * 'canceling' EN FAIT PARTIE (GYM-195) : résiliation demandée, mandat Mollie annulé, mais
  * accès maintenu jusqu'au terme (engagement ferme GYM-113). Le membre a payé — l'afficher
  * comme « sans formule » serait faux, et l'inviterait à racheter ce qu'il possède déjà.
+ *
+ * 'past_due' EN FAIT PARTIE AUSSI (GYM-252) : le prélèvement a échoué, mais l'accès est
+ * VOLONTAIREMENT maintenu pendant les 3 jours de grâce — le membre peut encore réserver,
+ * et le serveur l'y autorise (le statut figure dans promote_waitlist_atomic et dans le
+ * prédicat des Edge Functions). L'omettre ici ferait diverger l'affichage du droit réel :
+ * la liste dirait « sans formule » à un membre que la porte laisse passer. C'est
+ * exactement l'écart que GYM-195 a corrigé pour 'canceling'.
+ *
+ * ⚠️ 'suspended' N'EN FAIT PAS PARTIE, et c'est tout le mécanisme de GYM-252 : la coupure
+ * d'accès n'est pas un drapeau qu'il faudrait penser à lire quelque part, c'est la sortie
+ * de cette liste.
  */
-export const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'canceling'] as const
+export const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'canceling', 'past_due'] as const
 
 /**
  * Un abonnement ouvre-t-il encore des droits ?

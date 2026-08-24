@@ -52,6 +52,14 @@ const SUB_BADGE: Record<string, string> = {
   // n'est ni un abonnement serein ni une perte d'accès — c'est un départ annoncé, et c'est
   // exactement le moment où une relance a encore un sens.
   canceling: 'bg-amber-100 text-amber-700',
+  // GYM-252 — prélèvement refusé, accès ENCORE OUVERT pendant la grâce. Ambre comme
+  // 'canceling' : même nature de signal — ni serein, ni perdu, et le seul moment où un
+  // coup de fil du gérant évite la coupure.
+  past_due: 'bg-amber-100 text-amber-700',
+  // Présents dans le CHECK depuis toujours, jamais mappés : ils tombaient sur le gris par
+  // défaut avec une clé i18n manquante, donc le libellé BRUT (« expired ») à l'écran.
+  expired: 'bg-gray-200 text-gray-700',
+  cancelled: 'bg-gray-200 text-gray-700',
 }
 
 function nameToColor(name: string): string {

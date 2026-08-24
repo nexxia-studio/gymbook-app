@@ -25,5 +25,12 @@
       "field_legalCity": "gemeente zetel",
       "field_email": "contact-e-mail"
     }
+  },
+  "member_drawer": {
+    "sub_status": {
+      "past_due": "Betaling mislukt",
+      "expired": "Verlopen",
+      "cancelled": "Opgezegd"
+    }
   }
 }

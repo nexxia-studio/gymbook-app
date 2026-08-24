@@ -637,7 +637,10 @@
       "canceling": "Cancelling",
       "paused": "Paused",
       "suspended": "Suspended",
-      "completed": "Completed"
+      "completed": "Completed",
+      "past_due": "Payment failed",
+      "expired": "Expired",
+      "cancelled": "Cancelled"
     },
     "recent_bookings": "Recent bookings",
     "no_bookings": "No bookings",

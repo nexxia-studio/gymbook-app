@@ -5,6 +5,11 @@ import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
+// GYM-252 — gabarits partagés avec le balayage quotidien (process-failed-renewals).
+import {
+  buildMemberFailureEmail,
+  buildOwnerAlertEmail,
+} from '../_shared/failed-renewal-emails.ts'
 
 const FN = 'mollie-subscription-webhook'
 
@@ -60,6 +65,210 @@ async function sendInvoiceEmail(
     console.error('[sub-webhook] invoice threw (non-blocking):',
       { payment_id: paymentId, member_id: memberId, error: e instanceof Error ? e.message : String(e) })
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// GYM-252 — ÉCHÉANCE EN ÉCHEC
+// ═════════════════════════════════════════════════════════════════════════════════
+// 🔴 CE QUE FAISAIT CETTE FONCTION AVANT CE LOT, ET QUI EXPLIQUE TOUT LE RESTE :
+// la branche failed/expired/canceled se réduisait à
+//     UPDATE payments SET status='failed' WHERE mollie_payment_id = <id>
+// Pour une ÉCHÉANCE, aucune ligne `payments` n'existe — elle n'est écrite que dans la
+// branche `paid`, les renouvellements étant générés par Mollie (motif de GYM-244).
+// L'UPDATE portait donc sur ZÉRO ligne, sans erreur : le membre gardait son accès, la
+// salle ne voyait rien, et il ne restait aucune trace à retrouver.
+//
+// ⚠️ MOLLIE RETENTE SEUL, « up to 5 times (once a day) » (docs.mollie.com/docs/
+// recurring-payments, 24/08/2026), et « like regular payments your webhook is called ».
+// CETTE FONCTION EST DONC RAPPELÉE JUSQU'À CINQ FOIS POUR LE MÊME IMPAYÉ. D'où :
+//   · `last_failed_payment_id` sert de clé d'idempotence — même paiement rejoué = sortie
+//     immédiate, exactement comme `existingPayment.status === 'paid'` protège la branche
+//     de renouvellement réussi ;
+//   · le 1er email membre est adossé à la TRANSITION payment_failed_at NULL → now(), pas
+//     à la réception d'un webhook. Sans ça, cinq courriers identiques en cinq jours.
+
+/** Grâce avant coupure, en jours. ⚠️ Doit rester égale au défaut de
+ *  suspend_overdue_subscriptions(p_grace_days) — la migration cite cette constante. */
+const GRACE_DAYS = 3
+
+/** Statuts d'abonnement sur lesquels un échec d'échéance a encore un sens. */
+const FAILURE_RELEVANT_STATUSES = ['active', 'canceling', 'past_due']
+
+/**
+ * Envoi Resend best-effort. Un email ne doit JAMAIS faire échouer un webhook de
+ * paiement : un 503 ferait rejouer Mollie, et le rejeu ne renverrait de toute façon
+ * pas l'email (idempotence). On journalise et on continue.
+ */
+async function sendMail(from: string, to: string, subject: string, html: string): Promise<void> {
+  if (!RESEND_KEY) {
+    console.error('[sub-webhook] RESEND_API_KEY absent — email non envoyé:', subject)
+    return
+  }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
+      body: JSON.stringify({ from, to, subject, html }),
+    })
+    if (!res.ok) {
+      console.error('[sub-webhook] Resend refus (non-bloquant):', res.status, (await res.text()).slice(0, 300))
+    }
+  } catch (e) {
+    console.error('[sub-webhook] Resend threw (non-bloquant):', e)
+  }
+}
+
+/**
+ * J0 — bascule l'abonnement en `past_due`, prévient le membre et le gérant.
+ *
+ * ⚠️ L'ACCÈS N'EST PAS COUPÉ ICI. `past_due` figure dans TOUS les prédicats « ouvre des
+ * droits » (migration GYM-252, section c) : le membre continue de réserver normalement.
+ * La coupure est le fait du balayage J+3, et de lui seul.
+ *
+ * ⚠️ UN `canceling` NE DEVIENT PAS `past_due`. Ce statut porte une information qu'aucune
+ * autre colonne ne réplique — « résiliation demandée, accès dû jusqu'au terme » (GYM-113,
+ * GYM-195). L'écraser ferait disparaître l'engagement du membre pour un incident de
+ * prélèvement. Les colonnes de suivi sont néanmoins renseignées : la trace ne se perd pas.
+ *
+ * Ne lève jamais : renvoie `false` si rien n'a pu être écrit, l'appelant décide.
+ */
+async function handleRenewalFailure(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  params: {
+    molliePaymentId: string
+    mollieSubscriptionId: string | null
+    memberId: string
+    gymId: string
+    mollieStatus: string
+  },
+): Promise<boolean> {
+  const { molliePaymentId, mollieSubscriptionId, memberId, gymId, mollieStatus } = params
+
+  // ── La ligne d'abonnement. Par mollie_subscription_id quand Mollie le donne (le cas
+  // nominal d'une échéance) ; sinon repli sur le plus récent abonnement pertinent du
+  // membre dans CETTE salle — jamais au-delà, gym_id est dans le filtre.
+  const SUB_COLS = 'id, status, plan_name, amount, payment_failed_at, payment_failed_count, last_failed_payment_id'
+  let sub: Record<string, unknown> | null = null
+  if (mollieSubscriptionId) {
+    const { data } = await supabase
+      .from('member_subscriptions')
+      .select(SUB_COLS)
+      .eq('mollie_subscription_id', mollieSubscriptionId)
+      .maybeSingle()
+    sub = data ?? null
+  }
+  if (!sub) {
+    const { data } = await supabase
+      .from('member_subscriptions')
+      .select(SUB_COLS)
+      .eq('member_id', memberId)
+      .eq('gym_id', gymId)
+      .in('status', FAILURE_RELEVANT_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    sub = data ?? null
+  }
+
+  if (!sub) {
+    // ⚠️ C'EST UNE ANOMALIE, PAS UN IMPAYÉ ORDINAIRE : Mollie a prélevé pour un
+    // abonnement dont nous n'avons pas la ligne. Dead-letter + alerte, c'est ce que
+    // recordWebhookFailure est fait pour. (Un refus bancaire ordinaire, lui, ne passe
+    // PAS par ce canal — voir la note de la PR : #viniz-bugs est un canal de défauts.)
+    await recordWebhookFailure(supabase, {
+      functionName: FN, mollieId: molliePaymentId, paymentId: null, gymId,
+      stage: 'renewal_failure_no_subscription',
+      detail: { reason: 'failed renewal but no member_subscriptions row', mollieSubscriptionId, memberId, mollieStatus },
+    })
+    return false
+  }
+
+  // Idempotence : ce paiement précis a déjà été traité (rejeu Mollie du même webhook).
+  if (sub.last_failed_payment_id === molliePaymentId) {
+    console.log('[sub-webhook] renewal failure already processed — idempotent skip:', molliePaymentId)
+    return true
+  }
+
+  const currentStatus = sub.status as string
+  if (!FAILURE_RELEVANT_STATUSES.includes(currentStatus)) {
+    // Abonnement déjà expiré / résilié / suspendu : l'échec n'apprend rien et ne doit
+    // surtout pas ressusciter une ligne close en `past_due`.
+    console.log('[sub-webhook] failed renewal on non-active subscription — ignored:', currentStatus)
+    return true
+  }
+
+  const isFirstFailure = !sub.payment_failed_at
+  const failedCount = ((sub.payment_failed_count as number) ?? 0) + 1
+  const failedAt = (sub.payment_failed_at as string | null) ?? new Date().toISOString()
+
+  const { error: subError } = await supabase.from('member_subscriptions').update({
+    // 'canceling' est préservé (cf. entête) ; 'past_due' reste 'past_due'.
+    status: currentStatus === 'active' ? 'past_due' : currentStatus,
+    payment_failed_at: failedAt,
+    payment_failed_count: failedCount,
+    last_failed_payment_id: molliePaymentId,
+    updated_at: new Date().toISOString(),
+  }).eq('id', sub.id as string)
+
+  if (subError) {
+    await recordWebhookFailure(supabase, {
+      functionName: FN, mollieId: molliePaymentId, paymentId: null, gymId,
+      stage: 'renewal_failure_update',
+      detail: { error: subError.message, subscriptionId: sub.id },
+    })
+    return false
+  }
+
+  console.log('[sub-webhook] renewal failed →', currentStatus === 'active' ? 'past_due' : currentStatus,
+    '| attempt', failedCount, '| sub', sub.id)
+
+  // ── Courriers, UNIQUEMENT au premier échec du cycle ────────────────────────────
+  // Les tentatives 2 à 5 de Mollie ne réécrivent pas payment_failed_at : elles ne
+  // repassent donc jamais ici. Le gérant et le membre reçoivent UN courrier, pas cinq.
+  if (!isFirstFailure) return true
+
+  try {
+    const branding = await loadGymBranding(supabase, gymId)
+    const from = emailSender(branding)
+    const { data: profile } = await supabase
+      .from('profiles').select('email, first_name, last_name').eq('id', memberId).maybeSingle()
+
+    const planName = (sub.plan_name as string) ?? 'Abonnement'
+    const amount = typeof sub.amount === 'number' ? sub.amount : null
+    const suspendOn = new Date(new Date(failedAt).getTime() + GRACE_DAYS * 86_400_000)
+
+    if (profile?.email) {
+      const mail = buildMemberFailureEmail({
+        branding, firstName: profile.first_name ?? null,
+        planName, amount, graceDays: GRACE_DAYS, suspendOn,
+      })
+      await sendMail(from, profile.email, mail.subject, mail.html)
+    } else {
+      console.error('[sub-webhook] membre sans email — 1re relance non envoyée:', memberId)
+    }
+
+    // Alerte gérant. `nexxia_gyms.email` est NULL en production tant que la salle ne
+    // l'a pas renseignée (GYM-265 l'expose dans /settings) : sans destinataire, on ne
+    // fabrique pas d'adresse, on journalise. Le statut past_due reste visible au
+    // dashboard — l'information n'est pas perdue, seulement moins poussée.
+    if (branding.email) {
+      const memberName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ')
+        || profile?.email || memberId
+      const alert = buildOwnerAlertEmail({
+        branding, memberName, memberEmail: profile?.email ?? null,
+        planName, amount, stage: 'failed', failedCount, graceDays: GRACE_DAYS,
+      })
+      await sendMail(from, branding.email, alert.subject, alert.html)
+    } else {
+      console.warn('[sub-webhook] nexxia_gyms.email absent — alerte gérant non envoyée, gym', gymId)
+    }
+  } catch (e) {
+    // Best-effort strict : la bascule d'état est faite, elle prime sur les courriers.
+    console.error("[sub-webhook] notifications d'échec non envoyées (non-bloquant):", e)
+  }
+
+  return true
 }
 
 // GYM-212 — les deux upserts de cette fonction ne renvoient pas la ligne écrite, et on ne
@@ -542,9 +751,25 @@ Deno.serve(async (req) => {
           if (sub) {
             const nextCount = (sub.payments_count ?? 0) + 1
             const isFinal = sub.max_payments != null && nextCount >= sub.max_payments
+            // GYM-252 — RÉACTIVATION AUTOMATIQUE. C'est ici, et nulle part ailleurs, que
+            // se referme le cycle d'impayé : un prélèvement qui aboutit reprend le membre
+            // là où il en était, sans geste du gérant ni du membre.
+            //
+            // ⚠️ LE STATUT SEUL NE SUFFIT PAS. `status: 'active'` était déjà écrit avant ce
+            // lot et relèverait bien un `past_due` ou un `suspended` — mais en laissant
+            // payment_failed_at renseigné. Le balayage quotidien, qui ne lit QUE
+            // payment_failed_at et le statut, ne reverrait pas la ligne (elle n'est plus
+            // past_due) ; en revanche le PROCHAIN échec repartirait avec isFirstFailure =
+            // false et n'enverrait AUCUN courrier. Un impayé silencieux, à nouveau, mais
+            // seulement au deuxième — le plus difficile à diagnostiquer. D'où la remise à
+            // zéro explicite des quatre colonnes de suivi.
             const { error: subUpdError } = await supabase.from('member_subscriptions').update({
               payments_count: nextCount,
               status: isFinal ? 'completed' : 'active',
+              payment_failed_at: null,
+              payment_failed_count: 0,
+              payment_suspended_at: null,
+              last_failed_payment_id: null,
               updated_at: new Date().toISOString(),
             }).eq('id', sub.id)
             if (subUpdError) {
@@ -581,6 +806,17 @@ Deno.serve(async (req) => {
       }
     } else if (['failed', 'expired', 'canceled'].includes(molliePayment.status)) {
       const statusMap: Record<string, string> = { failed: 'failed', expired: 'expired', canceled: 'canceled' }
+      // Inchangé : ne mord QUE sur un PREMIER paiement (create-subscription a inséré la
+      // ligne avant le checkout, GYM-243). Pour une échéance, aucune ligne n'existe et
+      // l'UPDATE porte sur 0 ligne — c'est justement pour ça que la suite existe.
+      //
+      // ⚠️ ON NE CRÉE PAS DE LIGNE `payments` POUR UNE ÉCHÉANCE ÉCHOUÉE, ET C'EST UN CHOIX.
+      // /revenus lit `payments` sans filtrer le statut : y injecter des tentatives
+      // refusées changerait la lecture du chiffre d'affaires de toutes les salles pour un
+      // besoin de traçabilité. La trace vit sur member_subscriptions
+      // (last_failed_payment_id + payment_failed_count), qui n'est lue par aucun calcul
+      // d'argent. Décision à rouvrir si /revenus gagne un onglet « impayés » — c'est noté
+      // dans la PR, avec le coût.
       const { error: statusError } = await supabase.from('payments').update({
         status: statusMap[molliePayment.status],
         updated_at: new Date().toISOString(),
@@ -592,6 +828,29 @@ Deno.serve(async (req) => {
           gymId, stage: 'status_update', detail: { newStatus: statusMap[molliePayment.status], error: statusError.message },
         })
         return new Response('status update failed', { status: 503 })
+      }
+
+      // ── GYM-252 — L'ÉCHÉANCE EN ÉCHEC ────────────────────────────────────────────
+      // Le discriminant est `sequenceType === 'recurring'`, avec `subscriptionId` en
+      // second : Mollie renseigne le premier sur toute échéance, mais un paiement
+      // rattaché à un abonnement porte de toute façon le second. Prendre les deux évite
+      // qu'un impayé passe entre les mailles à cause d'un champ manquant — et un premier
+      // paiement échoué (sequenceType 'first', sans subscriptionId) n'entre pas ici :
+      // il n'y a pas encore d'abonnement à suspendre.
+      const isRenewal = molliePayment.sequenceType === 'recurring' || !!molliePayment.subscriptionId
+      if (isRenewal) {
+        const ok = await handleRenewalFailure(supabase, {
+          molliePaymentId,
+          mollieSubscriptionId: molliePayment.subscriptionId ?? null,
+          memberId,
+          gymId,
+          mollieStatus: molliePayment.status,
+        })
+        // 503 → Mollie rejoue. L'écriture d'état est idempotente (last_failed_payment_id),
+        // le rejeu ne peut donc ni doubler le compteur ni renvoyer les courriers. Ne pas
+        // rejouer laisserait au contraire un membre impayé avec un accès ouvert et aucune
+        // trace : exactement le défaut corrigé par ce lot.
+        if (!ok) return new Response('renewal failure handling failed', { status: 503 })
       }
     }
 

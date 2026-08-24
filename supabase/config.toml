@@ -90,3 +90,10 @@ verify_jwt = true
 # dans index.ts avec SEND_EMAIL_HOOK_SECRET, en tout premier, avant toute lecture de base.
 [functions.auth-email-hook]
 verify_jwt = false
+
+# GYM-252 — balayage quotidien des impayés, appelé par pg_cron (net.http_post avec
+# X-Internal-Secret, sans JWT) → JWT désactivé, comme send-reminders et
+# send-noshow-notification. L'authentification réelle est la comparaison
+# X-Internal-Secret faite en tête de la fonction.
+[functions.process-failed-renewals]
+verify_jwt = false
