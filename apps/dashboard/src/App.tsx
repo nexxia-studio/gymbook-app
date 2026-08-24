@@ -29,6 +29,9 @@ const Plans = lazy(() => import('@/pages/Plans'))
 // Pages légales PUBLIQUES (accessibles hors session — Apple vérifie les URLs déconnecté).
 const PrivacyPolicy = lazy(() => import('@/pages/legal/PrivacyPolicy'))
 const Terms = lazy(() => import('@/pages/legal/Terms'))
+// GYM-265 — CGU de la PLATEFORME (Nexxia ↔ gérant). Document nouveau : /legal/terms porte
+// les CGV de la SALLE, qui ne lient pas le gérant.
+const Cgu = lazy(() => import('@/pages/legal/Cgu'))
 const Support = lazy(() => import('@/pages/Support'))
 
 function Loading() {
@@ -112,7 +115,9 @@ function AppRoutes() {
         <Route path={ACTIVATION_PATH} element={<AccountActivation />} />
         {/* Routes légales publiques — hors ProtectedRoute (rendues sans session). */}
         <Route path="/legal/privacy" element={<PrivacyPolicy />} />
+        {/* GYM-265 — /legal/terms = CGV de la salle (?gym=<slug>) ; /legal/cgu = CGU plateforme. */}
         <Route path="/legal/terms" element={<Terms />} />
+        <Route path="/legal/cgu" element={<Cgu />} />
         <Route path="/support" element={<Support />} />
         {/* GYM-248 — REPRISE D'UN PARCOURS INTERROMPU.
             Un gérant qui a confirmé son email puis fermé l'onglet avant de créer sa salle a

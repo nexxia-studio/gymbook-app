@@ -28,6 +28,13 @@ export interface GymLegal {
   vatRate: string      // gardé en string : c'est une saisie de formulaire
   vatExempt: boolean
   vatExemptMention: string
+  // GYM-265 — CONTACT DE LA SALLE. Ajouté ici parce que les CGV en ont besoin : l'art. 5.3
+  // (droit de rétractation) doit désigner une adresse à laquelle le membre écrit. Sans
+  // elle, la clause la plus protectrice du document pointe dans le vide.
+  // ⚠️ Les deux colonnes étaient DÉJÀ dans la liste blanche GRANT UPDATE de GYM-180 —
+  // vérifié sur la base staging le 24/08/2026. Aucune migration nécessaire, aucun RPC.
+  email: string
+  phone: string
 }
 
 export const EMPTY_GYM_LEGAL: GymLegal = {
@@ -35,11 +42,12 @@ export const EMPTY_GYM_LEGAL: GymLegal = {
   legalAddress: '', legalPostalCode: '', legalCity: '',
   address: '', postalCode: '', city: '',
   vatRate: '0', vatExempt: false, vatExemptMention: '',
+  email: '', phone: '',
 }
 
 // Doit rester un littéral d'un seul tenant : supabase-js infère le type de `data` en
 // parsant cette chaîne à la compilation, une concaténation lui fait perdre le typage.
-const SELECT_COLS = 'commercial_name, legal_name, legal_form, vat_number, legal_address, legal_postal_code, legal_city, address, postal_code, city, vat_rate, vat_exempt, vat_exempt_mention' as const
+const SELECT_COLS = 'commercial_name, legal_name, legal_form, vat_number, legal_address, legal_postal_code, legal_city, address, postal_code, city, vat_rate, vat_exempt, vat_exempt_mention, email, phone' as const
 
 export function useGymLegal() {
   const gym = useGymStore((s) => s.gym)
@@ -70,6 +78,8 @@ export function useGymLegal() {
       vatRate: String(data.vat_rate ?? 0),
       vatExempt: Boolean(data.vat_exempt),
       vatExemptMention: data.vat_exempt_mention ?? '',
+      email: data.email ?? '',
+      phone: data.phone ?? '',
     })
   }, [gym?.id])
 
@@ -104,6 +114,8 @@ export function useGymLegal() {
         vat_rate: next.vatExempt ? 0 : rate,
         vat_exempt: next.vatExempt,
         vat_exempt_mention: next.vatExempt ? orNull(next.vatExemptMention) : null,
+        email: orNull(next.email),
+        phone: orNull(next.phone),
       })
       .eq('id', gym.id)
       .select('id')

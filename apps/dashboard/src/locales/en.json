@@ -835,7 +835,20 @@
       "save": "Save",
       "saved": "Legal information saved",
       "save_forbidden": "You do not have permission to change this information",
-      "save_error": "Could not save the legal information"
+      "save_error": "Could not save the legal information",
+      "contact_title": "Gym contact",
+      "contact_helper": "This address appears in your terms of sale: it is where your members exercise their right of withdrawal.",
+      "email_label": "Contact email",
+      "phone_label": "Phone",
+      "incomplete_title": "Your terms of sale are incomplete",
+      "incomplete_body": "Missing fields are shown as \"[to be completed by the gym]\" in the terms your members read. Fill in your legal identity below.",
+      "incomplete_fields": "To complete: {{fields}}",
+      "field_legalName": "legal name",
+      "field_vatNumber": "company / VAT number",
+      "field_legalAddress": "registered office street",
+      "field_legalPostalCode": "registered office postcode",
+      "field_legalCity": "registered office city",
+      "field_email": "contact email"
     },
     "noshow": {
       "title": "No-show policy",
@@ -1476,5 +1489,15 @@
       "message": "{{gym}} is live. You can revisit every setting whenever you like.",
       "cta": "Let's go"
     }
+  },
+  "legal": {
+    "draft_title": "Draft version — pending legal review",
+    "draft_body": "This document is an internal draft. It has not yet been reviewed by a lawyer and may change before final publication. Any question: support@viniz.app",
+    "gym_not_resolved": "The gym \"{{slug}}\" could not be identified. General information is shown below; for your gym’s own terms, open them from the application or from the link it sent you.",
+    "nav_cgu": "Terms of Use",
+    "nav_terms": "Terms and Conditions of Sale",
+    "nav_privacy": "Privacy Policy",
+    "nav_support": "Support",
+    "accept_required": "You must accept the Terms of Use and the Privacy Policy"
   }
 }
