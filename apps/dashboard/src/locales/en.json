@@ -16,7 +16,8 @@
     "notifications": "Notifications",
     "profile": "Profile",
     "under_construction": "Under construction",
-    "close": "Close"
+    "close": "Close",
+    "and": "and"
   },
   "auth": {
     "login": "Log in",
@@ -96,7 +97,8 @@
     },
     "tagline_l1": "Take the pulse,",
     "tagline_l2": "Set the pace.",
-    "quote": "The all-in-one solution for gym managers"
+    "quote": "The all-in-one solution for gym managers",
+    "create_account": "Create an account"
   },
   "reset": {
     "checking": "Verifying link...",
@@ -1370,6 +1372,109 @@
       "hint": "Billing is handled manually during Beta: drop us a line and we'll take care of it.",
       "cta": "Request a plan change",
       "mail_subject": "Plan change — {{gym}}"
+    }
+  },
+  "signup_owner": {
+    "title": "Create your manager account",
+    "subtitle": "Get your gym running on Viniz in a few minutes.",
+    "submit": "Create my account",
+    "legal_accept": "I accept the",
+    "go_login": "Log in",
+    "check_email_subtitle": "A confirmation link is on its way to {{email}}. Click it to create your gym.",
+    "resend": "Resend email",
+    "resent": "Email sent again — remember to check your spam folder.",
+    "member_hint": "Are you a gym member? This page is for managers — download the mobile app to book your sessions."
+  },
+  "gym_creation": {
+    "checking": "Checking your link…",
+    "title": "Create your gym",
+    "subtitle": "One more step and your dashboard is yours.",
+    "name_label": "Gym name",
+    "name_placeholder": "e.g. Dopamine Performance Club",
+    "name_helper": "Your members will see it in the app. You can change it later.",
+    "name_length_error": "The name must be between {{min}} and {{max}} characters.",
+    "timezone_label": "Time zone",
+    "timezone_helper": "Used for your sessions, reminders and revenue figures.",
+    "submit": "Create my gym",
+    "go_dashboard": "Go to my dashboard",
+    "back_to_confirm": "Resend the confirmation email",
+    "invalid_title": "Link expired",
+    "invalid_message": "This confirmation link is no longer valid. Log in to pick up where you left off.",
+    "errors": {
+      "not_authenticated": "Your session has expired. Log in again to create your gym.",
+      "email_not_confirmed": "Your email address is not confirmed yet. Click the link we sent you.",
+      "profile_missing": "We can't find your account. Please log in again.",
+      "already_has_gym": "This account already manages a gym.",
+      "rate_limited": "Too many attempts. Try again in an hour.",
+      "invalid_name": "That gym name isn't valid. Use 2 to 60 characters, including at least one letter or digit.",
+      "generic": "We couldn't create your gym. Please try again in a moment."
+    }
+  },
+  "onboarding": {
+    "step_counter": "Step {{current}} of {{total}}",
+    "later": "Later",
+    "skip": "Skip this step",
+    "finish": "Finish",
+    "save_error": "Couldn't save. Please try again in a moment.",
+    "saved_locally": "Progress saved on this device only.",
+    "objective_done": "Done — you can move on.",
+    "step1": {
+      "title": "Your gym",
+      "description": "Your logo and colours, exactly as members will see them in the app.",
+      "logo_label": "Logo URL",
+      "logo_helper": "Paste the URL of an image that's already online.",
+      "primary_label": "Primary colour",
+      "secondary_label": "Secondary colour",
+      "submit": "Save and continue",
+      "saved": "Branding saved."
+    },
+    "step2": {
+      "title": "Your first activity",
+      "description": "CrossFit, Hyrox, Open Gym… An activity groups sessions of the same kind.",
+      "cta": "Create an activity"
+    },
+    "step3": {
+      "title": "Your first coach",
+      "description": "A session requires a coach: add at least one person before filling your schedule.",
+      "cta": "Add a coach"
+    },
+    "step4": {
+      "title": "Your first session",
+      "description": "Put a session on the schedule — that's what members will book.",
+      "cta": "Open the schedule"
+    },
+    "step5": {
+      "title": "Your cancellation policy",
+      "description": "Cancellation window and no-show penalties. You can change it any time.",
+      "cta": "Set my policy"
+    },
+    "step6": {
+      "title": "Invite your members",
+      "description": "Add your first members: they get an email and access to the app.",
+      "cta": "Add a member"
+    },
+    "welcome": {
+      "title": "Welcome to Viniz",
+      "subtitle": "Your gym is live. You're on the {{plan}} plan — here's what it includes.",
+      "plan_names": {
+        "free": "Free",
+        "starter": "Starter",
+        "pro": "Pro",
+        "premium": "Premium",
+        "studio": "Studio"
+      },
+      "limit_members": "Members",
+      "limit_slots": "Sessions per month",
+      "limit_admins": "Manager accounts",
+      "unlimited": "Unlimited",
+      "limits_unavailable": "Your plan details aren't available right now. You'll find them under Settings → Subscription.",
+      "start": "Start setting up",
+      "see_plans": "See the plans"
+    },
+    "done": {
+      "title": "Your gym is ready",
+      "message": "{{gym}} is live. You can revisit every setting whenever you like.",
+      "cta": "Let's go"
     }
   }
 }

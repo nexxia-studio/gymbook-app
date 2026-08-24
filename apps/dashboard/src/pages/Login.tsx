@@ -78,10 +78,16 @@ export default function Login() {
           {t('auth.login')}
         </Button>
 
-        {/* GYM-200 §5 — le lien « Créer un compte » est retiré : l'inscription gérant
-            publique attribuait gym_admin à quiconque remplissait le formulaire. L'accès au
-            dashboard s'obtient désormais UNIQUEMENT par invitation (Réglages → Équipe).
-            Cf. le bandeau d'en-tête de pages/Signup.tsx. */}
+        {/* GYM-248 — le lien « Créer un compte » est RÉTABLI. Ce qui l'avait fait retirer
+            (GYM-200 §5) était l'attribution de gym_admin côté client ; elle n'existe plus.
+            L'invitation (Réglages → Équipe) reste le chemin pour REJOINDRE une salle
+            existante ; celui-ci est le chemin pour en CRÉER une. */}
+        <p className="text-center font-body text-sm text-dark/50">
+          {t('auth.no_account')}{' '}
+          <Link to="/signup" className="font-semibold text-dark transition-colors hover:text-accent-dim">
+            {t('auth.create_account')}
+          </Link>
+        </p>
       </form>
     </AuthLayout>
   )

@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
+// GYM-248 — les sites viennent de gym_sites de LA salle, plus d'un littéral mono-client.
+import { useGymSites } from '@/hooks/useGymSites'
 import { Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
@@ -51,6 +53,7 @@ export default function Settings() {
   // d'upsell pointent directement sur l'abonnement. La navigation interne reste en state :
   // seul l'AMORÇAGE lit l'URL, changer d'onglet ne réécrit pas l'historique.
   const [searchParams] = useSearchParams()
+  const { siteNames } = useGymSites()
   const requestedTab = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState<Tab>(isTab(requestedTab) ? requestedTab : 'activities')
   const [actCreateOpen, setActCreateOpen] = useState(false)
@@ -296,7 +299,7 @@ export default function Settings() {
               onClose={() => setCoachCreateOpen(false)}
               onSubmit={handleCoachCreate}
               availableActivities={availableActivitiesForCoach}
-              availableSites={['Neupré']}
+              availableSites={siteNames}
             />
             <CoachModal
               open={!!editCoach}
@@ -304,7 +307,7 @@ export default function Settings() {
               onSubmit={handleCoachEdit}
               editCoach={editCoach}
               availableActivities={availableActivitiesForCoach}
-              availableSites={['Neupré']}
+              availableSites={siteNames}
             />
             <CoachDeleteModal
               coach={deleteCoachTarget}

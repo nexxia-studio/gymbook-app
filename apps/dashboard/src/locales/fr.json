@@ -16,7 +16,8 @@
     "notifications": "Notifications",
     "profile": "Profil",
     "under_construction": "En construction",
-    "close": "Fermer"
+    "close": "Fermer",
+    "and": "et"
   },
   "auth": {
     "login": "Se connecter",
@@ -96,7 +97,8 @@
     },
     "tagline_l1": "Prends le pouls,",
     "tagline_l2": "Donne le rythme.",
-    "quote": "La solution tout-en-un pour les gérants de salles de sport"
+    "quote": "La solution tout-en-un pour les gérants de salles de sport",
+    "create_account": "Créer un compte"
   },
   "reset": {
     "checking": "Vérification du lien...",
@@ -1370,6 +1372,109 @@
       "hint": "La facturation est gérée manuellement pendant la Beta : écrivez-nous et nous nous occupons du reste.",
       "cta": "Demander un changement de plan",
       "mail_subject": "Changement de plan — {{gym}}"
+    }
+  },
+  "signup_owner": {
+    "title": "Crée ton compte gérant",
+    "subtitle": "Ouvre ta salle sur Viniz en quelques minutes.",
+    "submit": "Créer mon compte",
+    "legal_accept": "J'accepte les",
+    "go_login": "Se connecter",
+    "check_email_subtitle": "Un lien de confirmation vient de partir vers {{email}}. Clique dessus pour créer ta salle.",
+    "resend": "Renvoyer l'email",
+    "resent": "Email renvoyé — pense à vérifier tes spams.",
+    "member_hint": "Tu es membre d'une salle ? Cette page est réservée aux gérants — télécharge l'app mobile pour réserver tes séances."
+  },
+  "gym_creation": {
+    "checking": "Vérification de ton lien…",
+    "title": "Crée ta salle",
+    "subtitle": "Encore une étape et ton tableau de bord est à toi.",
+    "name_label": "Nom de la salle",
+    "name_placeholder": "Ex. Dopamine Performance Club",
+    "name_helper": "Il apparaîtra dans l'app de tes membres. Tu pourras le modifier plus tard.",
+    "name_length_error": "Le nom doit faire entre {{min}} et {{max}} caractères.",
+    "timezone_label": "Fuseau horaire",
+    "timezone_helper": "Sert de référence à tes créneaux, tes rappels et ton chiffre d'affaires.",
+    "submit": "Créer ma salle",
+    "go_dashboard": "Aller à mon tableau de bord",
+    "back_to_confirm": "Renvoyer l'email de confirmation",
+    "invalid_title": "Lien expiré",
+    "invalid_message": "Ce lien de confirmation n'est plus valable. Connecte-toi pour reprendre là où tu t'es arrêté.",
+    "errors": {
+      "not_authenticated": "Ta session a expiré. Reconnecte-toi pour créer ta salle.",
+      "email_not_confirmed": "Ton adresse email n'est pas encore confirmée. Clique sur le lien reçu par email.",
+      "profile_missing": "Ton compte est introuvable. Reconnecte-toi.",
+      "already_has_gym": "Ce compte gère déjà une salle.",
+      "rate_limited": "Trop de tentatives. Réessaie dans une heure.",
+      "invalid_name": "Ce nom de salle n'est pas valide. Utilise entre 2 et 60 caractères, dont au moins une lettre ou un chiffre.",
+      "generic": "La création n'a pas abouti. Réessaie dans un instant."
+    }
+  },
+  "onboarding": {
+    "step_counter": "Étape {{current}} sur {{total}}",
+    "later": "Plus tard",
+    "skip": "Passer cette étape",
+    "finish": "Terminer",
+    "save_error": "Enregistrement impossible. Réessaie dans un instant.",
+    "saved_locally": "Progression gardée sur cet appareil seulement.",
+    "objective_done": "C'est fait — tu peux passer à la suite.",
+    "step1": {
+      "title": "Ta salle",
+      "description": "Ton logo et tes couleurs, tels que tes membres les verront dans l'app.",
+      "logo_label": "Lien vers ton logo",
+      "logo_helper": "Colle l'URL d'une image déjà en ligne.",
+      "primary_label": "Couleur principale",
+      "secondary_label": "Couleur secondaire",
+      "submit": "Enregistrer et continuer",
+      "saved": "Identité visuelle enregistrée."
+    },
+    "step2": {
+      "title": "Ta première activité",
+      "description": "CrossFit, Hyrox, Open Gym… Une activité regroupe les créneaux d'un même type.",
+      "cta": "Créer une activité"
+    },
+    "step3": {
+      "title": "Ton premier coach",
+      "description": "Un créneau exige un coach : ajoute au moins une personne avant de remplir ton planning.",
+      "cta": "Ajouter un coach"
+    },
+    "step4": {
+      "title": "Ton premier créneau",
+      "description": "Place une séance au planning : c'est ce que tes membres réserveront.",
+      "cta": "Ouvrir le planning"
+    },
+    "step5": {
+      "title": "Ta politique d'annulation",
+      "description": "Délai d'annulation et sanctions en cas d'absence. Tu peux la changer quand tu veux.",
+      "cta": "Régler ma politique"
+    },
+    "step6": {
+      "title": "Invite tes membres",
+      "description": "Ajoute tes premiers membres : ils reçoivent un email et l'accès à l'app.",
+      "cta": "Ajouter un membre"
+    },
+    "welcome": {
+      "title": "Bienvenue sur Viniz",
+      "subtitle": "Ta salle est créée. Tu es sur le plan {{plan}} — voici ce qu'il comprend.",
+      "plan_names": {
+        "free": "Free",
+        "starter": "Starter",
+        "pro": "Pro",
+        "premium": "Premium",
+        "studio": "Studio"
+      },
+      "limit_members": "Membres",
+      "limit_slots": "Créneaux par mois",
+      "limit_admins": "Comptes gérants",
+      "unlimited": "Illimité",
+      "limits_unavailable": "Le détail de ton plan n'est pas disponible pour le moment. Tu le retrouveras dans Réglages → Abonnement.",
+      "start": "Commencer la configuration",
+      "see_plans": "Découvrir les plans"
+    },
+    "done": {
+      "title": "Ta salle est prête",
+      "message": "{{gym}} est en ligne. Tu peux revenir sur chaque réglage à tout moment.",
+      "cta": "C'est parti"
     }
   }
 }

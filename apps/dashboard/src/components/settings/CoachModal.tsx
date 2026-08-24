@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 import { X, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import type { CoachItem, CoachFormData } from '@/types/coach'
@@ -23,6 +24,11 @@ function nameToColor(name: string): string {
 }
 
 export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivities, availableSites }: CoachModalProps) {
+  // GYM-248 — « Sites assignés » est un écran MULTI-SITES. Hors de ce cas, il n'a aucun
+  // sens : une salle mono-site vit sans aucune ligne gym_sites, et le champ affichait un
+  // site fabriqué en dur. On lit le drapeau résolu (GYM-245), jamais un nom de plan.
+  const { features } = useEffectivePlan()
+  const multiSiteEnabled = features?.multi_site_enabled === true
   const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isEdit = !!editCoach
@@ -32,7 +38,8 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
     lastName: '',
     bio: '',
     specialties: [],
-    sites: availableSites.length > 0 ? [availableSites[0]] : [],
+    // Aucune pré-sélection : cocher un site à la place du gérant, c'est décider pour lui.
+    sites: [],
     sortOrder: 1,
     active: true,
   })
@@ -54,7 +61,8 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
       setForm({
         firstName: '', lastName: '', bio: '',
         specialties: [],
-        sites: availableSites.length > 0 ? [availableSites[0]] : [],
+        // Aucune pré-sélection : cocher un site à la place du gérant, c'est décider pour lui.
+    sites: [],
         sortOrder: 1, active: true,
       })
     }
@@ -203,7 +211,11 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
               </div>
             </div>
 
-            {/* Sites */}
+            {/* Sites — MULTI-SITES UNIQUEMENT.
+                Absente, pas grisée : un champ désactivé annonce une fonctionnalité qu'on
+                pourrait débloquer ici, alors qu'elle relève du plan. Et la liste vient de
+                gym_sites de LA salle, jamais d'une valeur écrite en dur. */}
+            {multiSiteEnabled && availableSites.length > 0 && (
             <div>
               <label className={labelClass}>{t('coaches.sites')}</label>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -233,6 +245,7 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
                 })}
               </div>
             </div>
+            )}
 
             {/* Sort order */}
             <div>

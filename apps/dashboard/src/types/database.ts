@@ -2877,6 +2877,13 @@ export type Database = {
         Returns: boolean
       }
       cleanup_oauth_states: { Args: never; Returns: undefined }
+      create_gym_self_serve: {
+        Args: {
+          p_gym_name: string
+          p_timezone?: string
+        }
+        Returns: Json
+      }
       create_booking_atomic: {
         Args: {
           p_allow_overbook?: boolean
