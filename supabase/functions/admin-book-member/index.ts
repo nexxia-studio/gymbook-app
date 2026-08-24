@@ -31,7 +31,7 @@ import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_
 import {
   checkMemberQuota,
   countFutureConfirmedBookings,
-  hasActiveSubscription,
+  hasAccessRights,
   hasAvailableCredits,
 } from '../_shared/booking-guards.ts'
 
@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
     }
 
     // ── GARDE 7 — abonnement OU crédit (GYM-63, create-booking à l'identique). ─
-    const activeSubscription = await hasActiveSubscription(admin, memberId, gymId)
+    const activeSubscription = await hasAccessRights(admin, memberId, gymId)
     const creditsAvailable = await hasAvailableCredits(admin, memberId, gymId)
 
     if (!activeSubscription && !creditsAvailable) {

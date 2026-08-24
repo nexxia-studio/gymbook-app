@@ -32,5 +32,8 @@
       "expired": "Verlopen",
       "cancelled": "Opgezegd"
     }
+  },
+  "edge_errors": {
+    "SUBSCRIPTION_PAST_DUE": "{{name}} heeft een abonnement met een openstaande betaling: een tweede kan pas worden geopend zodra de lopende incasso is gelukt."
   }
 }

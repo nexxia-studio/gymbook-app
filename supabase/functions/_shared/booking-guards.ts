@@ -18,7 +18,7 @@
 // repli. Aucune règle n'est ajoutée, retirée ni assouplie ici — le chemin membre, seul
 // chemin de réservation en production sur iOS, doit se comporter exactement comme avant.
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { ACTIVE_SUBSCRIPTION_STATUSES, notExpiredFilter } from './active-subscription.ts'
+import { ACCESS_SUBSCRIPTION_STATUSES, notExpiredFilter } from './active-subscription.ts'
 
 /**
  * GYM-196 — quota de membres du plan Viniz + plafond de réservations simultanées.
@@ -75,7 +75,16 @@ export async function checkMemberQuota(
  * Le booléen retourné alimente `p_has_subscription` de create_booking_atomic : c'est LUI
  * qui décide si la RPC débite un crédit.
  */
-export async function hasActiveSubscription(
+/**
+ * GYM-252 — RENOMMÉE DEPUIS `hasActiveSubscription`.
+ *
+ * L'ancien nom disait « actif », un mot qui a fini par recouvrir DEUX questions : le droit
+ * d'accès, et le blocage d'un nouvel achat (GYM-94). Elles divergent sur `suspended` — pas
+ * de droits, mais achat bloqué — et un booléen nommé « actif » ne peut pas servir les deux.
+ * Cette fonction ne répond qu'à la PREMIÈRE. Pour la seconde :
+ * `findPurchaseBlockingSubscription` dans _shared/active-subscription.ts.
+ */
+export async function hasAccessRights(
   supabase: SupabaseClient,
   memberId: string,
   gymId: string,
@@ -85,7 +94,7 @@ export async function hasActiveSubscription(
     .select('id')
     .eq('member_id', memberId)
     .eq('gym_id', gymId)
-    .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
+    .in('status', ACCESS_SUBSCRIPTION_STATUSES)
     .or(notExpiredFilter())
     .maybeSingle()
 

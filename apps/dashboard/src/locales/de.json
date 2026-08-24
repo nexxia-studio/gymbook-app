@@ -32,5 +32,8 @@
       "expired": "Abgelaufen",
       "cancelled": "Gekündigt"
     }
+  },
+  "edge_errors": {
+    "SUBSCRIPTION_PAST_DUE": "{{name}} hat ein Abonnement mit offener Zahlung: ein zweites kann erst eröffnet werden, wenn die laufende Abbuchung erfolgreich ist."
   }
 }
