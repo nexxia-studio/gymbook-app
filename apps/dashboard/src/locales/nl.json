@@ -1,1 +1,29 @@
-{}
+{
+  "legal": {
+    "draft_title": "Voorlopige versie — in afwachting van juridische validatie",
+    "draft_body": "Dit document is een interne ontwerpversie. Het is nog niet nagelezen door een jurist en kan wijzigen vóór de definitieve publicatie. Vragen: support@viniz.app",
+    "gym_not_resolved": "De club \"{{slug}}\" kon niet worden geïdentificeerd. Hieronder staat algemene informatie; open de voorwaarden van jouw club via de app of via de link die zij je stuurde.",
+    "nav_cgu": "Algemene gebruiksvoorwaarden",
+    "nav_terms": "Algemene verkoopvoorwaarden",
+    "nav_privacy": "Privacybeleid",
+    "nav_support": "Support",
+    "accept_required": "Je moet de gebruiksvoorwaarden en het privacybeleid aanvaarden"
+  },
+  "settings": {
+    "legal": {
+      "contact_title": "Contact van de club",
+      "contact_helper": "Dit adres staat in je algemene verkoopvoorwaarden: daar oefenen je leden hun herroepingsrecht uit.",
+      "email_label": "Contact-e-mail",
+      "phone_label": "Telefoon",
+      "incomplete_title": "Je algemene verkoopvoorwaarden zijn onvolledig",
+      "incomplete_body": "Ontbrekende velden verschijnen als \"[à compléter par la salle]\" in de voorwaarden die je leden lezen. Vul hieronder je juridische identiteit in.",
+      "incomplete_fields": "Aan te vullen: {{fields}}",
+      "field_legalName": "maatschappelijke naam",
+      "field_vatNumber": "ondernemings-/btw-nummer",
+      "field_legalAddress": "straat maatschappelijke zetel",
+      "field_legalPostalCode": "postcode zetel",
+      "field_legalCity": "gemeente zetel",
+      "field_email": "contact-e-mail"
+    }
+  }
+}
