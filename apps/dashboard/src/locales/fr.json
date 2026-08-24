@@ -835,7 +835,20 @@
       "save": "Enregistrer",
       "saved": "Informations légales enregistrées",
       "save_forbidden": "Vous n'avez pas les droits pour modifier ces informations",
-      "save_error": "Impossible d'enregistrer les informations légales"
+      "save_error": "Impossible d'enregistrer les informations légales",
+      "contact_title": "Contact de la salle",
+      "contact_helper": "Cette adresse figure dans vos conditions générales de vente : c'est là que vos membres exercent leur droit de rétractation.",
+      "email_label": "Email de contact",
+      "phone_label": "Téléphone",
+      "incomplete_title": "Vos conditions générales de vente sont incomplètes",
+      "incomplete_body": "Les champs manquants s'affichent « [à compléter par la salle] » dans les CGV que lisent vos membres. Renseignez votre identité légale ci-dessous.",
+      "incomplete_fields": "À compléter : {{fields}}",
+      "field_legalName": "raison sociale",
+      "field_vatNumber": "n° d'entreprise / TVA",
+      "field_legalAddress": "rue du siège social",
+      "field_legalPostalCode": "code postal du siège",
+      "field_legalCity": "commune du siège",
+      "field_email": "email de contact"
     },
     "noshow": {
       "title": "Politique d'absences",
@@ -1476,5 +1489,15 @@
       "message": "{{gym}} est en ligne. Tu peux revenir sur chaque réglage à tout moment.",
       "cta": "C'est parti"
     }
+  },
+  "legal": {
+    "draft_title": "Version provisoire — en attente de validation juridique",
+    "draft_body": "Ce document est un brouillon rédigé en interne. Il n'a pas encore été relu par un juriste et peut être modifié avant sa publication définitive. Pour toute question : support@viniz.app",
+    "gym_not_resolved": "La salle « {{slug}} » n'a pas pu être identifiée. Voici les informations générales ci-dessous ; pour les conditions de votre salle, ouvrez-les depuis l'application ou depuis le lien qu'elle vous a envoyé.",
+    "nav_cgu": "Conditions générales d'utilisation",
+    "nav_terms": "Conditions générales de vente",
+    "nav_privacy": "Politique de confidentialité",
+    "nav_support": "Support",
+    "accept_required": "Vous devez accepter les CGU et la politique de confidentialité"
   }
 }

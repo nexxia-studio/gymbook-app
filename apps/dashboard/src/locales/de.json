@@ -1,1 +1,29 @@
-{}
+{
+  "legal": {
+    "draft_title": "Vorläufige Fassung — juristische Prüfung ausstehend",
+    "draft_body": "Dieses Dokument ist ein interner Entwurf. Es wurde noch nicht juristisch geprüft und kann sich vor der endgültigen Veröffentlichung ändern. Fragen: support@viniz.app",
+    "gym_not_resolved": "Das Studio \"{{slug}}\" konnte nicht identifiziert werden. Nachfolgend allgemeine Informationen; die Bedingungen deines Studios öffnest du über die App oder den Link, den es dir gesendet hat.",
+    "nav_cgu": "Allgemeine Nutzungsbedingungen",
+    "nav_terms": "Allgemeine Verkaufsbedingungen",
+    "nav_privacy": "Datenschutzerklärung",
+    "nav_support": "Support",
+    "accept_required": "Du musst die Nutzungsbedingungen und die Datenschutzerklärung akzeptieren"
+  },
+  "settings": {
+    "legal": {
+      "contact_title": "Kontakt des Studios",
+      "contact_helper": "Diese Adresse steht in deinen Verkaufsbedingungen: dort üben deine Mitglieder ihr Widerrufsrecht aus.",
+      "email_label": "Kontakt-E-Mail",
+      "phone_label": "Telefon",
+      "incomplete_title": "Deine Verkaufsbedingungen sind unvollständig",
+      "incomplete_body": "Fehlende Felder erscheinen als \"[à compléter par la salle]\" in den Bedingungen, die deine Mitglieder lesen. Trage unten deine rechtliche Identität ein.",
+      "incomplete_fields": "Zu ergänzen: {{fields}}",
+      "field_legalName": "Firmenname",
+      "field_vatNumber": "Unternehmens-/USt-Nummer",
+      "field_legalAddress": "Straße des Firmensitzes",
+      "field_legalPostalCode": "PLZ des Sitzes",
+      "field_legalCity": "Gemeinde des Sitzes",
+      "field_email": "Kontakt-E-Mail"
+    }
+  }
+}

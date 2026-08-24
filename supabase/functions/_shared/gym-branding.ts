@@ -231,6 +231,22 @@ export interface EmailShellOptions {
   ctaUrl?: string
   /** Largeur du bloc. Les gabarits existants utilisent 480 ou 520 px. */
   width?: number
+  /**
+   * GYM-262 — COULEURS DU BOUTON, quand la paire de la salle ne convient pas.
+   *
+   * Par défaut le bouton reste `primary_color` sur `secondary_color`, lu en base : les
+   * quatorze gabarits existants ne passent rien et ne changent donc PAS de rendu.
+   *
+   * ⚠️ POURQUOI CETTE OUVERTURE PLUTÔT QU'UNE SECONDE COQUILLE : les emails d'auth
+   * (GYM-262) sont brandés VINIZ, dont la palette compte TROIS jetons — fond sombre
+   * #17102E, violet #4827B4, lime #C8FF3D — là où une salle n'en a que deux. Sans ces
+   * deux options, le bouton Viniz serait rendu violet sur violet-noir, illisible ; et
+   * dupliquer `emailShell` pour trois lignes de style aurait recréé exactement la
+   * divergence que ce module a été écrit pour supprimer.
+   */
+  ctaBg?: string
+  /** Couleur du LIBELLÉ du bouton. Va de pair avec `ctaBg` — les deux ou aucun. */
+  ctaFg?: string
 }
 
 /**
@@ -248,7 +264,9 @@ export function emailShell(b: GymBranding, o: EmailShellOptions): string {
     // `secondary_color`, donc SOMBRE SUR CLAIR. L'inverse — un texte clair sur ce lime —
     // serait illisible. Les deux valeurs viennent de la base, elles n'ont jamais été
     // écrites en dur ici.
-    ? `<div style="text-align:center;margin:24px 0 0;"><a href="${escapeAttr(href)}" style="display:inline-block;background-color:${escapeAttr(b.primaryColor)};color:${escapeAttr(b.secondaryColor)};color-scheme:light only;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">${escapeHtml(o.ctaLabel)}</a></div>`
+    // GYM-262 — `ctaBg`/`ctaFg` priment quand l'appelant les fournit (emails d'auth Viniz).
+    // Sans eux, la paire de la salle est conservée à l'identique.
+    ? `<div style="text-align:center;margin:24px 0 0;"><a href="${escapeAttr(href)}" style="display:inline-block;background-color:${escapeAttr(o.ctaBg ?? b.primaryColor)};color:${escapeAttr(o.ctaFg ?? b.secondaryColor)};color-scheme:light only;font-weight:bold;font-size:14px;text-decoration:none;padding:14px 28px;border-radius:12px;">${escapeHtml(o.ctaLabel)}</a></div>`
     : ''
   const emoji = o.emoji ? `<div style="font-size:28px;margin-bottom:12px;">${o.emoji}</div>` : ''
   const width = o.width ?? 520

@@ -80,3 +80,13 @@ verify_jwt = true
 # appartenir à la salle de l'appelant, gym_id jamais du body).
 [functions.team-access]
 verify_jwt = true
+
+# GYM-262 — Send Email Hook appelé par GoTrue (Supabase Auth), en serveur à serveur.
+# GoTrue n'envoie AUCUN JWT : il signe le corps de la requête (Standard Webhooks, en-têtes
+# webhook-id / webhook-timestamp / webhook-signature). Avec verify_jwt = true, la passerelle
+# renverrait 401 avant même d'atteindre la fonction, et TOUS les emails d'auth tomberaient —
+# donc toutes les inscriptions, le hook étant bloquant.
+# ⚠️ L'authentification réelle de ce point d'entrée est la VÉRIFICATION DE SIGNATURE faite
+# dans index.ts avec SEND_EMAIL_HOOK_SECRET, en tout premier, avant toute lecture de base.
+[functions.auth-email-hook]
+verify_jwt = false

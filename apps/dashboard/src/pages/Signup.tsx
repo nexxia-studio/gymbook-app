@@ -79,7 +79,9 @@ export default function Signup() {
     }
 
     if (password !== passwordConfirm) next.passwordConfirm = t('auth.validation.password_mismatch')
-    if (!terms) next.terms = t('auth.terms_required')
+    // GYM-265 — la case lie les CGU plateforme + la confidentialité (plus les CGV d'une
+    // salle) : le message d'erreur nomme donc les DEUX documents réellement acceptés.
+    if (!terms) next.terms = t('legal.accept_required')
 
     setErrors(next)
     return Object.keys(next).length === 0
@@ -253,7 +255,15 @@ export default function Signup() {
 
         {/* Consentement — une seule case. Les deux textes sont versionnés ensemble
             (LEGAL_VERSION partagé), et handle_new_user alimente terms_version ET
-            privacy_policy_version depuis la même metadata `legal_version`. */}
+            privacy_policy_version depuis la même metadata `legal_version`.
+
+            🔴 GYM-265 — LE LIEN POINTAIT VERS /legal/terms, C'EST-À-DIRE VERS LES CGV D'UNE
+            SALLE. Un futur GÉRANT acceptait donc un contrat de VENTE DE SÉANCES DE SPORT,
+            entre une salle et ses membres, auquel il n'est pas partie — et qui désignait
+            « Dopamine Performance Club » comme vendeur. Le gérant de la salle X signait les
+            conditions de la salle Y. La case lie désormais les CGU DE LA PLATEFORME
+            (/legal/cgu), qui sont le vrai contrat Nexxia ↔ gérant, et la politique de
+            confidentialité. Les CGV n'ont RIEN à faire dans ce parcours. */}
         <div className="flex flex-col gap-2 rounded-xl border border-[#E8E6E0] p-4">
           <label className="flex items-start gap-3">
             <input
@@ -264,12 +274,12 @@ export default function Signup() {
             />
             <span className="font-body text-sm text-dark/70">
               {t('signup_owner.legal_accept')}{' '}
-              <Link to="/legal/terms" target="_blank" className="font-semibold text-dark underline">
-                {t('auth.terms_link')}
+              <Link to="/legal/cgu" target="_blank" className="font-semibold text-dark underline">
+                {t('legal.nav_cgu')}
               </Link>
               {' '}{t('common.and')}{' '}
               <Link to="/legal/privacy" target="_blank" className="font-semibold text-dark underline">
-                {t('auth.privacy_link')}
+                {t('legal.nav_privacy')}
               </Link>
             </span>
           </label>

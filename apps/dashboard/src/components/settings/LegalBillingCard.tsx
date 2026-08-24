@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useGymLegal, EMPTY_GYM_LEGAL, type GymLegal } from '@/hooks/useGymLegal'
+import { missingLegalFields } from '@/lib/gymLegalIdentity'
 import { useToastStore } from '@/hooks/useToast'
 
 /**
@@ -11,6 +12,19 @@ import { useToastStore } from '@/hooks/useToast'
  * Ce que le gérant saisit ici est ce qui s'imprime sur les factures (bloc émetteur +
  * régime TVA). Le taux est une DONNÉE, jamais du code : il doit pouvoir être corrigé
  * après confirmation du comptable sans redéploiement.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * GYM-265 — CE FORMULAIRE ALIMENTE AUSSI LES CGV PUBLIQUES DE LA SALLE
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * Ces mêmes colonnes sont désormais interpolées dans /legal/terms?gym=<slug>. Un champ
+ * vide n'est donc plus seulement une facture incomplète : c'est un « [à compléter par la
+ * salle] » VISIBLE par tous les membres, au milieu d'un contrat.
+ *
+ * ⚠️ AUCUN NOUVEL ÉCRAN N'A ÉTÉ CRÉÉ, ET C'EST VOULU. Le ticket demandait une section
+ * « Identité légale » ; elle existait déjà ici depuis GYM-180 et écrit exactement les
+ * bonnes colonnes. En ouvrir une seconde aurait donné deux formulaires concurrents sur
+ * les mêmes champs — la divergence que ce dépôt paie déjà cher ailleurs. Ce lot ajoute
+ * donc : le bandeau d'incitation, et le bloc contact dont les CGV ont besoin.
  */
 export function LegalBillingCard() {
   const { t } = useTranslation()
@@ -50,12 +64,40 @@ export function LegalBillingCard() {
 
   const dirty = legal !== null && JSON.stringify(form) !== JSON.stringify(legal)
 
+  // ⚠️ CALCULÉ SUR L'ÉTAT ENREGISTRÉ (`legal`), PAS SUR LE FORMULAIRE. Le bandeau décrit ce
+  // que les membres LISENT en ce moment sur la page publique ; le baser sur `form` le
+  // ferait disparaître dès la première frappe, avant que quoi que ce soit soit enregistré.
+  const missing = legal ? missingLegalFields(legal) : []
+
   return (
     <section className="rounded-2xl border border-[#E8E6E0] bg-card p-6">
       <h2 className="font-display text-xl font-black tracking-tight text-dark">
         {t('settings.legal.title')}
       </h2>
       <p className="mt-1 font-body text-sm text-muted">{t('settings.legal.subtitle')}</p>
+
+      {/* GYM-265 — INCITATION, PAS BLOCAGE. La décision de bloquer les paiements d'une
+          salle aux CGV incomplètes est explicitement DIFFÉRÉE : elle couperait le chiffre
+          d'affaires d'un gérant pour un champ de formulaire, et cet arbitrage n'appartient
+          pas à ce lot. On informe, précisément, avec la liste des champs manquants. */}
+      {missing.length > 0 && (
+        <div
+          role="status"
+          className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3"
+        >
+          <p className="font-body text-sm font-semibold text-amber-900">
+            {t('settings.legal.incomplete_title')}
+          </p>
+          <p className="mt-1 font-body text-xs leading-5 text-amber-800">
+            {t('settings.legal.incomplete_body')}
+          </p>
+          <p className="mt-1.5 font-body text-xs font-medium text-amber-900">
+            {t('settings.legal.incomplete_fields', {
+              fields: missing.map((f) => t(`settings.legal.field_${f}`)).join(', '),
+            })}
+          </p>
+        </div>
+      )}
 
       {/* ── Identité ── */}
       <h3 className="mt-6 font-body text-sm font-semibold uppercase tracking-wide text-dark/50">
@@ -147,6 +189,27 @@ export function LegalBillingCard() {
           label={t('settings.legal.city_label')}
           value={form.city}
           onChange={(e) => set('city', e.target.value)}
+        />
+      </div>
+
+      {/* ── Contact (GYM-265) ── */}
+      <h3 className="mt-8 font-body text-sm font-semibold uppercase tracking-wide text-dark/50">
+        {t('settings.legal.contact_title')}
+      </h3>
+      <p className="mt-1 font-body text-xs text-muted">{t('settings.legal.contact_helper')}</p>
+      <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <Input
+          name="email"
+          type="email"
+          label={t('settings.legal.email_label')}
+          value={form.email}
+          onChange={(e) => set('email', e.target.value)}
+        />
+        <Input
+          name="phone"
+          label={t('settings.legal.phone_label')}
+          value={form.phone}
+          onChange={(e) => set('phone', e.target.value)}
         />
       </div>
 
