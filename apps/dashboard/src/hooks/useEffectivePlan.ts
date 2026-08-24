@@ -134,11 +134,18 @@ export function useEffectivePlan() {
     setIsLoading(true)
     // get_effective_plan n'est pas encore dans les types générés (la migration n'est pas
     // appliquée) : le cast tombera à la prochaine régénération de types/database.ts.
-    const { data: row, error: rpcError } = await (supabase.rpc as unknown as (
-      fn: string, args: Record<string, unknown>,
-    ) => Promise<{ data: EffectivePlanRow | null; error: { message: string } | null }>)(
-      'get_effective_plan', { p_gym_id: gymId },
-    )
+    // 🔴 LE CAST PORTE SUR LE CLIENT, PAS SUR LA MÉTHODE (correctif GYM-265).
+    // `(supabase.rpc as …)('get_effective_plan', …)` DÉTACHAIT la méthode de son receveur :
+    // `rpc` est une méthode de prototype dont le corps fait `this.rest`, et l'appel levait
+    // « Cannot read properties of undefined (reading 'rest') ». Rien ne rattrapait ici :
+    // l'exception remontait hors de `load()`, `get_effective_plan` n'était donc JAMAIS
+    // résolu, et le gating restait indéfiniment sur « on ne sait pas ». Casté sur le
+    // client, le receveur reste lié par construction.
+    const { data: row, error: rpcError } = await (supabase as unknown as {
+      rpc: (
+        fn: string, args: Record<string, unknown>,
+      ) => Promise<{ data: EffectivePlanRow | null; error: { message: string } | null }>
+    }).rpc('get_effective_plan', { p_gym_id: gymId })
     setIsLoading(false)
 
     if (rpcError || !row) {

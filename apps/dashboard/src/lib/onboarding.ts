@@ -131,12 +131,19 @@ export async function saveOnboardingProgress(
   // est donc absent des types générés (types/database.ts). L'ajouter à la main aux types
   // serait un mensonge — ils décrivent le schéma RÉEL. Le jour où la migration proposée en
   // PR est appliquée, `supabase gen types` l'ajoutera et ce cast pourra sauter.
-  const rpc = supabase.rpc as unknown as (
-    name: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ error: { code?: string | null; message?: string | null } | null }>
-
-  const { error } = await rpc(RPC_NAME, {
+  // 🔴 LE CAST PORTE SUR LE CLIENT, PAS SUR LA MÉTHODE (correctif GYM-265).
+  // `const rpc = supabase.rpc as …` DÉTACHAIT la méthode de son receveur : `rpc` est une
+  // méthode de prototype dont le corps fait `this.rest`, et l'appel levait
+  // « Cannot read properties of undefined (reading 'rest') ». Ici l'exception n'était même
+  // pas rattrapée : elle remontait hors de `saveProgress`, et le repli 'local-only' prévu
+  // par `isMissingRpc` juste en dessous était donc INATTEIGNABLE — le cas exact que ce
+  // code est écrit pour gérer. Casté sur le client, le receveur reste lié par construction.
+  const { error } = await (supabase as unknown as {
+    rpc: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ error: { code?: string | null; message?: string | null } | null }>
+  }).rpc(RPC_NAME, {
     p_gym_id: gymId,
     p_step: safe.step,
     p_completed: safe.completed,
