@@ -49,11 +49,11 @@ Zéro événement en deux heures : le comportement attendu, pas une panne.
 | Variable | Production | Staging |
 |---|---|---|
 | `EXPO_PUBLIC_SENTRY_DSN` | **inchangé** — env EAS serveur | **ajouté** dans `eas.json`, profil `preview-staging` |
-| `EXPO_PUBLIC_POSTHOG_KEY` | **inchangé** — env EAS serveur | *(voir §4 : clé dédiée, à créer)* |
+| `EXPO_PUBLIC_POSTHOG_KEY` | **inchangé** — env EAS serveur | **ajoutée** dans `eas.json` — **la même clé** (plan gratuit : un seul projet, cf. §4) |
 
 ⚠️ **La production n'est pas touchée, et c'est délibéré.** Recopier le DSN et la clé PostHog dans `eas.json` aurait créé **deux sources de vérité** : le jour où Antoine ferait tourner une clé côté EAS, `eas.json` l'écraserait silencieusement avec la valeur périmée. Ce qui marche déjà reste là où il marche.
 
-Pour le staging, `eas.json` **est** déjà le mécanisme en place (ses 5 variables y sont, y compris la clé anon Supabase). On y ajoute la sixième, du même statut : **un DSN Sentry est publiable** — il part dans le bundle client, exactement comme une clé anon. Ce n'est pas un secret ; le secret, c'est `SENTRY_AUTH_TOKEN`, qui reste côté serveur EAS.
+Pour le staging, `eas.json` **est** déjà le mécanisme en place (ses 5 variables y sont, y compris la clé anon Supabase). On y ajoute les deux nouvelles, du même statut : **un DSN Sentry et une clé de projet PostHog sont publiables** — ils partent dans le bundle client, exactement comme une clé anon. Ce ne sont pas des secrets ; le secret, c'est `SENTRY_AUTH_TOKEN`, qui reste côté serveur EAS.
 
 ## 3. Séparer les deux apps dans Sentry
 
@@ -72,32 +72,63 @@ app.viniz.staging@1.0.5+N        (Viniz Staging)
 
 Les deux apps ne peuvent donc pas se confondre, même à environnement égal.
 
-## 4. PostHog : projet dédié — le choix, et pourquoi
+## 4. 🔴 PostHog : un seul projet, une super-propriété — ET LA DETTE QUI VA AVEC
 
-**Option retenue : (b) un projet PostHog dédié au staging.**
+> ## ⚠️ TOUTE ANALYSE POSTHOG DOIT FILTRER `environment = production`.
+> ## Un chiffre lu sans ce filtre inclut les tests d'Antoine.
 
-| | (a) super-propriété `environment` | **(b) projet dédié** |
+C'est la contrepartie assumée du **plan gratuit**, qui n'autorise qu'un seul projet — et
+c'est l'unique projet de l'organisation. La séparation par construction (un projet dédié
+au staging, retenue par GYM-276) n'est **pas disponible**.
+
+Cela vaut pour les analyses **déjà écrites** : taux de remplissage, conversions, rétention,
+tout tableau de bord existant compte aujourd'hui les événements des deux apps. Aucune ne
+se met à jour toute seule.
+
+### Ce qui rend cette dette dangereuse
+
+| | Séparation par projet | **Étiquetage (retenu par contrainte)** |
 |---|---|---|
-| Pollution possible | **oui** — les événements sont dans le même projet | **non**, par construction |
-| Analyses existantes | **toutes à reprendre** pour ajouter le filtre | inchangées |
-| Coût | nul | une clé de plus, un projet à créer |
-| Mode d'échec | **silencieux** — un oubli de filtre donne un chiffre faux qui se lit comme un chiffre juste | bruyant — la clé manque, rien ne part |
+| Pollution possible | non, par construction | **oui** — même magasin |
+| Analyses existantes | inchangées | **toutes à reprendre** |
+| Mode d'échec | bruyant : la clé manque, rien ne part | **silencieux** : un oubli de filtre donne un chiffre faux qui se lit exactement comme un chiffre juste |
 
-C'est le raisonnement qui a fait **séparer les bases Supabase** plutôt que de préfixer les lignes : quand les deux mondes partagent un magasin, la séparation repose sur la discipline de chaque lecture, et une seule lecture distraite suffit à fausser un chiffre. Ici les chiffres en question sont ceux sur lesquels Nico jugera sa salle.
+Le mode d'échec est le point : rien ne signalera jamais qu'une analyse a oublié le filtre.
+C'est pourquoi cette section ouvre sur un avertissement plutôt que sur une explication.
 
-**Le mécanisme est en place** dans `lib/analytics.ts` :
+### Le mécanisme : une super-propriété persistante
 
 ```ts
-const apiKey = isStaging
-  ? process.env.EXPO_PUBLIC_POSTHOG_KEY_STAGING   // ← à créer
-  : process.env.EXPO_PUBLIC_POSTHOG_KEY
+posthog?.register({ environment: ANALYTICS_ENVIRONMENT })   // 'staging' | 'production'
 ```
 
-⚠️ **Aucun repli vers la clé de production sur le staging.** Un `?? apiKey` aurait annulé tout le raisonnement, silencieusement.
+**Pourquoi `register()` et pas une propriété passée à chaque appel** : nos `captureEvent`
+ne sont pas les seuls événements envoyés. Le `PostHogProvider` du `_layout` racine produit
+de l'**autocapture** (écrans, navigation) et des événements de **cycle de vie** que
+personne n'appelle à la main — et ce sont eux qui font le volume. Une propriété passée à
+`capture()` ne les couvrirait pas, et le tri serait faux là où il compte le plus.
 
-**Conséquence assumée, à connaître** : tant que le projet staging n'existe pas, **l'app staging n'envoie aucun analytics**. C'est le défaut sûr — un banc d'essai muet côté PostHog se corrige en posant une variable ; une production polluée se corrige en nettoyant un projet. Sentry, lui, fonctionne dès cette build.
+**Vérifié dans le code de la version installée** (`@posthog/core`, `posthog-core.js`), pas
+supposé :
 
-**Ceinture** : `captureEvent` ajoute `environment` à **chaque** événement, en production comprise. Si un jour les deux apps partageaient malgré tout un projet, les données resteraient triables. C'est un filet, pas le mécanisme.
+- `register()` écrit dans les propriétés persistées (`PostHogPersistedProperty.Props`) ;
+- `enrichProperties()` les étale **en premier** dans chaque événement :
+  `{ ...this.props, ...this.sessionProps, ...userProperties, ...common, $session_id }` ;
+- et `enrichProperties()` est appelé par `capture()`, `autocapture()`, `screen()`,
+  `alias()` et l'identification. **Couverture complète.**
+
+**Ceinture** : `captureEvent` pose *aussi* `environment` explicitement. Ce n'est pas
+redondant — `register()` écrit de façon asynchrone dans un stockage persistant, et les tout
+premiers événements d'un démarrage à froid peuvent partir avant que l'écriture ne soit
+visible. Les événements **métier**, ceux dont on tire les chiffres, portent donc
+l'étiquette de façon inconditionnelle. Même constante des deux côtés : aucune divergence
+possible.
+
+### Le jour où le plan le permettra
+
+Repasser à un projet dédié est un changement d'une ligne dans `lib/analytics.ts` (choisir
+la clé selon `isStaging`) plus une variable dans `eas.json`. La super-propriété peut rester
+— elle ne gêne pas, et elle documente l'origine de chaque événement.
 
 ## 5. Message hors ligne
 
@@ -121,16 +152,17 @@ Le cas « annuler » n'était pas dans le signalement : il est apparu en suivant
 
 | # | Geste | Bloquant pour |
 |---|---|---|
-| 1 | **Rien pour Sentry staging** — le DSN est dans `eas.json`, la prochaine build `preview-staging` enverra | — |
-| 2 | Créer un projet PostHog **« GymBook Staging »** (host `https://eu.i.posthog.com`, comme la prod) | analytics staging |
-| 3 | Ajouter `EXPO_PUBLIC_POSTHOG_KEY_STAGING` au bloc `env` du profil `preview-staging` dans `eas.json` | analytics staging |
-| 4 | *(optionnel)* Poser `EXPO_PUBLIC_SENTRY_DSN` / `EXPO_PUBLIC_POSTHOG_KEY` dans l'environnement EAS `preview` **au lieu** d'`eas.json`, pour aligner staging sur le mécanisme de la prod | — |
+| 1 | **Rien.** DSN Sentry et clé PostHog sont dans `eas.json` : la prochaine build `preview-staging` envoie dans les deux outils | — |
+| 2 | **Reprendre les analyses PostHog existantes** pour y ajouter `environment = production` (cf. §4) | l'exactitude des chiffres |
+| 3 | *(optionnel)* Basculer ces deux variables de `eas.json` vers l'environnement EAS `preview`, pour aligner staging sur le mécanisme de la prod | — |
 
-Aucune commande `eas` de création ou de modification n'a été exécutée par ce lot ; seul `eas env:list`, en lecture.
+Aucune commande `eas` de création ou de modification n'a été exécutée par ces lots ; seul
+`eas env:list`, en lecture.
 
 ## 7. Recette
 
 1. **Build `preview-staging`** → installer l'app « Viniz Staging ».
 2. **Sentry** : provoquer une erreur. L'événement doit arriver avec `environment: staging` et une release `app.viniz.staging@…`. Vérifier au passage qu'un événement de l'app Dopamine porte bien `environment: production` — c'est la moitié qui protège Nico.
-3. **PostHog** : tant que le geste 2/3 n'est pas fait, **aucun événement staging** ne doit apparaître dans le projet GymBook. C'est le résultat attendu, pas un échec.
+3. **PostHog** : les événements de l'app staging arrivent dans le projet GymBook, **tous porteurs de `environment = staging`** — y compris les `$screen` et les événements de cycle de vie, que personne n'émet à la main. Vérifier symétriquement qu'un événement de l'app Dopamine porte `environment = production`.
+   ⚠️ Puis **ajouter le filtre `environment = production` aux analyses existantes** — sans quoi elles comptent désormais les deux apps (§4).
 4. **Hors ligne** : mode avion, puis réserver / annuler / confirmer une place. Trois messages « Pas de connexion ». Et **aucun** événement correspondant dans Sentry.
