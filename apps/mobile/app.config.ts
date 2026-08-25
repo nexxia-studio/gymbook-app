@@ -165,18 +165,36 @@ const config = {
       // avant écriture. Le jeton vient de `SENTRY_AUTH_TOKEN`, posé en secret EAS par
       // Antoine — cf. docs/ops/mobile-sourcemaps.md.
       //
-      // `organization` / `project` sont lus dans l'environnement plutôt qu'écrits en dur :
-      // ce sont des identifiants de compte Sentry, ils n'ont pas leur place dans le dépôt
-      // d'une plateforme multi-salles. Laissés à `undefined`, le plugin écrit dans
-      // sentry.properties un repli explicite (« falling back to SENTRY_ORG environment
-      // variable ») et sentry-cli lit les variables d'environnement du build — comportement
-      // lu dans le code du plugin installé, pas supposé.
+      // 🔴 `organization` / `project` SONT ÉCRITS ICI, ET PLUS LUS DANS L'ENVIRONNEMENT.
+      //
+      // La première version les laissait à `undefined` en comptant sur le repli du plugin
+      // vers SENTRY_ORG / SENTRY_PROJECT. Ce repli EXISTE bien — sentry.properties reçoit
+      // « falling back to SENTRY_ORG environment variable » — mais il ne vaut que si les
+      // variables sont réellement posées. Elles ne l'ont jamais été, et la build
+      // preview-staging a échoué à l'étape sentry-cli :
+      //     « A project ID or slug is required (provide with --project) »
+      // Le plugin tournait, chargeait sentry.properties, et n'y trouvait aucune cible.
+      //
+      // Ces deux valeurs ne sont NI des secrets NI des données de salle : ce sont les
+      // coordonnées du projet Sentry de l'app mobile, identiques pour tous les profils de
+      // build. Les versionner ici, c'est UNE source, qui ne peut pas manquer à l'appel —
+      // à l'inverse d'une variable d'environnement qu'il faut penser à poser sur chaque
+      // profil, et dont l'absence ne se voit qu'au milieu d'une build.
+      //
+      // ⚠️ SEUL LE JETON RESTE UN SECRET (SENTRY_AUTH_TOKEN, secret EAS). Le plugin refuse
+      // explicitement `authToken` dans cette config — il avertit et le retire avant
+      // écriture. Ne jamais l'ajouter ici.
+      //
+      // Forme conforme au typage de la version installée (7.2.0,
+      // plugin/build/withSentry.d.ts) :
+      //     interface PluginProps { organization?, project?, authToken?, url?,
+      //                             experimental_android? }
       [
         '@sentry/react-native/expo',
         {
-          url: process.env.SENTRY_URL ?? 'https://sentry.io/',
-          organization: process.env.SENTRY_ORG,
-          project: process.env.SENTRY_PROJECT,
+          organization: 'nexxia-studio',
+          project: 'dopamine-mobile',
+          url: 'https://sentry.io/',
         },
       ],
     ],
