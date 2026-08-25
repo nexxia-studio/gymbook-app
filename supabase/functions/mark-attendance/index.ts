@@ -12,7 +12,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
-import { ACTIVE_SUBSCRIPTION_STATUSES, notExpiredFilter } from '../_shared/active-subscription.ts'
+import { ACCESS_SUBSCRIPTION_STATUSES, notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
         .eq('gym_id', gymId)
         // GYM-195 — 'canceling' compte comme actif (membre engagé jusqu'au terme) :
         // un pointage walk-in ne doit pas lui débiter un crédit.
-        .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
+        .in('status', ACCESS_SUBSCRIPTION_STATUSES)
         .or(notExpiredFilter())
         .maybeSingle()
 

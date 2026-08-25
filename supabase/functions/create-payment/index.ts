@@ -4,7 +4,13 @@ import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
-import { notExpiredFilter } from '../_shared/active-subscription.ts'
+import {
+  findPurchaseBlockingSubscription,
+  isPaymentIssue,
+  notExpiredFilter,
+  SUBSCRIPTION_PAST_DUE_CODE,
+  SUBSCRIPTION_PAST_DUE_MESSAGE,
+} from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -107,34 +113,53 @@ Deno.serve(async (req) => {
       return errorResponse(422, 'Formule mal configurée (crédits invalides)', 'PLAN_MISCONFIGURED')
     }
 
-    // GYM-94 — abonnement actif = accès illimité : acheter des crédits one_time = payer pour rien.
-    // Définition "actif" = status='active' UNIQUEMENT : le schéma member_subscriptions n'a pas
-    // d'état en vol ('pending'/'past_due'), et la ligne n'est créée qu'au webhook de confirmation.
-    // Le cumul one_time reste LIBRE quand des crédits existent (aucun blocage lié aux crédits).
-    // GYM-191 — la garde ne doit mordre que sur un abonnement RÉELLEMENT en cours :
-    // un abonnement échu (pas encore passé 'expired' par le cron) bloquerait sinon le
-    // rachat, exactement au moment où le membre veut se réabonner.
-    const { data: activeSub } = await supabaseAdmin
-      .from('member_subscriptions')
-      .select('id')
-      .eq('member_id', profile.id)
-      .eq('gym_id', gymId)
-      .eq('status', 'active')
-      .or(notExpiredFilter())
-      .limit(1)
-      .maybeSingle()
+    // GYM-94 — abonnement en cours = accès illimité : acheter des crédits one_time = payer
+    // pour rien, et ouvrir un second abonnement doublonnerait l'engagement (GYM-189).
+    // GYM-191 — la garde ne mord que sur un abonnement RÉELLEMENT en cours : un abonnement
+    // échu (pas encore passé 'expired' par le cron) bloquerait sinon le rachat, exactement
+    // au moment où le membre veut se réabonner.
+    //
+    // ═══ GYM-252 — DEUX ACHATS, DEUX RÈGLES. NE PAS LES FUSIONNER. ═══════════════════
+    //
+    //  · ACHAT D'ABONNEMENT (plan `unlimited`) → prédicat de BLOCAGE : 'active',
+    //    'canceling', 'past_due' ET 'suspended'. Ces deux derniers désignent un abonnement
+    //    toujours vivant chez Mollie, qui le représente : en ouvrir un second fabrique le
+    //    double débit. C'est LE risque financier de tout le lot.
+    //
+    //  · ACHAT DE CRÉDITS → RÈGLE INCHANGÉE, `status = 'active'` seul. Et c'est
+    //    délibéré : les crédits sont l'ÉCHAPPATOIRE d'un membre suspendu. Toute la
+    //    politique GYM-252 repose sur la symétrie « l'impayé sur l'abonnement ne confisque
+    //    pas le carnet de séances » — lui interdire d'en racheter viderait cette symétrie
+    //    de son sens au moment précis où elle sert. Un membre en 'past_due' peut de même
+    //    acheter des crédits qu'il n'utilisera qu'après la suspension : c'est prévoyant,
+    //    pas absurde.
+    if (isUnlimited) {
+      const blocking = await findPurchaseBlockingSubscription(supabaseAdmin, profile.id, gymId)
+      if (blocking) {
+        // Deux refus, deux gestes attendus. Le code SUBSCRIPTION_ACTIVE reste celui du
+        // refus « déjà abonné » : l'app mobile et le dashboard le mappent déjà.
+        return isPaymentIssue(blocking.status)
+          ? errorResponse(409, SUBSCRIPTION_PAST_DUE_MESSAGE, SUBSCRIPTION_PAST_DUE_CODE)
+          : errorResponse(409, 'Un abonnement est déjà actif', 'SUBSCRIPTION_ACTIVE')
+      }
+    } else {
+      const { data: activeSub } = await supabaseAdmin
+        .from('member_subscriptions')
+        .select('id')
+        .eq('member_id', profile.id)
+        .eq('gym_id', gymId)
+        .eq('status', 'active')
+        .or(notExpiredFilter())
+        .limit(1)
+        .maybeSingle()
 
-    if (activeSub) {
-      // GYM-189 — la garde vaut pour les DEUX contreparties : des crédits seraient inutiles
-      // sous accès illimité, et un second abonnement ne doit pas pouvoir être ouvert.
-      // Code inchangé (SUBSCRIPTION_ACTIVE) : l'app mobile mappe déjà ce code.
-      return errorResponse(
-        409,
-        isUnlimited
-          ? 'Un abonnement est déjà actif'
-          : 'Accès illimité déjà actif — achat de crédits inutile',
-        'SUBSCRIPTION_ACTIVE',
-      )
+      if (activeSub) {
+        return errorResponse(
+          409,
+          'Accès illimité déjà actif — achat de crédits inutile',
+          'SUBSCRIPTION_ACTIVE',
+        )
+      }
     }
 
     // ── GYM-193 — formule limitée à un achat par membre ────────────────────────

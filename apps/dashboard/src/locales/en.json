@@ -637,7 +637,10 @@
       "canceling": "Cancelling",
       "paused": "Paused",
       "suspended": "Suspended",
-      "completed": "Completed"
+      "completed": "Completed",
+      "past_due": "Payment failed",
+      "expired": "Expired",
+      "cancelled": "Cancelled"
     },
     "recent_bookings": "Recent bookings",
     "no_bookings": "No bookings",
@@ -1321,7 +1324,8 @@
     "BADGE_CODE_TAKEN": "This code is already assigned to {{holder}}.",
     "INVALID_BADGE_CODE": "This badge code is not valid.",
     "default_other_member": "another member",
-    "OVERBOOK_REASON_REQUIRED": "A reason is required to go over capacity."
+    "OVERBOOK_REASON_REQUIRED": "A reason is required to go over capacity.",
+    "SUBSCRIPTION_PAST_DUE": "{{name}} has a membership with an unresolved payment: a second one cannot be opened until the pending charge succeeds."
   },
   "subscription": {
     "gate": {

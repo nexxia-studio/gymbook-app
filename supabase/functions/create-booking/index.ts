@@ -15,7 +15,7 @@ function embeddedName(rel: unknown, fallback: string): string {
 import {
   checkMemberQuota,
   countFutureConfirmedBookings,
-  hasActiveSubscription,
+  hasAccessRights,
   hasAvailableCredits,
 } from '../_shared/booking-guards.ts'
 
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     // ouvrir de réservation sans débit de crédit, même si le cron d'expiration a du retard.
     // GYM-195 — 'canceling' compte comme actif : le membre a payé et reste engagé
     // jusqu'au terme, lui débiter un crédit ici serait le faire payer deux fois.
-    const activeSubscription = await hasActiveSubscription(supabaseAdmin, user.id, slot.gym_id)
+    const activeSubscription = await hasAccessRights(supabaseAdmin, user.id, slot.gym_id)
 
     // GYM-94 — dispo crédit = MÊME sélection que la RPC (colonne générée
     // credits_remaining, sans limit 1 qui masquait des crédits cumulés).

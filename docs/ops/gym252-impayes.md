@@ -1,0 +1,288 @@
+# GYM-252 — Échéances en échec : exploitation, écrans, recette
+
+## 1. La machine à états
+
+```
+active ──échec J0──▶ past_due ──J+3 impayé──▶ suspended ──terme──▶ expired
+   ▲                     │                        │
+   └──────── paiement reçu (webhook `paid`) ──────┘
+```
+
+| Statut | Accès abonnement | Bloque un nouvel abonnement | Qui l'écrit |
+|---|---|---|---|
+| `active` | ouvert | oui | webhook `paid` |
+| `canceling` | ouvert (jusqu'au terme) | oui | cancel-subscription |
+| `past_due` | **ouvert** (grâce de 3 j) | **oui** | webhook, branche `failed/expired/canceled` |
+| `suspended` | **coupé** | **oui** | `suspend_overdue_subscriptions()`, balayage quotidien |
+| `expired` | coupé | non | `expire_subscriptions()`, cron horaire |
+
+🔴 **Les deux colonnes du milieu ne sont pas la même question**, et elles divergent sur `suspended` : pas de droits d'accès, mais achat bloqué. Un membre suspendu qui pourrait souscrire « à côté » se retrouverait avec **deux** abonnements dès que Mollie régularise le premier (il retente jusqu'à 5 fois) — deux mandats SEPA, deux prélèvements mensuels. C'est le risque financier de tout le lot.
+
+Deux prédicats, deux noms explicites, dans `_shared/active-subscription.ts` :
+
+| Question | Fonction | Statuts |
+|---|---|---|
+| a) droits d'accès ? | `hasAccessRights` (booking-guards) | `active`, `canceling`, `past_due` |
+| b) bloque un achat d'abonnement ? | `findPurchaseBlockingSubscription` | + `suspended` |
+
+Un booléen nommé « actif » ne peut pas servir les deux — c'est pourquoi il n'existe plus.
+
+**La coupure n'est pas un drapeau.** `suspended` ne figure dans aucun prédicat « ouvre des droits » : le membre est traité comme un non-abonné, par le même chemin que l'expiration. Il n'y a rien à « penser à lire » ailleurs.
+
+### Ce qui n'est PAS touché par la suspension
+
+- **Les réservations déjà faites** : rien dans ce lot ne lit `bookings`. Elles sont honorées.
+- **Les crédits prépayés** : un membre suspendu retombe sur `debit_credit_fifo`, comme n'importe quel non-abonné. Abonnement et carnet de séances sont deux produits ; un impayé sur l'un ne confisque pas l'autre.
+
+## 2. Ce que fait Mollie de son côté
+
+> « Mollie will retry the failed payment up to 5 times. »
+> « If your subscription payment does not succeed, Mollie may attempt it again up to 5 times (once a day), depending on the failure reason. »
+> « Mollie will generally not cancel your subscription when a payment fails. »
+> « After all retries have been exhausted, the subscription will be cancelled. »
+> « Like regular payments your webhook is called for retrieving status updates. »
+> — docs.mollie.com/docs/recurring-payments, consultée le 24/08/2026
+
+Trois conséquences :
+
+1. **Aucun lien de rattrapage n'est envoyé au membre.** Payer à la main pendant que Mollie représente le prélèvement produirait un double débit.
+2. **Le webhook est rappelé jusqu'à 5 fois pour le même impayé.** `last_failed_payment_id` sert de clé d'idempotence, et le 1er courrier est adossé à la transition `payment_failed_at` NULL → now(). Le membre reçoit **un** email, pas cinq.
+3. **La grâce (3 j) tombe dans la fenêtre de retry de Mollie (jusqu'à 5 j).** Assumé : on suspend au 3e jour même si Mollie peut encore réussir au 4e. La réactivation étant automatique, le coût d'une suspension prématurée est faible ; celui d'un mois d'accès gratuit ne l'est pas.
+
+## 3. Les paramètres
+
+Une seule valeur, citée à trois endroits qui se renvoient l'un à l'autre :
+
+| Où | Quoi |
+|---|---|
+| `mollie-subscription-webhook/index.ts` | `const GRACE_DAYS = 3` — sert à **annoncer la date de coupure** dans le 1er email |
+| `process-failed-renewals/index.ts` | `const GRACE_DAYS = 3` — argument passé au RPC |
+| migration, `suspend_overdue_subscriptions(p_grace_days integer DEFAULT 3)` | défaut SQL |
+
+⚠️ En changer une seule ferait annoncer au membre une date que le balayage ne respecterait pas.
+
+## 4. Les courriers
+
+| Quand | À qui | Gabarit |
+|---|---|---|
+| J0, premier échec du cycle | membre | `buildMemberFailureEmail` — « ton accès reste ouvert, Mollie représentera, coupure le \<date\> » |
+| J0, premier échec du cycle | gérant (`nexxia_gyms.email`) | `buildOwnerAlertEmail(stage: 'failed')` |
+| J+3, à la suspension | membre | `buildMemberSuspensionEmail` — dit aussi **ce qui marche encore** (réservations, crédits) |
+| J+3, à la suspension | gérant | `buildOwnerAlertEmail(stage: 'suspended')` |
+
+Tous passent par `_shared/gym-branding.ts` : couleurs, logo, pied de page et expéditeur de **la salle**.
+
+⚠️ **`nexxia_gyms.email` est NULL en production** tant que la salle ne l'a pas renseignée (GYM-265 l'expose dans /settings). Sans destinataire, l'alerte gérant n'est pas envoyée — un `console.warn` le dit, et le statut reste visible au dashboard.
+
+## 5. Ce que l'app mobile affiche AUJOURD'HUI — sans aucune modification
+
+Le mobile est **hors périmètre de ce lot**. Voici son comportement par défaut, tracé de bout en bout.
+
+**Membre `past_due` (J0 → J+3)** — l'accès est ouvert : rien ne change à l'écran. Il réserve normalement. *(Voir le point 2 du reste-à-faire : `lib/subscription.ts` côté mobile n'a pas été mis à jour, ce qui a une conséquence.)*
+
+**Membre `suspended`, avec des crédits** — il réserve, et **un crédit est débité**. Aucun message ne lui dit pourquoi : de son point de vue, son abonnement a cessé de couvrir ses réservations du jour au lendemain.
+
+**Membre `suspended`, sans crédit** — `create-booking` renvoie `402 PAYMENT_REQUIRED`, et `app/session/[id].tsx` ouvre la modale existante :
+
+> **Réservation impossible**
+> Vous n'avez pas d'abonnement actif ni de crédit disponible.
+> · Souscrire un abonnement · Acheter un carnet 10 séances · Payer cette séance
+
+Le message est techniquement exact mais **trompeur**, et il propose de **souscrire un nouvel abonnement** à un membre dont Mollie représente encore l'ancien.
+
+✅ **Le risque financier est fermé côté serveur dans ce lot.** S'il tape « Souscrire un abonnement », `create-subscription` (ou `create-payment` pour une formule illimitée) refuse en **409 `SUBSCRIPTION_PAST_DUE`** — « Régularise ton abonnement en cours avant d'en souscrire un nouveau ». Aucun second mandat SEPA ne peut être ouvert.
+
+⚠️ **Ce qu'il reste** est un défaut d'UX, plus d'argent : on lui propose une option qui sera refusée, et l'app mobile ne mappe pas encore `SUBSCRIPTION_PAST_DUE` — il verra donc un message d'erreur générique au lieu de l'explication. Voir les points 1 et 1bis du reste-à-faire.
+
+## 6. Reste-à-faire UI (chantier mobile, non couvert ici)
+
+Par ordre de gravité.
+
+1. 🟠 **Cas `suspended` distinct dans la modale de réservation.** `create-booking` renvoie encore `PAYMENT_REQUIRED` : l'app devrait afficher « ton abonnement est suspendu, un prélèvement a échoué » **sans** proposer de souscrire à nouveau. ✅ Le risque d'argent est fermé côté serveur (409 `SUBSCRIPTION_PAST_DUE`) ; ce qui reste est de ne pas proposer une option vouée au refus.
+1bis. 🟠 **Mapper `SUBSCRIPTION_PAST_DUE` côté mobile.** Le dashboard le fait déjà (`lib/edgeErrors.ts` + les 4 locales, GYM-219). Sans le mapping mobile, un membre qui tente malgré tout de souscrire voit un message générique au lieu de « régularise ton abonnement en cours ».
+2. 🟠 **`apps/mobile/lib/subscription.ts` ne connaît pas `past_due`.** Il porte la copie mobile du prédicat « ouvre des droits ». Pendant les 3 jours de grâce, l'app affichera donc « pas d'abonnement » à un membre que le serveur laisse réserver. Écart d'affichage, pas de perte d'accès — mais c'est exactement la divergence que GYM-195 a dû rattraper pour `canceling`.
+3. 🟠 **Bandeau d'état sur l'écran d'accueil / profil** : « paiement en échec, accès jusqu'au \<date\> » puis « abonnement suspendu ». Aujourd'hui le membre n'a que l'email.
+4. 🟡 **Page `/<slug>/subscription` dans `apps/links`.** Les emails pointent sur `bookings` faute de mieux : `apps/links/public/<slug>/` ne sert que `bookings` et `confirm-waitlist`, et `vercel.json` ne réécrit rien. Un `ctaPath: 'subscription'` produirait un 404 (le défaut de GYM-238).
+5. 🟡 **Dashboard — vue « impayés ».** Le gérant voit le badge « Paiement en échec » dans la fiche membre, et reçoit les emails. Une liste dédiée (`/members?filter=past_due`) rendrait la relance actionnable.
+
+## 7. Choix assumés, à rouvrir si besoin
+
+**Aucune ligne `payments` n'est créée pour une échéance échouée.** `/revenus` lit `payments` sans filtrer le statut : y injecter des tentatives refusées changerait la lecture du chiffre d'affaires de toutes les salles. La trace vit sur `member_subscriptions` (`last_failed_payment_id`, `payment_failed_count`), qui n'est lue par aucun calcul d'argent. À rouvrir le jour où `/revenus` gagne un onglet « impayés ».
+
+**Un refus bancaire ordinaire ne part PAS dans #viniz-bugs.** `recordWebhookFailure` alimente une file de triage de **défauts** ; une carte expirée n'en est pas un, et noyer le canal ferait manquer les vrais. Y partent en revanche les anomalies : échéance échouée **sans ligne d'abonnement correspondante**, ou échec d'écriture. L'information métier va au gérant, par email.
+
+**Un `canceling` ne devient pas `past_due`.** Ce statut porte « résiliation demandée, accès dû jusqu'au terme » (GYM-113/195), qu'aucune autre colonne ne réplique. Les colonnes de suivi sont renseignées, le statut est préservé.
+
+## 8. Recette staging — scénario complet
+
+⚠️ **Rien n'est déployé.** Déployer d'abord la migration, `mollie-subscription-webhook` et `process-failed-renewals` sur staging.
+
+Remplacer `<SUB_ID>`, `<MEMBER_ID>`, `<GYM_ID>`, `<SLOT_ID>` par des valeurs réelles.
+
+### 8.0 — Point de départ
+
+```sql
+select id, member_id, status, plan_name, amount, ends_at,
+       payment_failed_at, payment_failed_count, payment_suspended_at, last_failed_payment_id
+from member_subscriptions where id = '<SUB_ID>';
+-- attendu : status='active', les quatre colonnes de suivi à NULL/0
+```
+
+### 8.1 — J0 : simuler l'échec
+
+Deux façons. **(a) Bout en bout** — depuis le dashboard Mollie test, forcer un paiement d'échéance en `failed` ; Mollie appelle le webhook. **(b) Appel direct du webhook signé** :
+
+```bash
+curl -i -X POST \
+  "https://buovgpokubrkejunmauq.supabase.co/functions/v1/mollie-subscription-webhook?secret=<MOLLIE_WEBHOOK_SECRET>&gym_id=<GYM_ID>" \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data 'id=tr_<ID_PAIEMENT_ECHOUE_CHEZ_MOLLIE>'
+```
+
+⚠️ Le paiement doit **exister chez Mollie** en statut `failed` avec `sequenceType=recurring` et la metadata `member_id`/`gym_id` : la fonction relit le paiement chez Mollie et refuse (403) toute divergence de `gym_id`. Un id inventé ne teste rien.
+
+**Attendu**
+
+```sql
+select status, payment_failed_at, payment_failed_count, last_failed_payment_id
+from member_subscriptions where id = '<SUB_ID>';
+-- status='past_due', payment_failed_at ≈ now(), count=1, last_failed_payment_id=tr_…
+```
+
+- Email membre « Ton paiement n'est pas passé », annonçant la coupure à **J+3**.
+- Email gérant « Renouvellement échoué — \<nom\> » (si `nexxia_gyms.email` est renseigné).
+- Dashboard → fiche membre → badge ambre **« Paiement en échec »**.
+
+### 8.2 — L'accès reste ouvert pendant la grâce
+
+Réserver un créneau depuis l'app avec ce membre : **la réservation passe, aucun crédit n'est débité.**
+
+```sql
+select id, status, credit_id from bookings
+where member_id='<MEMBER_ID>' and slot_id='<SLOT_ID>';
+-- status='confirmed', credit_id IS NULL  ← le crédit n'a PAS été touché
+```
+
+### 8.3 — Rejeu Mollie : pas de spam
+
+Rejouer **exactement** le même appel qu'en 8.1.
+
+**Attendu** : `200`, log `renewal failure already processed — idempotent skip`, `payment_failed_count` **toujours à 1**, **aucun email**.
+
+### 8.4 — J+3 : la suspension
+
+Antidater la grâce, puis lancer le balayage :
+
+```sql
+update member_subscriptions
+set payment_failed_at = now() - interval '4 days'
+where id = '<SUB_ID>';
+```
+
+```bash
+curl -i -X POST \
+  "https://buovgpokubrkejunmauq.supabase.co/functions/v1/process-failed-renewals" \
+  -H 'Content-Type: application/json' \
+  -H "X-Internal-Secret: <INTERNAL_FUNCTIONS_SECRET>"
+```
+
+**Attendu** : `{"suspended":1,"member_emails":1,"owner_emails":1}`
+
+```sql
+select status, payment_suspended_at from member_subscriptions where id = '<SUB_ID>';
+-- status='suspended', payment_suspended_at ≈ now()
+```
+
+- Email membre « Ton abonnement est suspendu », **listant ce qui fonctionne encore**.
+- Email gérant « Accès suspendu pour impayé ».
+
+**Rejouer le balayage immédiatement** → `{"suspended":0,…}` et aucun email : l'idempotence est dans le `RETURNING` du RPC.
+
+### 8.5 — Les droits sont réellement coupés
+
+**(a) Symétrie — les réservations déjà faites tiennent.** La réservation de 8.2 est toujours `confirmed`.
+
+**(b) Sans crédit → refus.** Vider les crédits du membre, puis réserver depuis l'app :
+
+```sql
+select credits_remaining from member_credits where member_id='<MEMBER_ID>';
+```
+
+→ `402 PAYMENT_REQUIRED`, modale « Réservation impossible » (cf. §5 — texte trompeur, point 1 du reste-à-faire).
+
+**(c) Symétrie — les crédits restent consommables.** Créditer une séance (`adjust-credits`), réserver :
+
+```sql
+select status, credit_id from bookings where member_id='<MEMBER_ID>' order by booked_at desc limit 1;
+-- status='confirmed', credit_id NOT NULL  ← un crédit a été débité, comme pour tout non-abonné
+```
+
+### 8.6 — 🔴 Régularisation, puis SECOND impayé — L'ÉTAPE N°1 DE LA RECETTE
+
+C'est le scénario que le code peut le plus facilement rater sans que rien ne le signale : après une régularisation, le **deuxième** impayé doit se comporter exactement comme le premier.
+
+**a) Régularisation.** Rejouer le webhook avec un paiement d'échéance **réussi** (`status=paid`, `sequenceType=recurring`) :
+
+```sql
+select status, payments_count, payment_failed_at, payment_failed_count,
+       payment_suspended_at, last_failed_payment_id
+from member_subscriptions where id = '<SUB_ID>';
+-- status='active', payments_count +1, et LES QUATRE COLONNES DE SUIVI REMISES À ZÉRO
+```
+
+Réserver à nouveau → passe **sans débit de crédit**.
+
+**b) NOUVEL échec — l'email DOIT repartir.** Rejouer un webhook `failed` avec un **autre** `mollie_payment_id` (un id déjà vu sort en idempotent, cf. 8.3) :
+
+```sql
+select status, payment_failed_at, payment_failed_count, last_failed_payment_id
+from member_subscriptions where id = '<SUB_ID>';
+-- status='past_due', payment_failed_at ≈ now() (une NOUVELLE date), count=1 (REPARTI DE ZÉRO)
+```
+
+**✅ Le 1er email membre et l'alerte gérant DOIVENT être renvoyés.** S'ils ne partent pas, la remise à zéro de (a) n'a pas eu lieu.
+
+⚠️ **Pourquoi c'est le point n°1.** Le 1er courrier est adossé à la transition `payment_failed_at` NULL → now(). Si la régularisation laisse cette colonne renseignée, le deuxième impayé la trouve déjà remplie, `isFirstFailure` vaut `false`, et **aucun courrier ne part** — alors que le statut bascule bien en `past_due` et que la suspension tombera trois jours plus tard. Un membre coupé sans avoir jamais été prévenu, un gérant qui l'apprend au comptoir, et **rien dans les logs** : le statut est correct, le balayage est correct, seul le courrier manque. C'est le défaut le plus coûteux et le plus silencieux de tout le lot.
+
+**c) Compteur cumulatif dans un même cycle** (contrôle complémentaire) : rejouer un 3e webhook `failed` avec encore un autre id → `payment_failed_count = 2`, `payment_failed_at` **inchangée**, et **aucun nouvel email** (les tentatives 2 à 5 de Mollie ne relancent personne).
+
+### 8.7 — Le terme ferme la boucle
+
+```sql
+update member_subscriptions set ends_at = now() - interval '1 hour' where id = '<SUB_ID>';
+select * from expire_subscriptions();
+select status from member_subscriptions where id = '<SUB_ID>';  -- 'expired'
+```
+
+À vérifier aussi depuis un état `suspended` **pour impayé** (`payment_suspended_at` non nul) : il doit s'expirer. Une suspension **manuelle** (`payment_suspended_at` NULL), elle, ne doit **pas** être touchée — c'est l'invariant de GYM-195, préservé.
+
+### 8.8 — 🔴 Blocage de l'achat d'un SECOND abonnement
+
+À dérouler sur un membre en `suspended` (état de 8.4), **puis** en `past_due`.
+
+**a) Achat d'abonnement — REFUSÉ.** Depuis l'app membre, tenter de souscrire une formule récurrente :
+
+```
+409  {"error":true,"code":"SUBSCRIPTION_PAST_DUE",
+      "message":"Régularise ton abonnement en cours avant d'en souscrire un nouveau"}
+```
+
+Même refus pour une formule **illimitée payée en une fois** (`create-payment`, plan `unlimited`).
+
+**b) Vente au comptoir d'un abonnement — REFUSÉE.** Dashboard → fiche membre → Vendre une formule → une formule illimitée : le gérant doit lire le message mappé — « … a un abonnement dont le paiement n'est pas régularisé : impossible d'en ouvrir un second… » — et **pas** un « l'action n'a pas abouti » générique.
+
+**c) Achat de CRÉDITS — AUTORISÉ.** Toujours sur le membre `suspended`, acheter un carnet (app **et** comptoir) : **la vente passe**. C'est la symétrie de tout le lot — l'impayé sur l'abonnement ne confisque pas le carnet de séances, et c'est souvent le geste qui débloque la situation.
+
+**d) Après le terme — le blocage tombe.** Antidater `ends_at` au passé, relancer `expire_subscriptions()` (statut → `expired`), puis retenter l'achat d'abonnement : **il passe**. Un abonnement impayé mais ARRIVÉ À SON TERME ne doit rien bloquer, sinon on interdit au membre de revenir (leçon GYM-191).
+
+**e) Non-régression `canceling`.** Un membre en `canceling` (résiliation demandée, terme non atteint) ne peut plus ouvrir un second abonnement — `SUBSCRIPTION_ACTIVE`. ⚠️ **C'est un changement de comportement pour `create-payment` et `create-subscription`**, qui testaient `status = 'active'` seul ; ils s'alignent sur `counter-sale`, qui bloquait déjà. Il doit se réabonner après son terme.
+
+### 8.9 — Le cron
+
+```sql
+select jobname, schedule, active from cron.job where jobname = 'process-failed-renewals';
+-- '10 7 * * *', active
+select status, return_message from cron.job_run_details
+where jobid = (select jobid from cron.job where jobname='process-failed-renewals')
+order by start_time desc limit 3;
+```

@@ -160,7 +160,13 @@ export const KNOWN_EDGE_ERROR_CODES = [
   //  · PAYMENT_NOT_RECORDED / CREDITS_NOT_APPLIED — l'argent a été annoncé mais la trace ou
   //    la contrepartie manque. Le gérant doit le savoir TOUT DE SUITE, pas le découvrir
   //    quand le membre voudra réserver.
-  'SUBSCRIPTION_ACTIVE', 'PAYMENT_NOT_RECORDED', 'CREDITS_NOT_APPLIED',
+  //  · SUBSCRIPTION_PAST_DUE (GYM-252) — refus LÉGITIME, et DISTINCT du précédent : le
+  //    membre a un abonnement dont le prélèvement a échoué (past_due) ou qui est suspendu
+  //    pour impayé. Ouvrir un second abonnement le laisserait avec DEUX mandats SEPA dès
+  //    que Mollie régularise le premier — il retente jusqu'à 5 fois. Les deux refus
+  //    demandent au gérant des gestes opposés : ne rien faire, ou faire régulariser. Les
+  //    confondre sous un seul code lui ferait répéter la vente.
+  'SUBSCRIPTION_ACTIVE', 'SUBSCRIPTION_PAST_DUE', 'PAYMENT_NOT_RECORDED', 'CREDITS_NOT_APPLIED',
   'MISSING_MEMBER_ID', 'MISSING_PLAN_ID',
   // PLAN_ALREADY_USED n'est PAS renvoyé par le comptoir (dérogation gérant GYM-193, cf.
   // _shared/counter-sale.ts) — seulement par create-payment, côté app membre. Il est mappé

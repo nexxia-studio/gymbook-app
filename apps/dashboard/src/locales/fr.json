@@ -637,7 +637,10 @@
       "canceling": "Résiliation en cours",
       "paused": "En pause",
       "suspended": "Suspendu",
-      "completed": "Terminé"
+      "completed": "Terminé",
+      "past_due": "Paiement en échec",
+      "expired": "Expiré",
+      "cancelled": "Résilié"
     },
     "recent_bookings": "Dernières réservations",
     "no_bookings": "Aucune réservation",
@@ -1321,7 +1324,8 @@
     "BADGE_CODE_TAKEN": "Ce code est déjà attribué à {{holder}}.",
     "INVALID_BADGE_CODE": "Ce code de badge n'est pas valide.",
     "default_other_member": "un autre membre",
-    "OVERBOOK_REASON_REQUIRED": "Un motif est obligatoire pour dépasser la capacité."
+    "OVERBOOK_REASON_REQUIRED": "Un motif est obligatoire pour dépasser la capacité.",
+    "SUBSCRIPTION_PAST_DUE": "{{name}} a un abonnement dont le paiement n'est pas régularisé : impossible d'en ouvrir un second tant que le prélèvement en cours n'a pas abouti."
   },
   "subscription": {
     "gate": {

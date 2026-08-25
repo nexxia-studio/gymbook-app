@@ -32,7 +32,14 @@
 // deux. Sur la fiche membre, les deux temps s'enchaînent simplement.
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { resolvePlan, ResolvedPlan } from './plan-resolver.ts'
-import { ACTIVE_SUBSCRIPTION_STATUSES, notExpiredFilter } from './active-subscription.ts'
+import {
+  ACCESS_SUBSCRIPTION_STATUSES,
+  findPurchaseBlockingSubscription,
+  isPaymentIssue,
+  notExpiredFilter,
+  SUBSCRIPTION_PAST_DUE_CODE,
+  SUBSCRIPTION_PAST_DUE_MESSAGE,
+} from './active-subscription.ts'
 
 /**
  * Moyens d'encaissement hors-ligne.
@@ -126,12 +133,21 @@ export async function resolveSellablePlan(
  * active-subscription.ts. Un abonnement échu que le cron n'a pas encore passé 'expired' ne
  * doit RIEN bloquer : ce serait refuser la vente exactement au moment du réabonnement.
  *
- * ⚠️ ÉCART ASSUMÉ AVEC create-payment, À ARBITRER (cf. compte-rendu) : create-payment
- * teste encore `status = 'active'` seul, son commentaire GYM-94 étant antérieur à GYM-195
- * qui a établi que 'canceling' ouvre encore des droits (accès maintenu jusqu'au terme,
- * engagement ferme GYM-113). On s'appuie ici sur la définition CENTRALISÉE — la seule qui
- * ne se périme pas — plutôt que de recopier un prédicat que GYM-191 a justement extrait
- * parce qu'il divergeait dans quatre fonctions. Aligner create-payment est un autre lot.
+ * ✅ GYM-252 — L'ÉCART AVEC create-payment EST TRANCHÉ, dans le sens sûr. Le prédicat de
+ * BLOCAGE D'ACHAT est désormais centralisé (PURCHASE_BLOCKING_STATUSES) et inclut
+ * 'canceling' : create-payment et create-subscription, qui testaient encore
+ * `status = 'active'` seul, s'alignent dessus. Plus rien à recopier, plus rien à arbitrer.
+ *
+ * 🔴 GYM-252 — ET DEUX RÈGLES SELON CE QU'ON VEND, à ne pas fusionner :
+ *
+ *   · ABONNEMENT (isUnlimited) → bloqué aussi par 'past_due' ET 'suspended'. Ces états
+ *     désignent un abonnement toujours vivant chez Mollie, qui le représente : en ouvrir
+ *     un second au comptoir fabrique le double débit, et le gérant ne le verra pas venir.
+ *
+ *   · CRÉDITS → bloqués uniquement par un abonnement qui OUVRE DES DROITS. Un membre
+ *     suspendu pour impayé DOIT pouvoir acheter des séances au comptoir : c'est la
+ *     symétrie de tout le lot — l'impayé sur l'abonnement ne confisque pas le carnet — et
+ *     c'est souvent le geste commercial qui débloque la situation face au gérant.
  */
 export async function findBlockingSubscription(
   admin: SupabaseClient,
@@ -139,27 +155,35 @@ export async function findBlockingSubscription(
   memberId: string,
   isUnlimited: boolean,
 ): Promise<CounterSaleRefusal | null> {
-  const { data: activeSub } = await admin
+  if (isUnlimited) {
+    const blocking = await findPurchaseBlockingSubscription(admin, memberId, gymId)
+    if (!blocking) return null
+
+    // Deux refus, deux gestes attendus par le gérant : encaisser plus tard, ou faire
+    // régulariser d'abord. Un code unique lui ferait répéter la même vente.
+    return isPaymentIssue(blocking.status)
+      ? { status: 409, code: SUBSCRIPTION_PAST_DUE_CODE, message: SUBSCRIPTION_PAST_DUE_MESSAGE }
+      : { status: 409, code: 'SUBSCRIPTION_ACTIVE', message: 'Un abonnement est déjà actif' }
+  }
+
+  const { data: accessSub } = await admin
     .from('member_subscriptions')
     .select('id')
     .eq('member_id', memberId)
     .eq('gym_id', gymId)
-    .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
+    .in('status', ACCESS_SUBSCRIPTION_STATUSES)
     .or(notExpiredFilter())
     .limit(1)
     .maybeSingle()
 
-  if (!activeSub) return null
+  if (!accessSub) return null
 
   // Code inchangé (SUBSCRIPTION_ACTIVE) : l'app mobile le mappe déjà, le dashboard le
-  // mappe depuis GYM-222. Le message diffère selon ce qui a été tenté — le gérant a
-  // quelqu'un devant lui, « refusé » ne lui dit pas quoi faire.
+  // mappe depuis GYM-222.
   return {
     status: 409,
     code: 'SUBSCRIPTION_ACTIVE',
-    message: isUnlimited
-      ? 'Un abonnement est déjà actif'
-      : 'Accès illimité déjà actif — achat de crédits inutile',
+    message: 'Accès illimité déjà actif — achat de crédits inutile',
   }
 }
 

@@ -25,5 +25,15 @@
       "field_legalCity": "Gemeinde des Sitzes",
       "field_email": "Kontakt-E-Mail"
     }
+  },
+  "member_drawer": {
+    "sub_status": {
+      "past_due": "Zahlung fehlgeschlagen",
+      "expired": "Abgelaufen",
+      "cancelled": "Gekündigt"
+    }
+  },
+  "edge_errors": {
+    "SUBSCRIPTION_PAST_DUE": "{{name}} hat ein Abonnement mit offener Zahlung: ein zweites kann erst eröffnet werden, wenn die laufende Abbuchung erfolgreich ist."
   }
 }
