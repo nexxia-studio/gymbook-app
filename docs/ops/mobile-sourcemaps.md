@@ -19,7 +19,7 @@ Une stacktrace de production se lit aujourd'hui `main.jsbundle:110664` : le bund
 
 **Alternative écartée** : `scripts/expo-upload-sourcemaps.js` (upload manuel après `expo export`). Il suppose un pipeline d'export JS séparé, que ce projet n'a pas — il construit des binaires natifs via EAS. L'upload au build est le chemin natif du projet.
 
-## 3. Ce qu'Antoine doit poser
+## 3. Ce qu'Antoine doit poser — **un seul secret**
 
 ### 3.1 Créer le jeton Sentry
 
@@ -43,19 +43,29 @@ eas secret:create --scope project --name SENTRY_AUTH_TOKEN --type string --value
 
 > 🔴 **Jamais dans le dépôt, jamais dans `eas.json`.** Le plugin lui-même refuse le jeton en clair : passer `authToken` dans sa config déclenche « Detected unsecure use of authToken » et il le retire avant écriture. `eas.json` est versionné — un jeton posé là serait publié.
 
-### 3.3 Poser l'organisation et le projet
+### 3.3 L'organisation et le projet : **plus rien à poser**
 
-`app.config.ts` lit `SENTRY_ORG` et `SENTRY_PROJECT` dans l'environnement plutôt que de les écrire en dur : ce sont des identifiants de compte, ils n'ont pas leur place dans le dépôt d'une plateforme multi-salles. Laissés vides, le plugin écrit dans `sentry.properties` un repli explicite (« falling back to `SENTRY_ORG` environment variable ») et `sentry-cli` lit l'environnement du build.
+Ils sont désormais **écrits dans `app.config.ts`**, en paramètres du plugin :
 
-Deux façons de les fournir, au choix :
-
-```bash
-# a) variables d'environnement EAS (visibles, non secrètes)
-eas env:create --scope project --name SENTRY_ORG     --value "<slug-org>"
-eas env:create --scope project --name SENTRY_PROJECT --value "<slug-projet>"
+```ts
+['@sentry/react-native/expo', {
+  organization: 'nexxia-studio',
+  project: 'dopamine-mobile',
+  url: 'https://sentry.io/',
+}]
 ```
 
-ou **b)** les ajouter dans `eas.json`, bloc `env` des profils `production` et `preview-staging` (ce ne sont pas des secrets). Ce lot ne les a pas écrits faute de connaître les slugs — les inventer aurait produit une configuration silencieusement fausse.
+🔴 **Pourquoi ce changement.** La première version les laissait à `undefined` en comptant sur le repli du plugin vers `SENTRY_ORG` / `SENTRY_PROJECT`. Ce repli existe bien, mais il ne vaut que si les variables sont réellement posées — elles ne l'ont jamais été, et la build `preview-staging` a échoué à l'étape `sentry-cli` :
+
+```
+A project ID or slug is required (provide with --project)
+```
+
+Le plugin tournait, chargeait `sentry.properties`, et n'y trouvait aucune cible.
+
+Ces deux valeurs ne sont **ni des secrets, ni des données de salle** : ce sont les coordonnées du projet Sentry de l'app mobile, identiques pour tous les profils. Les versionner, c'est **une** source qui ne peut pas manquer à l'appel — à l'inverse d'une variable d'environnement qu'il faut penser à poser sur chaque profil, et dont l'absence ne se voit qu'au milieu d'une build.
+
+**Seul `SENTRY_AUTH_TOKEN` reste un secret EAS.**
 
 ## 4. Portée : production et preview-staging uniquement
 
@@ -68,6 +78,52 @@ Un secret EAS est visible de **tous** les profils. On neutralise donc explicitem
 Variable honorée par les deux chaînes de la version installée (`sentry.gradle` : `System.getenv('SENTRY_DISABLE_AUTO_UPLOAD') != 'true'` ; `sentry-xcode.sh` : `if [ "$SENTRY_DISABLE_AUTO_UPLOAD" != true ]`).
 
 Restent donc actifs : **`production`** et **`preview-staging`**, exactement comme demandé.
+
+## 4bis. Une build ne doit pas échouer parce que Sentry est en panne
+
+`SENTRY_ALLOW_FAILURE=true` est posé sur `production` et `preview-staging`.
+
+**L'intention** : un jeton expiré, une coupure réseau ou une panne de Sentry ne doivent **jamais** empêcher de livrer un correctif. L'upload de source maps est un confort de diagnostic, pas une dépendance de production.
+
+### 🔴 Constat à connaître : dans la version installée, cette variable ne fait RIEN
+
+Vérifié dans `@sentry/react-native` **7.2.0** et `@sentry/cli` **2.55.0** :
+
+```bash
+grep -rn "ALLOW_FAILURE" node_modules/@sentry/ | grep -v "To disable\|To allow failing"
+# → aucun résultat
+```
+
+`SENTRY_ALLOW_FAILURE` n'apparaît que dans **deux chaînes de message d'erreur**, qui la suggèrent à l'utilisateur — et **n'est lue nulle part**. Dans `scripts/sentry-xcode.sh`, un upload en échec pose `exitCode=1` puis `exit $exitCode`, sans consulter aucune variable :
+
+```sh
+else
+  echo "error: sentry-cli - ... Or to allow failing upload, set SENTRY_ALLOW_FAILURE=true"
+  exitCode=1
+fi
+...
+exit $exitCode
+```
+
+La variable est donc posée **par anticipation** : elle est inoffensive, et deviendra effective si une version ultérieure la câble. **Mais aujourd'hui, un échec d'upload fait toujours échouer la build.**
+
+### Le levier qui marche vraiment, en attendant
+
+Si une build est bloquée par Sentry et qu'il faut livrer **maintenant**, relancer avec l'upload désactivé :
+
+```bash
+SENTRY_DISABLE_AUTO_UPLOAD=true eas build --profile production --platform ios
+```
+
+La build passe ; la release Sentry n'aura pas de source maps, et les stacktraces de cette version-là resteront non symbolisées. C'est le bon arbitrage dans l'urgence — mais il doit être **conscient**, pas subi.
+
+### À revérifier à chaque montée de version
+
+```bash
+grep -rn "ALLOW_FAILURE" apps/mobile/node_modules/@sentry/react-native/ | grep -v "To disable\|To allow failing"
+```
+
+Un résultat = la variable est enfin câblée, et la protection devient réelle sans rien changer à `eas.json`.
 
 ## 5. Release et dist
 
@@ -96,9 +152,11 @@ Dans les logs EAS, chercher `sentry-cli`. Attendu :
 ```
 
 **Signes d'échec à ne pas laisser passer** :
-- `no auth token found` → le secret n'est pas posé, ou pas visible du profil ;
-- `# no org found, falling back to SENTRY_ORG environment variable` **suivi d'une erreur** → `SENTRY_ORG` / `SENTRY_PROJECT` absents ;
+- `no auth token found` → le secret `SENTRY_AUTH_TOKEN` n'est pas posé, ou pas visible du profil ;
+- `A project ID or slug is required (provide with --project)` → les paramètres `organization` / `project` ont disparu d'`app.config.ts` (c'est l'échec qui a motivé le correctif de §3.3) ;
 - `SENTRY_DISABLE_AUTO_UPLOAD=true, skipping sourcemaps upload` sur `production` → la variable a fui hors des profils où on la voulait.
+
+⚠️ **Un upload raté fait aujourd'hui échouer la build** (cf. §4bis) : c'est bruyant, donc difficile à manquer. Le jour où `SENTRY_ALLOW_FAILURE` sera câblé, ce ne sera plus le cas — et un upload silencieusement raté ne se détectera **que** par une stacktrace non symbolisée dans Sentry, ou par une release sans artifact (§6.2). C'est la contrepartie assumée de ne plus bloquer les livraisons.
 
 ### 6.2 Dans Sentry
 
