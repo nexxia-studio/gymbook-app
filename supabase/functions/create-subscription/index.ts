@@ -4,7 +4,12 @@ import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
-import { notExpiredFilter } from '../_shared/active-subscription.ts'
+import {
+  findPurchaseBlockingSubscription,
+  isPaymentIssue,
+  SUBSCRIPTION_PAST_DUE_CODE,
+  SUBSCRIPTION_PAST_DUE_MESSAGE,
+} from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,24 +104,30 @@ Deno.serve(async (req) => {
       return errorResponse(400, 'Cette formule est un paiement unique — utiliser create-payment', 'PLAN_NOT_RECURRING')
     }
 
-    // GYM-94 — un seul abonnement actif à la fois (futur upsell de changement de durée).
-    // Définition "actif" = status='active' UNIQUEMENT (voir note create-payment : pas d'état en vol).
-    // Les crédits existants ne bloquent JAMAIS un achat d'abonnement (conversion drop-in → illimité).
-    // GYM-191 — idem create-payment : un abonnement échu ne doit pas bloquer le
-    // réabonnement. Seul ce prédicat change ; le cycle de vie récurrent (webhook
-    // Mollie) n'est pas touché.
-    const { data: activeSub } = await supabaseAdmin
-      .from('member_subscriptions')
-      .select('id')
-      .eq('member_id', memberId)
-      .eq('gym_id', gymId)
-      .eq('status', 'active')
-      .or(notExpiredFilter())
-      .limit(1)
-      .maybeSingle()
+    // GYM-94 — un seul abonnement à la fois (futur upsell de changement de durée).
+    // Les crédits existants ne bloquent JAMAIS un achat d'abonnement (conversion drop-in
+    // → illimité). GYM-191 — un abonnement échu ne bloque pas le réabonnement : la garde
+    // du terme est dans le prédicat partagé.
+    //
+    // 🔴 GYM-252 — LE PRÉDICAT N'EST PLUS `status = 'active'`. Il inclut désormais
+    // `past_due` ET `suspended`, parce que ces deux états désignent un abonnement TOUJOURS
+    // VIVANT CHEZ MOLLIE, qui le représente (jusqu'à 5 tentatives). Sans eux, un membre
+    // suspendu pour impayé contournait sa suspension en souscrivant à côté ; la
+    // régularisation du premier lui donnait alors DEUX abonnements, deux mandats SEPA et
+    // deux prélèvements mensuels.
+    //
+    // ⚠️ CE N'EST PAS LE MÊME PRÉDICAT QUE LE DROIT D'ACCÈS. `suspended` bloque l'achat
+    // mais n'ouvre aucun droit — la distinction est portée par deux fonctions aux noms
+    // explicites dans _shared/active-subscription.ts, et un booléen ne peut pas les servir
+    // toutes les deux.
+    const blocking = await findPurchaseBlockingSubscription(supabaseAdmin, memberId, gymId)
 
-    if (activeSub) {
-      return errorResponse(409, 'Un abonnement est déjà actif', 'SUBSCRIPTION_ALREADY_ACTIVE')
+    if (blocking) {
+      // Deux refus, deux gestes attendus : « tu es déjà abonné » (rien à faire) contre
+      // « régularise d'abord » (une action précise). Un code unique les confondrait.
+      return isPaymentIssue(blocking.status)
+        ? errorResponse(409, SUBSCRIPTION_PAST_DUE_MESSAGE, SUBSCRIPTION_PAST_DUE_CODE)
+        : errorResponse(409, 'Un abonnement est déjà actif', 'SUBSCRIPTION_ALREADY_ACTIVE')
     }
 
     const isTestMode = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
