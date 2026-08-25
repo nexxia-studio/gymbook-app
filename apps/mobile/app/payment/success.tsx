@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
+import { tryEdgeInvoke } from '../../lib/edgeInvoke'
 import { useAuthStore } from '../../stores/useAuthStore'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
 import { runNetworkSafe } from '../../lib/networkError'
@@ -96,11 +97,11 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
         if (!hasCredits) continue
 
         setStatus('booking')
-        const { data, error } = await supabase.functions.invoke('create-booking', {
-          body: { slot_id: slotId },
-        })
-
-        if (error || data?.error) {
+        // GYM-270 — même helper que le store de réservation : un refus métier (créneau
+        // devenu complet, crédit consommé entre-temps) n'a pas à alerter Sentry ici non
+        // plus. L'écran affiche son état d'erreur, identique à avant.
+        const res = await tryEdgeInvoke('create-booking', { slot_id: slotId })
+        if (!res.ok) {
           setStatus('error')
           return
         }

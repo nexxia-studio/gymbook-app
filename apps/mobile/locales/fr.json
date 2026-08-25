@@ -529,7 +529,8 @@
       "SUBSCRIPTION_ALREADY_ACTIVE": "Un abonnement est déjà actif.",
       "DB_INSERT_FAILED": "Rien n'a été débité : la commande n'a pas pu être enregistrée. Réessaie.",
       "PLAN_RESOLUTION_FAILED": "Impossible de vérifier le plan de la salle pour le moment. Réessaie.",
-      "FALLBACK": "Une erreur est survenue, réessaie."
+      "FALLBACK": "Une erreur est survenue, réessaie.",
+      "SUBSCRIPTION_PAST_DUE": "Ton abonnement a un paiement en attente de régularisation : impossible d'en souscrire un nouveau pour l'instant."
     }
   },
   "subscription": {

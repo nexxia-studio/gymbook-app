@@ -138,6 +138,47 @@ const config = {
           microphonePermission: false,
         },
       ],
+      // ── GYM-271 — SOURCE MAPS SENTRY ────────────────────────────────────────────
+      // Aujourd'hui une stacktrace de production se lit `main.jsbundle:110664` : le
+      // bundle Hermes est minifié, et sans source maps un crash ne désigne aucun
+      // fichier, aucune ligne, aucune fonction. Diagnostiquer un bug membre revient à
+      // deviner.
+      //
+      // MÉTHODE RETENUE — le plugin de config officiel de la version INSTALLÉE
+      // (@sentry/react-native 7.2.0, vérifié dans node_modules) :
+      // `@sentry/react-native/expo` exporte `withSentry`, qui écrit `sentry.properties`
+      // et branche les étapes natives (script `sentry-xcode.sh` côté iOS, `sentry.gradle`
+      // côté Android). L'upload se fait alors PENDANT le build natif EAS — « Source maps
+      // for the Release version of your application are uploaded automatically during the
+      // native application build » (docs.sentry.io, plateforme react-native, setup Expo).
+      //
+      // ⚠️ POURQUOI LA FORME « ENTRÉE DE plugins » ET NON LE WRAPPER `withSentry(config)`
+      // MONTRÉ PAR LA DOC : Expo résout `'@sentry/react-native/expo'` vers ce même
+      // `withSentry` et l'appelle avec ces props — les deux formes exécutent le même code.
+      // Celle-ci laisse la STRUCTURE de ce fichier intacte, ce qui est la règle posée par
+      // GYM-258 : la configuration Dopamine reste écrite d'un seul tenant, et la variante
+      // staging continue de l'altérer dans son bloc isolé. Re-shaper l'export pour le
+      // wrapper aurait touché la ligne même que ce fichier protège.
+      //
+      // ⚠️ AUCUN TOKEN ICI, JAMAIS. Le plugin AVERTIT explicitement si on lui passe
+      // `authToken` (« Detected unsecure use of authToken ») et le retire de la config
+      // avant écriture. Le jeton vient de `SENTRY_AUTH_TOKEN`, posé en secret EAS par
+      // Antoine — cf. docs/ops/mobile-sourcemaps.md.
+      //
+      // `organization` / `project` sont lus dans l'environnement plutôt qu'écrits en dur :
+      // ce sont des identifiants de compte Sentry, ils n'ont pas leur place dans le dépôt
+      // d'une plateforme multi-salles. Laissés à `undefined`, le plugin écrit dans
+      // sentry.properties un repli explicite (« falling back to SENTRY_ORG environment
+      // variable ») et sentry-cli lit les variables d'environnement du build — comportement
+      // lu dans le code du plugin installé, pas supposé.
+      [
+        '@sentry/react-native/expo',
+        {
+          url: process.env.SENTRY_URL ?? 'https://sentry.io/',
+          organization: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

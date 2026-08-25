@@ -529,7 +529,8 @@
       "SUBSCRIPTION_ALREADY_ACTIVE": "A subscription is already active.",
       "DB_INSERT_FAILED": "Nothing was charged: the order could not be saved. Please try again.",
       "PLAN_RESOLUTION_FAILED": "Could not check the gym's plan right now. Please try again.",
-      "FALLBACK": "Something went wrong, please try again."
+      "FALLBACK": "Something went wrong, please try again.",
+      "SUBSCRIPTION_PAST_DUE": "Your membership has a payment awaiting settlement: a new one cannot be taken out for now."
     }
   },
   "subscription": {
