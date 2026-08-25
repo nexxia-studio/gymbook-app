@@ -27,6 +27,23 @@ if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
     tracesSampleRate: 0,
+    // ── 🔴 GYM-276 — SÉPARER LES DEUX APPS ─────────────────────────────────────────
+    // « Viniz Staging » (GYM-258) tourne sur le même code et, désormais, sur le même
+    // projet Sentry. Sans cette étiquette, TOUS les événements arrivaient en
+    // `production` (constaté dans les tags) : les essais d'Antoine se seraient mêlés
+    // aux erreurs réelles des membres de Nico, et le premier vrai incident aurait été
+    // indiscernable d'un test.
+    //
+    // ⚠️ CONTRAIREMENT À POSTHOG, UN SEUL PROJET SUFFIT ICI, et c'est délibéré :
+    // `environment` est un filtre de PREMIER RANG dans Sentry (sélecteur global,
+    // alertes, taux de régression), là où une propriété PostHog doit être filtrée à la
+    // main dans chaque analyse. Le risque de contamination silencieuse n'est pas le même.
+    //
+    // Deuxième séparation, gratuite celle-là : la RELEASE porte l'identifiant natif du
+    // bundle — `be.dopamineclub.app@…` contre `app.viniz.staging@…` (GYM-258 change
+    // bundleIdentifier et package). Les deux apps ne peuvent donc pas se confondre, même
+    // à environnement égal.
+    environment: process.env.EXPO_PUBLIC_APP_VARIANT === 'staging' ? 'staging' : 'production',
     // ── GYM-270 — LA DEUXIÈME BARRIÈRE ─────────────────────────────────────────────
     // `lib/edgeInvoke.ts` n'appelle déjà pas `captureException` sur un refus métier
     // attendu (créneau complet, crédit requis, abonnement déjà actif…). Ce filtre

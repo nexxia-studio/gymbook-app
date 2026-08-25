@@ -72,6 +72,42 @@ const EXPECTED_EDGE_CODES: ReadonlySet<string> = new Set([
   'PROFILE_NOT_FOUND',
 ])
 
+/**
+ * 🔴 GYM-276 — PANNE RÉSEAU : UN CODE À PART, ET SURTOUT UN MESSAGE.
+ *
+ * Défaut observé en test (Antoine, réseau coupé) : le bouton de réservation ne faisait
+ * RIEN. Aucun message, aucun retour — le membre appuie, il ne se passe rien, il recommence.
+ *
+ * Ce n'est PAS un code renvoyé par une Edge Function : le serveur n'a jamais été atteint.
+ * On le fabrique ici pour que les écrans aient quelque chose à afficher, plutôt que de
+ * retomber dans le « erreur générique » muet.
+ *
+ * ⚠️ CLASSÉ ATTENDU, DONC JAMAIS ENVOYÉ À SENTRY. Une coupure réseau n'est pas un défaut
+ * de l'app : c'est la doctrine de GYM-270, et GYM-240 avait déjà tranché ce point
+ * (« rejets réseau capturés au lieu d'alerter Sentry pour rien »). Le tunnel du métro de
+ * chaque membre n'a pas à réveiller qui que ce soit.
+ */
+export const NETWORK_OFFLINE_CODE = 'NETWORK_OFFLINE'
+
+/**
+ * L'appel a-t-il échoué AVANT d'atteindre le serveur ?
+ *
+ * Trois signaux, parce qu'ils ne viennent pas de la même couche :
+ *  · `FunctionsFetchError` — la classe que supabase-js construit quand le fetch échoue
+ *    (« Failed to send a request to the Edge Function ») ; c'est le cas nominal ;
+ *  · `TypeError` — ce que lève `fetch` lui-même sur un réseau injoignable, si l'erreur
+ *    remonte sans être enveloppée ;
+ *  · absence de `context` exploitable — pas de réponse du tout, donc pas de statut.
+ */
+function isNetworkFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const name = (error as { name?: string }).name
+  if (name === 'FunctionsFetchError' || name === 'FunctionsRelayError') return true
+  if (error instanceof TypeError) return true
+  const ctx = (error as { context?: unknown }).context
+  return !(ctx && typeof (ctx as Response).json === 'function')
+}
+
 /** Erreur d'appel à une Edge Function, avec ce qu'il faut pour AFFICHER quelque chose. */
 export class EdgeError extends Error {
   /** Nom de la fonction appelée — sert de tag Sentry et de contexte de log. */
@@ -140,6 +176,19 @@ async function readErrorBody(error: unknown): Promise<{
 }
 
 async function toEdgeError(fn: string, error: unknown): Promise<EdgeError> {
+  // GYM-276 — testé EN PREMIER : sans réponse, il n'y a ni statut ni corps à interpréter,
+  // et la règle « 4xx + code connu » ne peut pas s'appliquer.
+  if (isNetworkFailure(error)) {
+    return new EdgeError({
+      fn,
+      status: 0,
+      code: NETWORK_OFFLINE_CODE,
+      message: error instanceof Error ? error.message : 'network unreachable',
+      expected: true,
+      body: null,
+    })
+  }
+
   const { body, status } = await readErrorBody(error)
   const code = typeof body?.code === 'string' ? body.code : ''
   const serverMessage = typeof body?.message === 'string' ? body.message : ''
@@ -246,14 +295,17 @@ export async function tryEdgeInvoke<T = Record<string, unknown>>(
     return { ok: true, data: await edgeInvoke<T>(fn, body) }
   } catch (e) {
     if (e instanceof EdgeError) return { ok: false, error: e }
-    // Réseau, DNS, timeout : pas de réponse du tout. `status: 0` le dit, et ce n'est
-    // jamais « attendu » — une coupure réseau mérite d'être vue.
+    // GYM-276 — une exception qui remonte jusqu'ici sans être une EdgeError, c'est le
+    // fetch lui-même qui a échoué : réseau, DNS, timeout. Même traitement que dans
+    // `toEdgeError` — code NETWORK_OFFLINE, `expected: true`, donc AUCUN envoi Sentry.
+    // (La version GYM-270 posait `expected: false` et alertait : corrigé ici, c'est le
+    // bruit que GYM-240 avait déjà refusé.)
     const netError = new EdgeError({
       fn,
       status: 0,
-      code: '',
+      code: NETWORK_OFFLINE_CODE,
       message: e instanceof Error ? e.message : 'network error',
-      expected: false,
+      expected: true,
       body: null,
     })
     reportEdgeError(netError)
