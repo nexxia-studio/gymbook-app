@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { PostHogProvider } from 'posthog-react-native'
 import { posthog } from '../lib/analytics'
+import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
@@ -23,7 +24,24 @@ SplashScreen.preventAutoHideAsync()
 // doit tourner sans). tracesSampleRate: 0 → pas de performance/tracing.
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN
 if (sentryDsn) {
-  Sentry.init({ dsn: sentryDsn, tracesSampleRate: 0 })
+  Sentry.init({
+    dsn: sentryDsn,
+    tracesSampleRate: 0,
+    // ── GYM-270 — LA DEUXIÈME BARRIÈRE ─────────────────────────────────────────────
+    // `lib/edgeInvoke.ts` n'appelle déjà pas `captureException` sur un refus métier
+    // attendu (créneau complet, crédit requis, abonnement déjà actif…). Ce filtre
+    // rattrape le MÊME cas arrivé par un autre chemin : une `EdgeError` relancée par un
+    // écran et non rattrapée, qui atteindrait Sentry par le handler global de rejets.
+    //
+    // ⚠️ ON FILTRE SUR LE TYPE, PAS SUR LE TEXTE. Un test sur le message
+    // (« non-2xx status code ») masquerait aussi de VRAIES pannes portant le même
+    // libellé — c'est précisément ce qui rend ces erreurs indiscernables aujourd'hui.
+    // `isExpectedEdgeError` interroge l'objet : statut 4xx ET code métier connu.
+    //
+    // Partent toujours : 5xx, erreurs réseau, et tout code INCONNU — y compris un code
+    // qu'on aurait oublié de déclarer, ce qui est exactement l'information utile.
+    beforeSend: (event, hint) => (isExpectedEdgeError(hint?.originalException) ? null : event),
+  })
 }
 
 function useRegisterServiceWorker() {

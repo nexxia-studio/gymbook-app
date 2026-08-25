@@ -3,9 +3,9 @@
 //  - create-payment      : body { gym_id, plan_id (UUID), redirect_url } → { success, payment_id, checkout_url }
 //  - create-subscription : body { gym_id, member_id, plan_id (UUID), redirect_url } → { success, payment_id, customer_id, checkout_url }
 import * as WebBrowser from 'expo-web-browser'
-import { supabase } from './supabase'
 import i18n from './i18n'
 import { captureEvent } from './analytics'
+import { tryEdgeInvoke } from './edgeInvoke'
 
 // GYM-89 — Les paiements MEMBRES (one-time + abonnement) reviennent sur la page membre
 // dédiée, et NON sur /mollie/callback (réservé au flux OAuth gérant).
@@ -86,6 +86,17 @@ export function mapPaymentError(code?: string): PaymentErrorInfo {
       return { messageKey: 'payments.errors.SUBSCRIPTION_ACTIVE', retryable: false, refetch: true }
     case 'SUBSCRIPTION_ALREADY_ACTIVE':
       return { messageKey: 'payments.errors.SUBSCRIPTION_ALREADY_ACTIVE', retryable: false, refetch: true }
+    // GYM-252 (reste-à-faire UI) — l'abonnement existe mais son prélèvement a échoué
+    // (past_due) ou il est suspendu pour impayé. Le serveur refuse d'en ouvrir un second :
+    // le premier est toujours vivant chez Mollie, qui le représente jusqu'à cinq fois, et
+    // souscrire à côté produirait DEUX mandats SEPA.
+    //
+    // ⚠️ `retryable: false` — réessayer ne changera rien tant que le prélèvement n'a pas
+    // abouti, et proposer « Réessayer » ferait croire à un incident technique.
+    // `refetch: true` : la régularisation est automatique au webhook `paid`, donc relire
+    // l'état de l'abonnement est exactement ce qu'il y a d'utile à faire.
+    case 'SUBSCRIPTION_PAST_DUE':
+      return { messageKey: 'payments.errors.SUBSCRIPTION_PAST_DUE', retryable: false, refetch: true }
     // GYM-243 — les DEUX flux (create-payment, create-subscription) refusent de rendre
     // l'URL de checkout quand la ligne payments n'a pas pu être écrite : sans elle, le
     // webhook ne retrouve pas la salle et l'euro encaissé ne délivre rien. Rien n'a été
@@ -102,36 +113,29 @@ export type CheckoutResult =
   | { ok: true; checkoutUrl: string; paymentId?: string }
   | { ok: false; code?: string }
 
-/** Lit le `code` d'erreur d'une réponse Edge Function (corps JSON dans error.context). */
-async function extractErrorCode(
-  data: { code?: string } | null,
-  error: unknown,
-): Promise<string | undefined> {
-  const ctx = (error as { context?: Response } | null)?.context
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = await ctx.json()
-      if (body?.code) return body.code as string
-    } catch {
-      /* corps non-JSON */
-    }
-  }
-  return data?.code
-}
-
+// GYM-270 — `extractErrorCode` a été SUPPRIMÉE : c'était la troisième copie de la lecture
+// de `error.context` dans le dépôt mobile (les deux autres vivaient dans useBookingStore).
+// La lecture est désormais dans `lib/edgeInvoke.ts`, avec le filtrage Sentry qui va avec —
+// ces refus-ci (SUBSCRIPTION_ACTIVE, PLAN_ALREADY_USED, PLAN_PAYMENTS_DISABLED…) sont des
+// réponses normales du produit et n'ont plus à alerter qui que ce soit.
 async function invokeCheckout(fn: string, body: Record<string, unknown>): Promise<CheckoutResult> {
-  try {
-    const { data, error } = await supabase.functions.invoke(fn, { body })
-    if (!error && data?.success && data?.checkout_url) {
-      // payment_initiated — chokepoint unique des 2 flux (create-payment / create-subscription),
-      // émis à l'obtention du checkout Mollie (achat effectivement lancé).
-      captureEvent('payment_initiated', { kind: fn })
-      return { ok: true, checkoutUrl: data.checkout_url as string, paymentId: data.payment_id }
-    }
-    return { ok: false, code: await extractErrorCode(data, error) }
-  } catch {
-    return { ok: false }
+  const res = await tryEdgeInvoke<{
+    success?: boolean
+    checkout_url?: string
+    payment_id?: string
+  }>(fn, body)
+
+  if (res.ok && res.data?.success && res.data?.checkout_url) {
+    // payment_initiated — chokepoint unique des 2 flux (create-payment / create-subscription),
+    // émis à l'obtention du checkout Mollie (achat effectivement lancé).
+    captureEvent('payment_initiated', { kind: fn })
+    return { ok: true, checkoutUrl: res.data.checkout_url, paymentId: res.data.payment_id }
   }
+
+  // ⚠️ Une réponse 200 SANS checkout_url reste un échec — c'était déjà le cas avant, et le
+  // rester est important : Mollie a pu refuser sans que la fonction rende un 4xx. Sans
+  // code, l'écran retombe sur son message générique, comme auparavant.
+  return { ok: false, code: res.ok ? undefined : res.error.code || undefined }
 }
 
 /** Achat à l'unité (one-time) → create-payment v24. */
