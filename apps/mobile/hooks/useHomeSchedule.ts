@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useBookingStore } from '../stores/useBookingStore'
-import { GYM_ID } from '../constants/dopamine'
+import { useActiveGymId } from '../lib/activeGym'
 import { groupDayEntries } from '../lib/openGymGroup'
 
 export interface HomeSlot {
@@ -39,6 +39,10 @@ function diffMin(start: string, end: string): number {
 }
 
 export function useHomeSchedule() {
+  // GYM-289 — la salle vient de la source unique, plus de la constante de build.
+  // ⚠️ `null` = pas encore résolue : on NE REQUÊTE PAS. Une requête sans filtre
+  // `gym_id` rendrait les créneaux de TOUTES les salles.
+  const gymId = useActiveGymId()
   const [slots, setSlots] = useState<HomeSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [confirmedSlotIds, setConfirmedSlotIds] = useState<Set<string>>(new Set())
@@ -56,6 +60,9 @@ export function useHomeSchedule() {
   })()
 
   const fetchSlots = useCallback(async () => {
+    // ⚠️ SANS SALLE, ON NE REQUÊTE PAS (cf. lib/activeGym). N'arrive qu'en mode `multi`,
+    // entre l'ouverture de session et l'arrivée du profil.
+    if (!gymId) { setIsLoading(false); return }
     setIsLoading(true)
     try {
       const start = new Date()
@@ -70,7 +77,7 @@ export function useHomeSchedule() {
           activities(name, color, duration_min, image_url, icon, requires_coach),
           coaches(name)
         `)
-        .eq('gym_id', GYM_ID)
+        .eq('gym_id', gymId)
         .gte('starts_at', start.toISOString())
         .lt('starts_at', end.toISOString())
         .neq('status', 'cancelled')
@@ -105,16 +112,39 @@ export function useHomeSchedule() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+    // `gymId` EN DÉPENDANCE : c'est ce qui fait rejouer la requête ET refermer le canal
+    // temps réel quand la salle change (cf. la note dans l'effet ci-dessous).
+  }, [gymId])
 
   useEffect(() => { fetchSlots() }, [fetchSlots])
 
   // Realtime: refresh on time_slots + bookings changes for this gym
   // Fallback polling every 30s in case Realtime fails (network drop, missed event)
   useEffect(() => {
+    // 🔴 GYM-289 — LE TEMPS RÉEL EST LE POINT LE PLUS DÉLICAT DU LOT.
+    //
+    // Un canal Supabase ne se « purge » pas : son filtre est figé à la souscription,
+    // côté serveur. Laisser ouvert un canal filtré sur l'ancienne salle, c'est continuer
+    // de POUSSER À CE MEMBRE LES ÉVÉNEMENTS D'UN AUTRE CLIENT — les réservations des
+    // membres d'une salle où il n'a rien à voir. Il faut donc FERMER et ROUVRIR.
+    //
+    // C'est exactement ce que fait cet effet, et la chaîne qui le garantit tient en trois
+    // maillons qu'il ne faut pas casser :
+    //   1. `fetchSlots` dépend de `gymId` ;
+    //   2. cet effet dépend de `fetchSlots` ;
+    //   3. son `return` appelle `supabase.removeChannel`.
+    // Changement de salle → nouvelle `fetchSlots` → nettoyage (canal fermé, polling
+    // arrêté) → nouvelle souscription sur la nouvelle salle. Montage et démontage passent
+    // par le même chemin.
+    //
+    // ⚠️ ET LE NOM DU CANAL PORTE LA SALLE. Deux canaux de même nom seraient fusionnés
+    // par le client Supabase : l'ancien survivrait au changement, et le filtre serveur
+    // resterait celui de la salle quittée. Le nom doit varier pour que la fermeture soit
+    // réelle.
+    if (!gymId) return
     const channel = supabase
-      .channel(`home-schedule-${GYM_ID}`)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
+      .channel(`home-schedule-${gymId}`)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${gymId}` }, (payload) => {
         const deletedId = (payload.old as { id?: string } | null)?.id
         console.log('[Realtime] Home time_slots DELETE:', deletedId)
         if (deletedId) {
@@ -122,15 +152,15 @@ export function useHomeSchedule() {
         }
         fetchSlots()
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${gymId}` }, (payload) => {
         console.log('[Realtime] Home time_slots INSERT:', payload.new)
         fetchSlots()
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_slots', filter: `gym_id=eq.${gymId}` }, (payload) => {
         console.log('[Realtime] Home time_slots UPDATE:', payload.new)
         fetchSlots()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${GYM_ID}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `gym_id=eq.${gymId}` }, (payload) => {
         console.log('[Realtime] Home bookings:', payload.eventType)
         fetchSlots()
       })

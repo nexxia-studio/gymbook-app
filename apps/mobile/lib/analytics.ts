@@ -51,7 +51,7 @@
 // — et il est appelé par `capture()`, `autocapture()`, `alias()`, `screen()` et
 // l'identification. Couverture complète.
 import PostHog from 'posthog-react-native'
-import { GYM_ID } from '../constants/dopamine'
+import { GYM_MODE, FIXED_GYM_ID } from './gymResolver'
 
 /** Variante d'app, posée par le profil EAS preview-staging (GYM-258). */
 const isStaging = process.env.EXPO_PUBLIC_APP_VARIANT === 'staging'
@@ -79,9 +79,18 @@ export const posthog: PostHog | null = apiKey
  * techniques. L'identité du membre passe par `identifyUser` (UUID Supabase, jamais
  * l'email) et par rien d'autre.
  */
+// GYM-289 — ⚠️ EN `multi`, `gym_id` VAUT `null` AU DÉPART, ET C'EST VOULU.
+//
+// La salle d'un membre n'est connue qu'une fois son profil chargé. Poser la constante en
+// attendant attribuerait ses premiers événements à DOPAMINE — c'est-à-dire fausserait
+// l'analytique d'un autre client, ce qu'aucun filtre ne rattrape après coup. Une poignée
+// d'événements sans salle est une lacune ; des événements attribués à la mauvaise salle
+// sont une erreur qu'on ne voit jamais.
+//
+// En `single` la valeur est la constante dès le départ : rien ne change pour Dopamine.
 const SUPER_PROPERTIES = {
   environment: ANALYTICS_ENVIRONMENT,
-  gym_id: GYM_ID,
+  gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
 } as const
 
 // Posées immédiatement après la création du client, donc avant tout événement applicatif.
@@ -90,6 +99,22 @@ const SUPER_PROPERTIES = {
 posthog?.register({ ...SUPER_PROPERTIES }).catch(() => {
   /* analytics best-effort */
 })
+
+/**
+ * GYM-289 — déclare la salle du membre aux événements suivants.
+ *
+ * ⚠️ NE RATTRAPE PAS L'HISTORIQUE, et ne prétend pas le faire : une super-propriété ne
+ * s'applique qu'aux événements ÉMIS APRÈS. C'est la raison pour laquelle elle est posée
+ * dès que le profil arrive, et pas au premier événement métier.
+ *
+ * Sans effet en `single` — la valeur y est déjà la bonne depuis le démarrage.
+ */
+export function setAnalyticsGym(gymId: string | null): void {
+  if (GYM_MODE === 'single') return
+  posthog?.register({ gym_id: gymId }).catch(() => {
+    /* analytics best-effort */
+  })
+}
 
 /**
  * Event custom best-effort — jamais bloquant, no-op si PostHog absent.
