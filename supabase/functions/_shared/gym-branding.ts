@@ -41,15 +41,41 @@ export const LINKS_BASE = 'https://links.viniz.app'
 export const MAIL_ADDRESS = 'noreply@viniz.app'
 
 /**
- * Repli de marque = les couleurs actuelles de Dopamine.
+ * Repli de marque = la palette VINIZ. ⚠️ CE N'EST PLUS CELLE DE DOPAMINE (GYM-284).
  *
- * Ce n'est pas une entorse à la règle « pas de données en dur » : ce sont les valeurs
- * qu'ont TOUS les emails aujourd'hui, et nexxia_gyms.primary_color / secondary_color sont
- * VIDES en base. Sans repli, le premier email partirait sans couleur. Dès qu'une salle
- * renseigne les siennes, elles gagnent — y compris pour Dopamine.
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CE COMMENTAIRE A CHANGÉ DE VÉRITÉ
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * Il disait : « ce sont les valeurs qu'ont TOUS les emails aujourd'hui, et
+ * primary_color / secondary_color sont VIDES en base ». C'ÉTAIT VRAI. Ça ne l'est plus, et
+ * pour deux raisons opposées :
+ *
+ *  · les colonnes ne sont PAS vides — relevé en base, chaque salle porte deux valeurs, si
+ *    bien que ce repli n'est exercé par PERSONNE aujourd'hui (0 ligne à NULL en prod comme
+ *    en staging) ;
+ *  · le DEFAULT du schéma vient de passer à NULL (GYM-284). Le repli devient donc le
+ *    chemin NORMAL de toute salle à venir — et pas un cas d'exception.
+ *
+ * 🔴 CONSÉQUENCE : GARDER LE LIME DOPAMINE ICI, C'ÉTAIT ENVOYER LES EMAILS DE CHAQUE
+ * NOUVELLE SALLE AUX COULEURS D'UN AUTRE CLIENT. Un repli qui ne servait à personne allait
+ * devenir le cas le plus fréquent.
+ *
+ * ⚠️ CHANGEMENT SANS EFFET SUR DOPAMINE, ET C'EST VÉRIFIÉ, PAS SUPPOSÉ. Sa ligne de
+ * production porte #C8F000 / #000000 — et son secondaire DIFFÈRE de l'ancien défaut
+ * (#111111), ce qui prouve que ces couleurs ont été posées volontairement. Elles gagnent
+ * sur ce repli, comme avant. Ses emails ne bougent pas d'un pixel.
+ *
+ * ⚠️ LA PAIRE EST CHOISIE POUR LE CONTRASTE, PAS PAR GOÛT. `primaryColor` porte le fond du
+ * bouton et `secondaryColor` son texte (cf. emailShell) : le couple doit rester lisible
+ * sans qu'aucun code ne le vérifie — un email ne recalcule rien, il part tel quel.
+ *     #2D1B69 sur #C8FF3D  = 12,11:1     ← retenu
+ *     #4827B4 sur #C8FF3D  =  8,01:1     (indigo primaire Viniz, moins contrasté)
+ * C'est aussi la paire qu'utilise le résolveur de thème mobile (lot 3) : les deux surfaces
+ * replient sur la MÊME palette, sans quoi un membre recevrait un email d'une marque et
+ * ouvrirait une app d'une autre.
  */
-export const FALLBACK_PRIMARY = '#C8F000'
-export const FALLBACK_SECONDARY = '#111111'
+export const FALLBACK_PRIMARY = '#C8FF3D'
+export const FALLBACK_SECONDARY = '#2D1B69'
 
 /**
  * Repli d'identité quand la ligne nexxia_gyms est ILLISIBLE (réseau, id inconnu).

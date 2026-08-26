@@ -1443,7 +1443,8 @@
       "primary_label": "Primary colour",
       "secondary_label": "Secondary colour",
       "submit": "Save and continue",
-      "saved": "Branding saved."
+      "saved": "Branding saved.",
+      "color_hint": "Leave empty to keep the Viniz palette — you can change it later."
     },
     "step2": {
       "title": "Your first activity",
