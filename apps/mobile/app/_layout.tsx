@@ -14,7 +14,8 @@ import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
-import { GYM_MODE, readSelectedGymSlug } from '../lib/gymResolver'
+import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug, writeSelectedGymSlug } from '../lib/gymResolver'
+import { listMyGyms } from '../lib/gymSwitch'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import '../lib/i18n'
 import '../global.css'
@@ -184,8 +185,40 @@ function RootLayout() {
     if (GYM_MODE === 'single') return
     let alive = true
     readSelectedGymSlug().then((slug) => { if (alive) setBrandSlug(slug) })
-    return () => { alive = false }
+    // GYM-288 — ⚠️ ET ON RESTE À L'ÉCOUTE. Cette racine n'est jamais démontée : sans
+    // abonnement, elle garderait à jamais le slug lu au tout premier rendu — c'est-à-dire
+    // `null` au premier lancement, et la salle QUITTÉE après un retour en arrière.
+    const unsubscribe = subscribeSelectedGymSlug((slug) => { if (alive) setBrandSlug(slug) })
+    return () => { alive = false; unsubscribe() }
   }, [])
+
+  // ── GYM-288 (livrable 2) — 🔴 LE PROFIL SERVEUR REPREND LA MAIN SUR LA MARQUE ────────
+  //
+  // Le cas : quelqu'un choisit la salle B avant de se connecter, puis se connecte avec un
+  // compte dont la salle active est A. Depuis GYM-289, les DONNÉES sont justes — elles
+  // viennent de `profiles.gym_id`. La MARQUE, elle, suivait encore le slug local : le
+  // membre voyait le nom, le logo et les couleurs de B posés sur le planning de A.
+  //
+  // ⚠️ CE N'EST PAS UN DÉTAIL D'AFFICHAGE. C'est le cas où l'app se contredit elle-même
+  // sans rien signaler, et où le membre n'a aucun moyen de savoir laquelle des deux
+  // moitiés ment. Le lot 2 avait posé la règle — « le profil serveur fait foi » — sans
+  // que rien ne l'applique ; elle s'applique ici.
+  //
+  // Le slug local n'est pas effacé, il est CORRIGÉ : il redevient la seule réponse
+  // possible à la déconnexion suivante, quand plus aucun profil ne peut trancher.
+  const sessionGymId = useAuthStore((s) => s.gym_id)
+  useEffect(() => {
+    if (GYM_MODE === 'single' || !sessionGymId) return
+    let alive = true
+    listMyGyms().then((res) => {
+      if (!alive || res.status !== 'ok') return
+      const active = res.gyms.find((g) => g.isActive)
+      // Hors ligne, ou salle introuvable : on GARDE ce qui est affiché. Effacer la marque
+      // pour cause de réseau ferait clignoter l'app sans rien corriger.
+      if (active?.slug) void writeSelectedGymSlug(active.slug)
+    })
+    return () => { alive = false }
+  }, [sessionGymId])
 
   const initialize = useAuthStore((s) => s.initialize)
   const userId = useAuthStore((s) => s.user?.id ?? null)

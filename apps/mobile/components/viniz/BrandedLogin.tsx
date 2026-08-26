@@ -20,6 +20,8 @@ import { PasswordInput } from '../ui/PasswordInput'
 import { InScreenBanner } from '../ui/InScreenBanner'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { clearSelectedGymSlug } from '../../lib/gymResolver'
+import { clearCachedBrand } from '../../lib/theme/brand'
 import { VINIZ_WORDMARK_SVG } from '../../assets/viniz/brandSvg'
 
 /** Recadrage du wordmark sur l'emprise mesurée de son art (cf. VinizLaunch). */
@@ -134,6 +136,36 @@ export function BrandedLogin() {
               <Text className="font-dmsans-bold" style={{ color: tokens.onBackground }}>
                 {t('auth.signup')}
               </Text>
+            </Text>
+          </TouchableOpacity>
+
+          {/* ── GYM-288 — LA SORTIE. ───────────────────────────────────────────────────
+              🔴 SANS ELLE, UNE SALLE CHOISIE PAR ERREUR ENFERMAIT LE MEMBRE : le slug
+              n'était effacé qu'à la DÉCONNEXION, geste inaccessible à qui n'est pas encore
+              connecté. La seule issue constatée sur appareil était de désinstaller l'app.
+
+              ⚠️ ICI, RIEN N'EST ENGAGÉ. Le membre n'est pas authentifié, il n'a pas de
+              données dans cette salle, aucun cache serveur ne le concerne : effacer le
+              choix local suffit, et c'est pour ça que ce geste est SÛR là où « changer de
+              salle » une fois connecté demande une bascule serveur et une purge.
+
+              ⚠️ ON EFFACE AUSSI LA MARQUE EN CACHE. Le slug seul laisserait `viniz.gym_brand`
+              en place : la salle suivante s'afficherait aux couleurs de la précédente le
+              temps du premier chargement. */}
+          <TouchableOpacity
+            className="mt-10"
+            accessibilityRole="button"
+            onPress={async () => {
+              await clearCachedBrand()
+              await clearSelectedGymSlug()
+              router.replace('/gym/select' as never)
+            }}
+          >
+            <Text
+              className="text-center font-dmsans text-xs underline"
+              style={{ color: tokens.onBackgroundMuted }}
+            >
+              {t('gym_select.not_my_gym')}
             </Text>
           </TouchableOpacity>
         </ScrollView>

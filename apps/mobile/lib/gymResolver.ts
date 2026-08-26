@@ -97,6 +97,30 @@ export const FIXED_GYM_ID: string | null = resolveFixedGymId()
 // une donnée qui n'en est pas un. Le trousseau reste réservé au jeton de session.
 const STORAGE_KEY = 'viniz.selected_gym_slug'
 
+// ─────────────────────────────────────────────────────────────────────────────────────
+// GYM-288 — QUI PRÉVIENT L'APP QUAND LE CHOIX CHANGE ?
+// ─────────────────────────────────────────────────────────────────────────────────────
+// ⚠️ SANS CE MÉCANISME, LE RETOUR EN ARRIÈRE NE MARCHE QU'EN APPARENCE. `app/_layout.tsx`
+// lit le slug UNE FOIS au montage, pour en tirer la marque. Il n'est jamais démonté. Donc
+// tout choix fait ENSUITE — la première sélection comme un changement d'avis — restait
+// invisible pour lui : l'app gardait la marque d'avant jusqu'au prochain redémarrage.
+//
+// C'est aussi ce qui rendait le défaut de ce ticket difficile à voir : effacer le slug
+// sans prévenir personne aurait ramené le membre à la recherche, puis lui aurait réappliqué
+// les couleurs de la salle qu'il venait de quitter.
+type SlugListener = (slug: string | null) => void
+const listeners = new Set<SlugListener>()
+
+/** S'abonne aux changements du slug choisi. Rend la fonction de désabonnement. */
+export function subscribeSelectedGymSlug(fn: SlugListener): () => void {
+  listeners.add(fn)
+  return () => { listeners.delete(fn) }
+}
+
+function notify(slug: string | null): void {
+  for (const fn of listeners) fn(slug)
+}
+
 /** Slug choisi avant connexion. `null` si aucun choix — l'écran de recherche s'affiche. */
 export async function readSelectedGymSlug(): Promise<string | null> {
   if (GYM_MODE === 'single') return null
@@ -114,6 +138,7 @@ export async function writeSelectedGymSlug(slug: string): Promise<void> {
   if (GYM_MODE === 'single') return
   try {
     await AsyncStorage.setItem(STORAGE_KEY, slug)
+    notify(slug)
   } catch {
     /* best-effort : le membre reverra l'écran au prochain lancement, sans plus */
   }
@@ -130,6 +155,7 @@ export async function writeSelectedGymSlug(slug: string): Promise<void> {
 export async function clearSelectedGymSlug(): Promise<void> {
   try {
     await AsyncStorage.removeItem(STORAGE_KEY)
+    notify(null)
   } catch {
     /* best-effort */
   }

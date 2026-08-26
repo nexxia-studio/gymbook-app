@@ -12,6 +12,14 @@
     "offline_title": "Pas de connexion",
     "offline_message": "Ton téléphone n'est pas connecté à Internet. Vérifie ta connexion et réessaie."
   },
+  "gym_switch": {
+    "title": "Changer de salle",
+    "subtitle": "Choisis la salle que tu veux voir. Tes réservations dans les autres salles ne bougent pas.",
+    "current": "Salle active",
+    "only_one": "Tu n'es membre que d'une seule salle pour l'instant.",
+    "failed": "La bascule n'a pas abouti. Réessaie dans un instant.",
+    "error": "La liste de tes salles n'a pas pu être chargée. Réessaie dans un instant."
+  },
   "deep_link": {
     "switch_title": "Ce lien concerne une autre salle",
     "switch_message": "Tu es connecté chez {{current}}. Ce lien t'emmène chez {{incoming}}. Si tu continues, {{incoming}} devient ta salle active — tes réservations chez {{current}} ne bougent pas, tu les retrouveras en y revenant.",
@@ -26,6 +34,7 @@
     "tagline": "Ta salle, vivante."
   },
   "gym_select": {
+    "not_my_gym": "Ce n'est pas ma salle",
     "title": "Trouve ta salle",
     "subtitle": "Cherche ta salle par son nom pour accéder à ses créneaux.",
     "placeholder": "Nom de la salle",
@@ -400,6 +409,7 @@
     "notifications_detail": "Push activees",
     "language": "Langue",
     "language_detail": "Francais",
+    "switch_gym": "Changer de salle",
     "section_account": "Compte",
     "edit_profile": "Modifier mon profil",
     "security": "Securite",
