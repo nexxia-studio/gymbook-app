@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, CreditCard, Calendar, Star } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
+import { tryEdgeInvoke } from '../../lib/edgeInvoke'
+import { captureEvent } from '../../lib/analytics'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useGymPlans, type GymPlan } from '../../hooks/useGymPlans'
 import {
@@ -55,15 +57,6 @@ function formatEngagedDate(iso: string): string {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels',
   })
 }
-// Lit le `code` d'erreur d'une réponse Edge Function (JSON dans error.context).
-async function readErrorCode(data: { code?: string } | null, error: unknown): Promise<string | undefined> {
-  const ctx = (error as { context?: Response } | null)?.context
-  if (ctx && typeof ctx.json === 'function') {
-    try { const b = await ctx.json(); if (b?.code) return b.code as string } catch { /* non-JSON */ }
-  }
-  return data?.code
-}
-
 function PlanCard({
   plan,
   onSelect,
@@ -228,11 +221,14 @@ export default function SubscriptionScreen() {
           text: t('subscription.cancel_confirm'),
           style: 'destructive',
           onPress: async () => {
-            const { data, error } = await supabase.functions.invoke('cancel-subscription', {
-              body: { subscription_id: activeSub.id },
+            // GYM-270 — lecture du corps centralisée (lib/edgeInvoke.ts). SUBSCRIPTION_ENGAGED
+            // est un refus NORMAL — l'engagement ferme de GYM-113 — et ne part plus dans
+            // Sentry ; MOLLIE_CANCEL_FAILED, lui, est une panne et continue d'alerter.
+            const res = await tryEdgeInvoke<Record<string, unknown>>('cancel-subscription', {
+              subscription_id: activeSub.id,
             })
-            if (error || (data && (data as { error?: boolean }).error)) {
-              const code = await readErrorCode(data as { code?: string } | null, error)
+            if (!res.ok) {
+              const code = res.error.code
               if (code === 'SUBSCRIPTION_ENGAGED') {
                 // Engagement ferme : pas de résiliation anticipée. Rafraîchit → UI "Engagé jusqu'au".
                 Alert.alert(
@@ -247,10 +243,15 @@ export default function SubscriptionScreen() {
                 Alert.alert(t('subscription.cancel_error_title'), t('subscription.mollie_failed_message'))
                 return
               }
-              console.error('[cancel-subscription] error:', error)
+              console.error('[cancel-subscription] error:', res.error.code, res.error.message)
               Alert.alert(t('subscription.cancel_error_title'), t('subscription.cancel_error_message'))
               return
             }
+            // GYM-273 — résiliation ABOUTIE (le serveur a confirmé) : c'est le contrepoids
+            // de `subscription_started`, et la seule mesure honnête de la rétention. Émis
+            // après le retour serveur, jamais au clic : un refus SUBSCRIPTION_ENGAGED est
+            // repassé plus haut et ne doit pas compter comme un départ.
+            captureEvent('subscription_cancelled')
             Alert.alert(
               t('subscription.canceled_title'),
               t('subscription.canceled_message', { date: formatDate(activeSub.endsAt) }),

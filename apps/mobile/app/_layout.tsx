@@ -9,7 +9,8 @@ import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { PostHogProvider } from 'posthog-react-native'
-import { posthog } from '../lib/analytics'
+import { posthog, captureScreen, screenNameFromSegments } from '../lib/analytics'
+import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
@@ -23,7 +24,71 @@ SplashScreen.preventAutoHideAsync()
 // doit tourner sans). tracesSampleRate: 0 → pas de performance/tracing.
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN
 if (sentryDsn) {
-  Sentry.init({ dsn: sentryDsn, tracesSampleRate: 0 })
+  Sentry.init({
+    dsn: sentryDsn,
+    tracesSampleRate: 0,
+    // ── 🔴 GYM-276 — SÉPARER LES DEUX APPS ─────────────────────────────────────────
+    // « Viniz Staging » (GYM-258) tourne sur le même code et, désormais, sur le même
+    // projet Sentry. Sans cette étiquette, TOUS les événements arrivaient en
+    // `production` (constaté dans les tags) : les essais d'Antoine se seraient mêlés
+    // aux erreurs réelles des membres de Nico, et le premier vrai incident aurait été
+    // indiscernable d'un test.
+    //
+    // ⚠️ CONTRAIREMENT À POSTHOG, UN SEUL PROJET SUFFIT ICI, et c'est délibéré :
+    // `environment` est un filtre de PREMIER RANG dans Sentry (sélecteur global,
+    // alertes, taux de régression), là où une propriété PostHog doit être filtrée à la
+    // main dans chaque analyse. Le risque de contamination silencieuse n'est pas le même.
+    //
+    // Deuxième séparation, gratuite celle-là : la RELEASE porte l'identifiant natif du
+    // bundle — `be.dopamineclub.app@…` contre `app.viniz.staging@…` (GYM-258 change
+    // bundleIdentifier et package). Les deux apps ne peuvent donc pas se confondre, même
+    // à environnement égal.
+    environment: process.env.EXPO_PUBLIC_APP_VARIANT === 'staging' ? 'staging' : 'production',
+    // ── GYM-270 — LA DEUXIÈME BARRIÈRE ─────────────────────────────────────────────
+    // `lib/edgeInvoke.ts` n'appelle déjà pas `captureException` sur un refus métier
+    // attendu (créneau complet, crédit requis, abonnement déjà actif…). Ce filtre
+    // rattrape le MÊME cas arrivé par un autre chemin : une `EdgeError` relancée par un
+    // écran et non rattrapée, qui atteindrait Sentry par le handler global de rejets.
+    //
+    // ⚠️ ON FILTRE SUR LE TYPE, PAS SUR LE TEXTE. Un test sur le message
+    // (« non-2xx status code ») masquerait aussi de VRAIES pannes portant le même
+    // libellé — c'est précisément ce qui rend ces erreurs indiscernables aujourd'hui.
+    // `isExpectedEdgeError` interroge l'objet : statut 4xx ET code métier connu.
+    //
+    // Partent toujours : 5xx, erreurs réseau, et tout code INCONNU — y compris un code
+    // qu'on aurait oublié de déclarer, ce qui est exactement l'information utile.
+    beforeSend: (event, hint) => (isExpectedEdgeError(hint?.originalException) ? null : event),
+  })
+}
+
+/**
+ * GYM-272 — SUIVI DES ÉCRANS, SUR EXPO ROUTER.
+ *
+ * L'autocapture de posthog-react-native s'accroche à `@react-navigation/native` depuis un
+ * hook monté AU-DESSUS du navigateur (cf. lib/analytics.ts) : elle n'a jamais rien envoyé.
+ * Ici, on lit les segments d'Expo Router, dont le composant racine dispose déjà.
+ *
+ * ⚠️ DÉDUPLICATION PAR LE NOM, PAS PAR LA RÉFÉRENCE. `useSegments()` rend un nouveau
+ * tableau à chaque rendu : dépendre de lui enverrait un `$screen` à chaque re-rendu de la
+ * racine — sur une app qui re-rend à chaque changement de session, de police ou de store,
+ * les volumes seraient faux et la facture avec. On ne remonte que les CHANGEMENTS de nom.
+ */
+function useScreenTracking(): void {
+  const segments = useSegments()
+  const lastScreen = useRef<string | null>(null)
+
+  useEffect(() => {
+    const name = screenNameFromSegments(segments)
+    if (name === lastScreen.current) return
+    lastScreen.current = name
+    // ⚠️ AUCUNE PROPRIÉTÉ D'IDENTIFIANT ICI, VOLONTAIREMENT. Le `slot_id` de
+    // `session_detail` serait lisible via `useGlobalSearchParams()`, mais ce hook
+    // re-rend la RACINE à chaque changement de paramètre — un coût permanent pour une
+    // analyse (« quels cours sont les plus consultés ») que personne n'a demandée. À
+    // ajouter le jour où elle le sera, pas avant. Le nom, lui, reste anonyme par
+    // construction : les segments portent `[id]`, jamais la valeur.
+    captureScreen(name)
+  }, [segments])
 }
 
 function useRegisterServiceWorker() {
@@ -133,6 +198,9 @@ function RootLayout() {
     }
   }, [fontsLoaded])
 
+  // GYM-272 — suivi des écrans (Expo Router ; l'autocapture PostHog ne fonctionnait pas).
+  useScreenTracking()
+
   // PWA setup (web only)
   useRegisterServiceWorker()
   useInjectPwaHead()
@@ -149,9 +217,14 @@ function RootLayout() {
   )
 
   // PostHog : provider monté seulement si la clé est présente (no-op total sinon).
-  // autocapture des écrans activé (suivi de navigation Expo Router automatique).
+  //
+  // 🔴 GYM-272 — `captureScreens: false`. L'autocapture d'écrans n'a JAMAIS fonctionné ici
+  // (le hook de navigation de PostHog est monté au-dessus du navigateur, cf.
+  // lib/analytics.ts) et le suivi est désormais fait par `useScreenTracking`. La laisser à
+  // `true` ne servirait à rien aujourd'hui, mais compterait chaque écran DEUX FOIS le jour
+  // où quelqu'un déplacerait ce provider sous le `<Slot />` en croyant bien faire.
   return posthog ? (
-    <PostHogProvider client={posthog} autocapture={{ captureScreens: true }}>
+    <PostHogProvider client={posthog} autocapture={{ captureScreens: false }}>
       {tree}
     </PostHogProvider>
   ) : (

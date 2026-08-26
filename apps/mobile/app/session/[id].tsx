@@ -15,6 +15,8 @@ import { MaxBookingsModal } from '../../components/session/MaxBookingsModal'
 import { SuspensionModal } from '../../components/session/SuspensionModal'
 import { PaymentRequiredSheet } from '../../components/session/PaymentRequiredSheet'
 import { useBookingStore } from '../../stores/useBookingStore'
+import { NETWORK_OFFLINE_CODE } from '../../lib/edgeInvoke'
+import { captureEvent } from '../../lib/analytics'
 import { useGymProfile } from '../../hooks/useGymProfile'
 import { formatGymAddress } from '../../lib/gymProfile'
 import { supabase } from '../../lib/supabase'
@@ -273,6 +275,13 @@ export default function SessionDetail() {
       setPaymentRequiredVisible(true)
       return
     }
+    // 🔴 GYM-276 — LE DÉFAUT OBSERVÉ EN TEST : réseau coupé, le bouton ne faisait RIEN.
+    // Le membre appuie, rien ne se passe, il recommence. Un échec silencieux se lit comme
+    // une app cassée — alors que la seule chose à dire tient en une phrase.
+    if (result.code === NETWORK_OFFLINE_CODE) {
+      Alert.alert(t('common.offline_title'), t('common.offline_message'))
+      return
+    }
     if (result.status === 'error') return // generic error, logged in store
 
     if (result.status === 'waitlisted') {
@@ -286,17 +295,30 @@ export default function SessionDetail() {
     setBookedCount((c) => c + 1)
     setBookingState('confirmed')
     setBookingModalVisible(true)
-  }, [slotId, createBooking])
+  }, [slotId, createBooking, t])
 
   const handleCancel = useCallback(async () => {
-    await cancelBooking(slotId)
+    // 🔴 GYM-276 — `cancelBooking` LÈVE (EdgeError) et RIEN ne l'attrapait : hors ligne,
+    // l'annulation produisait une promesse rejetée non gérée, la modale restait ouverte et
+    // le membre n'apprenait rien. Même défaut que le bouton de réservation, sur l'autre
+    // moitié du parcours.
+    try {
+      await cancelBooking(slotId)
+    } catch (e) {
+      const code = (e as { code?: string } | null)?.code
+      Alert.alert(
+        code === NETWORK_OFFLINE_CODE ? t('common.offline_title') : t('common.error'),
+        code === NETWORK_OFFLINE_CODE ? t('common.offline_message') : t('session.cancel_failed'),
+      )
+      return
+    }
     setBookedCount((c) => Math.max(0, c - 1))
     setBookingState('available')
     setExistingBookingId(null)
     setWaitlistNotifiedAt(null)
     setWaitlistConfirmationDeadline(null)
     setCancelModalVisible(false)
-  }, [slotId, cancelBooking])
+  }, [slotId, cancelBooking, t])
 
   const handleConfirmWaitlist = useCallback(async () => {
     if (!existingBookingId) return
@@ -311,7 +333,16 @@ export default function SessionDetail() {
       return
     }
 
+    if (result.code === NETWORK_OFFLINE_CODE) {
+      Alert.alert(t('common.offline_title'), t('common.offline_message'))
+      return
+    }
+
+    // GYM-273 — le délai de confirmation s'est écoulé : la place est repartie au suivant.
+    // Mesuré ici parce que c'est le seul endroit où l'app l'apprend (le serveur l'a déjà
+    // fait expirer), et c'est le contre-pied exact de `waitlist_promoted`.
     if (result.code === 'WAITLIST_EXPIRED') {
+      captureEvent('waitlist_expired')
       Alert.alert(t('session.waitlist_expired_title'), t('session.waitlist_expired_message'))
       setBookingState('available')
       setExistingBookingId(null)

@@ -8,7 +8,9 @@
     "error": "An error occurred",
     "or": "or",
     "coming_soon": "Coming soon",
-    "retry": "Retry"
+    "retry": "Retry",
+    "offline_title": "No connection",
+    "offline_message": "Your phone is not connected to the internet. Check your connection and try again."
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
@@ -295,7 +297,8 @@
     "cancel_keep": "Keep my booking",
     "max_bookings_message_one": "You already have {{count}} upcoming booking. Cancel it to create a new one.",
     "max_bookings_message_other": "You already have {{count}} upcoming bookings. Cancel one to create a new one.",
-    "max_bookings_message_generic": "You've reached your limit of upcoming bookings. Cancel one to create a new one."
+    "max_bookings_message_generic": "You've reached your limit of upcoming bookings. Cancel one to create a new one.",
+    "cancel_failed": "The cancellation did not go through. Please try again."
   },
   "bookings": {
     "title": "My classes",
@@ -529,7 +532,8 @@
       "SUBSCRIPTION_ALREADY_ACTIVE": "A subscription is already active.",
       "DB_INSERT_FAILED": "Nothing was charged: the order could not be saved. Please try again.",
       "PLAN_RESOLUTION_FAILED": "Could not check the gym's plan right now. Please try again.",
-      "FALLBACK": "Something went wrong, please try again."
+      "FALLBACK": "Something went wrong, please try again.",
+      "SUBSCRIPTION_PAST_DUE": "Your membership has a payment awaiting settlement: a new one cannot be taken out for now."
     }
   },
   "subscription": {

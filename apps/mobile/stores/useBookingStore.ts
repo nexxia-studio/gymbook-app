@@ -1,17 +1,7 @@
 import { create } from 'zustand'
-import * as Sentry from '@sentry/react-native'
 import { supabase } from '../lib/supabase'
 import { captureEvent } from '../lib/analytics'
-
-// GYM-153 — remontée d'erreur best-effort vers Sentry. Jamais bloquant :
-// une panne du monitoring ne doit pas casser un flux de réservation.
-function reportError(error: unknown): void {
-  try {
-    Sentry.captureException(error)
-  } catch {
-    /* monitoring best-effort */
-  }
-}
+import { tryEdgeInvoke } from '../lib/edgeInvoke'
 
 // GYM-178 — valeurs RÉELLES de bookings.status en base (mapRow caste le statut brut).
 // L'ancienne valeur 'noshow' (sans underscore) était morte : la DB écrit 'no_show', jamais
@@ -109,59 +99,50 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   createBooking: async (slotId: string) => {
     set({ isLoading: true })
     try {
-      const { data, error } = await supabase.functions.invoke('create-booking', {
-        body: { slot_id: slotId },
-      })
+      // GYM-270 — la lecture de `error.context` vit désormais dans lib/edgeInvoke.ts, avec
+      // le filtrage Sentry : SUSPENDED, MAX_BOOKINGS_REACHED et PAYMENT_REQUIRED sont des
+      // refus NORMAUX du produit et n'alertent plus personne. Le cas « erreur métier rendue
+      // en 200 », que ce bloc traitait à part, est absorbé par le helper.
+      const res = await tryEdgeInvoke<Record<string, unknown>>('create-booking', { slot_id: slotId })
 
-      // Handle HTTP errors from Edge Function
-      if (error) {
-        // supabase-js puts the response body in error.context for FunctionsHttpError
-        let errorBody: Record<string, unknown> | null = null
-        try {
-          if ((error as { context?: Response }).context) {
-            errorBody = await (error as { context: Response }).context.json()
-          }
-        } catch { /* body already consumed or not JSON */ }
+      if (!res.ok) {
+        const { code, message, body } = res.error
+        // Repli sur le message quand le corps ne porte pas de code : c'est le comportement
+        // d'origine, conservé — certaines réponses anciennes ne renvoyaient que du texte.
+        const signal = code || message || ''
 
-        const code = (errorBody?.code as string) ?? error.message ?? ''
-
-        if (code.includes('SUSPENDED') || code.includes('suspendu')) {
-          return { status: 'error' as const, code: 'SUSPENDED', suspended_until: (errorBody?.suspended_until as string) ?? null, position: undefined }
+        if (signal.includes('SUSPENDED') || signal.includes('suspendu')) {
+          return { status: 'error' as const, code: 'SUSPENDED', suspended_until: (body?.suspended_until as string) ?? null, position: undefined }
         }
-        if (code.includes('MAX_BOOKINGS')) {
+        if (signal.includes('MAX_BOOKINGS')) {
           // GYM-196 — la limite est configurable par salle : c'est le SERVEUR qui la
           // communique (champ `limit`). L'app ne lit jamais nexxia_gyms et ne doit pas
           // ajouter de requête pour l'apprendre.
-          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', limit: errorBody?.limit as number | undefined, position: undefined }
+          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', limit: body?.limit as number | undefined, position: undefined }
         }
         if (code === 'PAYMENT_REQUIRED') {
           return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
         }
-        reportError(error)
-        return { status: 'error' as const, code: 'ERROR', position: undefined }
+        // Code inconnu : déjà remonté à Sentry par le helper (avec les tags edge_function
+        // et edge_code) — inutile de le signaler une seconde fois ici.
+        return { status: 'error' as const, code: code || 'ERROR', position: undefined }
       }
 
-      // Check if data contains business error (4xx returned as 200 edge case)
-      if (data?.error || data?.code) {
-        const code = (data.code as string) ?? ''
-        if (code === 'SUSPENDED') {
-          return { status: 'error' as const, code: 'SUSPENDED', suspended_until: data.suspended_until as string, position: undefined }
-        }
-        if (code === 'MAX_BOOKINGS_REACHED') {
-          return { status: 'error' as const, code: 'MAX_BOOKINGS_REACHED', limit: data.limit as number | undefined, position: undefined }
-        }
-        if (code === 'PAYMENT_REQUIRED') {
-          return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
-        }
-        return { status: 'error' as const, code, position: undefined }
-      }
+      const data = res.data
 
       // Success — refresh bookings
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
-      captureEvent('booking_created', { status: data.status as string })
-      return { status: data.status as string, position: data.position as number | undefined }
+      // GYM-273 — une place en liste d'attente n'est PAS une réservation : la distinguer
+      // permet de mesurer la pression sur les créneaux complets, qui est la donnée dont un
+      // gérant a besoin pour décider d'ouvrir un cours de plus.
+      const bookingStatus = data.status as string
+      captureEvent('booking_created', { status: bookingStatus })
+      if (bookingStatus === 'waitlisted') {
+        captureEvent('waitlist_joined', { position: (data.position as number | undefined) ?? null })
+      }
+      return { status: bookingStatus, position: data.position as number | undefined }
     } finally {
       set({ isLoading: false })
     }
@@ -171,21 +152,14 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     const booking = get().bookings.find((b) => b.slotId === slotId)
     if (!booking) return
 
-    const { data, error } = await supabase.functions.invoke('cancel-booking', {
-      body: { booking_id: booking.id },
-    })
+    // GYM-270 — `tryEdgeInvoke` couvre les deux anciens chemins d'échec (erreur HTTP et
+    // `data.error` rendu en 200) et a déjà remonté à Sentry ce qui le méritait. On relance
+    // l'EdgeError telle quelle : elle porte le code et le message du serveur, là où
+    // `new Error('Cancel failed')` les perdait tous les deux.
+    const res = await tryEdgeInvoke<{ noshow?: { level: string; hours?: number } }>('cancel-booking', { booking_id: booking.id })
+    if (!res.ok) throw res.error
 
-    if (error) {
-      reportError(error)
-      throw new Error(error.message ?? 'Cancel failed')
-    }
-
-    if (data?.error) {
-      const cancelError = new Error(data.code ?? data.message ?? 'Cancel failed')
-      reportError(cancelError)
-      throw cancelError
-    }
-
+    const data = res.data
     const noshowResult = data?.noshow
 
     // Move to past bookings locally
@@ -210,29 +184,30 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   confirmWaitlist: async (bookingId: string) => {
     set({ isLoading: true })
     try {
-      const { data, error } = await supabase.functions.invoke('confirm-waitlist', {
-        body: { booking_id: bookingId },
-      })
+      // GYM-270 — deuxième copie de la lecture de `error.context` supprimée : c'était la
+      // MÊME que dans createBooking, réécrite. Elles ne traitaient déjà pas les mêmes cas.
+      const res = await tryEdgeInvoke<{ confirmed?: boolean }>('confirm-waitlist', { booking_id: bookingId })
 
-      // Extract code from HTTP error body (FunctionsHttpError puts response on error.context)
-      if (error) {
-        let errorBody: Record<string, unknown> | null = null
-        try {
-          if ((error as { context?: Response }).context) {
-            errorBody = await (error as { context: Response }).context.json()
-          }
-        } catch { /* not JSON */ }
-        const code = (errorBody?.code as string) ?? ''
+      if (!res.ok) {
+        // Rafraîchir dans tous les cas : la place a pu être prise entre-temps (SLOT_FULL),
+        // et la liste affichée doit refléter l'état réel avant que le membre ne réessaie.
         const { data: { user } } = await supabase.auth.getUser()
         if (user) get().fetchBookings(user.id)
-        return { confirmed: false, code }
+        return { confirmed: false, code: res.error.code }
       }
+
+      const data = res.data
 
       // Refresh bookings on success
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
-      return { confirmed: data?.confirmed ?? false }
+      // GYM-273 — la promotion effective : le membre était en attente, il a sa place.
+      // C'est l'issue que mesure la boucle « place libérée → notification → confirmation ».
+      const confirmed = data?.confirmed ?? false
+      if (confirmed) captureEvent('waitlist_promoted')
+
+      return { confirmed }
     } finally {
       set({ isLoading: false })
     }

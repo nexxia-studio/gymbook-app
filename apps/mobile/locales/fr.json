@@ -8,7 +8,9 @@
     "error": "Une erreur est survenue",
     "or": "ou",
     "coming_soon": "Bientot disponible",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "offline_title": "Pas de connexion",
+    "offline_message": "Ton téléphone n'est pas connecté à Internet. Vérifie ta connexion et réessaie."
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
@@ -295,7 +297,8 @@
     "cancel_keep": "Garder ma reservation",
     "max_bookings_message_one": "Vous avez déjà {{count}} réservation à venir. Annulez-la pour pouvoir en créer une nouvelle.",
     "max_bookings_message_other": "Vous avez déjà {{count}} réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle.",
-    "max_bookings_message_generic": "Vous avez atteint votre limite de réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle."
+    "max_bookings_message_generic": "Vous avez atteint votre limite de réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle.",
+    "cancel_failed": "L'annulation n'a pas abouti. Réessaie."
   },
   "bookings": {
     "title": "Mes cours",
@@ -529,7 +532,8 @@
       "SUBSCRIPTION_ALREADY_ACTIVE": "Un abonnement est déjà actif.",
       "DB_INSERT_FAILED": "Rien n'a été débité : la commande n'a pas pu être enregistrée. Réessaie.",
       "PLAN_RESOLUTION_FAILED": "Impossible de vérifier le plan de la salle pour le moment. Réessaie.",
-      "FALLBACK": "Une erreur est survenue, réessaie."
+      "FALLBACK": "Une erreur est survenue, réessaie.",
+      "SUBSCRIPTION_PAST_DUE": "Ton abonnement a un paiement en attente de régularisation : impossible d'en souscrire un nouveau pour l'instant."
     }
   },
   "subscription": {
