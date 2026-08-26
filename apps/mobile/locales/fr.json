@@ -12,6 +12,15 @@
     "offline_title": "Pas de connexion",
     "offline_message": "Ton téléphone n'est pas connecté à Internet. Vérifie ta connexion et réessaie."
   },
+  "gym_select": {
+    "title": "Trouve ta salle",
+    "subtitle": "Cherche ta salle par son nom pour accéder à ses créneaux.",
+    "placeholder": "Nom de la salle",
+    "hint_min_length": "Tape au moins {{min}} lettres du nom de ta salle.",
+    "empty": "Aucune salle trouvée. Vérifie l'orthographe, ou demande son nom exact à ta salle.",
+    "rate_limited": "Trop de recherches, réessaie dans un instant.",
+    "error": "La recherche n'a pas abouti. Réessaie dans un instant."
+  },
   "welcome": {
     "tagline": "Move More. Feel Better.",
     "login": "Se connecter",
