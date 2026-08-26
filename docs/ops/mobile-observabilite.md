@@ -63,6 +63,8 @@ environment: process.env.EXPO_PUBLIC_APP_VARIANT === 'staging' ? 'staging' : 'pr
 
 **Un seul projet Sentry suffit**, et c'est un choix : `environment` y est un filtre de **premier rang** — sélecteur global, alertes, taux de régression. Contrairement à PostHog (§4), il n'y a pas de risque qu'une analyse existante l'ignore par accident.
 
+⚠️ **Asymétrie avec PostHog, à connaître avant de « corriger » cette section par analogie** : côté Sentry, `environment = production` est **juste**, y compris pour les builds antérieurs à ce lot — le SDK pose `production` par défaut quand l'option n'est pas fournie (c'est ce qui avait été constaté dans les tags à GYM-276). Côté PostHog, la propriété n'existait pas du tout : ses anciens événements sont à `null`, d'où le filtre `IS NOT staging` du §4. Même mot, deux comportements.
+
 **Deuxième séparation, gratuite** : la release porte l'identifiant natif du bundle, et GYM-258 les distingue déjà —
 
 ```
@@ -74,8 +76,20 @@ Les deux apps ne peuvent donc pas se confondre, même à environnement égal.
 
 ## 4. 🔴 PostHog : un seul projet, une super-propriété — ET LA DETTE QUI VA AVEC
 
-> ## ⚠️ TOUTE ANALYSE POSTHOG DOIT FILTRER `environment = production`.
+> ## ⚠️ TOUTE ANALYSE POSTHOG DOIT FILTRER `environment IS NOT staging`.
 > ## Un chiffre lu sans ce filtre inclut les tests d'Antoine.
+>
+> ### 🔴 Et surtout : **PAS** `environment = production`.
+> La propriété n'existe **que depuis ce lot**. Tous les événements déjà en base, et tous
+> ceux qu'émet l'app de production tant qu'elle tourne sur un build antérieur, ont
+> `environment` **à null** — constaté sur les données. Filtrer sur « = production »
+> **exclurait toute la production actuelle et tout l'historique**, c'est-à-dire l'inverse
+> exact du but recherché.
+>
+> « IS NOT staging » retient le `null` **et** le `production` : c'est le seul filtre juste
+> aujourd'hui. « = production » ne le redeviendra que lorsque la **totalité** de la base
+> installée aura une build postérieure à ce lot — donc pas avant longtemps, personne ne
+> contrôlant la date de mise à jour des téléphones des membres.
 
 C'est la contrepartie assumée du **plan gratuit**, qui n'autorise qu'un seul projet — et
 c'est l'unique projet de l'organisation. La séparation par construction (un projet dédié
@@ -216,7 +230,7 @@ Le cas « annuler » n'était pas dans le signalement : il est apparu en suivant
 | # | Geste | Bloquant pour |
 |---|---|---|
 | 1 | **Rien.** DSN Sentry et clé PostHog sont dans `eas.json` : la prochaine build `preview-staging` envoie dans les deux outils | — |
-| 2 | **Reprendre les analyses PostHog existantes** pour y ajouter `environment = production` (cf. §4) | l'exactitude des chiffres |
+| 2 | **Reprendre les analyses PostHog existantes** pour y ajouter `environment IS NOT staging` — ⚠️ **pas** `= production`, qui exclurait tout l'historique (cf. §4) | l'exactitude des chiffres |
 | 3 | *(optionnel)* Basculer ces deux variables de `eas.json` vers l'environnement EAS `preview`, pour aligner staging sur le mécanisme de la prod | — |
 
 Aucune commande `eas` de création ou de modification n'a été exécutée par ces lots ; seul
@@ -226,6 +240,7 @@ Aucune commande `eas` de création ou de modification n'a été exécutée par c
 
 1. **Build `preview-staging`** → installer l'app « Viniz Staging ».
 2. **Sentry** : provoquer une erreur. L'événement doit arriver avec `environment: staging` et une release `app.viniz.staging@…`. Vérifier au passage qu'un événement de l'app Dopamine porte bien `environment: production` — c'est la moitié qui protège Nico.
-3. **PostHog** : les événements de l'app staging arrivent dans le projet GymBook, **tous porteurs de `environment = staging`** — y compris les `$screen` et les événements de cycle de vie, que personne n'émet à la main. Vérifier symétriquement qu'un événement de l'app Dopamine porte `environment = production`.
-   ⚠️ Puis **ajouter le filtre `environment = production` aux analyses existantes** — sans quoi elles comptent désormais les deux apps (§4).
+3. **PostHog** : les événements de l'app staging arrivent dans le projet GymBook, **tous porteurs de `environment = staging`** — y compris les `$screen` et les événements de cycle de vie, que personne n'émet à la main.
+   ⚠️ **Ne PAS s'attendre à `environment = production` sur les événements de Dopamine** : l'app de production tourne encore sur un build antérieur à ce lot et n'émet pas la propriété — ses événements ont `environment` à **null**. C'est normal, et ça le restera jusqu'à ce que toute la base installée ait migré.
+   ⚠️ Puis **ajouter le filtre `environment IS NOT staging` aux analyses existantes** — et surtout pas `= production`, qui les viderait de tout l'historique (§4).
 4. **Hors ligne** : mode avion, puis réserver / annuler / confirmer une place. Trois messages « Pas de connexion ». Et **aucun** événement correspondant dans Sentry.

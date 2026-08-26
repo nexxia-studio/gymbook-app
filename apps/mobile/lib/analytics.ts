@@ -18,10 +18,22 @@
 // disponible. On bascule donc sur l'étiquetage, en connaissance de cause :
 //
 // ⚠️ CONTREPARTIE ASSUMÉE, ET ELLE EST RÉELLE : les deux apps partagent le même magasin.
-// TOUTE analyse doit désormais filtrer `environment = production`, y compris celles déjà
-// écrites. Un chiffre lu sans ce filtre inclut les tests d'Antoine — et un chiffre
-// légèrement faux se lit exactement comme un chiffre juste. C'est écrit en toutes lettres
-// dans docs/ops/mobile-observabilite.md, parce que c'est le genre de dette qui s'oublie.
+// TOUTE analyse doit désormais écarter le staging, sans quoi elle compte les tests
+// d'Antoine — et un chiffre légèrement faux se lit exactement comme un chiffre juste.
+//
+// 🔴 LE FILTRE EST `environment IS NOT staging`, PAS `environment = production`.
+// La propriété n'existe QUE depuis ce lot : tous les événements déjà en base, et tous
+// ceux qu'émet l'app de production tant qu'elle tourne sur un build antérieur, ont
+// `environment` À NULL. Filtrer sur « = production » exclurait donc TOUTE la production
+// actuelle et TOUT l'historique — l'inverse exact du but. « IS NOT staging » retient le
+// null et le 'production' : c'est le seul filtre juste aujourd'hui.
+//
+// « = production » ne redeviendra correct que lorsque la TOTALITÉ de la base installée
+// aura une build postérieure à ce lot. Autant dire pas avant longtemps : personne ne
+// contrôle la date de mise à jour des téléphones des membres.
+//
+// Écrit aussi en toutes lettres dans docs/ops/mobile-observabilite.md, parce que c'est le
+// genre de détail qui se perd et qui fausse un chiffre sans jamais lever d'alerte.
 //
 // LE MÉCANISME : une SUPER-PROPRIÉTÉ PERSISTANTE, posée une fois via `register()`.
 //
