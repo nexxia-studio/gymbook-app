@@ -117,11 +117,28 @@ const after = strip(read(rel))
 // vaille : « la suite des couleurs EFFECTIVEMENT affichées est-elle inchangée ? » Qu'une
 // couleur vienne d'un jeton ou d'un littéral ne change rien à ce qu'on voit — et un
 // littéral oublié là où un jeton était attendu reste visible dans le rapport `restes`.
-const RESTE_OU_JETON = new RegExp(`${TOKEN.source}|${MOVE.source}`, 'g')
-const suite = (src) => [...src.matchAll(RESTE_OU_JETON)].map((m) => {
-  if (m[1]) return DOP[m[1]]                    // tokens.X
-  if (m[2]) return SEM[m[2]]                    // SEMANTIC.X
-  return valeurAvant({ 0: m[0], 1: m[3], 2: m[4], 3: m[5] })
+// ── L'EXTRACTION D'UN MODULE PARTAGÉ, ET CE QU'ELLE FAIT À LA SUITE ──────────────────
+// 🔴 SORTIR SIX COULEURS D'UN FICHIER VERS UN MODULE LES RETIRE DE SA SUITE. C'est le cas
+// de la palette d'avatars (A-7) : `edit.tsx` et `ProfileHeader.tsx` portaient chacun le
+// tableau en clair ; ils n'en gardent qu'un import. Sans cette expansion, les deux
+// fichiers rendaient -6 et passaient pour des régressions — alors que l'extraction est
+// précisément ce que le cockpit a demandé.
+//
+// ⚠️ ELLE EST POSÉE À L'IMPORT, ET CE N'EST PAS ARBITRAIRE : dans les DEUX fichiers, le
+// tableau était la PREMIÈRE couleur du fichier (vérifié). L'import occupe donc la même
+// position dans la suite, et l'ordre est conservé — ce que ce script vérifie.
+const PALETTE = (() => {
+  const m = read('lib/theme/palette.ts').match(/AVATAR_COLORS = \[([^\]]+)\]/)
+  return m ? [...m[1].matchAll(/'(#[0-9a-fA-F]{6})'/g)].map((x) => x[1].toUpperCase()) : []
+})()
+const IMPORT_PALETTE = /from '[^']*theme\/palette'/
+
+const RESTE_OU_JETON = new RegExp(`${IMPORT_PALETTE.source}|${TOKEN.source}|${MOVE.source}`, 'g')
+const suite = (src) => [...src.matchAll(RESTE_OU_JETON)].flatMap((m) => {
+  if (IMPORT_PALETTE.test(m[0])) return PALETTE  // le module partagé, déplié à sa place
+  if (m[1]) return [DOP[m[1]]]                   // tokens.X
+  if (m[2]) return [SEM[m[2]]]                   // SEMANTIC.X
+  return [valeurAvant({ 0: m[0], 1: m[3], 2: m[4], 3: m[5] })]
 })
 const A = suite(before)
 const B = suite(after)

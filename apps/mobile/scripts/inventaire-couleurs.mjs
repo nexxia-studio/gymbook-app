@@ -233,7 +233,7 @@ const PALETTES = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|gre
   + '|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
 const UTILS = 'bg|text|border|fill|stroke|ring|divide|placeholder|shadow'
 const RE = new RegExp(
-  '([a-z-]*)(move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border))\\b'
+  '([a-z-]*)(move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border))(?:\\/([0-9]+))?\\b'
   + '|(#[0-9a-fA-F]{3,8})\\b'
   + `|\\b(${UTILS})-(${PALETTES})-([0-9]{2,3})(?:\\/([0-9]+))?\\b`
   + `|\\b(${UTILS})-(white|black|transparent)(?:\\/([0-9]+))?\\b`
@@ -261,10 +261,10 @@ for (const abs of DIRS.flatMap((d) => walk(join(ROOT, d)))) {
   src.split('\n').forEach((line, i) => {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return // les commentaires ne peignent rien
     for (const m of line.matchAll(RE)) {
-      const [prefix, cls, hex] = [m[1] ?? '', m[2], m[3]]
-      const [palUtil, palFam, palTon, palAlpha] = [m[4], m[5], m[6], m[7]]
-      const [bwUtil, bwName, bwAlpha] = [m[8], m[9], m[10]]
-      const rgbaLit = m[11]
+      const [prefix, cls, clsAlpha, hex] = [m[1] ?? '', m[2], m[3], m[4]]
+      const [palUtil, palFam, palTon, palAlpha] = [m[5], m[6], m[7], m[8]]
+      const [bwUtil, bwName, bwAlpha] = [m[9], m[10], m[11]]
+      const rgbaLit = m[12]
 
       let value = null
       let raw = null
@@ -272,8 +272,14 @@ for (const abs of DIRS.flatMap((d) => walk(join(ROOT, d)))) {
       let utilPrefix = prefix
 
       if (cls) {
+        // ⚠️ `bg-move-accent/15` N'EST PAS `bg-move-accent`. Même règle que pour la
+        // palette Tailwind : un lavis à 15 % n'est pas la couleur pleine, et
+        // `tokens.accent` ne le vaut pas. Sans ce groupe, l'inventaire annonçait 15
+        // occurrences migrables qui, migrées, auraient rempli à 100 % des fonds prévus
+        // à 5, 10, 15, 30 ou 50 % — la régression la plus voyante du lot.
         value = MOVE_VALUES[cls]
-        raw = prefix + cls
+        raw = prefix + cls + (clsAlpha ? '/' + clsAlpha : '')
+        alpha = clsAlpha ?? null
       } else if (hex) {
         value = hex.toUpperCase()
         raw = hex

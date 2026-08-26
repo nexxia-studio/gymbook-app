@@ -1,5 +1,6 @@
 import { ScrollView, TouchableOpacity, Text } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 interface DayTabsProps {
   days: Date[]
@@ -17,6 +18,7 @@ function formatDayPill(date: Date, offset: number, t: (key: string) => string, m
 
 export function DayTabs({ days, activeIndex, onSelect }: DayTabsProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const months = t('home.months', { returnObjects: true }) as string[]
 
   return (
@@ -33,12 +35,12 @@ export function DayTabs({ days, activeIndex, onSelect }: DayTabsProps) {
             key={i}
             onPress={() => onSelect(i)}
             activeOpacity={0.7}
-            className={`rounded-xl px-4 py-2.5 ${
-              active ? 'bg-move-dark' : 'border border-move-border bg-transparent'
-            }`}
+            className={`rounded-xl px-4 py-2.5 ${active ? '' : 'border bg-transparent'}`}
+            style={active ? { backgroundColor: tokens.background } : { borderColor: tokens.border }}
           >
             <Text
-              className={`font-dmsans-medium text-xs ${active ? 'text-white' : 'text-move-text-secondary'}`}
+              className="font-dmsans-medium text-xs"
+              style={{ color: active ? tokens.onBackground : tokens.onSurfaceSecondary }}
             >
               {formatDayPill(date, i, t, months)}
             </Text>

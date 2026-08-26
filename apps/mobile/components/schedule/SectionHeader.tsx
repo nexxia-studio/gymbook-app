@@ -1,5 +1,6 @@
 import { View, Text } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 interface SectionHeaderProps {
   date: Date
@@ -7,6 +8,7 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ date }: SectionHeaderProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
 
   if (!date || isNaN(date.getTime())) {
     return null
@@ -20,8 +22,8 @@ export function SectionHeader({ date }: SectionHeaderProps) {
   const label = `${dayName} ${date.getDate()} ${monthName}`.toUpperCase()
 
   return (
-    <View className="bg-move-bg px-1 pb-2 pt-4">
-      <Text className="font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+    <View className="px-1 pb-2 pt-4" style={{ backgroundColor: tokens.page }}>
+      <Text className="font-dmsans-bold text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
         {label}
       </Text>
     </View>

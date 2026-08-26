@@ -8,6 +8,7 @@
 // décider un membre entre venir ce soir ou demain.
 import { View, Text } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface OpenGymAvailabilityProps {
   /** Créneaux du jour encore ouverts (cf. `availableSlotCount`). */
@@ -24,12 +25,14 @@ export function OpenGymAvailability({ available }: OpenGymAvailabilityProps) {
   // familles de cartes se lisent d'un même coup d'œil dans une liste qui les mélange.
   const full = available <= 0
   const tight = !full && available < TIGHT_THRESHOLD
+  // Fonds : lavis à 10 %, aucun jeton ne les vaut — ils restent des classes.
+  // GYM-286 — A-2, EN ATTENTE : `text-green-600` #16A34A n'est pas `SEMANTIC.success`.
   const bg = full ? 'bg-red-500/10' : tight ? 'bg-orange-500/10' : 'bg-green-500/10'
-  const fg = full ? 'text-red-500' : tight ? 'text-orange-500' : 'text-green-600'
+  const fg = full ? SEMANTIC.danger : tight ? SEMANTIC.warning : '#16A34A'
 
   return (
     <View className={`rounded-lg px-2.5 py-1 ${bg}`}>
-      <Text className={`font-dmsans-bold text-xs ${fg}`}>
+      <Text className="font-dmsans-bold text-xs" style={{ color: fg }}>
         {full
           ? t('open_gym.full_day')
           : available === 1
