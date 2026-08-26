@@ -12,7 +12,7 @@ import { CancelModal } from '../../components/session/CancelModal'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { useBookingStore, type FavoritePattern } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
-import { GYM_ID } from '../../constants/dopamine'
+import { useActiveGymId } from '../../lib/activeGym'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 
 function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
@@ -47,6 +47,9 @@ interface FavoriteCardData {
 }
 
 export default function Bookings() {
+  // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
+  const gymId = useActiveGymId()
+
   const { t } = useTranslation()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
@@ -141,6 +144,9 @@ export default function Bookings() {
         setFavoritesData([])
         return
       }
+      // ⚠️ Sans salle résolue, on ne requête pas (cf. lib/activeGym). N'arrive qu'en
+      // mode `multi`, avant l'arrivée du profil.
+      if (!gymId) return
       // Future slots for this gym + activity id → activité (nom, visuel, teinte,
       // durée, capacité) pour les motifs sans occurrence à venir, dont la carte doit
       // rester complète.
@@ -148,14 +154,14 @@ export default function Bookings() {
         supabase
           .from('time_slots')
           .select('id, activity_id, starts_at, activities(name, color, image_url, duration_min, default_capacity), coaches(name)')
-          .eq('gym_id', GYM_ID)
+          .eq('gym_id', gymId)
           .gt('starts_at', new Date().toISOString())
           .neq('status', 'cancelled')
           .order('starts_at'),
         supabase
           .from('activities')
           .select('id, name, color, image_url, duration_min, default_capacity')
-          .eq('gym_id', GYM_ID),
+          .eq('gym_id', gymId),
       ])
       if (cancelled) return
 
@@ -211,7 +217,9 @@ export default function Bookings() {
     }
     loadFavorites()
     return () => { cancelled = true }
-  }, [favorites, t])
+    // `gymId` en dépendance : les motifs favoris se résolvent sur les créneaux de la
+    // salle, ils doivent se recalculer si elle change (cf. GYM-289).
+  }, [favorites, t, gymId])
 
   return (
     <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>

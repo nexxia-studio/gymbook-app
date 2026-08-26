@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { LEGAL_VERSION } from '../constants/legal/meta'
-import { captureEvent, identifyUser, resetAnalytics } from '../lib/analytics'
+import { captureEvent, identifyUser, resetAnalytics, setAnalyticsGym } from '../lib/analytics'
 import { clearSelectedGymSlug, GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
 
 // GYM-289 — 🔴 LA SEULE RÈGLE DE REMPLISSAGE DE `gym_id`. Elle ne vit qu'ici.
@@ -98,7 +98,12 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   session: null,
-  gym_id: null,
+  // GYM-289 — ⚠️ DÈS L'ÉTAT INITIAL, PAS SEULEMENT À L'OUVERTURE DE SESSION. Plusieurs
+  // écrans lisent la salle DÉCONNECTÉ (accueil, « mot de passe oublié », profil de la
+  // salle). En `single`, la constante doit donc être là avant toute session : c'est le
+  // comportement d'avant ce lot, et le laisser à `null` aurait fait disparaître ces
+  // lectures-là chez Dopamine. En `multi`, `null` — il n'y a rien de vrai à répondre.
+  gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
   profile: null,
   isLoading: false,
   error: null,
@@ -176,7 +181,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     // change pour Dopamine. Et volontairement APRÈS le signOut : la session est ce qui
     // compte, une purge locale qui échoue ne doit pas empêcher de se déconnecter.
     await clearSelectedGymSlug()
-    set({ user: null, session: null, gym_id: null, profile: null, error: null, isLoading: false })
+    // ⚠️ `gym_id` retombe sur l'état INITIAL, pas sur `null` : en `single` la salle du
+    // build reste vraie une fois déconnecté, exactement comme avant ce lot.
+    set({
+      user: null, session: null, profile: null, error: null, isLoading: false,
+      gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
+    })
   },
 
   refreshProfile: async () => {
@@ -195,6 +205,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       .eq('id', user.id)
       .single()
     if (data) {
+      // GYM-289 — l'analytique apprend la salle EN MÊME TEMPS que l'app. Sans effet en
+      // `single`, où la valeur est juste depuis le démarrage.
+      setAnalyticsGym((data.gym_id as string | null) ?? null)
       set({
         // 🔴 EN `single`, LE SERVEUR N'EST PAS LU. Le critère du chantier est que l'app de
         // Dopamine se comporte exactement comme avant ; lire ici une valeur qu'elle n'a
@@ -232,7 +245,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: session?.user ?? null,
         session,
-        gym_id: session ? initialSessionGymId() : null,
+        gym_id: session ? initialSessionGymId() : (GYM_MODE === 'single' ? FIXED_GYM_ID : null),
       })
       if (session?.user) identifyUser(session.user.id)
       else resetAnalytics()
