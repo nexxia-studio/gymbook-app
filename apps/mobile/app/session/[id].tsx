@@ -20,11 +20,14 @@ import { captureEvent } from '../../lib/analytics'
 import { useGymProfile } from '../../hooks/useGymProfile'
 import { formatGymAddress } from '../../lib/gymProfile'
 import { supabase } from '../../lib/supabase'
-import { GYM_ID } from '../../constants/dopamine'
+import { useActiveGymId } from '../../lib/activeGym'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 
 export default function SessionDetail() {
+  // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
+  const gymId = useActiveGymId()
+
   const { t } = useTranslation()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -197,6 +200,8 @@ export default function SessionDetail() {
   useEffect(() => {
     async function fetchOtherSlots() {
       if (!slotId) return
+      // ⚠️ Sans salle résolue, on ne requête pas (cf. lib/activeGym).
+      if (!gymId) return
       const now = new Date()
       const in14Days = new Date(now)
       in14Days.setDate(in14Days.getDate() + 14)
@@ -204,7 +209,7 @@ export default function SessionDetail() {
       const { data } = await supabase
         .from('time_slots')
         .select('id, starts_at, ends_at, capacity, bookings_count, status')
-        .eq('gym_id', GYM_ID)
+        .eq('gym_id', gymId)
         .neq('id', slotId)
         .neq('status', 'cancelled')
         .gte('starts_at', now.toISOString())
@@ -248,7 +253,9 @@ export default function SessionDetail() {
       }))
     }
     fetchOtherSlots()
-  }, [slotId, duration, days, months])
+    // `gymId` en dépendance : la liste des autres créneaux doit se recharger si la
+    // salle change (cf. GYM-289).
+  }, [slotId, duration, days, months, gymId])
 
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
 

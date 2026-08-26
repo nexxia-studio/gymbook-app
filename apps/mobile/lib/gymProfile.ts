@@ -14,7 +14,7 @@
 // siège vaut « Route du Condroz 95 A, 4121 Neupré » alors que la salle est « Avenue du
 // Centenaire 313, 4102 Ougrée » : les confondre renverrait le membre à la mauvaise porte.
 import { supabase } from './supabase'
-import { GYM_ID } from '../constants/dopamine'
+import { getActiveGymId } from './activeGym'
 
 /** Identité de la salle telle qu'on peut la MONTRER à un membre. */
 export interface GymProfile {
@@ -73,11 +73,19 @@ export async function getGymProfile(): Promise<GymProfile | null> {
 
   inFlight = (async () => {
     try {
+      // GYM-289 — la salle vient de la source unique. ⚠️ Sans elle, on ne requête pas et
+      // on ne MET RIEN EN CACHE : l'absence de salle est transitoire (mode `multi`, avant
+      // l'arrivée du profil), et la mémoriser masquerait l'adresse de la salle pour tout
+      // le reste de la session — exactement le piège que ce module documente déjà pour
+      // les échecs réseau.
+      const gymId = getActiveGymId()
+      if (!gymId) return null
+
       const { data, error } = await supabase
         .from('nexxia_gyms')
         // ⚠️ Aucune colonne legal_* ici — voir l'en-tête du module.
         .select('name, address, postal_code, city, email, slug, subdomain, booking_horizon_days')
-        .eq('id', GYM_ID)
+        .eq('id', gymId)
         .maybeSingle()
 
       if (error || !data) return null

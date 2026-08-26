@@ -1,10 +1,45 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { GYM_ID } from '../constants/dopamine'
 import { LEGAL_VERSION } from '../constants/legal/meta'
-import { captureEvent, identifyUser, resetAnalytics } from '../lib/analytics'
-import { clearSelectedGymSlug } from '../lib/gymResolver'
+import { captureEvent, identifyUser, resetAnalytics, setAnalyticsGym } from '../lib/analytics'
+import { clearSelectedGymSlug, GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
+
+// GYM-289 — 🔴 LA SEULE RÈGLE DE REMPLISSAGE DE `gym_id`. Elle ne vit qu'ici.
+//
+// À l'instant où une session s'ouvre, on ne connaît pas encore le profil. Deux réponses,
+// et une seule est sûre dans chaque mode :
+//
+//  · `single` → la constante du build, TOUT DE SUITE. C'est le comportement d'avant ce
+//    lot, à l'identique : aucune attente, aucune requête supplémentaire, aucune fenêtre
+//    pendant laquelle un écran verrait `null`. Le critère du chantier est que l'app de
+//    Nico ne change pas — elle ne change pas.
+//
+//  · `multi` → `null`, le temps que `refreshProfile` lise `profiles.gym_id`. ⚠️ POSER LA
+//    CONSTANTE ICI SERAIT LE BUG QU'ON CORRIGE : elle vaut l'uuid de repli de Dopamine,
+//    et chaque écran monté avant le profil interrogerait la salle d'un autre client.
+//    Mieux vaut une seconde sans données qu'une seconde avec les mauvaises.
+function initialSessionGymId(): string | null {
+  return GYM_MODE === 'single' ? FIXED_GYM_ID : null
+}
+
+/**
+ * GYM-289 — ⚠️ CELLE-CI EST UNE ÉCRITURE, PAS UNE LECTURE. Elle alimente les métadonnées
+ * d'inscription, que le trigger `handle_new_user` transforme en `profiles.gym_id` : elle
+ * décide dans quelle salle un compte est CRÉÉ.
+ *
+ * En `single`, valeur inchangée — la salle du build, comme avant ce lot.
+ *
+ * En `multi`, `null` DÉLIBÉRÉMENT, et c'est un manque assumé : l'app connaît le SLUG
+ * choisi, pas l'identifiant de la salle, et aucune fonction publique ne fait la
+ * conversion. Poser la constante à la place créerait le compte chez DOPAMINE — un membre
+ * d'un client inscrit dans les données d'un autre, ce qui ne se rattrape pas côté app.
+ * Un compte sans salle donne une app vide, visible et réparable ; c'est le moins mauvais
+ * des deux échecs. Le parcours d'inscription multi-salles reste à écrire.
+ */
+function signupGymId(): string | null {
+  return GYM_MODE === 'single' ? FIXED_GYM_ID : null
+}
 
 function mapError(msg: string): string {
   if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
@@ -63,7 +98,12 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   session: null,
-  gym_id: null,
+  // GYM-289 — ⚠️ DÈS L'ÉTAT INITIAL, PAS SEULEMENT À L'OUVERTURE DE SESSION. Plusieurs
+  // écrans lisent la salle DÉCONNECTÉ (accueil, « mot de passe oublié », profil de la
+  // salle). En `single`, la constante doit donc être là avant toute session : c'est le
+  // comportement d'avant ce lot, et le laisser à `null` aurait fait disparaître ces
+  // lectures-là chez Dopamine. En `multi`, `null` — il n'y a rien de vrai à répondre.
+  gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
   profile: null,
   isLoading: false,
   error: null,
@@ -81,7 +121,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw error
     }
     captureEvent('login_succeeded')
-    set({ user: data.user, session: data.session, gym_id: GYM_ID, isLoading: false })
+    set({ user: data.user, session: data.session, gym_id: initialSessionGymId(), isLoading: false })
   },
 
   signUp: async (email, password, firstName, lastName, phone, consents) => {
@@ -95,7 +135,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           last_name: lastName,
           phone: phone ?? null,
           role: 'member',
-          gym_id: GYM_ID,
+          gym_id: signupGymId(),
           preferred_language: 'fr',
           privacy_policy_accepted: String(consents?.privacy ?? false),
           terms_accepted: String(consents?.terms ?? false),
@@ -118,7 +158,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const needsConfirmation = !data.session
     captureEvent('signup_completed', { needs_confirmation: needsConfirmation })
     if (data.session) {
-      set({ user: data.user, session: data.session, gym_id: GYM_ID, isLoading: false })
+      set({ user: data.user, session: data.session, gym_id: initialSessionGymId(), isLoading: false })
     } else {
       set({ isLoading: false })
     }
@@ -141,7 +181,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     // change pour Dopamine. Et volontairement APRÈS le signOut : la session est ce qui
     // compte, une purge locale qui échoue ne doit pas empêcher de se déconnecter.
     await clearSelectedGymSlug()
-    set({ user: null, session: null, gym_id: null, profile: null, error: null, isLoading: false })
+    // ⚠️ `gym_id` retombe sur l'état INITIAL, pas sur `null` : en `single` la salle du
+    // build reste vraie une fois déconnecté, exactement comme avant ce lot.
+    set({
+      user: null, session: null, profile: null, error: null, isLoading: false,
+      gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
+    })
   },
 
   refreshProfile: async () => {
@@ -153,11 +198,22 @@ export const useAuthStore = create<AuthState>((set) => ({
       // la colonne peut exister en base, la migration passer, l'écran être écrit — si le
       // SELECT ne la demande pas, elle reste indéfiniment vide et le défaut se cherche
       // partout sauf ici. Ce SELECT est la SEULE source de MemberProfile.
-      .select('id, first_name, last_name, email, phone, avatar_url, noshow_count, suspended_until, marketing_consent, date_of_birth, address_line, emergency_contact_name, member_since, access_badge_code')
+      // GYM-289 — `gym_id` AJOUTÉ. C'est la colonne que le serveur tient à jour (salle
+      // ACTIVE, GYM-283) et que l'app n'avait jamais demandée : tout le défaut du
+      // white-label tenait dans son absence de cette liste.
+      .select('id, gym_id, first_name, last_name, email, phone, avatar_url, noshow_count, suspended_until, marketing_consent, date_of_birth, address_line, emergency_contact_name, member_since, access_badge_code')
       .eq('id', user.id)
       .single()
     if (data) {
+      // GYM-289 — l'analytique apprend la salle EN MÊME TEMPS que l'app. Sans effet en
+      // `single`, où la valeur est juste depuis le démarrage.
+      setAnalyticsGym((data.gym_id as string | null) ?? null)
       set({
+        // 🔴 EN `single`, LE SERVEUR N'EST PAS LU. Le critère du chantier est que l'app de
+        // Dopamine se comporte exactement comme avant ; lire ici une valeur qu'elle n'a
+        // jamais lue serait déjà un changement, et un profil dont le gym_id aurait dérivé
+        // en base ferait basculer l'app sur une autre salle sans que rien ne le dise.
+        ...(GYM_MODE === 'single' ? {} : { gym_id: (data.gym_id as string | null) ?? null }),
         profile: {
           id: data.id,
           firstName: data.first_name ?? '',
@@ -181,7 +237,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session) {
-      set({ user: data.session.user, session: data.session, gym_id: GYM_ID })
+      set({ user: data.session.user, session: data.session, gym_id: initialSessionGymId() })
       // PostHog identify avec l'UUID interne Supabase (jamais l'email — RGPD).
       identifyUser(data.session.user.id)
     }
@@ -189,7 +245,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: session?.user ?? null,
         session,
-        gym_id: session ? GYM_ID : null,
+        gym_id: session ? initialSessionGymId() : (GYM_MODE === 'single' ? FIXED_GYM_ID : null),
       })
       if (session?.user) identifyUser(session.user.id)
       else resetAnalytics()

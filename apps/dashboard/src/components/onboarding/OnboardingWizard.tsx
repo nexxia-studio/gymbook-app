@@ -38,6 +38,15 @@ import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 
 const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus] as const
 
+/**
+ * Palette Viniz proposée par défaut. ⚠️ SUGGÉRÉE, JAMAIS ENREGISTRÉE SANS GESTE : ces
+ * valeurs ne partent en base que si le gérant les valide explicitement. Elles sont les
+ * mêmes que le repli des emails (_shared/gym-branding.ts) et celui du thème mobile
+ * (lib/theme/resolveTheme.ts) — les trois surfaces doivent replier sur la MÊME palette.
+ */
+const VINIZ_PRIMARY = '#C8FF3D'
+const VINIZ_SECONDARY = '#2D1B69'
+
 export function OnboardingWizard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -54,8 +63,22 @@ export function OnboardingWizard() {
 
   // Étape 1 — marque de la salle.
   const [logoUrl, setLogoUrl] = useState('')
-  const [primary, setPrimary] = useState('#C8F000')
-  const [secondary, setSecondary] = useState('#111111')
+  // ── GYM-284 — CHAMPS VIDES, SUGGESTION VINIZ AFFICHÉE ───────────────────────────────
+  //
+  // 🔴 `null` VEUT DIRE « PAS ENCORE CHOISI », ET C'EST TOUT L'OBJET DU LOT. Le wizard
+  // pré-remplissait #C8F000 / #111111 — le lime de Dopamine — exactement comme le DEFAULT
+  // de la base, désormais passé à NULL. Corriger l'un sans l'autre n'aurait rien réglé :
+  // le formulaire aurait continué d'ÉCRIRE ce que le schéma a cessé d'imposer.
+  //
+  // ⚠️ ET PRÉ-REMPLIR LA PALETTE VINIZ AURAIT REPRODUIT LE MÊME DÉFAUT D'UN CRAN. Une
+  // valeur pré-remplie est enregistrée comme un CHOIX : la base ne distinguerait plus
+  // « cette salle a choisi le lime Viniz » de « cette salle n'a rien décidé », et le repli
+  // côté client — celui qui sait résoudre le contraste — ne s'appliquerait jamais.
+  //
+  // Un champ vide invite à choisir ; la pastille montre ce qu'on aura si l'on ne choisit
+  // pas. On ne perd donc pas l'aperçu, on perd seulement le faux choix.
+  const [primary, setPrimary] = useState<string | null>(null)
+  const [secondary, setSecondary] = useState<string | null>(null)
   const [brandLoaded, setBrandLoaded] = useState(false)
   const [savingBrand, setSavingBrand] = useState(false)
 
@@ -117,6 +140,7 @@ export function OnboardingWizard() {
       .from('nexxia_gyms')
       .update({
         logo_url: logoUrl.trim() || null,
+        // `null` traverse jusqu'en base : c'est la valeur qui dit « pas encore choisi ».
         primary_color: primary,
         secondary_color: secondary,
       })
@@ -270,11 +294,15 @@ export function OnboardingWizard() {
             <ColorField
               label={t('onboarding.step1.primary_label')}
               value={primary}
+              suggestion={VINIZ_PRIMARY}
+              hint={t('onboarding.step1.color_hint')}
               onChange={setPrimary}
             />
             <ColorField
               label={t('onboarding.step1.secondary_label')}
               value={secondary}
+              suggestion={VINIZ_SECONDARY}
+              hint={t('onboarding.step1.color_hint')}
               onChange={setSecondary}
             />
           </div>
@@ -376,28 +404,47 @@ function LimitRow({ label, value }: { label: string; value: number | null }) {
   )
 }
 
-function ColorField({ label, value, onChange }: {
+/**
+ * GYM-284 — champ couleur à trois états : choisie, pas encore choisie, en cours de saisie.
+ *
+ * ⚠️ `<input type="color">` N'A PAS D'ÉTAT VIDE. Lui passer une chaîne vide le fait
+ * retomber sur #000000 : le gérant verrait du NOIR proposé, ce qui ressemble à un choix
+ * plutôt qu'à une absence. La pastille affiche donc la SUGGESTION quand rien n'est
+ * choisi, tandis que le champ texte, lui, reste vide avec la suggestion en filigrane.
+ * L'aperçu est conservé, le faux choix ne l'est pas.
+ *
+ * Effacer le champ texte REVIENT à « pas encore choisi » : on peut donc défaire son choix,
+ * ce qu'un champ pré-rempli ne permettait pas.
+ */
+function ColorField({ label, value, suggestion, hint, onChange }: {
   label: string
-  value: string
-  onChange: (v: string) => void
+  value: string | null
+  suggestion: string
+  hint: string
+  onChange: (v: string | null) => void
 }) {
+  const shown = value ?? suggestion
   return (
     <div className="flex flex-col gap-1.5">
       <label className="font-body text-sm font-semibold text-dark">{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="color"
-          value={value}
+          value={shown}
           onChange={(e) => onChange(e.target.value)}
           className="h-11 w-12 shrink-0 cursor-pointer rounded-lg border border-[#E8E6E0] bg-card p-1"
         />
         <input
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={value ?? ''}
+          placeholder={suggestion}
+          onChange={(e) => onChange(e.target.value.trim() === '' ? null : e.target.value)}
           className="w-full rounded-xl border border-[#E8E6E0] bg-card px-3 py-2.5 font-mono text-sm text-dark outline-none transition-colors focus:border-dark"
         />
       </div>
+      {value === null && (
+        <p className="font-body text-xs text-secondary">{hint}</p>
+      )}
     </div>
   )
 }

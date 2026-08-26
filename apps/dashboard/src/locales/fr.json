@@ -1443,7 +1443,8 @@
       "primary_label": "Couleur principale",
       "secondary_label": "Couleur secondaire",
       "submit": "Enregistrer et continuer",
-      "saved": "Identité visuelle enregistrée."
+      "saved": "Identité visuelle enregistrée.",
+      "color_hint": "Laisse vide pour garder la palette Viniz — tu pourras la changer plus tard."
     },
     "step2": {
       "title": "Ta première activité",
