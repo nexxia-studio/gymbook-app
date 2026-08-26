@@ -18,7 +18,10 @@
     "production": {
       "autoIncrement": true,
       "ios": { "resourceClass": "m-medium" },
-      "env": { "SENTRY_ALLOW_FAILURE": "true" }
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true",
+        "EXPO_PUBLIC_GYM_MODE": "single"
+      }
     },
     "preview-staging": {
       "distribution": "internal",
@@ -31,7 +34,8 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://buovgpokubrkejunmauq.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1b3ZncG9rdWJya2VqdW5tYXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDI5OTYsImV4cCI6MjA5NDA3ODk5Nn0.ZPyZskhD-q_syBb4IL0hBNHCGp1eHO8vSQCUbMrWsqY",
         "EXPO_PUBLIC_GYM_ID": "a0000000-0000-0000-0000-0000000005ba",
-        "EXPO_PUBLIC_GYM_SLUG": "dopamine-staging"
+        "EXPO_PUBLIC_GYM_SLUG": "dopamine-staging",
+        "EXPO_PUBLIC_GYM_MODE": "single"
       }
     },
     "preview-viniz": {
@@ -44,8 +48,7 @@
         "EXPO_PUBLIC_APP_VARIANT": "staging",
         "EXPO_PUBLIC_SUPABASE_URL": "https://buovgpokubrkejunmauq.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1b3ZncG9rdWJya2VqdW5tYXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDI5OTYsImV4cCI6MjA5NDA3ODk5Nn0.ZPyZskhD-q_syBb4IL0hBNHCGp1eHO8vSQCUbMrWsqY",
-        "EXPO_PUBLIC_GYM_ID": "",
-        "EXPO_PUBLIC_GYM_SLUG": ""
+        "EXPO_PUBLIC_GYM_MODE": "multi"
       }
     }
   },
