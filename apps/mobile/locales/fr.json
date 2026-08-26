@@ -12,6 +12,9 @@
     "offline_title": "Pas de connexion",
     "offline_message": "Ton téléphone n'est pas connecté à Internet. Vérifie ta connexion et réessaie."
   },
+  "viniz_launch": {
+    "tagline": "Ta salle, vivante."
+  },
   "gym_select": {
     "title": "Trouve ta salle",
     "subtitle": "Cherche ta salle par son nom pour accéder à ses créneaux.",
