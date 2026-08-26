@@ -46,9 +46,45 @@ const config = {
     // GYM-93 (frontières de semaine sur le fuseau de la salle, heure juste dans les
     // rappels) et GYM-240 (rejets réseau capturés au lieu d'alerter Sentry pour rien).
     //
+    // 1.0.6 — train 1.0.5 FERMÉ : son build 22 est publié sur l'App Store ET sur le Play
+    // Store (confirmé le 26/08). Le numéro de version doit donc être supérieur
+    // (ITMS-90186 / ITMS-90062) — contrairement à l'ouverture de 1.0.5, il n'y a ici
+    // aucune incertitude à arbitrer.
+    //
+    // ⚠️ AUCUN NUMÉRO DE BUILD N'EST ANNONCÉ ICI, et c'est délibéré : le bloc 1.0.5
+    // annonçait « build 21 », le train est finalement parti en 22. L'autoIncrement d'EAS
+    // décide, pas ce commentaire — écrire une prévision revient à inscrire une valeur qui
+    // sera fausse et que personne ne viendra corriger.
+    //
+    // Incrément PATCH — aucune fonctionnalité nouvelle côté membre : ce train est
+    // entièrement consacré à l'OBSERVABILITÉ et à trois défauts constatés en test, à trois
+    // semaines de l'ouverture de Dopamine. Ce qu'il apporte :
+    //  · GYM-269 — fin des déconnexions inexpliquées téléphone verrouillé. Le jeton de
+    //    session est réécrit en AFTER_FIRST_UNLOCK ; l'entrée existante est SUPPRIMÉE puis
+    //    recréée, sans quoi la migration n'aurait touché aucun membre déjà connecté.
+    //  · GYM-270 — erreurs des Edge Functions enfin lisibles (le code métier était dans un
+    //    corps que supabase-js ne lit pas), refus normaux retirés de Sentry, et message
+    //    « Pas de connexion » sur Réserver ET Annuler — deux boutons qui ne faisaient
+    //    RIEN hors ligne.
+    //  · GYM-271 — source maps Sentry : une stacktrace désigne un fichier et une ligne, au
+    //    lieu de `main.jsbundle:110664`.
+    //  · GYM-272 — capture des écrans. L'autocapture n'avait JAMAIS fonctionné (le hook de
+    //    navigation de PostHog est monté au-dessus du navigateur d'Expo Router) : zéro
+    //    $screen en trente jours.
+    //  · GYM-273 — événements métier : paiement, connexion, liste d'attente, et
+    //    booking_failed avec son code. `gym_id` en super-propriété — l'ajouter plus tard
+    //    ne rattraperait jamais l'historique.
+    //  · GYM-277 — les événements portent leur environnement (staging / production), pour
+    //    que le banc d'essai ne pollue pas les chiffres de la salle.
+    //
+    // ⚠️ RIEN DE TOUT CELA N'EST VISIBLE À L'ÉCRAN, à trois exceptions près : les deux
+    // messages hors ligne et l'absence de déconnexions intempestives. C'est un train de
+    // diagnostic — il est publié maintenant parce que l'historique d'usage des premières
+    // semaines ne se rattrape pas.
+    //
     // Le buildNumber, lui, n'est PAS déclaré ici : eas.json le gère
     // (appVersionSource "remote" + autoIncrement).
-    version: '1.0.5',
+    version: '1.0.6',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
