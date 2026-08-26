@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { GYM_ID } from '../constants/dopamine'
 import { LEGAL_VERSION } from '../constants/legal/meta'
 import { captureEvent, identifyUser, resetAnalytics } from '../lib/analytics'
+import { clearSelectedGymSlug } from '../lib/gymResolver'
 
 function mapError(msg: string): string {
   if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
@@ -130,6 +131,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       // Continue even if signOut fails
     }
+    // GYM-102 (2/5) — purge du choix de salle mémorisé localement.
+    //
+    // ⚠️ SANS ELLE, LE MEMBRE SUIVANT SUR CET APPAREIL ARRIVERAIT DANS LA SALLE DU
+    // PRÉCÉDENT. Ce n'est pas une fuite (un slug est public), c'est une confusion de
+    // marque : il croirait ouvrir SON app.
+    //
+    // Sans effet en mode `single` — la fonction s'en assure elle-même — donc rien ne
+    // change pour Dopamine. Et volontairement APRÈS le signOut : la session est ce qui
+    // compte, une purge locale qui échoue ne doit pas empêcher de se déconnecter.
+    await clearSelectedGymSlug()
     set({ user: null, session: null, gym_id: null, profile: null, error: null, isLoading: false })
   },
 
