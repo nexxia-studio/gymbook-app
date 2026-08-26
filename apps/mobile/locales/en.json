@@ -12,6 +12,9 @@
     "offline_title": "No connection",
     "offline_message": "Your phone is not connected to the internet. Check your connection and try again."
   },
+  "branding": {
+    "powered_by": "powered by"
+  },
   "viniz_launch": {
     "tagline": "Your gym, alive."
   },
