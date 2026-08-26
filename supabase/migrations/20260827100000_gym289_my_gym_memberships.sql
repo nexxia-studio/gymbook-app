@@ -55,11 +55,12 @@ as $$
   order by (g.id = p.gym_id) desc, g.name;
 $$;
 
--- ⚠️ PAS DE GRANT À `anon`. Contrairement aux trois fonctions du lot 1, celle-ci répond
--- « qui es-tu ? » : sans session, auth.uid() est NULL et elle ne rendrait rien — mais
--- laisser le droit ouvert inviterait à s'appuyer un jour sur ce vide silencieux.
--- Postgres accorde EXECUTE à PUBLIC par défaut sur toute fonction nouvelle : on le RETIRE
--- avant d'accorder, sinon le grant ciblé ne restreint rien du tout.
+-- ⚠️ CE REVOKE NE SUFFIT PAS, ET LA SUITE LE CORRIGE (20260827140000).
+-- `PUBLIC` est le pseudo-rôle « tout le monde » ; `anon` est un RÔLE RÉEL qui tient son
+-- droit des privilèges par défaut du schéma `public` (ALTER DEFAULT PRIVILEGES … GRANT
+-- EXECUTE ON FUNCTIONS TO anon, authenticated, service_role). Après application, mesuré :
+-- has_function_privilege('anon', …) = TRUE. Sans conséquence ici — auth.uid() NULL rend un
+-- ensemble vide — mais le fichier annonçait « authenticated seulement », ce qui était faux.
 revoke execute on function public.my_gym_memberships() from public;
 grant  execute on function public.my_gym_memberships() to authenticated;
 
