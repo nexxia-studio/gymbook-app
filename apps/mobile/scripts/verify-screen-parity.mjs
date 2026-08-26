@@ -22,6 +22,7 @@
 //          `ref` vaut `develop` par défaut — l'état d'avant la migration.
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 
@@ -54,18 +55,76 @@ const strip = (t) => t
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')
 
-const MOVE = /move-(bg|card|dark|accent-dim|accent|text-secondary|text-muted|border)\b|#[0-9a-fA-F]{6}\b/g
+// ── GYM-286b — LE MOTIF « AVANT » COUVRE LES CINQ POPULATIONS ────────────────────────
+// 🔴 IL N'EN VOYAIT QUE DEUX, ET C'EST UN DÉFAUT QUI SE PAIE EN FAUX ÉCARTS. Écrit pour
+// le pilote de 286a, ce script ne connaissait que `move-*` et `#RRGGBB`. Dès qu'on migre
+// un `bg-white` ou un `text-red-500`, la colonne « avant » ignore la couleur que la
+// colonne « après » compte : les deux suites se décalent, et un fichier parfaitement
+// migré est signalé comme une régression. Constaté sur `components/ui/Checkbox.tsx`.
+const TW_COLORS = createRequire(import.meta.url)('tailwindcss/colors')
+const PALETTES = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald'
+  + '|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
+const UTILS = 'bg|text|border|fill|stroke|ring|divide|placeholder|shadow'
+// ⚠️ LES VARIANTES `/alpha` SONT EXCLUES DU MOTIF, PAS OUBLIÉES. `bg-red-500/10` n'est
+// migrable par aucun jeton : il reste donc identique des deux côtés, et le compter
+// ajouterait la même valeur aux deux suites — du bruit, pas une vérification.
+const MOVE = new RegExp(
+  'move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border)\\b'
+  + '|#[0-9a-fA-F]{6}\\b'
+  + `|\\b(?:${UTILS})-(${PALETTES})-([0-9]{2,3})(?![0-9/])`
+  + `|\\b(?:${UTILS})-(white|black)(?![a-z/])`,
+  'g',
+)
 const TOKEN = /tokens\.([A-Za-z]+)|SEMANTIC\.([A-Za-z]+)/g
+
+/** La valeur d'une occurrence « avant », quelle que soit la population dont elle vient. */
+function valeurAvant(m) {
+  const [texte, palFam, palTon, bwName] = [m[0], m[1], m[2], m[3]]
+  if (texte.startsWith('#')) return texte.toUpperCase()
+  if (palFam) {
+    const v = TW_COLORS[palFam] && TW_COLORS[palFam][palTon]
+    return typeof v === 'string' ? v.toUpperCase() : null
+  }
+  if (bwName) return bwName === 'white' ? '#FFFFFF' : '#000000'
+  const cls = texte.match(/move-[a-z-]+/)
+  return cls ? TW[cls[0]] ?? null : null
+}
 
 const rel = relative(ROOT, join(process.cwd(), target)).startsWith('..') ? target : relative(ROOT, join(process.cwd(), target))
 const gitPath = join('apps/mobile', rel)
 const before = strip(execFileSync('git', ['show', `${ref}:${gitPath}`], { cwd: join(ROOT, '../..'), encoding: 'utf8' }))
 const after = strip(read(rel))
 
-// AVANT : classes et littéraux, résolus par tailwind.config.js.
-const A = [...before.matchAll(MOVE)].map((m) => (m[0].startsWith('#') ? m[0].toUpperCase() : TW['move-' + m[1]]))
-// APRÈS : jetons, résolus par DOPAMINE_THEME et SEMANTIC — c'est-à-dire le mode single.
-const B = [...after.matchAll(TOKEN)].map((m) => (m[1] ? DOP[m[1]] : SEM[m[2]]))
+// ── LES DEUX SUITES, LUES DE LA MÊME FAÇON ───────────────────────────────────────────
+// 🔴 LA SYMÉTRIE EST LA CONDITION DE LA VALIDITÉ. Lire « avant » avec un motif et
+// « après » avec un autre compare deux choses différentes. Constaté sur le pilote de
+// 286a : une fois celui-ci fusionné dans `develop`, sa version de référence était DÉJÀ
+// migrée ; le côté « avant » n'y trouvait plus aucun littéral et rendait 0 contre 24.
+// Le fichier n'avait pas bougé d'un pixel.
+//
+// Les deux côtés répondent donc à la même question — quelle est la SUITE DES COULEURS
+// EFFECTIVEMENT AFFICHÉES — qu'elles viennent d'un jeton ou d'un littéral survivant.
+// Qu'une couleur soit nommée ou écrite en dur ne change rien à ce qu'on voit ; et un
+// littéral oublié là où un jeton était attendu reste visible dans le rapport `restes`.
+//
+// 🔴 COMPTER LES SURVIVANTS EST CE QUI REND CE SCRIPT UTILISABLE SUR GYM-286b. La version
+// de 286a ne relevait que les `tokens.*` : elle ne pouvait valider qu'un fichier migré à
+// 100 %. Or le cockpit a explicitement mis A-1, A-2, A-4, A-5 et A-8 EN ATTENTE — la
+// plupart des fichiers gardent donc, sur ordre, une ou deux couleurs en dur. Chacun
+// d'eux affichait une longueur différente et un « 🔴 régression » parfaitement faux.
+//
+// ⚠️ ET CE N'EST PAS UN ASSOUPLISSEMENT DU CONTRÔLE. La question posée reste la seule qui
+// vaille : « la suite des couleurs EFFECTIVEMENT affichées est-elle inchangée ? » Qu'une
+// couleur vienne d'un jeton ou d'un littéral ne change rien à ce qu'on voit — et un
+// littéral oublié là où un jeton était attendu reste visible dans le rapport `restes`.
+const RESTE_OU_JETON = new RegExp(`${TOKEN.source}|${MOVE.source}`, 'g')
+const suite = (src) => [...src.matchAll(RESTE_OU_JETON)].map((m) => {
+  if (m[1]) return DOP[m[1]]                    // tokens.X
+  if (m[2]) return SEM[m[2]]                    // SEMANTIC.X
+  return valeurAvant({ 0: m[0], 1: m[3], 2: m[4], 3: m[5] })
+})
+const A = suite(before)
+const B = suite(after)
 // Ce qui n'a PAS été migré : toute couleur encore écrite en dur après la passe.
 const restes = [...after.matchAll(MOVE)].map((m) => m[0])
 
