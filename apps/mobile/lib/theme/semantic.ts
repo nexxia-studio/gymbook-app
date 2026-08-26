@@ -63,6 +63,20 @@ export const SEMANTIC = {
   disabledTrack: '#E5E5E5',
   /** ÉTAT DÉSACTIVÉ — une icône de règle non encore satisfaite. */
   disabledInk: '#C9C7C0',
+  /**
+   * GYM-286b — L'ENCRE POSÉE SUR `danger`.
+   *
+   * 🔴 ELLE NE PEUT PAS ÊTRE `tokens.onBackground`, MÊME SI LES DEUX VALENT #FFFFFF CHEZ
+   * DOPAMINE. C'est le piège P-6 du document, sur un cas où il fait de vrais dégâts : une
+   * salle au fond clair reçoit un `onBackground` SOMBRE. La bannière d'erreur, elle,
+   * reste rouge quoi qu'il arrive — poser une encre sombre dessus donnerait du gris
+   * foncé sur rouge, 2,3:1, illisible précisément au moment où l'app a quelque chose
+   * d'important à dire.
+   *
+   * Un fond fixe appelle une encre fixe. C'est la même règle que pour `danger` lui-même,
+   * appliquée à ce qu'on écrit dessus.
+   */
+  onDanger: '#FFFFFF',
 } as const
 
 export type SemanticToken = keyof typeof SEMANTIC
