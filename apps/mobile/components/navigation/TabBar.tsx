@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence } from 'react-native-reanimated'
 import { Calendar, CalendarCheck, Store, User } from 'lucide-react-native'
 import type { LucideIcon } from 'lucide-react-native'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 interface TabItem {
   name: string
@@ -21,12 +22,15 @@ const TABS: TabItem[] = [
   { name: 'profile', route: '/(tabs)/profile', labelKey: 'tabs.profile', icon: User },
 ]
 
-const ACTIVE_COLOR = '#111111'
-const INACTIVE_COLOR = '#9A9890'
-const ACCENT = '#C8F000'
+// GYM-286b — les trois constantes de couleur ont été retirées : elles ne pouvaient pas
+// lire le thème. Chaque composant lit désormais ses jetons.
+// ⚠️ `#000` RESTE EN DUR, et ce n'est pas un oubli : c'est du NOIR PUR, pas le #111111 de
+// la charte. Aucun jeton ne le vaut, et l'approcher par `tokens.background` changerait la
+// pastille centrale d'un cran — sur l'élément le plus regardé de l'app.
 const TAB_HEIGHT = 72
 
 function CenterButton({ active, onPress }: { active: boolean; onPress: () => void }) {
+  const { tokens } = useTheme()
   const scale = useSharedValue(1)
 
   const animStyle = useAnimatedStyle(() => ({
@@ -69,7 +73,7 @@ function CenterButton({ active, onPress }: { active: boolean; onPress: () => voi
               borderRadius: 29,
               overflow: 'hidden',
               backgroundColor: '#000',
-              ...(active ? { borderWidth: 2, borderColor: ACCENT } : {}),
+              ...(active ? { borderWidth: 2, borderColor: tokens.accent } : {}),
             }}
           >
             <Image
@@ -95,20 +99,22 @@ function TabButton({
   active: boolean
   onPress: () => void
 }) {
+  const { tokens } = useTheme()
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} className="flex-1 items-center justify-center gap-1">
-      <Icon size={22} color={active ? ACTIVE_COLOR : INACTIVE_COLOR} />
+      <Icon size={22} color={active ? tokens.onSurface : tokens.onBackgroundMuted} />
       <Text
         style={{
           fontFamily: active ? 'DMSans_700Bold' : 'DMSans_400Regular',
           fontSize: 11,
-          color: active ? ACTIVE_COLOR : INACTIVE_COLOR,
+          color: active ? tokens.onSurface : tokens.onBackgroundMuted,
         }}
       >
         {label}
       </Text>
       {active && (
-        <View style={{ width: 20, height: 2, borderRadius: 1, backgroundColor: ACCENT, marginTop: 1 }} />
+        <View style={{ width: 20, height: 2, borderRadius: 1, backgroundColor: tokens.accent, marginTop: 1 }} />
       )}
     </TouchableOpacity>
   )
@@ -119,6 +125,7 @@ export function TabBar() {
   const router = useRouter()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
+  const { tokens } = useTheme()
 
   function isActive(tab: TabItem): boolean {
     if (tab.name === 'index') return pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
@@ -130,9 +137,9 @@ export function TabBar() {
       style={{
         height: TAB_HEIGHT + insets.bottom,
         paddingBottom: insets.bottom,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: tokens.surface,
         borderTopWidth: 1,
-        borderTopColor: '#E8E6E0',
+        borderTopColor: tokens.border,
         ...(Platform.OS === 'ios'
           ? { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 8 }
           : { elevation: 8 }),

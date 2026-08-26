@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import { View, Text, ImageBackground, type StyleProp, type ViewStyle, type ImageStyle } from 'react-native'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
  * GYM-216 — Visuel d'une activité, depuis activities.image_url.
@@ -35,9 +36,6 @@ interface ActivityImageProps {
   children?: ReactNode
 }
 
-/** Surface du repli : le noir de la charte, lisible sous du texte blanc comme une photo assombrie. */
-const FALLBACK_SURFACE = '#111111'
-
 /**
  * Initiales d'un nom d'activité, dérivées — surtout PAS une table à tenir à jour.
  * « Open Gym » → OG · « HIIT / Hyrox » → HH · « Strength » → ST · '' → ''
@@ -62,6 +60,10 @@ export function ActivityImage({
 }: ActivityImageProps) {
   const uri = imageUrl?.trim()
   const [failed, setFailed] = useState(false)
+  // Surface du repli : le fond de marque, lisible sous du texte blanc comme une photo
+  // assombrie. C'est ce que le commentaire d'en-tête promet — « une surface pleine aux
+  // couleurs de la salle » — et qui n'était pas tenable tant que la valeur était figée.
+  const { tokens } = useTheme()
 
   // Une nouvelle URL mérite une nouvelle tentative : sans ça, un échec sur un créneau
   // condamnerait le visuel de tous les suivants rendus par le même composant recyclé.
@@ -84,13 +86,13 @@ export function ActivityImage({
   const initials = activityInitials(activity)
 
   return (
-    <View className={className} style={[{ backgroundColor: FALLBACK_SURFACE }, style]}>
+    <View className={className} style={[{ backgroundColor: tokens.background }, style]}>
       {/* La teinte de l'activité (activities.color) en voile : le repli reste distinct
           d'un cours à l'autre sans jamais prétendre être une photo. */}
       <View
         style={[
           { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.18 },
-          { backgroundColor: accentColor || '#6B6861' },
+          { backgroundColor: accentColor || tokens.onSurfaceSecondary },
           imageStyle as StyleProp<ViewStyle>,
         ]}
       />

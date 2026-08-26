@@ -70,12 +70,16 @@ const UTILS = 'bg|text|border|fill|stroke|ring|divide|placeholder|shadow'
 // ajouterait la même valeur aux deux suites — du bruit, pas une vérification.
 const MOVE = new RegExp(
   'move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border)\\b'
-  + '|#[0-9a-fA-F]{6}\\b'
+  + '|#[0-9a-fA-F]{8}\\b|#[0-9a-fA-F]{6}\\b'
   + `|\\b(?:${UTILS})-(${PALETTES})-([0-9]{2,3})(?![0-9/])`
   + `|\\b(?:${UTILS})-(white|black)(?![a-z/])`,
   'g',
 )
-const TOKEN = /tokens\.([A-Za-z]+)|SEMANTIC\.([A-Za-z]+)/g
+// ⚠️ LA CONCATÉNATION D'A-10 EST RECONNUE AVANT LE JETON NU, et l'ordre compte : sans
+// elle, `SEMANTIC.success + '20'` serait lu comme le vert PLEIN #22C55E là où le fichier
+// d'origine portait #22C55E20 — un succès à 12,5 % d'opacité. Le script signalerait un
+// écart sur la seule écriture que le cockpit ait explicitement demandée (A-10).
+const TOKEN = /SEMANTIC\.([A-Za-z]+)\s*\+\s*'([0-9a-fA-F]{2})'|tokens\.([A-Za-z]+)|SEMANTIC\.([A-Za-z]+)/g
 
 /** La valeur d'une occurrence « avant », quelle que soit la population dont elle vient. */
 function valeurAvant(m) {
@@ -133,13 +137,45 @@ const PALETTE = (() => {
 })()
 const IMPORT_PALETTE = /from '[^']*theme\/palette'/
 
+// ── LES CONSTANTES DE COULEUR HISSÉES ────────────────────────────────────────────────
+// 🔴 UNE COULEUR DÉCLARÉE UNE FOIS ET EMPLOYÉE TROIS FOIS COMPTAIT POUR UNE.
+// `const ACTIVE_COLOR = '#111111'` puis deux `color={ACTIVE_COLOR}` : le côté « avant »
+// voyait UNE couleur, le côté « après » — où la constante a disparu au profit de deux
+// `tokens.onSurface` — en voyait DEUX. Les suites se décalaient sur tout le fichier.
+// Constaté sur components/navigation/TabBar.tsx, qui en hisse trois.
+//
+// On résout donc les constantes : la DÉCLARATION ne compte pas, chaque EMPLOI compte pour
+// sa valeur. C'est ce que voit l'écran, et c'est symétrique des deux côtés.
+function constantes(src) {
+  const m = {}
+  for (const d of src.matchAll(/\bconst\s+([A-Z][A-Z_0-9]*)\s*(?::\s*string\s*)?=\s*'(#[0-9a-fA-F]{3,8})'/g)) {
+    m[d[1]] = d[2].toUpperCase()
+  }
+  return m
+}
+
 const RESTE_OU_JETON = new RegExp(`${IMPORT_PALETTE.source}|${TOKEN.source}|${MOVE.source}`, 'g')
-const suite = (src) => [...src.matchAll(RESTE_OU_JETON)].flatMap((m) => {
-  if (IMPORT_PALETTE.test(m[0])) return PALETTE  // le module partagé, déplié à sa place
-  if (m[1]) return [DOP[m[1]]]                   // tokens.X
-  if (m[2]) return [SEM[m[2]]]                   // SEMANTIC.X
-  return [valeurAvant({ 0: m[0], 1: m[3], 2: m[4], 3: m[5] })]
-})
+const suite = (src0) => {
+  const CST = constantes(src0)
+  // La déclaration est neutralisée sur place — sans quoi elle compterait EN PLUS de ses
+  // emplois. On garde la longueur de la ligne pour ne pas décaler ce qui suit.
+  const src = src0.replace(
+    /\bconst\s+([A-Z][A-Z_0-9]*)\s*(?::\s*string\s*)?=\s*'(#[0-9a-fA-F]{3,8})'/g,
+    (t) => t.replace(/[^\n]/g, ' '),
+  )
+  const noms = Object.keys(CST)
+  const motif = noms.length
+    ? new RegExp(`${RESTE_OU_JETON.source}|\\b(${noms.join('|')})\\b`, 'g')
+    : RESTE_OU_JETON
+  return [...src.matchAll(motif)].flatMap((m) => {
+    if (CST[m[0]]) return [CST[m[0]]]
+    if (IMPORT_PALETTE.test(m[0])) return PALETTE   // le module partagé, déplié à sa place
+    if (m[1]) return [SEM[m[1]] + m[2].toUpperCase()] // SEMANTIC.X + 'aa'  (A-10)
+    if (m[3]) return [DOP[m[3]]]                   // tokens.X
+    if (m[4]) return [SEM[m[4]]]                   // SEMANTIC.X
+    return [valeurAvant({ 0: m[0], 1: m[5], 2: m[6], 3: m[7] })]
+  })
+}
 const A = suite(before)
 const B = suite(after)
 // Ce qui n'a PAS été migré : toute couleur encore écrite en dur après la passe.

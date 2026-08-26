@@ -3,6 +3,8 @@ import { View, Text, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Check, Circle, Trophy, ChevronRight } from 'lucide-react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface GamificationItem {
   key: string
@@ -19,6 +21,7 @@ interface GamificationCardProps {
 
 export function GamificationCard({ items, percentage }: GamificationCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const barWidth = useSharedValue(0)
 
   useEffect(() => {
@@ -30,22 +33,24 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
   }))
 
   return (
-    <View className="mx-4 mt-4 rounded-2xl bg-[#111111] p-5">
+    <View className="mx-4 mt-4 rounded-2xl p-5" style={{ backgroundColor: tokens.background }}>
       {/* Header */}
       <View className="flex-row items-center justify-between">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 18, color: '#FFFFFF' }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 18, color: tokens.onBackground }}>
           {t('profile.progression').toUpperCase()}
         </Text>
-        <Text className="font-dmsans-bold text-base text-move-accent">
+        <Text className="font-dmsans-bold text-base" style={{ color: tokens.accent }}>
           {percentage}%
         </Text>
       </View>
 
       {/* Progress bar */}
+      {/* GYM-286 — A-6, EN ATTENTE : #333333 est un gris hors de la palette de la charte.
+          Le rattacher change des pixels, et c'est le commit dédié qui s'en charge. */}
       <View className="mt-3 h-2 overflow-hidden rounded-full bg-[#333333]">
         <Animated.View
-          style={barStyle}
-          className="h-full rounded-full bg-move-accent"
+          style={[barStyle, { backgroundColor: tokens.accent }]}
+          className="h-full rounded-full"
         />
       </View>
 
@@ -57,18 +62,23 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
             <>
               {item.completed ? (
                 <View className="h-5 w-5 items-center justify-center rounded-full bg-green-500/20">
-                  <Check size={12} color="#22C55E" />
+                  <Check size={12} color={SEMANTIC.success} />
                 </View>
               ) : (
+                // GYM-286 — A-6, EN ATTENTE : #555555, gris hors palette.
                 <Circle size={20} color="#555555" />
               )}
-              <Text className={`ml-3 flex-1 font-dmsans text-sm ${item.completed ? 'text-white' : 'text-white/60'}`}>
+              {/* `text-white/60` reste : un blanc à 60 % n'est pas `tokens.onBackground`. */}
+              <Text
+                className={`ml-3 flex-1 font-dmsans text-sm ${item.completed ? '' : 'text-white/60'}`}
+                style={item.completed ? { color: tokens.onBackground } : undefined}
+              >
                 {t(`profile.gamification.${item.labelKey}`)}
               </Text>
-              <Text className="font-dmsans-bold text-xs text-move-accent">
+              <Text className="font-dmsans-bold text-xs" style={{ color: tokens.accent }}>
                 {item.points}pts
               </Text>
-              {isClickable && <ChevronRight size={14} color="#C8F000" />}
+              {isClickable && <ChevronRight size={14} color={tokens.accent} />}
             </>
           )
           if (isClickable) {
@@ -92,9 +102,10 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
 
       {/* Reward */}
       {percentage >= 100 && (
-        <View className="mt-4 flex-row items-center gap-2 rounded-xl bg-move-accent px-4 py-3">
-          <Trophy size={18} color="#111111" />
-          <Text className="flex-1 font-dmsans-bold text-sm text-[#111111]">
+        // ⚠️ `onAccent` deux fois : l'icône ET le libellé sont posés SUR `accent` (P-6).
+        <View className="mt-4 flex-row items-center gap-2 rounded-xl px-4 py-3" style={{ backgroundColor: tokens.accent }}>
+          <Trophy size={18} color={tokens.onAccent} />
+          <Text className="flex-1 font-dmsans-bold text-sm" style={{ color: tokens.onAccent }}>
             {t('profile.reward')}
           </Text>
         </View>
