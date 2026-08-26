@@ -8,46 +8,85 @@
 // qu'une branche que l'app de production n'emprunte jamais.
 //
 // ─────────────────────────────────────────────────────────────────────────────────────
-// COMMENT LE MODE EST DÉDUIT — ET POURQUOI PAS COMME LE TICKET LE DISAIT
+// COMMENT LE MODE EST DÉCIDÉ — ET POURQUOI IL EST DÉCLARÉ, PAS DÉDUIT
 // ─────────────────────────────────────────────────────────────────────────────────────
-// Le cadrage demandait de déduire le mode de « la présence d'EXPO_PUBLIC_GYM_ID ».
-// ⚠️ APPLIQUÉ TEL QUEL, CELA AURAIT BASCULÉ DOPAMINE EN MULTI. Vérifié le 26/08 avec
-// `eas env:list production` : l'environnement EAS de production ne définit PAS
-// EXPO_PUBLIC_GYM_ID. L'app de production tient son gym_id du REPLI écrit dans
-// app.config.ts (`process.env.EXPO_PUBLIC_GYM_ID ?? '<uuid Dopamine>'`). Tester la
-// variable directement aurait donc rendu `multi` sur le binaire de Nico — c'est-à-dire un
-// écran de recherche de salle à l'ouverture, exactement la régression interdite.
+// Le mode vient de `extra.gymMode`, alimenté par EXPO_PUBLIC_GYM_MODE, avec un repli sur
+// `single`. Il ne se déduit plus de la présence de `gymId`.
 //
-// LE DISCRIMINANT EST DONC `extra.gymId`, un cran plus loin dans la MÊME chaîne : c'est
-// la valeur qu'app.config.ts calcule à partir de cette variable. Aucune variable
-// supplémentaire n'est introduite — la contrainte du cadrage est respectée, seul le point
-// de lecture change.
+// 🔴 LE REPLI EST `single`, DÉLIBÉRÉMENT. Oublier la variable doit produire le
+// comportement de Dopamine — jamais un écran de recherche de salle chez ses membres.
+// C'est le seul sens dans lequel l'oubli est sans danger, et c'est la raison d'être de
+// cette forme.
 //
-// ⚠️ ET LE MULTI RESTE ATTEIGNABLE SANS TROISIÈME VARIABLE : `??` ne se déclenche que sur
-// null/undefined, donc `EXPO_PUBLIC_GYM_ID=""` traverse et donne `extra.gymId === ''`.
-// Vérifié en exécutant `expo config --json` dans les trois cas :
-//     variable absente      → 'a0000000-…'  (repli)      → single
-//     variable = ""         → ''                          → MULTI
-//     variable = <uuid>     → <uuid>                      → single
-// Un profil EAS white-label posera donc `EXPO_PUBLIC_GYM_ID: ""`. Le choix du profil
-// appartient au lot 5 ; ce fichier se contente d'en tirer la conséquence.
+// ⚠️ CE FICHIER A D'ABORD DÉDUIT LE MODE DE `extra.gymId`, ET LA VOIE S'EST FERMÉE.
+// L'idée était : une salle figée par le build → single, aucune → multi. Deux faits
+// constatés l'ont rendue inapplicable :
+//   1. une variable ABSENTE traverse le `??` d'app.config.ts et rend l'uuid de Dopamine —
+//      le mode `multi` n'était donc pas atteignable en ne posant rien ;
+//   2. une variable VIDE est REFUSÉE par EAS, qui échoue à la validation d'eas.json
+//      (« "…EXPO_PUBLIC_GYM_ID" is not allowed to be empty ») avant même de bâtir.
+// Entre l'absence qui rend Dopamine et le vide qui refuse la build, `multi` était
+// inatteignable par un profil EAS. La déduction ne pouvait pas survivre à ça.
+//
+// ⚠️ ET LE BUNDLE IDENTIFIER N'AURAIT PAS PU TRANCHER — alternative écartée, pas oubliée.
+// `app.viniz.staging` sert DÉJÀ les deux modes : `preview-staging` en single,
+// `preview-viniz` en multi. Un même identifiant Apple, deux comportements attendus : il
+// n'y a rien à quoi une déduction pourrait se raccrocher. Son avantage — rien à poser,
+// donc rien à oublier — est réel, mais il ne s'applique pas ici.
+//
+// ⚠️ LE REPLI `?? 'a0000000-…-000000000001'` D'APP.CONFIG.TS NE DOIT PAS BOUGER pour
+// autant. Vérifié le 26/08 : EXPO_PUBLIC_GYM_ID n'est pas définie dans l'environnement EAS
+// de production, et cet uuid est bien celui de Dopamine Performance Club en base de prod.
+// C'est lui qui donne sa salle à l'app de Nico. Le mode ne s'y appuie plus ; la SALLE, si.
 import Constants from 'expo-constants'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export type GymMode = 'single' | 'multi'
 
-/** Valeur brute posée par app.config.ts. `''` = build white-label, sans salle figée. */
+/** Salle figée par le build. Reste la source de la salle en mode `single`. */
 const CONFIGURED_GYM_ID = (Constants.expoConfig?.extra?.gymId as string | undefined) ?? ''
+
+/** Ce que le build a DÉCLARÉ. Toute valeur autre que 'multi' vaut 'single'. */
+const DECLARED_MODE = (Constants.expoConfig?.extra?.gymMode as string | undefined) ?? 'single'
 
 /**
  * Le mode, décidé À LA COMPILATION et jamais ensuite. Une constante, pas un état : un
  * mode qui pourrait changer en cours de session obligerait chaque écran à se demander
  * dans lequel il tourne.
+ *
+ * ⚠️ SEUL 'multi' OUVRE LE MODE MULTI. Une faute de frappe, une valeur inattendue, une
+ * clé absente : tout retombe sur `single`. Un mode mal orthographié ne doit pas ouvrir
+ * l'écran de recherche de salle chez les membres de Dopamine.
  */
-export const GYM_MODE: GymMode = CONFIGURED_GYM_ID.trim() !== '' ? 'single' : 'multi'
+export const GYM_MODE: GymMode = DECLARED_MODE.trim().toLowerCase() === 'multi' ? 'multi' : 'single'
 
-/** Salle figée du build, en mode `single`. `null` en multi. */
-export const FIXED_GYM_ID: string | null = GYM_MODE === 'single' ? CONFIGURED_GYM_ID : null
+/**
+ * Salle figée du build, en mode `single`. `null` en multi.
+ *
+ * ⚠️ CONFIGURATION IMPOSSIBLE, TRAITÉE PLUTÔT QUE SUBIE : `single` SANS salle résoluble.
+ * Le mode et la salle viennent maintenant de deux variables distinctes, donc rien
+ * n'empêche mécaniquement de déclarer l'un sans l'autre. Si cela arrive, l'app n'a aucune
+ * salle à servir : chaque requête rendrait zéro ligne, sans erreur pour le dire — le
+ * genre de panne qu'on cherche des heures ailleurs.
+ *
+ * On replie donc sur Dopamine, la seule salle qu'un build `single` ait jamais servie, ET
+ * ON LE DIT. Le journal est ici la moitié utile : le repli évite l'app muette, le message
+ * évite qu'on croie la configuration correcte.
+ */
+const DOPAMINE_GYM_ID = 'a0000000-0000-0000-0000-000000000001'
+
+function resolveFixedGymId(): string | null {
+  if (GYM_MODE !== 'single') return null
+  if (CONFIGURED_GYM_ID.trim() !== '') return CONFIGURED_GYM_ID
+  console.warn(
+    '[gymResolver] Configuration impossible : mode « single » déclaré sans extra.gymId ' +
+    'résoluble. Repli sur la salle Dopamine. Vérifier EXPO_PUBLIC_GYM_ID dans le profil ' +
+    'EAS — un build « single » sans salle ne peut rien servir.',
+  )
+  return DOPAMINE_GYM_ID
+}
+
+export const FIXED_GYM_ID: string | null = resolveFixedGymId()
 
 // ─────────────────────────────────────────────────────────────────────────────────────
 // PERSISTANCE (livrable D)
