@@ -421,29 +421,29 @@ Deno.serve(async (req) => {
 
       // Chemin liste d'attente — AUCUN débit de crédit (comme create-booking : le crédit
       // ne part qu'à la confirmation du siège, via promote_waitlist_atomic).
-      let booking
-      let insertErr
-      if (existingBooking?.status === 'cancelled') {
-        const res = await admin
-          .from('bookings')
-          .update({
-            status: 'waitlisted', waitlist_position: position,
-            cancelled_at: null, cancel_reason: null, is_late_cancel: false,
-          })
-          .eq('id', existingBooking.id)
-          .select()
-          .single()
-        booking = res.data; insertErr = res.error
-      } else {
-        const res = await admin
-          .from('bookings')
-          .insert({
-            member_id: memberId, slot_id: slotId, gym_id: gymId,
-            status: 'waitlisted', waitlist_position: position,
-            idempotency_key: `${memberId}-${slotId}`,
-          })
-          .select()
-          .single()
+      //
+      // ═══ GYM-280 — MÊME CORRECTIF QUE create-booking ═════════════════════════════
+      // La position était calculée ici aussi par `(count) + 1` hors verrou, avec le même
+      // défaut sous charge. `waitlist_join_atomic` la calcule sous le verrou de la ligne
+      // du créneau, et gère la réactivation d'une réservation annulée.
+      //
+      // ⚠️ L'UX EN DEUX TEMPS DE GYM-231 EST PRÉSERVÉE, ET C'EST POUR ÇA QUE LA RPC
+      // N'INSCRIT PAS D'OFFICE : on n'arrive ici que si `allow_waitlist` est vrai,
+      // c'est-à-dire après que le gérant a confirmé. Le premier appel, lui, s'est arrêté
+      // au 409 ci-dessus. Faire inscrire par `create_booking_atomic` — l'arbitrage
+      // initial du ticket — aurait inscrit le membre dès le premier appel, sans que le
+      // gérant l'ait voulu.
+      const { data: wlResult, error: wlError } = await admin.rpc('waitlist_join_atomic', {
+        p_member_id: memberId,
+        p_slot_id: slotId,
+        p_gym_id: gymId,
+        p_existing_booking_id: existingBooking?.status === 'cancelled' ? existingBooking.id : null,
+      })
+
+      let booking = null
+      let insertErr = wlError
+      if (!wlError && wlResult?.booking_id) {
+        const res = await admin.from('bookings').select().eq('id', wlResult.booking_id as string).single()
         booking = res.data; insertErr = res.error
       }
 
@@ -452,7 +452,10 @@ Deno.serve(async (req) => {
         return errorResponse(500, 'BOOKING_FAILED', insertErr.message)
       }
 
-      return jsonResponse({ booking, status: 'waitlisted', position })
+      // ⚠️ LA POSITION RENDUE EST CELLE DE LA RPC, pas celle du `count` d'aperçu calculé
+      // plus haut pour le 409. Les deux peuvent différer si quelqu'un s'est inscrit
+      // entre-temps — et c'est la valeur écrite en base qui fait foi.
+      return jsonResponse({ booking, status: 'waitlisted', position: wlResult?.position ?? position })
     }
 
     // ── CONFIRMÉ ──────────────────────────────────────────────────────────────

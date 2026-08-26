@@ -202,36 +202,39 @@ Deno.serve(async (req) => {
 
     // Plein → chemin waitlist ACTUEL inchangé (hors verrou, aucun débit).
     if (rpcResult?.status === 'full') {
-      const { count: waitlistCount } = await supabaseAdmin
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .eq('slot_id', slotId)
-        .eq('status', 'waitlisted')
+      // ═══ GYM-280 — LA POSITION EST ATTRIBUÉE SOUS LE VERROU ══════════════════════
+      //
+      // 🔴 CE QUI ÉTAIT ÉCRIT ICI : `(count of waitlisted) + 1`, calculé HORS de tout
+      // verrou — le commentaire d'origine l'annonçait lui-même. Sous charge, huit
+      // requêtes lisent le compteur avant qu'aucune n'ait inséré. Mesuré au test
+      // GYM-217 : 8 membres en attente, 4 positions distinctes, 5 d'entre eux en
+      // position 2, et les positions 3 à 6 jamais attribuées.
+      //
+      // `waitlist_join_atomic` prend LE MÊME verrou sur la ligne du créneau que
+      // `create_booking_atomic` et calcule la position dessous. Elle gère aussi la
+      // réactivation d'une réservation annulée, et remet à NULL les colonnes de
+      // notification — ce que le code d'ici ne faisait pas, laissant un ancien
+      // `waitlist_notified_at` rendre le membre invisible pour toujours.
+      const { data: wlResult, error: wlError } = await supabaseAdmin.rpc('waitlist_join_atomic', {
+        p_member_id: user.id,
+        p_slot_id: slotId,
+        p_gym_id: slot.gym_id,
+        p_existing_booking_id: existingBooking?.status === 'cancelled' ? existingBooking.id : null,
+      })
 
-      const position = (waitlistCount ?? 0) + 1
-
-      let booking
-      let insertErr
-      if (existingBooking?.status === 'cancelled') {
-        const res = await supabaseAdmin
-          .from('bookings')
-          .update({ status: 'waitlisted', waitlist_position: position, cancelled_at: null, cancel_reason: null, is_late_cancel: false })
-          .eq('id', existingBooking.id)
-          .select()
-          .single()
-        booking = res.data; insertErr = res.error
-      } else {
-        const res = await supabaseAdmin
-          .from('bookings')
-          .insert({ member_id: user.id, slot_id: slotId, gym_id: slot.gym_id, status: 'waitlisted', waitlist_position: position, idempotency_key: idempotencyKey })
-          .select()
-          .single()
-        booking = res.data; insertErr = res.error
+      if (wlError || !wlResult?.booking_id) {
+        return errorResponse(500, wlError?.message ?? 'waitlist join failed', 'INSERT_FAILED')
       }
 
-      if (insertErr) return errorResponse(500, insertErr.message, 'INSERT_FAILED')
+      // Relecture pour conserver la forme de réponse (booking complet), comme le fait
+      // déjà le chemin 'confirmed' juste en dessous.
+      const { data: booking } = await supabaseAdmin
+        .from('bookings')
+        .select()
+        .eq('id', wlResult.booking_id as string)
+        .single()
 
-      return jsonResponse({ booking, status: 'waitlisted', position })
+      return jsonResponse({ booking, status: 'waitlisted', position: wlResult.position })
     }
 
     // Confirmé — la RPC a inséré/réactivé le siège ET débité le crédit atomiquement.
