@@ -58,6 +58,36 @@ export interface ThemeTokens {
   /** Texte sur `accent` — garanti ≥ 4,5:1. */
   onAccent: string
   border: string
+  // ── AJOUTS GYM-286a ────────────────────────────────────────────────────────────────
+  // Quatre rôles que l'app de Dopamine distingue et que les huit jetons du lot 3 ne
+  // savaient pas nommer. Ils ne sont PAS une extension de la marque : ils rendent
+  // exprimable ce que `tailwind.config.js` exprimait déjà en huit couleurs.
+  //
+  // ⚠️ POURQUOI IL EN FALLAIT. Dopamine n'est pas une app sombre : c'est une app CLAIRE
+  // (page #F5F4F0, cartes blanches) traversée de BANDES sombres (#111111) en en-tête.
+  // Le lot 3 a logé la bande dans `background` — le bon choix, c'est là que la marque
+  // se voit — mais il ne restait alors aucun jeton pour la page, ni pour l'encre qu'on
+  // pose dessus. Sans ces quatre-là, migrer un écran obligeait à choisir entre deux maux :
+  // réutiliser un jeton pour un rôle qui n'est pas le sien, ou laisser la couleur en dur.
+  /**
+   * Fond de PAGE, le registre clair de l'app — distinct de `background`, qui porte la
+   * bande d'en-tête. Chez Dopamine : `move-bg` #F5F4F0 contre `move-dark` #111111.
+   */
+  page: string
+  /**
+   * Encre principale posée sur `surface` et `page`.
+   *
+   * 🔴 CE N'EST PAS `onAccent`, MÊME QUAND LES DEUX VALENT #111111 CHEZ DOPAMINE. Le
+   * rapprochement est une coïncidence de palette, pas une identité de rôle : `onAccent`
+   * est l'encre choisie POUR LA COULEUR D'ACTION de la salle. Une salle à l'action
+   * sombre reçoit `onAccent` clair — et un écran qui aurait confondu les deux écrirait
+   * alors son texte en blanc sur ses cartes blanches.
+   */
+  onSurface: string
+  /** Encre secondaire sur `surface`/`page`. Chez Dopamine : `move-text-secondary`. */
+  onSurfaceSecondary: string
+  /** Variante atténuée de l'action. Chez Dopamine : `move-accent-dim`. */
+  accentDim: string
   /**
    * 🔴 LE LIME NE VA QUE SUR FOND SOMBRE. En mode clair il DISPARAÎT de l'interface —
    * règle de l'écran 09 de la maquette, pas une préférence esthétique : sur un fond clair
@@ -95,6 +125,10 @@ function vinizDark(): ThemeTokens {
     accent: VINIZ.lime,
     onAccent: VINIZ.ink,
     border: 'rgba(243,240,255,0.14)',
+    page: VINIZ.dark,
+    onSurface: VINIZ.light,
+    onSurfaceSecondary: VINIZ.lavender,
+    accentDim: VINIZ.lime,
     limeAllowed: true,
   }
 }
@@ -229,6 +263,26 @@ export function resolveTheme(
   const border = mode === 'dark' ? 'rgba(243,240,255,0.14)' : 'rgba(45,27,105,0.12)'
   const onBackgroundMuted = mode === 'dark' ? VINIZ.lavender : VINIZ.mutedOnLight
 
+  // ── 6. LES QUATRE RÔLES AJOUTÉS PAR GYM-286a ───────────────────────────────────────
+  // 🔴 AUCUN N'INTRODUIT UNE COULEUR QUE LE GARDE-FOU N'AURAIT PAS DÉJÀ VALIDÉE. Chacun
+  // retombe sur un jeton déjà résolu plus haut. C'est délibéré : ces rôles existent pour
+  // que les écrans de Dopamine soient MIGRABLES, et une salle n'a fourni que deux
+  // couleurs — en inventer une troisième ici, c'est ajouter une combinaison à vérifier
+  // sans que personne ne l'ait demandée.
+  //
+  // ⚠️ ET C'EST UNE POSITION D'ATTENTE, PAS UNE DÉCISION DE DESIGN. Trois questions
+  // restent ouvertes, listées à l'arbitrage dans docs/GYM-286-inventaire.md :
+  //   — la bande d'en-tête doit-elle se détacher de la page chez une salle (aujourd'hui
+  //     `page === background`, donc un écran migré rend à plat) ;
+  //   — `accentDim` doit-il être une vraie dérivation de l'action plutôt que l'action
+  //     elle-même ;
+  //   — `onSurface` tient tant que `surface` est un voile translucide sur le fond ; il
+  //     faudra le recalculer le jour où une salle fournira une surface opaque.
+  const page = toHex(background)
+  const onSurface = onBackground
+  const onSurfaceSecondary = onBackgroundMuted
+  const accentDim = accent
+
   return {
     tokens: {
       mode,
@@ -239,6 +293,10 @@ export function resolveTheme(
       accent,
       onAccent,
       border,
+      page,
+      onSurface,
+      onSurfaceSecondary,
+      accentDim,
       // 🔴 Le lime ne touche JAMAIS un fond clair.
       limeAllowed: mode === 'dark',
     },

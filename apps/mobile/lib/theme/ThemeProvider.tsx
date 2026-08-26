@@ -13,6 +13,11 @@
 // réécrire ces 441 classes — c'est-à-dire de toucher chaque pixel de l'app de production,
 // exactement ce que le cadrage interdit. La copie est le prix de cette garantie ; elle est
 // figée (Dopamine ne change pas de charte) et signalée des deux côtés.
+//
+// ⚠️ GYM-286 EST PRÉCISÉMENT LE CHANTIER QUI RÉÉCRIT CES CLASSES, et il ne renverse pas
+// pour autant le sens de la copie. Tant qu'UNE seule classe `move-*` subsiste, elle et ce
+// module doivent dire la même chose : c'est `tailwind.config.js` qui reste la source, et
+// `scripts/verify-theme-parity.mjs` qui refuse de laisser les deux diverger.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { GYM_MODE, FIXED_GYM_ID } from '../gymResolver'
 import { resolveTheme, VINIZ_THEME, type ThemeTokens } from './resolveTheme'
@@ -28,6 +33,15 @@ export const DOPAMINE_THEME: ThemeTokens = {
   accent: '#C8F000',       // move-accent  ⚠️ le lime DOPAMINE, pas le lime Viniz
   onAccent: '#111111',
   border: '#E8E6E0',       // move-border
+  // ── GYM-286a — les quatre rôles ajoutés, eux aussi RECOPIÉS de tailwind.config.js.
+  // 🔴 CES QUATRE VALEURS SONT LA CONDITION DE LA NON-RÉGRESSION. Un écran migré ne
+  // rendra à l'identique que si le jeton résolu vaut EXACTEMENT la classe `move-*`
+  // qu'il remplace. `scripts/verify-theme-parity.mjs` le vérifie mécaniquement contre
+  // tailwind.config.js — c'est ce script, et non la relecture, qui tient la garantie.
+  page: '#F5F4F0',              // move-bg
+  onSurface: '#111111',         // move-dark, dans son emploi de TEXTE (≠ onAccent)
+  onSurfaceSecondary: '#6B6861', // move-text-secondary
+  accentDim: '#9DB800',         // move-accent-dim
   limeAllowed: true,
 }
 
