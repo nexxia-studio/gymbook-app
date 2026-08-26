@@ -76,6 +76,8 @@ export interface ThemeDecision {
     accentFromGym: boolean
     backgroundLightness: number
     accentContrast: number
+    /** L'encre retenue pour le libellé, et d'où elle vient. */
+    accentInk: string
     accentVsBackground: number
     textContrast: number
     reasons: string[]
@@ -119,7 +121,26 @@ export function resolveTheme(
   // Un fond n'est retenu que s'il peut porter du texte. Un gris moyen, par exemple, ne
   // passe 4,5:1 NI avec l'encre claire NI avec l'encre sombre : le garder condamnerait
   // tout le texte de l'app, alors qu'aucun contrôle plus loin ne pourrait le rattraper.
+  // ── LES DEUX JEUX D'ENCRES, ET POURQUOI ILS DIFFÈRENT ──────────────────────────────
+  //
+  // TEXTE DE PAGE : clair ou Violet Ink, et rien d'autre. C'est l'identité typographique
+  // de Viniz, et la maquette la fixe explicitement pour le mode clair (« le texte passe en
+  // Violet Ink »). Élargir ce jeu changerait l'aspect de l'app, pas sa lisibilité.
+  //
+  // LIBELLÉ D'UN BOUTON : le jeu s'ouvre au quasi-noir de la palette. ⚠️ CE N'EST PAS UN
+  // ASSOUPLISSEMENT DU SEUIL — 4,5:1 reste 4,5:1. C'est que le libellé, lui, est posé sur
+  // une couleur de MARQUE arbitraire, pas sur une surface Viniz : son seul travail est
+  // d'être lu. Le cas qui l'impose est réel — un terracotta #E2543F (luminance 0,229) :
+  //     encre #F3F0FF  3,36:1     encre #2D1B69  3,79:1   ← les deux échouent
+  //     encre #171310  4,90:1  ✅
+  // Avec les seules encres de page, cette primaire parfaitement utilisable était ÉCARTÉE.
+  // Le défaut n'était pas dans le seuil, il était dans le choix de l'encre.
+  //
+  // Et le quasi-noir n'est pas une couleur inventée pour l'occasion : #171310 est le fond
+  // sombre Viniz, et c'est bien une encre de ce registre que la maquette pose sur ses
+  // boutons lime.
   const INKS = [VINIZ.light, VINIZ.ink] as const
+  const INKS_LABEL = [VINIZ.light, VINIZ.ink, VINIZ.dark] as const
   let background: Rgb
   let backgroundFromGym = false
   if (s) {
@@ -163,7 +184,7 @@ export function resolveTheme(
   let accentVsBackground = 0
 
   if (p) {
-    const inkOnPrimary = bestInkOn(p, INKS)
+    const inkOnPrimary = bestInkOn(p, INKS_LABEL)
     accentContrast = inkOnPrimary.ratio
     accentVsBackground = contrastRatio(p, background)
     if (accentContrast >= AA_TEXT && accentVsBackground >= AA_NON_TEXT) {
@@ -196,7 +217,9 @@ export function resolveTheme(
     // aucun texte et ne se détache d'aucune surface claire : l'action retombe sur le
     // Violet Ink (« les actions retombent sur le Violet Ink Viniz », écran 09).
     accent = mode === 'dark' ? VINIZ.lime : VINIZ.ink
-    onAccent = mode === 'dark' ? VINIZ.ink : VINIZ.light
+    // Même règle de sélection que pour une primaire de salle : une seule logique d'encre
+    // dans le module, donc un seul endroit à corriger le jour où elle bouge.
+    onAccent = bestInkOn(parseHex(accent)!, INKS_LABEL).ink
   }
 
   // ── 5. LES SURFACES SECONDAIRES ────────────────────────────────────────────────────
@@ -226,6 +249,7 @@ export function resolveTheme(
       accentFromGym,
       backgroundLightness,
       accentContrast,
+      accentInk: onAccent,
       accentVsBackground,
       textContrast,
       reasons,
