@@ -10,8 +10,21 @@ import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useBiometrics } from '../../hooks/useBiometrics'
+import { GYM_MODE } from '../../lib/gymResolver'
+import { BrandedLogin } from '../../components/viniz/BrandedLogin'
 
+/**
+ * GYM-102 (3/5) — L'AIGUILLAGE, ET RIEN D'AUTRE.
+ *
+ * `GYM_MODE` est figé à la compilation : l'ordre des hooks de chaque branche est stable et
+ * aucune ne voit l'autre. En `single`, cet écran rend exactement l'arbre d'avant —
+ * `DopamineLogin` est le composant existant, déplacé d'une ligne, non modifié.
+ */
 export default function Login() {
+  return GYM_MODE === 'multi' ? <BrandedLogin /> : <DopamineLogin />
+}
+
+function DopamineLogin() {
   const { t } = useTranslation()
   const router = useRouter()
   const { signIn, isLoading, error, clearError } = useAuthStore()

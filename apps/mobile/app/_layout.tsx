@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Platform } from 'react-native'
 import * as Sentry from '@sentry/react-native'
 import { Slot, useRouter, useSegments } from 'expo-router'
@@ -14,6 +14,8 @@ import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+import { GYM_MODE, readSelectedGymSlug } from '../lib/gymResolver'
+import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import '../lib/i18n'
 import '../global.css'
 
@@ -152,12 +154,38 @@ function useInjectPwaHead() {
 }
 
 function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    BarlowCondensed_900Black,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_700Bold,
-  })
+  // GYM-102 (3/5) — ⚠️ LA CARTE DE POLICES EST STRICTEMENT LA MÊME EN MODE `single`.
+  // MuseoModerno est la police de la marque Viniz : elle sert au repli « logo absent →
+  // nom de la salle ». L'ajouter inconditionnellement ferait attendre 186 Ko de plus
+  // AVANT `SplashScreen.hideAsync()` — sur l'app de Nico, pour une police qu'elle
+  // n'affiche jamais. `GYM_MODE` étant figé à la compilation, l'objet ci-dessous est une
+  // constante par build : l'ordre des hooks ne bouge pas.
+  const [fontsLoaded] = useFonts(
+    GYM_MODE === 'multi'
+      ? {
+          BarlowCondensed_900Black,
+          DMSans_400Regular,
+          DMSans_500Medium,
+          DMSans_700Bold,
+          MuseoModerno: require('../assets/fonts/MuseoModerno-Variable.ttf'),
+        }
+      : {
+          BarlowCondensed_900Black,
+          DMSans_400Regular,
+          DMSans_500Medium,
+          DMSans_700Bold,
+        },
+  )
+
+  // GYM-102 (3/5) — la salle dont il faut charger la marque. En `single`, personne ne lit
+  // jamais cet état : le fournisseur de thème rend la constante Dopamine sans effet.
+  const [brandSlug, setBrandSlug] = useState<string | null>(null)
+  useEffect(() => {
+    if (GYM_MODE === 'single') return
+    let alive = true
+    readSelectedGymSlug().then((slug) => { if (alive) setBrandSlug(slug) })
+    return () => { alive = false }
+  }, [])
 
   const initialize = useAuthStore((s) => s.initialize)
   const userId = useAuthStore((s) => s.user?.id ?? null)
@@ -211,7 +239,11 @@ function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <Slot />
+        {/* GYM-102 (3/5) — en mode `single` ce fournisseur rend la constante Dopamine au
+            premier rendu, sans effet, sans requête et sans re-rendu : il est inerte. */}
+        <BrandThemeProvider slug={brandSlug}>
+          <Slot />
+        </BrandThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

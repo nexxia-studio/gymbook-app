@@ -1,0 +1,105 @@
+// GYM-102 (3/5) — LE THÈME, DISPONIBLE PARTOUT, SANS RIEN CHANGER POUR DOPAMINE.
+//
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 EN MODE `single`, CE MODULE NE FAIT AUCUN APPEL RÉSEAU ET NE LIT AUCUN CACHE.
+// ═════════════════════════════════════════════════════════════════════════════════════
+// `DOPAMINE_THEME` est une constante ; le hook la rend telle quelle, au premier rendu,
+// sans état intermédiaire. Le chemin de Dopamine est donc STRICTEMENT le même
+// qu'aujourd'hui : pas d'attente, pas de bascule de couleur, pas de requête.
+//
+// ⚠️ ET SES VALEURS SONT UNE COPIE DE tailwind.config.js, PAS SA SOURCE. Les 441 classes
+// `bg-move-*` de l'app existante sont résolues À LA COMPILATION par NativeWind : elles ne
+// peuvent pas lire ce contexte. Faire de ce module la source unique imposerait de
+// réécrire ces 441 classes — c'est-à-dire de toucher chaque pixel de l'app de production,
+// exactement ce que le cadrage interdit. La copie est le prix de cette garantie ; elle est
+// figée (Dopamine ne change pas de charte) et signalée des deux côtés.
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { GYM_MODE, FIXED_GYM_ID } from '../gymResolver'
+import { resolveTheme, VINIZ_THEME, type ThemeTokens } from './resolveTheme'
+import { readCachedBrand, fetchBrand, type GymBrand } from './brand'
+
+/** Les couleurs actuelles de Dopamine, recopiées de tailwind.config.js. NE PAS MODIFIER. */
+export const DOPAMINE_THEME: ThemeTokens = {
+  mode: 'dark',
+  background: '#111111',   // move-dark
+  surface: '#FFFFFF',      // move-card
+  onBackground: '#FFFFFF',
+  onBackgroundMuted: '#9A9890', // move-text-muted
+  accent: '#C8F000',       // move-accent  ⚠️ le lime DOPAMINE, pas le lime Viniz
+  onAccent: '#111111',
+  border: '#E8E6E0',       // move-border
+  limeAllowed: true,
+}
+
+export interface BrandState {
+  tokens: ThemeTokens
+  /** La salle chargée, quand il y en a une. `null` en mode single et avant résolution. */
+  brand: GymBrand | null
+  /** `true` tant qu'on n'a pas tranché — jamais vrai en mode single. */
+  isLoading: boolean
+}
+
+const DEFAULT_STATE: BrandState = {
+  tokens: GYM_MODE === 'single' ? DOPAMINE_THEME : VINIZ_THEME,
+  brand: null,
+  isLoading: false,
+}
+
+const ThemeContext = createContext<BrandState>(DEFAULT_STATE)
+
+export function useTheme(): BrandState {
+  return useContext(ThemeContext)
+}
+
+/**
+ * Fournit le thème à l'arbre.
+ *
+ * ⚠️ EN MODE `single` IL NE MONTE AUCUN EFFET : le `useEffect` sort à la première ligne,
+ * l'état reste la constante `DEFAULT_STATE`, et le contexte rend exactement le même objet
+ * à chaque rendu (`useMemo` sur des valeurs stables). Rien ne re-rend, rien n'attend.
+ */
+export function BrandThemeProvider({ slug, children }: { slug: string | null; children: ReactNode }) {
+  const [brand, setBrand] = useState<GymBrand | null>(null)
+  const [isLoading, setIsLoading] = useState(GYM_MODE === 'multi' && slug !== null)
+
+  useEffect(() => {
+    if (GYM_MODE === 'single') return
+    if (!slug) { setBrand(null); setIsLoading(false); return }
+
+    let alive = true
+    setIsLoading(true)
+
+    // 1. Le cache d'abord : la marque s'affiche IMMÉDIATEMENT au second lancement.
+    readCachedBrand(slug).then((cached) => {
+      if (!alive || !cached) return
+      setBrand(cached)
+      setIsLoading(false)
+    })
+
+    // 2. Puis le réseau, qui corrige si la salle a changé de logo ou de couleurs.
+    fetchBrand(slug).then((res) => {
+      if (!alive) return
+      // ⚠️ UN ÉCHEC NE VIDE PAS CE QUI EST AFFICHÉ. Hors ligne, la marque du cache reste :
+      // repasser au thème Viniz par défaut ferait clignoter l'app à chaque coupure, et
+      // afficherait une marque qui n'est pas la sienne au membre — le pire des deux.
+      if (res.status === 'ok') setBrand(res.brand)
+      setIsLoading(false)
+    })
+
+    return () => { alive = false }
+  }, [slug])
+
+  const value = useMemo<BrandState>(() => {
+    if (GYM_MODE === 'single') return DEFAULT_STATE
+    // Pas de salle résolue, ou chargement infructueux → palette Viniz complète.
+    // 🔴 JAMAIS un écran blanc, JAMAIS les couleurs d'une autre salle.
+    if (!brand) return { tokens: VINIZ_THEME, brand: null, isLoading }
+    const { tokens } = resolveTheme(brand.primaryColor, brand.secondaryColor)
+    return { tokens, brand, isLoading }
+  }, [brand, isLoading])
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+}
+
+/** Rappel utile aux écrans : en single, la salle est celle du build, sans slug. */
+export const SINGLE_MODE_GYM_ID = FIXED_GYM_ID
