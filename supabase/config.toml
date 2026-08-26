@@ -1,5 +1,23 @@
 # verify_jwt explicite par fonction (évite une réécriture silencieuse au déploiement).
 # Le projet cible est passé via --project-ref au déploiement (pas de project_id couplé ici).
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# GYM-256 — TOUTES LES FONCTIONS SONT DÉCLARÉES ICI. C'EST LA RÈGLE.
+# ═══════════════════════════════════════════════════════════════════════════════
+# Une valeur non déclarée n'est pas « la valeur par défaut » : c'est une valeur que
+# PERSONNE N'A CHOISIE et que personne ne relit. La protection d'un point d'entrée ne
+# doit pas dépendre d'un défaut implicite de la plateforme, qui peut changer d'une
+# version de CLI à l'autre sans que rien ne le signale.
+#
+# ⚠️ TOUTE NOUVELLE FONCTION SE DÉCLARE ICI, avec un commentaire nommant CE QUI LA
+# PROTÈGE. Une fonction à `verify_jwt = false` sans garde nommée est un défaut, pas une
+# configuration.
+#
+# ⚠️ `verify_jwt = true` NE VEUT PAS DIRE « réservé aux gérants ». La passerelle accepte
+# TOUT JWT valide — y compris la CLÉ ANON, qui est publique (elle voyage dans le bundle
+# mobile et dans eas.json). C'est un filtre anti-passant, pas une autorisation : le
+# contrôle d'identité et de rôle se fait DANS la fonction (getUser + lecture du profil).
+# Les commentaires ci-dessous nomment donc, pour chaque fonction, sa garde RÉELLE.
 
 # Webhooks appelés par Mollie (auth = ?secret= dans l'URL, pas de JWT) → JWT désactivé.
 [functions.mollie-webhook]
@@ -97,3 +115,78 @@ verify_jwt = false
 # X-Internal-Secret faite en tête de la fonction.
 [functions.process-failed-renewals]
 verify_jwt = false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GYM-256 — FONCTIONS JUSQU'ICI NON DÉCLARÉES
+# ═══════════════════════════════════════════════════════════════════════════════
+# Les onze entrées ci-dessous ne font QUE RENDRE EXPLICITE la posture déjà en place :
+# `verify_jwt = true` est la valeur constatée sur la plateforme pour chacune (sondées en
+# production le 26/08/2026 — la passerelle répond « Missing authorization header » sans
+# en-tête, « Invalid JWT » avec un jeton mal formé). AUCUN comportement ne change.
+
+# ── Endpoints MEMBRE (JWT du membre ; l'identité vient du jeton, jamais du body) ──
+# Le membre agit pour lui-même : `getUser(token)` donne l'id, et toute la logique s'y
+# rapporte. Aucun rôle à vérifier — c'est le sens même de ces appels.
+[functions.create-booking]
+verify_jwt = true
+
+[functions.cancel-booking]
+verify_jwt = true
+
+[functions.confirm-waitlist]
+verify_jwt = true
+
+[functions.cancel-subscription]
+verify_jwt = true
+
+[functions.get-progression]
+verify_jwt = true
+
+# ── Endpoints GÉRANT (JWT + rôle vérifié DANS la fonction) ────────────────────────
+# `verify_jwt` ne fait que rejeter les non-authentifiés ; c'est la lecture du profil
+# (role ∈ gym_admin/super_admin, gym_id pris sur l'appelant et jamais du body) qui
+# autorise réellement — même modèle que GYM-144, GYM-200, GYM-203.
+[functions.admin-book-member]
+verify_jwt = true
+
+[functions.admin-lift-suspension]
+verify_jwt = true
+
+[functions.send-communication]
+verify_jwt = true
+
+[functions.slot-series-op]
+verify_jwt = true
+
+# ── Double entrée : gérant OU appel interne ──────────────────────────────────────
+# generate-invoice accepte les deux : un JWT gym_admin depuis le dashboard, OU un
+# X-Internal-Secret quand une autre fonction la déclenche (mollie-webhook,
+# mollie-subscription-webhook, admin-create-member). Les deux gardes cohabitent dans la
+# fonction ; `verify_jwt = true` n'empêche pas le second chemin, qui envoie lui aussi un
+# jeton (service_role) dans l'en-tête Authorization.
+[functions.generate-invoice]
+verify_jwt = true
+
+# ── 🔴 send-notification — DÉCLARÉE À SA VALEUR ACTUELLE, MAIS À ARBITRER ─────────
+# Posture réelle : `verify_jwt = true`. Cette entrée ne change donc RIEN.
+#
+# ⚠️ MAIS C'EST LA SEULE FONCTION DU DÉPÔT SANS AUCUNE GARDE PROPRE : ni `getUser`, ni
+# `X-Internal-Secret`, ni vérification de rôle. Sa seule protection est la passerelle —
+# c'est-à-dire « n'importe quel JWT valide », donc la CLÉ ANON, qui est PUBLIQUE.
+# Vérifié le 26/08/2026 : un appel avec la seule clé anon de staging rend
+# `{"ok":true,"sent":0,"failed":0,"skipped":1}` — la fonction s'exécute.
+#
+# Conséquence : toute personne ayant installé l'app peut faire partir une notification
+# push vers un jeton Expo qu'elle connaîtrait.
+#
+# ⚠️ RIEN N'EST DURCI ICI, DÉLIBÉRÉMENT — ce lot déclare l'existant, il ne modifie aucun
+# code de fonction. Le correctif (un `X-Internal-Secret`, comme send-reminders, plus un
+# chemin gérant pour l'appel dashboard de useGymAdminActions) demande un arbitrage et un
+# ticket à lui : il touche NEUF appelants.
+#
+# Appelants recensés : send-reminders, notify-waitlist, mark-attendance, cancel-slot,
+# slot-series-op, send-communication, admin-book-member (fetch + service_role) ;
+# mollie-webhook, mollie-subscription-webhook, admin-lift-suspension
+# (functions.invoke + client service_role) ; et le dashboard (JWT du gérant).
+[functions.send-notification]
+verify_jwt = true
