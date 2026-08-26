@@ -43,17 +43,23 @@ const LIME = '#C8FF3D'
 const DOT_CORE = '#F3F0FF'
 
 /**
- * ⚠️ POSITION DE L'ART DANS SA BOÎTE — LE SEUL RÉGLAGE À VÉRIFIER SUR APPAREIL.
+ * ⚠️ CALAGE DE LA BILLE SUR LE TRACÉ — VÉRIFIÉ, ET IL VAUT 0.
  *
- * Les coordonnées de la bille sont calées sur un art dont la spec annonce l'emprise à
- * « y 15,5 %→83 % » du viewBox. L'asset livré ici est DÉRIVÉ du SVG d'origine du dépôt
- * (cf. scripts/generate-viniz-brand-svg.js) et son art mesure y 16,0 %→84,0 % : mêmes
- * proportions, décalées d'environ 0,7 % — soit moins d'un pixel à 124 px, très en dessous
- * du diamètre de la bille.
+ * L'asset versionné est celui de la maquette, à l'octet près. Son art lime, projeté dans
+ * la boîte 117 × 89 de la spec (image 124 px, marginTop −17), occupe :
  *
- * Si le .zip de la maquette apporte le fichier définitif et que la bille flotte à côté du
- * tracé, c'est cette constante qui la recolle. Elle vaut 0 tant que rien ne le prouve :
- * corriger un décalage qu'on n'a pas vu, c'est en créer un.
+ *     x 9,34 → 114,91 px     table de la spec : départ plat 9, fin plat droite 115
+ *     y 2,86 →  87,22 px     table de la spec : grand pic 8, creux du V 88 (AXES du
+ *                            tracé, pas contours — d'où les ~5 px de demi-épaisseur
+ *                            au-dessus du grand pic)
+ *
+ * C'est LE contrôle qui compte, parce que les coordonnées de la bille vivent dans cette
+ * même boîte : elles tombent à un tiers de pixel près sur les extrémités de l'art. Les
+ * pourcentages du texte de la spec (« x 7 %→93 %, y 15,5 %→83 % ») sont une description
+ * arrondie du même fichier — mesuré, il donne 7,5 %→92,7 % et 16,0 %→84,0 %.
+ *
+ * La constante reste donc à 0, et n'existe que pour donner un point de reprise nommé si
+ * l'asset changeait un jour. Corriger un décalage qu'on n'a pas vu, c'est en créer un.
  */
 const ART_Y_NUDGE = 0
 
@@ -117,7 +123,7 @@ export function VinizPulse({ width = BOX_W }: VinizPulseProps) {
       accessibilityRole="image"
       accessibilityLabel="Viniz"
     >
-      <Animated.View style={[{ height: BOX_H * k, overflow: 'hidden' }, mask]}>
+      <Animated.View style={[{ position: 'absolute', left: 0, top: 0, height: BOX_H * k, overflow: 'hidden' }, mask]}>
         <SvgXml
           xml={VINIZ_PULSE_LINE_SVG}
           width={ART_SIZE * k}
@@ -131,7 +137,11 @@ export function VinizPulse({ width = BOX_W }: VinizPulseProps) {
       {!reduceMotion && (
         <Animated.View
           pointerEvents="none"
-          style={[{ position: 'absolute', width: DOT_SIZE * k, height: DOT_SIZE * k }, dot]}
+          // ⚠️ `left: 0, top: 0` EXPLICITES. Le JSX de la spec pose `position: 'absolute'`
+          // nu, mais son HTML de référence, lui, écrit `left:0;top:0` — et sans insets,
+          // Yoga place l'élément à sa position de flux, c'est-à-dire SOUS le masque de
+          // 89 px : la bille sortirait de la boîte. On suit le HTML, qui tranche.
+          style={[{ position: 'absolute', left: 0, top: 0, width: DOT_SIZE * k, height: DOT_SIZE * k }, dot]}
         >
           {/* ⚠️ ANDROID NE REND PAS shadowRadius — la bille y serait un point mat sans
               lueur. Le halo y est donc un vrai cercle lime, posé SOUS la bille et centré

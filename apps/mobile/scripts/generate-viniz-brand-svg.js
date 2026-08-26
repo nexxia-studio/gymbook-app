@@ -1,81 +1,65 @@
 /**
- * GYM-102 (2/5) — dérive les deux assets de marque « fond transparent » de l'écran de
- * lancement Viniz, et le module TypeScript qui les embarque.
+ * GYM-102 (2/5) — contrôle les deux assets de marque de l'écran de lancement Viniz, et
+ * régénère le module TypeScript qui les embarque.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
- * ⚠️ POURQUOI CE SCRIPT EXISTE — LIS CECI AVANT DE RÉGÉNÉRER
+ * ⚠️ LE .SVG EST LA SOURCE DE VÉRITÉ. CE SCRIPT NE DESSINE RIEN.
  * ─────────────────────────────────────────────────────────────────────────────────────
- * La spec de l'animation décrit l'asset ainsi : « le pulse-V seul, fond transparent (les
- * deux rectangles pleins #ffffff et #4827b4 du SVG d'origine ont été supprimés) ».
- * Le .zip contenant les fichiers finaux n'est pas arrivé — ce script applique donc
- * EXACTEMENT l'opération que la spec documente, sur les SVG d'origine DÉJÀ dans le dépôt.
+ * Les deux fichiers viennent de la maquette (Claude Design) et sont versionnés tels
+ * quels. Ce script les relit, VÉRIFIE qu'ils sont bien à fond transparent, et en dérive
+ * `brandSvg.ts`. Toucher au .svg sans relancer le script laisse le module en arrière —
+ * c'est le seul piège de cet ensemble.
  *
- * Ce n'est pas une reconstitution à vue : les deux `<rect x="-150" width="1800">` sont des
- * frères de premier niveau posés juste après `</defs>`, et rien d'autre n'est touché —
- * ni le viewBox, ni un chemin, ni une couleur.
- *
- * PREUVE QUE `viniz-icon.svg` EST BIEN LE SVG D'ORIGINE DE LA SPEC : la spec annonce
- * « viewBox 1500×1500, art lime #C8FF3D occupant x 7 %→93 %, y 15,5 %→83 % ». La boîte
- * englobante mesurée de l'art lime du fichier vaut x 7,5 %→92,7 %, y 16,0 %→84,0 % — mêmes
- * proportions à un demi-pour-cent près, sur un fichier qui porte précisément les deux
- * rectangles que la spec dit avoir retirés.
- *
- * ⚠️ SI LE .ZIP ARRIVE : remplacer les deux .svg par ceux du zip, relancer ce script pour
- * régénérer le module TS, et vérifier la position de la bille à l'écran (voir la note
- * ART_Y_NUDGE dans components/viniz/VinizPulse.tsx).
+ * ⚠️ LE CONTRÔLE DE FOND N'EST PAS DÉCORATIF. Le SVG d'origine de la marque porte deux
+ * rectangles pleins hors-champ (`<rect x="-150" width="1800">` en #ffffff puis #4827b4).
+ * S'ils reviennent — réexport depuis l'outil de dessin, mauvais fichier recopié — l'écran
+ * de lancement affiche un CARRÉ VIOLET OPAQUE par-dessus le tracé, et rien dans le build
+ * ne le signale. D'où l'échec franc ci-dessous plutôt qu'un avertissement.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
- * ⚠️ ET POURQUOI UN MODULE TS EN PLUS DU .SVG
+ * ⚠️ ET POURQUOI UN MODULE TS À CÔTÉ DU .SVG
  * ─────────────────────────────────────────────────────────────────────────────────────
  * Rien dans l'app ne sait importer un `.svg` : `react-native-svg-transformer` n'est pas
- * installé, et l'installer imposerait de poser un `babelTransformerPath` dans
- * metro.config.js — LÀ OÙ NATIVEWIND POSE DÉJÀ LE SIEN. Les deux se remplacent l'un
- * l'autre : le perdant emporte soit tous les SVG, soit TOUT LE STYLE DE L'APP DOPAMINE.
- * Le risque est sans commune mesure avec le gain.
+ * installé, et l'installer imposerait un `babelTransformerPath` dans metro.config.js —
+ * LÀ OÙ NATIVEWIND POSE DÉJÀ LE SIEN. Les deux se remplacent l'un l'autre : le perdant
+ * emporte soit tous les SVG, soit TOUT LE STYLE DE L'APP DOPAMINE, sans erreur de build
+ * pour le dire. Décision laissée au cockpit, volontairement pas prise ici.
  *
  * La spec prévoit elle-même la porte de sortie : « ou `<SvgXml>` avec le contenu du
- * fichier ». C'est ce qu'on fait — d'où ce module généré, qui garde le .svg comme unique
- * source de vérité au lieu de laisser deux copies dériver en silence.
+ * fichier ». C'est ce qu'on fait — d'où ce module généré, qui évite de laisser deux
+ * copies du même dessin dériver en silence.
  *
  * Usage : node scripts/generate-viniz-brand-svg.js
  */
 const fs = require('fs')
 const path = require('path')
 
-const ROOT = path.join(__dirname, '..')
-const OUT_DIR = path.join(ROOT, 'assets', 'viniz')
+const OUT_DIR = path.join(__dirname, '..', 'assets', 'viniz')
 
-/** Les deux fonds pleins que la spec dit avoir retirés — et EUX SEULS. */
+/** Les deux fonds pleins qui ne doivent JAMAIS être là. */
 const FULL_BLEED_RECT = /<rect x="-150"[^>]*fill="#(?:ffffff|4827b4)"[^>]*(?:\/>|><\/rect>)/g
 
-const SOURCES = [
-  {
-    from: path.join(OUT_DIR, 'viniz-icon.svg'),
-    to: path.join(OUT_DIR, 'viniz-pulse-line.svg'),
-    export: 'VINIZ_PULSE_LINE_SVG',
-  },
-  {
-    from: path.join(ROOT, '..', 'dashboard', 'src', 'assets', 'brand', 'viniz-wordmark.svg'),
-    to: path.join(OUT_DIR, 'viniz-wordmark-transparent.svg'),
-    export: 'VINIZ_WORDMARK_SVG',
-  },
+const ASSETS = [
+  { file: 'viniz-pulse-line.svg', export: 'VINIZ_PULSE_LINE_SVG' },
+  { file: 'viniz-wordmark-transparent.svg', export: 'VINIZ_WORDMARK_SVG' },
 ]
 
 const parts = []
-for (const s of SOURCES) {
-  const src = fs.readFileSync(s.from, 'utf8')
-  const removed = src.match(FULL_BLEED_RECT) || []
-  if (removed.length !== 2) {
+for (const a of ASSETS) {
+  const xml = fs.readFileSync(path.join(OUT_DIR, a.file), 'utf8')
+
+  const opaque = xml.match(FULL_BLEED_RECT)
+  if (opaque) {
     throw new Error(
-      `${path.basename(s.from)} : ${removed.length} rectangle(s) de fond trouvé(s), 2 attendus. ` +
-      `Le fichier source a changé — vérifier avant de régénérer quoi que ce soit.`,
+      `${a.file} : ${opaque.length} fond(s) plein(s) trouvé(s) — l'asset n'est PAS transparent. ` +
+      `Posé tel quel, il masquerait l'écran de lancement d'un carré opaque. Reprendre le ` +
+      `fichier de la maquette avant d'aller plus loin.`,
     )
   }
-  const out = src.replace(FULL_BLEED_RECT, '')
-  if (!out.includes('#c8ff3d')) throw new Error(`${path.basename(s.to)} : plus d'art lime après nettoyage`)
-  fs.writeFileSync(s.to, out)
-  parts.push({ name: s.export, xml: out, file: path.basename(s.to) })
-  console.log(`✓ ${path.basename(s.to)} (${out.length} o, 2 fonds retirés)`)
+  if (!xml.includes('#c8ff3d')) throw new Error(`${a.file} : aucun art lime #C8FF3D — mauvais fichier ?`)
+
+  parts.push({ name: a.export, xml, file: a.file })
+  console.log(`✓ ${a.file} (${xml.length} o, fond transparent confirmé)`)
 }
 
 const ts = `// ⚠️ FICHIER GÉNÉRÉ — NE PAS ÉDITER À LA MAIN.
