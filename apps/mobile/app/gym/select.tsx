@@ -10,7 +10,7 @@
 // de se présenter chez quelqu'un.
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { View, Text, ActivityIndicator, TouchableOpacity, FlatList, Image } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { MapPin } from 'lucide-react-native'
@@ -27,6 +27,9 @@ import {
 export default function GymSelect() {
   const { t } = useTranslation()
   const router = useRouter()
+  // GYM-102 (4/5) — un lien profond dont le slug n'existe pas atterrit ici. Sans ce
+  // message, le membre verrait un écran de recherche vide et croirait avoir mal cliqué.
+  const { reason } = useLocalSearchParams<{ reason?: string }>()
 
   const [query, setQuery] = useState('')
   const [outcome, setOutcome] = useState<GymSearchOutcome>({ status: 'too_short' })
@@ -143,7 +146,7 @@ export default function GymSelect() {
           {t('gym_select.title')}
         </Text>
         <Text className="mt-2 font-dmsans text-sm text-move-text-secondary">
-          {t('gym_select.subtitle')}
+          {reason === 'unknown_gym' ? t('deep_link.unknown_gym') : t('gym_select.subtitle')}
         </Text>
 
         <View className="mt-6">
