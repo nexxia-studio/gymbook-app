@@ -1,11 +1,11 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   Settings, CreditCard, Receipt, Bell, Globe,
-  User, Shield, FileText, Download, Trash2, LogOut, Pencil,
+  User, Shield, FileText, Download, Trash2, LogOut, Pencil, Building2,
 } from 'lucide-react-native'
 import { ProfileHeader } from '../../components/profile/ProfileHeader'
 import { GamificationCard } from '../../components/profile/GamificationCard'
@@ -17,6 +17,8 @@ import { useAuthStore, type MemberProfile } from '../../stores/useAuthStore'
 import { useProfileStats } from '../../hooks/useProfileStats'
 import { useSubscriptionSummary } from '../../hooks/useSubscriptionSummary'
 import { getLevel } from '../../utils/level'
+import { GYM_MODE } from '../../lib/gymResolver'
+import { listMyGyms } from '../../lib/gymSwitch'
 
 interface GamificationItem {
   key: string
@@ -41,7 +43,39 @@ function buildGamification(p: MemberProfile | null, navigate: (path: string) => 
   return { items, percentage: earned }
 }
 
+/**
+ * GYM-288 — combien de salles ce membre a-t-il ?
+ *
+ * 🔴 « PAS DE BOUTON MORT » : l'entrée « changer de salle » n'a de sens qu'au-delà d'une
+ * salle. Un membre d'une seule salle qui la toucherait n'apprendrait rien d'actionnable —
+ * ce n'est pas une fonctionnalité qui lui manque, c'est simplement sa situation.
+ *
+ * ⚠️ ON PAIE DONC UN APPEL RÉSEAU POUR NE PAS AFFICHER UN LIEN. C'est le prix assumé de la
+ * consigne : le seul moyen de savoir s'il y a lieu de proposer la bascule est de compter
+ * les appartenances, et il n'existe pas de raccourci local qui les connaisse. L'appel est
+ * une RPC unique, sans paramètre, sur un écran qui en fait déjà plusieurs.
+ *
+ * ⚠️ ET EN CAS D'ÉCHEC, ON MASQUE. Hors ligne, la bascule ne pourrait de toute façon pas
+ * aboutir : afficher l'entrée mènerait à un écran d'erreur. Mieux vaut ne rien proposer
+ * que proposer ce qui ne marchera pas.
+ *
+ * Aucun appel en mode `single` : l'effet sort à la première ligne.
+ */
+function useCanSwitchGym(): boolean {
+  const [canSwitch, setCanSwitch] = useState(false)
+  useEffect(() => {
+    if (GYM_MODE === 'single') return
+    let alive = true
+    listMyGyms().then((res) => {
+      if (alive) setCanSwitch(res.status === 'ok' && res.gyms.length > 1)
+    })
+    return () => { alive = false }
+  }, [])
+  return canSwitch
+}
+
 export default function Profile() {
+  const canSwitchGym = useCanSwitchGym()
   const { t } = useTranslation()
   const router = useRouter()
   const signOut = useAuthStore((s) => s.signOut)
@@ -153,6 +187,18 @@ export default function Profile() {
 
         {/* Account */}
         <ProfileSection title={t('profile.section_account')}>
+          {/* GYM-288 — affiché seulement si le membre a plus d'une salle (cf.
+              useCanSwitchGym). En mode `single`, jamais. */}
+          {canSwitchGym && (
+            <>
+              <ProfileListItem
+                icon={Building2}
+                label={t('profile.switch_gym')}
+                onPress={() => router.push('/profile/gym-switch' as never)}
+              />
+              <View className="mx-5 h-px bg-move-border" />
+            </>
+          )}
           <ProfileListItem icon={User} label={t('profile.edit_profile')} onPress={() => router.push('/profile/edit')} />
           <View className="mx-5 h-px bg-move-border" />
           <ProfileListItem

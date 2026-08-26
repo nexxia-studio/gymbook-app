@@ -12,6 +12,14 @@
     "offline_title": "No connection",
     "offline_message": "Your phone is not connected to the internet. Check your connection and try again."
   },
+  "gym_switch": {
+    "title": "Switch gym",
+    "subtitle": "Pick the gym you want to see. Your bookings at the other gyms stay put.",
+    "current": "Active gym",
+    "only_one": "You are a member of only one gym for now.",
+    "failed": "The switch did not go through. Try again in a moment.",
+    "error": "Your gyms could not be loaded. Try again in a moment."
+  },
   "deep_link": {
     "switch_title": "This link is for another gym",
     "switch_message": "You are signed in at {{current}}. This link takes you to {{incoming}}. If you continue, {{incoming}} becomes your active gym — your bookings at {{current}} stay put, you will find them again when you return.",
@@ -401,6 +409,7 @@
     "notifications_detail": "Push enabled",
     "language": "Language",
     "language_detail": "English",
+    "switch_gym": "Switch gym",
     "section_account": "Account",
     "edit_profile": "Edit my profile",
     "security": "Security",
