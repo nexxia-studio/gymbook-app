@@ -12,6 +12,13 @@
     "offline_title": "Pas de connexion",
     "offline_message": "Ton téléphone n'est pas connecté à Internet. Vérifie ta connexion et réessaie."
   },
+  "deep_link": {
+    "switch_title": "Ce lien concerne une autre salle",
+    "switch_message": "Tu es connecté chez {{current}}. Ce lien t'emmène chez {{incoming}}. Si tu continues, {{incoming}} devient ta salle active — tes réservations chez {{current}} ne bougent pas, tu les retrouveras en y revenant.",
+    "switch_confirm": "Continuer vers {{gym}}",
+    "switch_cancel": "Rester où je suis",
+    "unknown_gym": "Ce lien pointe vers une salle qu'on ne trouve pas. Cherche-la par son nom."
+  },
   "branding": {
     "powered_by": "propulsé par"
   },

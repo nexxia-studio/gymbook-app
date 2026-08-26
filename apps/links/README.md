@@ -22,18 +22,50 @@ seule app : **Dopamine** (`2B239M7MJL.be.dopamineclub.app`) sur les paths `/dopa
 - `be.dopamineclub.app` = bundle identifier de l'app Dopamine (vérifié en lecture seule dans
   `apps/mobile/app.config.ts`).
 
-### Ajouter l'app Viniz (multi-tenant) plus tard
+### GYM-102 (4/5) — l'entrée Viniz est désormais présente
 
-Ajouter une **2e entrée** dans `details`, sans toucher à celle de Dopamine :
+Le fichier sert maintenant **deux applications**, et l'ordre y est porteur de sens.
 
-```json
-{
-  "appID": "2B239M7MJL.be.viniz.app",   // appID réel de l'app Viniz à confirmer
-  "paths": ["/viniz/*"]
-}
+```
+details[0]  be.dopamineclub.app   paths: ["/dopamine/*"]          ← INCHANGÉ
+details[1]  app.viniz             components:
+                                    1. "/dopamine/*"  exclude ← DOIT RESTER EN PREMIER
+                                    2. "/*"
 ```
 
-puis créer les pages sous `public/viniz/…`. Ne PAS créer cette entrée maintenant.
+**🔴 Le risque que ces deux règles écartent.** `links.viniz.app` sert `/dopamine/*` à
+l'app de Nico. Si l'app Viniz revendiquait les mêmes chemins, deux apps se disputeraient
+le même lien sur un appareil où les deux sont installées, et iOS trancherait de façon
+imprévisible : un membre de Dopamine cliquant son lien de réinitialisation de mot de passe
+pourrait ouvrir l'app Viniz, où il n'a pas de compte. **Rien dans le fichier ne signale
+cette erreur** — elle ne se voit que sur un téléphone, chez un client.
+
+Deux garanties indépendantes sont donc posées :
+
+1. **L'ordre des dictionnaires.** Apple : « The order of the dictionaries in the array
+   determines the order the system follows when looking for a match. » Dopamine est en
+   premier.
+2. **L'exclusion explicite.** Apple : « You can exclude such subsections by specifying the
+   `exclude` key with a Boolean value of `true`. This key has the same behavior as a `not`
+   keyword that you used in the old `paths` key. » Et : « the system evaluates each path
+   […] in the order it is specified — and stops evaluating when a positive or negative
+   match is found ». D'où l'exclusion **avant** le `/*`.
+
+**⚠️ `exclude` n'existe QUE dans `components`.** Le mot-clé `NOT ` de l'ancien format
+`paths` n'est pas reconnu dans `components`, et réciproquement. Les deux entrées de ce
+fichier utilisent donc des formats différents — c'est volontaire : celle de Dopamine n'est
+pas touchée, celle de Viniz utilise le format moderne (iOS 13+, très en dessous de la
+cible de l'app).
+
+**⚠️ `appID` À CONFIRMER AVANT DÉPLOIEMENT.** `2B239M7MJL.app.viniz` est le bundle
+identifier attendu de l'app Viniz de production, qui **n'existe pas encore** (lot 5).
+Le Team ID `2B239M7MJL` est celui de Dopamine. Un `appID` faux ne produit **aucune
+erreur** : l'association échoue en silence et les liens s'ouvrent dans le navigateur.
+
+**La variante « Viniz Staging » (`app.viniz.staging`) n'est PAS dans ce fichier**, et c'est
+cohérent : `app.config.ts` lui **retire** ses `associatedDomains` (GYM-258). Elle ignore
+donc cet AASA. Le jour où quelqu'un lui rend ses associated domains, il devra ajouter son
+appID ici — sans quoi ses liens resteront muets.
 
 ## Servir l'AASA correctement (contraintes Apple)
 

@@ -12,6 +12,13 @@
     "offline_title": "No connection",
     "offline_message": "Your phone is not connected to the internet. Check your connection and try again."
   },
+  "deep_link": {
+    "switch_title": "This link is for another gym",
+    "switch_message": "You are signed in at {{current}}. This link takes you to {{incoming}}. If you continue, {{incoming}} becomes your active gym — your bookings at {{current}} stay put, you will find them again when you return.",
+    "switch_confirm": "Continue to {{gym}}",
+    "switch_cancel": "Stay where I am",
+    "unknown_gym": "This link points to a gym we cannot find. Search for it by name."
+  },
   "branding": {
     "powered_by": "powered by"
   },
