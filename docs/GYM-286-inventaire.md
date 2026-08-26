@@ -67,6 +67,23 @@ GYM-286a avait mandat d'inventorier. Les 172 autres occurrences sont à inventor
 même format avant 286b ; elles sont pour l'essentiel **sémantiques** (rouges, orangés,
 verts de la palette Tailwind), c'est-à-dire la famille qui compte le plus.
 
+> **✅ FAIT EN GYM-286b.** `scripts/inventaire-couleurs.mjs` couvre désormais les cinq
+> populations et fait autorité sur les comptes : **900 occurrences sur 73 fichiers**
+> (728 + 172), commentaires exclus. La palette Tailwind y est **lue dans le paquet
+> installé**, jamais recopiée — une montée de version ne peut pas rendre le tableau faux
+> en silence.
+>
+> 🔴 **Et seules 64 des 172 se migrent.** Une valeur ne devient un jeton que si elle vaut
+> EXACTEMENT ce jeton : `text-red-500` **est** `SEMANTIC.danger` #EF4444, mais
+> `bg-red-500/10` est un lavis de ce rouge que nul jeton ne nomme. Les 108 autres restent
+> — et **les laisser n'est pas un demi-travail** : ce sont des valeurs sémantiques, dont
+> le seul devoir est de ne jamais suivre la marque, ce qu'une classe Tailwind figée fait
+> déjà parfaitement. Ce qui leur manque est une source unique, pas une correction.
+>
+> `node scripts/inventaire-couleurs.mjs --reste` ventile le restant **par raison** : une
+> occurrence laissée sur ordre du cockpit et une occurrence oubliée se ressemblent dans un
+> total, et n'ont rien à voir.
+
 ### État après cet lot
 
 | | `develop` | branche `gym-286a` |
