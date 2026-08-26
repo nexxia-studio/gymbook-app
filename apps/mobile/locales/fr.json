@@ -26,6 +26,7 @@
     "tagline": "Ta salle, vivante."
   },
   "gym_select": {
+    "not_my_gym": "Ce n'est pas ma salle",
     "title": "Trouve ta salle",
     "subtitle": "Cherche ta salle par son nom pour accéder à ses créneaux.",
     "placeholder": "Nom de la salle",

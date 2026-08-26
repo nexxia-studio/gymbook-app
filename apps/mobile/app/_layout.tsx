@@ -14,7 +14,7 @@ import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
-import { GYM_MODE, readSelectedGymSlug } from '../lib/gymResolver'
+import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug } from '../lib/gymResolver'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import '../lib/i18n'
 import '../global.css'
@@ -184,7 +184,11 @@ function RootLayout() {
     if (GYM_MODE === 'single') return
     let alive = true
     readSelectedGymSlug().then((slug) => { if (alive) setBrandSlug(slug) })
-    return () => { alive = false }
+    // GYM-288 — ⚠️ ET ON RESTE À L'ÉCOUTE. Cette racine n'est jamais démontée : sans
+    // abonnement, elle garderait à jamais le slug lu au tout premier rendu — c'est-à-dire
+    // `null` au premier lancement, et la salle QUITTÉE après un retour en arrière.
+    const unsubscribe = subscribeSelectedGymSlug((slug) => { if (alive) setBrandSlug(slug) })
+    return () => { alive = false; unsubscribe() }
   }, [])
 
   const initialize = useAuthStore((s) => s.initialize)

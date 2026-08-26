@@ -26,6 +26,7 @@
     "tagline": "Your gym, alive."
   },
   "gym_select": {
+    "not_my_gym": "This is not my gym",
     "title": "Find your gym",
     "subtitle": "Search your gym by name to see its classes.",
     "placeholder": "Gym name",
