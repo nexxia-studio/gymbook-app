@@ -130,6 +130,69 @@ Repasser à un projet dédié est un changement d'une ligne dans `lib/analytics.
 la clé selon `isStaging`) plus une variable dans `eas.json`. La super-propriété peut rester
 — elle ne gêne pas, et elle documente l'origine de chaque événement.
 
+## 4bis. GYM-272/273 — Catalogue des écrans et des événements
+
+### Écrans (`$screen`)
+
+Le nom vient des **segments** d'Expo Router, pas de l'URL : `useSegments()` rend le motif
+(`['session', '[id]']`), donc **aucun identifiant ne peut entrer dans un nom d'écran**.
+C'est anonyme par construction, pas par assainissement.
+
+Règles : les groupes `(auth)` / `(tabs)` sont retirés · un segment dynamique `[x]` devient
+`detail` · les tirets deviennent des underscores · racine → `home`.
+
+| Route | Nom d'écran |
+|---|---|
+| `/` | `index` |
+| `/(tabs)/` | `home` |
+| `/(tabs)/schedule` · `bookings` · `studio` · `profile` | `schedule` · `bookings` · `studio` · `profile` |
+| `/(auth)/login` · `signup` · `forgot-password` · `verify-email` | `login` · `signup` · `forgot_password` · `verify_email` |
+| `/session/[id]` | **`session_detail`** — jamais l'UUID |
+| `/payment/success` · `/payment/cancel` | `payment_success` · `payment_cancel` |
+| `/profile/edit` · `payments` · `subscription` · `security` · `preferences` · `export-data` · `delete-account` | `profile_edit` · `profile_payments` · `profile_subscription` · `profile_security` · `profile_preferences` · `profile_export_data` · `profile_delete_account` |
+| `/profile/legal/cgu` · `/profile/legal/privacy` | `profile_legal_cgu` · `profile_legal_privacy` |
+| `/dopamine/confirm-waitlist` · `payment-success` · `reset-password` | `dopamine_confirm_waitlist` · `dopamine_payment_success` · `dopamine_reset_password` |
+| `/auth/callback` · `/+not-found` | `auth_callback` · `not_found` |
+
+### Événements
+
+Toutes les propriétés ci-dessous **s'ajoutent** aux super-propriétés `environment` et
+`gym_id`, portées par chaque événement sans intervention de l'appelant.
+
+| Événement | Propriétés | Émis depuis |
+|---|---|---|
+| `booking_created` | `status` | `stores/useBookingStore` |
+| `booking_cancelled` | — | `stores/useBookingStore` |
+| **`booking_failed`** | `code`, `status`, `offline` | **`lib/edgeInvoke`** |
+| **`waitlist_joined`** | `position` | `stores/useBookingStore` |
+| **`waitlist_promoted`** | — | `stores/useBookingStore` |
+| **`waitlist_expired`** | — | `app/session/[id]` |
+| `payment_initiated` | `kind` | `lib/payments` |
+| **`payment_completed`** | `amount_cents`, `currency`, `kind`, `credits_granted` | `app/payment/success` |
+| **`payment_failed`** | `status` | `app/payment/success` |
+| **`subscription_started`** | `amount_cents`, `currency` | `app/payment/success` |
+| **`subscription_cancelled`** | — | `app/profile/subscription` |
+| **`login_succeeded`** | — | `stores/useAuthStore` |
+| **`login_failed`** | `reason` (clé i18n, ensemble fermé) | `stores/useAuthStore` |
+| **`signup_completed`** | `needs_confirmation` | `stores/useAuthStore` |
+| `secure_store_read_failed` | `reason` (`locked` / `not_found` / `other`) | `lib/supabase` |
+
+**Conventions** : `objet_action` au passé · propriétés en `snake_case` · montants en
+**centimes** + `currency` séparée · **jamais** d'email, de nom ni de texte libre.
+
+### ⚠️ Limite connue : `payment_completed` sous-estime la conversion
+
+Il est capturé **côté client**, sur l'écran de retour de paiement. Un membre qui paie puis
+ferme le navigateur sans revenir dans l'app ne déclenche rien — alors que son paiement a
+réussi et que ses crédits sont bien délivrés par le webhook.
+
+**La mesure exacte viendrait du webhook Mollie** : un envoi serveur vers PostHog, avec
+`distinct_id` = l'id du profil, au moment où le paiement est confirmé. C'est une évolution
+identifiée, **hors de ce lot** — le webhook de paiement n'a pas été touché.
+
+En attendant : `payment_completed` est un **plancher**, pas un compte exact. `/revenus` et
+la table `payments` restent la source de vérité de l'argent encaissé.
+
 ## 5. Message hors ligne
 
 Défaut observé : réseau coupé, le bouton de réservation ne faisait **rien**. Aucun message.

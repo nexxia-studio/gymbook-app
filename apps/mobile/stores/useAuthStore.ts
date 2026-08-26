@@ -3,7 +3,7 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { GYM_ID } from '../constants/dopamine'
 import { LEGAL_VERSION } from '../constants/legal/meta'
-import { identifyUser, resetAnalytics } from '../lib/analytics'
+import { captureEvent, identifyUser, resetAnalytics } from '../lib/analytics'
 
 function mapError(msg: string): string {
   if (msg.includes('Invalid login credentials')) return 'auth.errors.invalid_credentials'
@@ -72,9 +72,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null })
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
+      // GYM-273 — `reason` est la CLÉ i18n déjà calculée par `mapError`, donc une valeur
+      // d'un ensemble fermé. ⚠️ Jamais `error.message` brut : c'est du texte libre venu de
+      // GoTrue, qui peut contenir l'adresse email — et la convention du lot l'interdit.
+      captureEvent('login_failed', { reason: mapError(error.message) })
       set({ isLoading: false, error: mapError(error.message) })
       throw error
     }
+    captureEvent('login_succeeded')
     set({ user: data.user, session: data.session, gym_id: GYM_ID, isLoading: false })
   },
 
@@ -106,7 +111,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw error
     }
 
+    // GYM-273 — `needs_confirmation` distingue les deux issues d'une inscription : compte
+    // utilisable tout de suite, ou en attente de l'email de confirmation. C'est la
+    // première marche de l'entonnoir d'activation, et elle n'était pas mesurée.
     const needsConfirmation = !data.session
+    captureEvent('signup_completed', { needs_confirmation: needsConfirmation })
     if (data.session) {
       set({ user: data.user, session: data.session, gym_id: GYM_ID, isLoading: false })
     } else {

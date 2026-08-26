@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { tryEdgeInvoke } from '../../lib/edgeInvoke'
+import { captureEvent } from '../../lib/analytics'
 import { useAuthStore } from '../../stores/useAuthStore'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
 import { runNetworkSafe } from '../../lib/networkError'
@@ -15,6 +16,7 @@ interface Payment {
   status: string
   plan_name: string
   amount: number | string
+  currency: string | null
   credits_granted: number
 }
 
@@ -247,7 +249,7 @@ function ClassicPaymentScreen({
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
     let query = supabase
       .from('payments')
-      .select('id, status, plan_name, amount, credits_granted')
+      .select('id, status, plan_name, amount, currency, credits_granted')
     if (rowId) query = query.eq('id', rowId)
     else if (mollieId) query = query.eq('mollie_payment_id', mollieId)
     else return
@@ -269,11 +271,37 @@ function ClassicPaymentScreen({
     if (s === 'paid') {
       settledRef.current = true
       stopPolling()
+      // GYM-273 — montant en CENTIMES et devise séparée (convention du lot) : un nombre à
+      // virgule flottante en euros s'additionne mal, et `amount` arrive tantôt en nombre,
+      // tantôt en chaîne selon le pilote Postgres.
+      const row = data as Payment
+      const amountCents = Math.round(Number(row.amount) * 100)
+      // `credits_granted === 0` = abonnement : c'est la convention déjà employée côté
+      // serveur (mollie-subscription-webhook, /revenus) — on ne l'invente pas ici.
+      const isSubscription = (row.credits_granted ?? 0) === 0
+      captureEvent('payment_completed', {
+        amount_cents: Number.isFinite(amountCents) ? amountCents : null,
+        currency: row.currency ?? 'EUR',
+        kind: isSubscription ? 'subscription' : 'credits',
+        credits_granted: row.credits_granted ?? 0,
+      })
+      // ⚠️ ÉMIS ICI ET PAS À L'INITIATION DU CHECKOUT : `payment_initiated` dit qu'un
+      // membre a cliqué, `subscription_started` dit qu'un abonnement EXISTE. Les confondre
+      // gonflerait le nombre d'abonnés de tous les paniers abandonnés.
+      if (isSubscription) {
+        captureEvent('subscription_started', {
+          amount_cents: Number.isFinite(amountCents) ? amountCents : null,
+          currency: row.currency ?? 'EUR',
+        })
+      }
       setStatus('success')
       setSuccessVisible(true)
     } else if (TERMINAL_FAILURE.has(s)) {
       settledRef.current = true
       stopPolling()
+      // `status` porte la raison telle que Mollie l'a rendue (failed / canceled / expired) :
+      // un abandon volontaire et un refus bancaire n'appellent pas la même réaction.
+      captureEvent('payment_failed', { status: s })
       setStatus('failed')
     }
   }, [rowId, mollieId, stopPolling])

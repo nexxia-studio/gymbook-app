@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, CreditCard, Calendar, Star } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { tryEdgeInvoke } from '../../lib/edgeInvoke'
+import { captureEvent } from '../../lib/analytics'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useGymPlans, type GymPlan } from '../../hooks/useGymPlans'
 import {
@@ -246,6 +247,11 @@ export default function SubscriptionScreen() {
               Alert.alert(t('subscription.cancel_error_title'), t('subscription.cancel_error_message'))
               return
             }
+            // GYM-273 — résiliation ABOUTIE (le serveur a confirmé) : c'est le contrepoids
+            // de `subscription_started`, et la seule mesure honnête de la rétention. Émis
+            // après le retour serveur, jamais au clic : un refus SUBSCRIPTION_ENGAGED est
+            // repassé plus haut et ne doit pas compter comme un départ.
+            captureEvent('subscription_cancelled')
             Alert.alert(
               t('subscription.canceled_title'),
               t('subscription.canceled_message', { date: formatDate(activeSub.endsAt) }),

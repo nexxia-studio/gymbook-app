@@ -39,6 +39,7 @@
 // d'abonnement serveur.
 import * as Sentry from '@sentry/react-native'
 import { supabase } from './supabase'
+import { captureEvent } from './analytics'
 
 /**
  * REFUS MÉTIER CONNUS — relevés dans supabase/functions/, pas inventés.
@@ -210,6 +211,35 @@ async function toEdgeError(fn: string, error: unknown): Promise<EdgeError> {
 }
 
 /**
+ * GYM-273 — ÉVÉNEMENTS D'ÉCHEC MÉTIER, ÉMIS ICI ET NULLE PART AILLEURS.
+ *
+ * C'est le seul point du code où le CODE d'erreur existe encore : les appelants le
+ * traduisent aussitôt en état d'écran (`PAYMENT_REQUIRED` → une feuille, `SLOT_FULL` → un
+ * autre message) et le perdent. Le mesurer chez eux supposerait de le recopier à chaque
+ * fois — donc de l'oublier quelque part.
+ *
+ * ⚠️ TABLE EXPLICITE, PAS UN ÉVÉNEMENT GÉNÉRIQUE PAR FONCTION. Un `edge_call_failed` sur
+ * les neuf fonctions appelées par l'app noierait les trois refus qui intéressent
+ * réellement le produit sous les échecs de lecture de facture. On ne mesure que ce qu'on
+ * saura lire.
+ */
+const FAILURE_EVENTS: Record<string, string> = {
+  'create-booking': 'booking_failed',
+}
+
+function captureFailureEvent(err: EdgeError): void {
+  const event = FAILURE_EVENTS[err.fn]
+  if (!event) return
+  // `code` peut être vide (panne sans corps JSON) : on envoie alors le statut, qui est la
+  // seule information disponible. Une propriété absente serait un trou dans l'analyse.
+  captureEvent(event, {
+    code: err.code || `http_${err.status}`,
+    status: err.status,
+    offline: err.code === NETWORK_OFFLINE_CODE,
+  })
+}
+
+/**
  * Envoi Sentry des seules erreurs qui méritent un œil.
  *
  * ⚠️ LE TITRE PORTE LA FONCTION ET LE CODE. Sans ça, Sentry regroupe tout sous
@@ -218,6 +248,11 @@ async function toEdgeError(fn: string, error: unknown): Promise<EdgeError> {
  * permettent en plus de filtrer et d'alerter par fonction.
  */
 function reportEdgeError(err: EdgeError): void {
+  // ⚠️ L'ANALYTICS PRÉCÈDE LE FILTRE SENTRY, ET C'EST LE POINT : un refus ATTENDU ne va
+  // pas dans Sentry (ce n'est pas un défaut) mais DOIT être mesuré (c'est un fait produit).
+  // Les deux outils ne répondent pas à la même question — « qu'est-ce qui est cassé ? »
+  // contre « que vivent les membres ? ».
+  captureFailureEvent(err)
   if (err.expected) return
   try {
     Sentry.withScope((scope) => {

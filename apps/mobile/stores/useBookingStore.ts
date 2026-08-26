@@ -134,8 +134,15 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
-      captureEvent('booking_created', { status: data.status as string })
-      return { status: data.status as string, position: data.position as number | undefined }
+      // GYM-273 — une place en liste d'attente n'est PAS une réservation : la distinguer
+      // permet de mesurer la pression sur les créneaux complets, qui est la donnée dont un
+      // gérant a besoin pour décider d'ouvrir un cours de plus.
+      const bookingStatus = data.status as string
+      captureEvent('booking_created', { status: bookingStatus })
+      if (bookingStatus === 'waitlisted') {
+        captureEvent('waitlist_joined', { position: (data.position as number | undefined) ?? null })
+      }
+      return { status: bookingStatus, position: data.position as number | undefined }
     } finally {
       set({ isLoading: false })
     }
@@ -195,7 +202,12 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const { data: { user } } = await supabase.auth.getUser()
       if (user) get().fetchBookings(user.id)
 
-      return { confirmed: data?.confirmed ?? false }
+      // GYM-273 — la promotion effective : le membre était en attente, il a sa place.
+      // C'est l'issue que mesure la boucle « place libérée → notification → confirmation ».
+      const confirmed = data?.confirmed ?? false
+      if (confirmed) captureEvent('waitlist_promoted')
+
+      return { confirmed }
     } finally {
       set({ isLoading: false })
     }

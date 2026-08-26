@@ -74,8 +74,18 @@ const ExpoSecureStoreAdapter = {
       // Remonté à PostHog et non à Sentry : un trousseau verrouillé est un état NORMAL de
       // l'appareil, pas un défaut de l'app. C'est la même règle que le filtrage des refus
       // métier de GYM-270 — Sentry ne doit contenir que ce qui appelle une correction.
+      // GYM-272 — `reason` ramené à un ENSEMBLE FERMÉ. La version GYM-269 envoyait les
+      // 120 premiers caractères du message natif : du texte libre, que la convention de ce
+      // lot interdit en propriété d'événement (et qui aurait fait une dimension à
+      // cardinalité ouverte, illisible dans PostHog). Les deux cas qui comptent sont
+      // distingués ; le reste tombe dans `other`, et le détail reste dans les logs.
+      const raw = e instanceof Error ? e.message : ''
       captureEvent('secure_store_read_failed', {
-        reason: e instanceof Error ? e.message.slice(0, 120) : 'unknown',
+        reason: raw.includes('User interaction is not allowed')
+          ? 'locked'
+          : raw.includes('not found') || raw.includes('errSecItemNotFound')
+            ? 'not_found'
+            : 'other',
       })
       return null
     }
