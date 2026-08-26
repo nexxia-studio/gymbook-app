@@ -63,6 +63,8 @@ environment: process.env.EXPO_PUBLIC_APP_VARIANT === 'staging' ? 'staging' : 'pr
 
 **Un seul projet Sentry suffit**, et c'est un choix : `environment` y est un filtre de **premier rang** — sélecteur global, alertes, taux de régression. Contrairement à PostHog (§4), il n'y a pas de risque qu'une analyse existante l'ignore par accident.
 
+⚠️ **Asymétrie avec PostHog, à connaître avant de « corriger » cette section par analogie** : côté Sentry, `environment = production` est **juste**, y compris pour les builds antérieurs à ce lot — le SDK pose `production` par défaut quand l'option n'est pas fournie (c'est ce qui avait été constaté dans les tags à GYM-276). Côté PostHog, la propriété n'existait pas du tout : ses anciens événements sont à `null`, d'où le filtre `IS NOT staging` du §4. Même mot, deux comportements.
+
 **Deuxième séparation, gratuite** : la release porte l'identifiant natif du bundle, et GYM-258 les distingue déjà —
 
 ```
@@ -74,8 +76,20 @@ Les deux apps ne peuvent donc pas se confondre, même à environnement égal.
 
 ## 4. 🔴 PostHog : un seul projet, une super-propriété — ET LA DETTE QUI VA AVEC
 
-> ## ⚠️ TOUTE ANALYSE POSTHOG DOIT FILTRER `environment = production`.
+> ## ⚠️ TOUTE ANALYSE POSTHOG DOIT FILTRER `environment IS NOT staging`.
 > ## Un chiffre lu sans ce filtre inclut les tests d'Antoine.
+>
+> ### 🔴 Et surtout : **PAS** `environment = production`.
+> La propriété n'existe **que depuis ce lot**. Tous les événements déjà en base, et tous
+> ceux qu'émet l'app de production tant qu'elle tourne sur un build antérieur, ont
+> `environment` **à null** — constaté sur les données. Filtrer sur « = production »
+> **exclurait toute la production actuelle et tout l'historique**, c'est-à-dire l'inverse
+> exact du but recherché.
+>
+> « IS NOT staging » retient le `null` **et** le `production` : c'est le seul filtre juste
+> aujourd'hui. « = production » ne le redeviendra que lorsque la **totalité** de la base
+> installée aura une build postérieure à ce lot — donc pas avant longtemps, personne ne
+> contrôlant la date de mise à jour des téléphones des membres.
 
 C'est la contrepartie assumée du **plan gratuit**, qui n'autorise qu'un seul projet — et
 c'est l'unique projet de l'organisation. La séparation par construction (un projet dédié
@@ -130,6 +144,69 @@ Repasser à un projet dédié est un changement d'une ligne dans `lib/analytics.
 la clé selon `isStaging`) plus une variable dans `eas.json`. La super-propriété peut rester
 — elle ne gêne pas, et elle documente l'origine de chaque événement.
 
+## 4bis. GYM-272/273 — Catalogue des écrans et des événements
+
+### Écrans (`$screen`)
+
+Le nom vient des **segments** d'Expo Router, pas de l'URL : `useSegments()` rend le motif
+(`['session', '[id]']`), donc **aucun identifiant ne peut entrer dans un nom d'écran**.
+C'est anonyme par construction, pas par assainissement.
+
+Règles : les groupes `(auth)` / `(tabs)` sont retirés · un segment dynamique `[x]` devient
+`detail` · les tirets deviennent des underscores · racine → `home`.
+
+| Route | Nom d'écran |
+|---|---|
+| `/` | `index` |
+| `/(tabs)/` | `home` |
+| `/(tabs)/schedule` · `bookings` · `studio` · `profile` | `schedule` · `bookings` · `studio` · `profile` |
+| `/(auth)/login` · `signup` · `forgot-password` · `verify-email` | `login` · `signup` · `forgot_password` · `verify_email` |
+| `/session/[id]` | **`session_detail`** — jamais l'UUID |
+| `/payment/success` · `/payment/cancel` | `payment_success` · `payment_cancel` |
+| `/profile/edit` · `payments` · `subscription` · `security` · `preferences` · `export-data` · `delete-account` | `profile_edit` · `profile_payments` · `profile_subscription` · `profile_security` · `profile_preferences` · `profile_export_data` · `profile_delete_account` |
+| `/profile/legal/cgu` · `/profile/legal/privacy` | `profile_legal_cgu` · `profile_legal_privacy` |
+| `/dopamine/confirm-waitlist` · `payment-success` · `reset-password` | `dopamine_confirm_waitlist` · `dopamine_payment_success` · `dopamine_reset_password` |
+| `/auth/callback` · `/+not-found` | `auth_callback` · `not_found` |
+
+### Événements
+
+Toutes les propriétés ci-dessous **s'ajoutent** aux super-propriétés `environment` et
+`gym_id`, portées par chaque événement sans intervention de l'appelant.
+
+| Événement | Propriétés | Émis depuis |
+|---|---|---|
+| `booking_created` | `status` | `stores/useBookingStore` |
+| `booking_cancelled` | — | `stores/useBookingStore` |
+| **`booking_failed`** | `code`, `status`, `offline` | **`lib/edgeInvoke`** |
+| **`waitlist_joined`** | `position` | `stores/useBookingStore` |
+| **`waitlist_promoted`** | — | `stores/useBookingStore` |
+| **`waitlist_expired`** | — | `app/session/[id]` |
+| `payment_initiated` | `kind` | `lib/payments` |
+| **`payment_completed`** | `amount_cents`, `currency`, `kind`, `credits_granted` | `app/payment/success` |
+| **`payment_failed`** | `status` | `app/payment/success` |
+| **`subscription_started`** | `amount_cents`, `currency` | `app/payment/success` |
+| **`subscription_cancelled`** | — | `app/profile/subscription` |
+| **`login_succeeded`** | — | `stores/useAuthStore` |
+| **`login_failed`** | `reason` (clé i18n, ensemble fermé) | `stores/useAuthStore` |
+| **`signup_completed`** | `needs_confirmation` | `stores/useAuthStore` |
+| `secure_store_read_failed` | `reason` (`locked` / `not_found` / `other`) | `lib/supabase` |
+
+**Conventions** : `objet_action` au passé · propriétés en `snake_case` · montants en
+**centimes** + `currency` séparée · **jamais** d'email, de nom ni de texte libre.
+
+### ⚠️ Limite connue : `payment_completed` sous-estime la conversion
+
+Il est capturé **côté client**, sur l'écran de retour de paiement. Un membre qui paie puis
+ferme le navigateur sans revenir dans l'app ne déclenche rien — alors que son paiement a
+réussi et que ses crédits sont bien délivrés par le webhook.
+
+**La mesure exacte viendrait du webhook Mollie** : un envoi serveur vers PostHog, avec
+`distinct_id` = l'id du profil, au moment où le paiement est confirmé. C'est une évolution
+identifiée, **hors de ce lot** — le webhook de paiement n'a pas été touché.
+
+En attendant : `payment_completed` est un **plancher**, pas un compte exact. `/revenus` et
+la table `payments` restent la source de vérité de l'argent encaissé.
+
 ## 5. Message hors ligne
 
 Défaut observé : réseau coupé, le bouton de réservation ne faisait **rien**. Aucun message.
@@ -153,7 +230,7 @@ Le cas « annuler » n'était pas dans le signalement : il est apparu en suivant
 | # | Geste | Bloquant pour |
 |---|---|---|
 | 1 | **Rien.** DSN Sentry et clé PostHog sont dans `eas.json` : la prochaine build `preview-staging` envoie dans les deux outils | — |
-| 2 | **Reprendre les analyses PostHog existantes** pour y ajouter `environment = production` (cf. §4) | l'exactitude des chiffres |
+| 2 | **Reprendre les analyses PostHog existantes** pour y ajouter `environment IS NOT staging` — ⚠️ **pas** `= production`, qui exclurait tout l'historique (cf. §4) | l'exactitude des chiffres |
 | 3 | *(optionnel)* Basculer ces deux variables de `eas.json` vers l'environnement EAS `preview`, pour aligner staging sur le mécanisme de la prod | — |
 
 Aucune commande `eas` de création ou de modification n'a été exécutée par ces lots ; seul
@@ -163,6 +240,7 @@ Aucune commande `eas` de création ou de modification n'a été exécutée par c
 
 1. **Build `preview-staging`** → installer l'app « Viniz Staging ».
 2. **Sentry** : provoquer une erreur. L'événement doit arriver avec `environment: staging` et une release `app.viniz.staging@…`. Vérifier au passage qu'un événement de l'app Dopamine porte bien `environment: production` — c'est la moitié qui protège Nico.
-3. **PostHog** : les événements de l'app staging arrivent dans le projet GymBook, **tous porteurs de `environment = staging`** — y compris les `$screen` et les événements de cycle de vie, que personne n'émet à la main. Vérifier symétriquement qu'un événement de l'app Dopamine porte `environment = production`.
-   ⚠️ Puis **ajouter le filtre `environment = production` aux analyses existantes** — sans quoi elles comptent désormais les deux apps (§4).
+3. **PostHog** : les événements de l'app staging arrivent dans le projet GymBook, **tous porteurs de `environment = staging`** — y compris les `$screen` et les événements de cycle de vie, que personne n'émet à la main.
+   ⚠️ **Ne PAS s'attendre à `environment = production` sur les événements de Dopamine** : l'app de production tourne encore sur un build antérieur à ce lot et n'émet pas la propriété — ses événements ont `environment` à **null**. C'est normal, et ça le restera jusqu'à ce que toute la base installée ait migré.
+   ⚠️ Puis **ajouter le filtre `environment IS NOT staging` aux analyses existantes** — et surtout pas `= production`, qui les viderait de tout l'historique (§4).
 4. **Hors ligne** : mode avion, puis réserver / annuler / confirmer une place. Trois messages « Pas de connexion ». Et **aucun** événement correspondant dans Sentry.

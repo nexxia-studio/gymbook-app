@@ -16,6 +16,7 @@ import { SuspensionModal } from '../../components/session/SuspensionModal'
 import { PaymentRequiredSheet } from '../../components/session/PaymentRequiredSheet'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { NETWORK_OFFLINE_CODE } from '../../lib/edgeInvoke'
+import { captureEvent } from '../../lib/analytics'
 import { useGymProfile } from '../../hooks/useGymProfile'
 import { formatGymAddress } from '../../lib/gymProfile'
 import { supabase } from '../../lib/supabase'
@@ -337,7 +338,11 @@ export default function SessionDetail() {
       return
     }
 
+    // GYM-273 — le délai de confirmation s'est écoulé : la place est repartie au suivant.
+    // Mesuré ici parce que c'est le seul endroit où l'app l'apprend (le serveur l'a déjà
+    // fait expirer), et c'est le contre-pied exact de `waitlist_promoted`.
     if (result.code === 'WAITLIST_EXPIRED') {
+      captureEvent('waitlist_expired')
       Alert.alert(t('session.waitlist_expired_title'), t('session.waitlist_expired_message'))
       setBookingState('available')
       setExistingBookingId(null)

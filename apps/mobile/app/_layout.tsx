@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { PostHogProvider } from 'posthog-react-native'
-import { posthog } from '../lib/analytics'
+import { posthog, captureScreen, screenNameFromSegments } from '../lib/analytics'
 import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
@@ -59,6 +59,36 @@ if (sentryDsn) {
     // qu'on aurait oublié de déclarer, ce qui est exactement l'information utile.
     beforeSend: (event, hint) => (isExpectedEdgeError(hint?.originalException) ? null : event),
   })
+}
+
+/**
+ * GYM-272 — SUIVI DES ÉCRANS, SUR EXPO ROUTER.
+ *
+ * L'autocapture de posthog-react-native s'accroche à `@react-navigation/native` depuis un
+ * hook monté AU-DESSUS du navigateur (cf. lib/analytics.ts) : elle n'a jamais rien envoyé.
+ * Ici, on lit les segments d'Expo Router, dont le composant racine dispose déjà.
+ *
+ * ⚠️ DÉDUPLICATION PAR LE NOM, PAS PAR LA RÉFÉRENCE. `useSegments()` rend un nouveau
+ * tableau à chaque rendu : dépendre de lui enverrait un `$screen` à chaque re-rendu de la
+ * racine — sur une app qui re-rend à chaque changement de session, de police ou de store,
+ * les volumes seraient faux et la facture avec. On ne remonte que les CHANGEMENTS de nom.
+ */
+function useScreenTracking(): void {
+  const segments = useSegments()
+  const lastScreen = useRef<string | null>(null)
+
+  useEffect(() => {
+    const name = screenNameFromSegments(segments)
+    if (name === lastScreen.current) return
+    lastScreen.current = name
+    // ⚠️ AUCUNE PROPRIÉTÉ D'IDENTIFIANT ICI, VOLONTAIREMENT. Le `slot_id` de
+    // `session_detail` serait lisible via `useGlobalSearchParams()`, mais ce hook
+    // re-rend la RACINE à chaque changement de paramètre — un coût permanent pour une
+    // analyse (« quels cours sont les plus consultés ») que personne n'a demandée. À
+    // ajouter le jour où elle le sera, pas avant. Le nom, lui, reste anonyme par
+    // construction : les segments portent `[id]`, jamais la valeur.
+    captureScreen(name)
+  }, [segments])
 }
 
 function useRegisterServiceWorker() {
@@ -168,6 +198,9 @@ function RootLayout() {
     }
   }, [fontsLoaded])
 
+  // GYM-272 — suivi des écrans (Expo Router ; l'autocapture PostHog ne fonctionnait pas).
+  useScreenTracking()
+
   // PWA setup (web only)
   useRegisterServiceWorker()
   useInjectPwaHead()
@@ -184,9 +217,14 @@ function RootLayout() {
   )
 
   // PostHog : provider monté seulement si la clé est présente (no-op total sinon).
-  // autocapture des écrans activé (suivi de navigation Expo Router automatique).
+  //
+  // 🔴 GYM-272 — `captureScreens: false`. L'autocapture d'écrans n'a JAMAIS fonctionné ici
+  // (le hook de navigation de PostHog est monté au-dessus du navigateur, cf.
+  // lib/analytics.ts) et le suivi est désormais fait par `useScreenTracking`. La laisser à
+  // `true` ne servirait à rien aujourd'hui, mais compterait chaque écran DEUX FOIS le jour
+  // où quelqu'un déplacerait ce provider sous le `<Slot />` en croyant bien faire.
   return posthog ? (
-    <PostHogProvider client={posthog} autocapture={{ captureScreens: true }}>
+    <PostHogProvider client={posthog} autocapture={{ captureScreens: false }}>
       {tree}
     </PostHogProvider>
   ) : (
