@@ -327,47 +327,38 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 8. Promote first waitlisted member
-    const { data: nextInLine } = await admin
-      .from('bookings')
-      .select('id, member_id')
-      .eq('slot_id', booking.slot_id)
-      .eq('status', 'waitlisted')
-      .order('waitlist_position', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    // ═══ 8. GYM-281 — NOTIFIER AUTANT DE MEMBRES QU'IL Y A DE PLACES ═══════════════
+    //
+    // 🔴 CE QUE FAISAIT CE BLOC, ET POURQUOI UN SEUL MEMBRE ÉTAIT PRÉVENU :
+    // il lisait le premier de la file avec
+    //     .eq('status','waitlisted').order('waitlist_position').limit(1)
+    // SANS filtrer `waitlist_notified_at`. La MÊME personne était donc re-notifiée à
+    // chaque annulation, sa fenêtre de confirmation repoussée à chaque fois, et le
+    // curseur n'avançait jamais. Mesuré au test de charge GYM-217 : 7 places libérées,
+    // 8 membres en attente, 1 seul notifié.
+    //
+    // Toute cette logique est remplacée par UN appel. Ce n'est pas un déplacement de
+    // code : la fonction SQL calcule le nombre de places RÉELLEMENT libres
+    // (capacité − confirmés − fenêtres encore ouvertes), prend le verrou du créneau, et
+    // délègue chaque notification à `notify_next_in_waitlist` — la brique qui existait
+    // déjà, qui filtre bien `waitlist_notified_at IS NULL`, et dont `confirm-waitlist`
+    // et le cron d'expiration se servent depuis GYM-108.
+    //
+    // ⚠️ L'ENVOI PASSE DÉSORMAIS PAR LE VAULT (notify_waitlist_url +
+    // internal_functions_secret), et non plus par un fetch avec la variable
+    // d'environnement. Les deux secrets sont présents — vérifié sur staging avant
+    // d'écrire — et c'est déjà le chemin qu'empruntent confirm-waitlist et le cron.
+    //
+    // Best-effort, comme le bloc qu'il remplace : une notification manquée ne doit pas
+    // faire échouer une annulation déjà écrite en base.
+    const { data: notifyResult, error: notifyError } = await admin
+      .rpc('notify_waitlist_for_free_seats', { p_slot_id: booking.slot_id })
 
-    if (nextInLine) {
-      // Fetch gym-configured confirmation window
-      const { data: gym } = await admin
-        .from('nexxia_gyms')
-        .select('waitlist_confirmation_minutes')
-        .eq('id', slot.gym_id)
-        .single()
-
-      const delayMinutes = gym?.waitlist_confirmation_minutes ?? 30
-      const deadline = new Date(now.getTime() + delayMinutes * 60 * 1000)
-
-      // Only notify — do NOT confirm automatically. Member has delayMinutes to confirm.
-      await admin.from('bookings').update({
-        waitlist_notified_at: now.toISOString(),
-        waitlist_confirmation_deadline: deadline.toISOString(),
-      }).eq('id', nextInLine.id)
-
-      // Délégation email + push à notify-waitlist (non-bloquant)
-      const internalSecret = Deno.env.get('INTERNAL_FUNCTIONS_SECRET')
-      if (internalSecret) {
-        fetch(`${supabaseUrl}/functions/v1/notify-waitlist`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Internal-Secret': internalSecret,
-          },
-          body: JSON.stringify({ booking_id: nextInLine.id }),
-        }).catch((e) => console.error('[cancel-booking] notify-waitlist error:', e))
-      } else {
-        console.warn('[cancel-booking] INTERNAL_FUNCTIONS_SECRET not set — waitlist notification skipped')
-      }
+    if (notifyError) {
+      console.error('[cancel-booking] notify_waitlist_for_free_seats failed (non-blocking):',
+        JSON.stringify({ slot_id: booking.slot_id, message: notifyError.message }))
+    } else {
+      console.log('[cancel-booking] waitlist notified:', JSON.stringify(notifyResult))
     }
 
     // 9. Cancellation confirmation email
