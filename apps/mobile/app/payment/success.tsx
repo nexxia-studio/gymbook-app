@@ -144,7 +144,20 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
             <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
               {t('payment_drop_in_retry.polling_title')}
             </Text>
-            <Text className="font-dmsans text-sm text-white/60 text-center">
+            {/* 🔴 GYM-304 — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/60` était un BLANC EN
+                DUR posé sur `tokens.background` : illisible dès que la salle a un fond clair.
+                Mesuré sur le fond constaté #E9E8E8 — un blanc à 60 % y disparaît.
+                
+                ⚠️ `tokens.onBackground`, PAS `onBackgroundMuted` — c'est toute la leçon de la PR
+                #235. `onBackgroundMuted` est choisi par le MODE (`hslLightness > 80`), un critère
+                qui classe « sombre » un fond vif : il descend sous 3:1 sur 7 000 salles sur
+                19 600. `onBackground`, lui, est choisi par `bestInkOn`, c'est-à-dire par le
+                CONTRASTE RÉEL. Le critère est la luminance, jamais la teinte.
+                
+                ⚠️ L'ALPHA EST CONSERVÉ : 0x99 = 153, soit 153/255 = 0,60 pile. Chez Dopamine
+                `onBackground` vaut #FFFFFF — le rendu est donc le blanc à 60 % d'aujourd'hui, au
+                pixel. C'est le motif A-10, comme les en-têtes de #232 (3c). */}
+            <Text className="font-dmsans text-sm text-center" style={{ color: tokens.onBackground + '99' }}>
               {t('payment_drop_in_retry.polling_sub')}
             </Text>
           </>
@@ -165,7 +178,7 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
             <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.accent, textAlign: 'center', letterSpacing: 2 }}>
               {t('payment_drop_in_retry.success_title')}
             </Text>
-            <Text className="font-dmsans text-sm text-white/60 text-center">
+            <Text className="font-dmsans text-sm text-center" style={{ color: tokens.onBackground + '99' }}>
               {t('payment_drop_in_retry.success_sub')}
             </Text>
           </>
@@ -176,7 +189,7 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
             <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
               {t('payment_drop_in_retry.error_title')}
             </Text>
-            <Text className="font-dmsans text-sm text-white/60 text-center">
+            <Text className="font-dmsans text-sm text-center" style={{ color: tokens.onBackground + '99' }}>
               {t('payment_drop_in_retry.error_sub')}
             </Text>
             <Pressable

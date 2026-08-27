@@ -47,7 +47,14 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
       {/* Progress bar */}
       {/* GYM-286 — A-6, EN ATTENTE. #333333 reste : aucun jeton n'en est voisin (34
           unités du plus proche), et c'est la PISTE d'une barre posée sur le fond sombre —
-          la rattacher au fond l'effacerait. Il manque un gris neutre sur fond sombre. */}
+          la rattacher au fond l'effacerait. Il manque un gris neutre sur fond sombre.
+
+          ⚠️ GYM-304 A VÉRIFIÉ QU'IL N'ÉTAIT PAS LE DÉFAUT SIGNALÉ, PLUTÔT QUE DE LE
+          SUPPOSER. Mesuré : #333333 donne 10,33:1 sur le fond clair constaté (#E9E8E8) —
+          il y est parfaitement lisible. C'est sur les fonds SOMBRES qu'il est discret
+          (1,49:1 chez Dopamine), et c'est voulu : une piste de barre est un RAIL, pas de
+          l'encre. La résoudre par la luminance la ferait ressortir — et changerait les
+          pixels de Dopamine, ce que le cadrage interdit. */}
       <View className="mt-3 h-2 overflow-hidden rounded-full bg-[#333333]">
         <Animated.View
           style={[barStyle, { backgroundColor: tokens.accent }]}
@@ -68,12 +75,29 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
               ) : (
                 // GYM-286 — A-6, EN ATTENTE. #555555 reste : 22 unités du jeton le plus
                 // proche, ce n'est pas un voisin. Même manque de vocabulaire que #333333.
+                // ⚠️ GYM-304 : mesuré à 6,10:1 sur le fond clair constaté — lisible. Le
+                // défaut signalé était l'ENCRE de la ligne, pas cette pastille vide.
                 <Circle size={20} color="#555555" />
               )}
-              {/* `text-white/60` reste : un blanc à 60 % n'est pas `tokens.onBackground`. */}
+              {/* 🔴 GYM-304 — LE DÉFAUT SIGNALÉ : les lignes NON validées étaient en
+                  BLANC EN DUR sur `tokens.background`. Sur le fond clair constaté
+                  (#E9E8E8), un blanc à 60 % disparaît — la moitié de la liste de
+                  progression était invisible, et c'est précisément la moitié qui reste à
+                  faire.
+
+                  ⚠️ `tokens.onBackground`, PAS `onBackgroundMuted` — la leçon de la PR
+                  #235. `onBackgroundMuted` est choisi par le MODE (`hslLightness > 80`),
+                  un critère qui classe « sombre » un fond vif : il descend sous 3:1 sur
+                  7 000 salles sur 19 600. `onBackground` est choisi par `bestInkOn`,
+                  c'est-à-dire par le CONTRASTE RÉEL. Le critère est la luminance.
+
+                  ⚠️ L'ORDRE DES DEUX BRANCHES N'EST PAS LIBRE. L'encre atténuée vient
+                  d'abord parce qu'elle venait d'abord AVANT (className ligne 75, style
+                  ligne 76) : `verify-screen-parity` compare des suites ORDONNÉES, et
+                  inverser le ternaire ferait sortir l'écran en faux écart (piège P-9). */}
               <Text
-                className={`ml-3 flex-1 font-dmsans text-sm ${item.completed ? '' : 'text-white/60'}`}
-                style={item.completed ? { color: tokens.onBackground } : undefined}
+                className="ml-3 flex-1 font-dmsans text-sm"
+                style={{ color: !item.completed ? tokens.onBackground + '99' : tokens.onBackground }}
               >
                 {t(`profile.gamification.${item.labelKey}`)}
               </Text>
