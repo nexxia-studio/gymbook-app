@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { View, Text, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
+import { Redirect, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { TextInput } from '../../components/ui/TextInput'
@@ -15,6 +15,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { useGymName } from '../../hooks/useGymName'
+import { GYM_MODE } from '../../lib/gymResolver'
 
 interface FormErrors {
   firstName?: string
@@ -93,6 +94,30 @@ export default function Signup() {
       setToastVisible(true)
     }
   }, [email, password, firstName, lastName, phone, terms, privacy, marketing, signUp, clearError, router])
+
+  // ── 🔴 GYM-293 (MITIGATION) — LA ROUTE EST FERMÉE EN MODE MULTI ────────────────────
+  //
+  // Le routeur d'Expo enregistre ce fichier dans TOUS les builds. Masquer le lien de
+  // l'écran de connexion brandé ne suffit donc pas : un lien profond, un retour arrière
+  // ou un `router.push` oublié rouvriraient exactement ce que le masquage ferme.
+  //
+  // ⚠️ POURQUOI FERMER. En `multi`, `signupGymId()` rend `null` : le profil est créé SANS
+  // salle, la session s'ouvre, et l'app est vide — aucune requête ne matche, rien ne
+  // l'explique. Le membre repart avec un compte inutilisable qu'il ne peut pas rattacher.
+  // Mieux vaut ne pas ouvrir la porte que de la refermer après.
+  //
+  // ⚠️ `Redirect` ET NON UNE NAVIGATION DANS UN EFFET : un effet laisserait le formulaire
+  // se peindre le temps d'une frame, et le membre verrait un écran d'inscription clignoter
+  // avant d'être renvoyé — ce qui ressemble à un défaut, pas à une décision.
+  //
+  // ⚠️ ET APRÈS LES HOOKS, PAS AVANT. `GYM_MODE` est figé à la compilation, donc un retour
+  // anticipé ne ferait jamais varier le nombre de hooks d'un rendu à l'autre — c'est sûr
+  // aujourd'hui, et c'est un piège demain, le jour où quelqu'un rendra la condition
+  // dynamique. C'est aussi le motif déjà posé par app/profile/gym-switch.tsx.
+  //
+  // 🔴 EN `single`, CETTE LIGNE EST INERTE. `GYM_MODE` est figé à la compilation :
+  // l'inscription de Dopamine n'est pas modifiée d'un caractère.
+  if (GYM_MODE === 'multi') return <Redirect href="/(auth)/login" />
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
