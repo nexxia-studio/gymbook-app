@@ -126,7 +126,6 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
             </Text>
           </View>
         ) : (
-          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
           <View style={{ backgroundColor: tokens.actionBg }} className="rounded-lg px-4 py-2.5">
             <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-xs">
               {t('home.book')}

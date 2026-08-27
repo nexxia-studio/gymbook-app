@@ -290,7 +290,6 @@ export default function Bookings() {
                 <Text className="mt-1 font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_upcoming_hint')}
                 </Text>
-                {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`. */}
                 <TouchableOpacity
                   onPress={() => router.navigate('/(tabs)/schedule')}
                   activeOpacity={0.8}

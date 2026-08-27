@@ -64,7 +64,6 @@ export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time
           <Heart size={18} color={SEMANTIC.danger} fill={SEMANTIC.danger} />
         </TouchableOpacity>
         {hasUpcoming && onBook && (
-          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
           <TouchableOpacity
             onPress={onBook}
             activeOpacity={0.8}

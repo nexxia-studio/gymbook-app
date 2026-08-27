@@ -518,7 +518,6 @@ export default function SessionDetail() {
               onPress={handleConfirmWaitlist}
               disabled={loading}
               activeOpacity={0.8}
-              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
               style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
@@ -545,7 +544,6 @@ export default function SessionDetail() {
               onPress={handleBook}
               disabled={loading}
               activeOpacity={0.8}
-              // 🔴 GYM-286 — A-3/A-4 : la branche `bg-move-dark` est un fond de BOUTON et
               // reste en classe. La branche `bg-orange-500` est un SIGNAL (liste d'attente)
               // et pourrait passer à `SEMANTIC.warning` — mais le ternaire porte les deux
               // dans la même chaîne : les séparer inverserait l'ordre des couleurs du

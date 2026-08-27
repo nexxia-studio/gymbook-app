@@ -136,7 +136,6 @@ function PlanCard({
         <Pressable
           onPress={() => onSelect(plan)}
           disabled={isDisabled}
-          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
           style={{ backgroundColor: tokens.actionBg }}
           className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl py-3 ${isDisabled ? 'opacity-60' : ''}`}
         >
@@ -512,7 +511,6 @@ export default function SubscriptionScreen() {
         ) : plansError ? (
           <View className="items-center rounded-2xl p-6" style={{ backgroundColor: tokens.surface }}>
             <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>{t('subscription.plans_error')}</Text>
-            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={refetch} style={{ backgroundColor: tokens.actionBg }} className="mt-3 rounded-xl px-5 py-2.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 13, color: tokens.onAction }}>
                 {t('common.retry')}

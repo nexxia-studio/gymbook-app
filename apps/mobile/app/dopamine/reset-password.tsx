@@ -200,7 +200,6 @@ export default function ResetPassword() {
             <Pressable
               onPress={handleSubmit}
               disabled={saving}
-              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
               style={{ backgroundColor: tokens.actionBg }}
               className={`mt-6 flex-row items-center justify-center rounded-xl py-3.5 ${saving ? 'opacity-60' : ''}`}
             >
@@ -221,7 +220,6 @@ export default function ResetPassword() {
             <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('reset.success_message')}
             </Text>
-            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={goToLogin} style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
                 {t('reset.go_login')}
@@ -236,7 +234,6 @@ export default function ResetPassword() {
             <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('reset.invalid_message')}
             </Text>
-            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={goToLogin} style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
                 {t('reset.go_login')}

@@ -37,7 +37,6 @@ export function EmptySchedule({ onReset }: EmptyScheduleProps) {
       <TouchableOpacity
         onPress={onReset}
         activeOpacity={0.7}
-        // GYM-286 — A-3/A-4, EN ATTENTE : paire `bg-move-dark` + `text-move-accent`.
         style={{ backgroundColor: tokens.actionBg }} className="mt-4 rounded-xl px-5 py-2.5"
       >
         <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-xs">

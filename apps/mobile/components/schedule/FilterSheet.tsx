@@ -173,7 +173,6 @@ export function FilterSheet({
             onPress={onClose}
             activeOpacity={0.8}
             accessibilityRole="button"
-            // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
             style={{ backgroundColor: tokens.actionBg }} className="min-h-[48px] items-center justify-center rounded-xl"
           >
             <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-sm">
