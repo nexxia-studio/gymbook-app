@@ -309,20 +309,21 @@ Build **multi**, app réinstallée entre les blocs A et B.
 Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` et `admin.dopamine@`,
 tous `@staging.test`.
 
-> ## 🔴 GYM-300 — LIRE AVANT DE LANCER LE BLOC B
+> ## ✅ Le compte multi-salles existe — mesuré, et daté
 >
-> `admin.dopamine@` **n'est PAS membre des trois salles**. Mesuré en base le 27/08 : il en
-> a **une**, `dopamine-staging`. Et aucun des **19 comptes de staging** n'appartient à plus
-> d'une salle.
+> `admin.dopamine@staging.test` est membre des **trois** salles staging :
+> `dopamine-staging`, `studio-test-staging`, `studio-yoga-test-1`. Adhésion posée par le
+> cockpit le **27/08 à 11:58:38 UTC** (13h58), et déjà exercée en QA — `choice_accepted`
+> en télémétrie, et `profiles.gym_id` pointant sur `studio-test-staging`.
 >
-> **Le bloc B n'est donc pas exerçable en l'état**, non plus que le bouton « Changer de
-> salle », l'écran `profile/gym-switch` et l'issue `switched`. Les rejouer tels quels
-> produira des `server_wins` **conformes** qu'on relira comme des défauts — c'est
-> exactement ce qui s'est passé le 27/08.
+> **Le bloc B est exerçable**, ainsi que le bouton « Changer de salle », l'écran
+> `profile/gym-switch`, l'issue `switched` et tout le bloc **J** de GYM-301.
 >
-> **Prérequis : le cockpit ajoute une adhésion** à `admin.dopamine@` (au minimum
-> `studio-test-staging`). C'est une écriture en base sur un environnement partagé, donc sa
-> décision. Tant qu'elle n'est pas faite, B se lit comme **B′** ci-dessous.
+> ⚠️ **CE FAIT NE CONTREDIT PAS L'AUDIT GYM-300, IL LE DATE.** La QA du 27/08 s'est
+> déroulée de **12h33 à 13h21** — soit **avant** 13h58. À cet instant le compte n'avait
+> qu'une adhésion, et ses deux `server_wins` étaient donc bien LÉGITIMES. La chronologie
+> confirme le diagnostic au lieu de l'infirmer : ce n'était pas un défaut de soumission,
+> c'était une adhésion absente. Voir `docs/GYM-300-audit-choix-multi.md`.
 
 ## A — Comptes à salle unique
 
@@ -347,16 +348,19 @@ posée par le cockpit** (voir l'encadré en tête de recette) — sans elle, jou
 | B5 | 🔴 GYM-300 — après B1, ouvrir /profil | **« Changer de salle » est VISIBLE.** Son absence signifie que l'adhésion n'a pas été posée : arrêter le bloc, ce n'est pas un défaut de l'app |
 | B6 | 🔴 GYM-300 — PostHog, après B1 | `active_gym_reconciled` avec `outcome=switched` **et `reason=choice_accepted`** |
 
-## B′ — Sans adhésion multi-salles (ce qui est exerçable AUJOURD'HUI)
+## B′ — Le refus d'adhésion (un compte à salle unique qui vise ailleurs)
 
-`admin.dopamine@`, une seule adhésion : `dopamine-staging`.
+⚠️ **PLUS AVEC `admin.dopamine@`** — il est multi-salles depuis le 27/08 13h58, et son
+choix serait désormais ACCEPTÉ : le bloc prouverait l'inverse de ce qu'il annonce. Il
+demande un compte à salle unique — `member.yoga@staging.test`, membre de
+`studio-yoga-test-1` et d'elle seule.
 
 | # | geste | attendu |
 |---|---|---|
-| B′1 | 🔴 Réinstaller → **Studio Test Staging** → login `admin.dopamine@` | atterrit sur **Dopamine**, marque **et** données cohérentes. **Un bandeau annonce** « Tu n'es pas membre de Studio Test Staging — te voilà chez Dopamine (Staging Clone) » |
+| B′1 | 🔴 Réinstaller → **Studio Test Staging** → login `member.yoga@` | ⚠️ **depuis GYM-301 ce n'est plus un bandeau mais un ÉCRAN** — voir le bloc J (J5 à J7). L'issue et la télémétrie, elles, sont inchangées |
 | B′2 | PostHog, après B′1 | `outcome=server_wins`, **`reason=not_member`**. C'est le comportement ATTENDU, pas un défaut |
-| B′3 | /profil | « Changer de salle » **absent** — une seule adhésion. Attendu, et cohérent avec B′2 |
-| B′4 | Réinstaller → **Dopamine** → login | reste sur **Dopamine**, **aucun bandeau** (`reason=already_aligned`) |
+| B′3 | /profil, une fois arrivé dans sa salle | « Changer de salle » **absent** — une seule adhésion. Attendu, et cohérent avec B′2 |
+| B′4 | Réinstaller → **Studio Yoga Test 1** → login `member.yoga@` | reste sur **Yoga**, aucun écran de refus (`reason=already_aligned`) |
 
 ## C — Incident réseau, et la reprise (GYM-298)
 
@@ -411,8 +415,8 @@ posée par le cockpit** (voir l'encadré en tête de recette) — sans elle, jou
 
 ## J — GYM-301 : bascules en session, écran « pas membre », recherche brandée
 
-⚠️ **J1 à J4 exigent l'adhésion multi-salles** posée par le cockpit (voir l'encadré en tête
-de recette). Sans elle, seuls J5 à J9 sont jouables.
+J1 à J4 se jouent avec `admin.dopamine@` (trois salles). J5 à J7 demandent au contraire un
+compte à salle **unique** qui vise ailleurs : `member.yoga@` choisissant Studio Test.
 
 | # | geste | attendu |
 |---|---|---|
