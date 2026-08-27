@@ -275,6 +275,33 @@ export function OnboardingWizard() {
       {/* ── Étape 1 : la marque. Seule étape qui écrit ici. ── */}
       {step === 1 && (
         <div className="mt-5 flex flex-col gap-4">
+          {/* ═══════════════════════════════════════════════════════════════════════════
+              🔴 GYM-308 — LE TAUX DE TVA EST MONTRÉ, PAS SUBI.
+              ═══════════════════════════════════════════════════════════════════════════
+              La RPC de création pose désormais 6,00 % explicitement (migration
+              20260829100000). Le poser sans le dire reviendrait à choisir le régime fiscal
+              du gérant à sa place : il découvrirait le taux sur sa première facture, ou
+              pire, ne le découvrirait pas.
+
+              ⚠️ AFFICHÉ, NON ÉDITABLE ICI, ET C'EST DÉLIBÉRÉ. L'onboarding sert à démarrer
+              en six étapes ; y glisser un champ fiscal inviterait à trancher vite une
+              question qui demande un comptable. Le bloc dit la valeur, dit qu'elle se
+              corrige, et dit où — Réglages → Informations légales, où le champ existe avec
+              ses bornes et sa validation.
+
+              ⚠️ VALEUR EN DUR DANS LE LIBELLÉ, alignée sur la RPC. C'est une CONSTANTE de
+              marché (le taux belge des installations sportives), pas une donnée de salle :
+              la lire en base ici demanderait une requête de plus pour afficher un nombre
+              que la migration vient d'écrire. Si la RPC change, ce libellé change avec
+              elle — les deux portent le même numéro de ticket. */}
+          <div className="rounded-xl border border-[#E8E6E0] bg-[#F5F4F0] px-4 py-3">
+            <p className="font-body text-sm font-semibold text-dark">
+              {t('onboarding.step1.vat_title')}
+            </p>
+            <p className="mt-1 font-body text-xs text-dark/50">
+              {t('onboarding.step1.vat_helper')}
+            </p>
+          </div>
           <Input
             label={t('onboarding.step1.logo_label')}
             name="logoUrl"
