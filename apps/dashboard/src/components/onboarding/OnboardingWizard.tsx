@@ -28,6 +28,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+// GYM-285 — le champ couleur et la palette suggérée sont désormais PARTAGÉS avec la page
+// Réglages → Apparence : une seule façon de dire « pas encore choisi ».
+import { ColorField, VINIZ_PRIMARY, VINIZ_SECONDARY } from '@/components/ui/ColorField'
 import { supabase } from '@/lib/supabase'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
@@ -37,15 +40,6 @@ import type { SaveOutcome } from '@/lib/onboarding'
 import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 
 const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus] as const
-
-/**
- * Palette Viniz proposée par défaut. ⚠️ SUGGÉRÉE, JAMAIS ENREGISTRÉE SANS GESTE : ces
- * valeurs ne partent en base que si le gérant les valide explicitement. Elles sont les
- * mêmes que le repli des emails (_shared/gym-branding.ts) et celui du thème mobile
- * (lib/theme/resolveTheme.ts) — les trois surfaces doivent replier sur la MÊME palette.
- */
-const VINIZ_PRIMARY = '#C8FF3D'
-const VINIZ_SECONDARY = '#2D1B69'
 
 export function OnboardingWizard() {
   const { t } = useTranslation()
@@ -404,47 +398,3 @@ function LimitRow({ label, value }: { label: string; value: number | null }) {
   )
 }
 
-/**
- * GYM-284 — champ couleur à trois états : choisie, pas encore choisie, en cours de saisie.
- *
- * ⚠️ `<input type="color">` N'A PAS D'ÉTAT VIDE. Lui passer une chaîne vide le fait
- * retomber sur #000000 : le gérant verrait du NOIR proposé, ce qui ressemble à un choix
- * plutôt qu'à une absence. La pastille affiche donc la SUGGESTION quand rien n'est
- * choisi, tandis que le champ texte, lui, reste vide avec la suggestion en filigrane.
- * L'aperçu est conservé, le faux choix ne l'est pas.
- *
- * Effacer le champ texte REVIENT à « pas encore choisi » : on peut donc défaire son choix,
- * ce qu'un champ pré-rempli ne permettait pas.
- */
-function ColorField({ label, value, suggestion, hint, onChange }: {
-  label: string
-  value: string | null
-  suggestion: string
-  hint: string
-  onChange: (v: string | null) => void
-}) {
-  const shown = value ?? suggestion
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="font-body text-sm font-semibold text-dark">{label}</label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={shown}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-11 w-12 shrink-0 cursor-pointer rounded-lg border border-[#E8E6E0] bg-card p-1"
-        />
-        <input
-          type="text"
-          value={value ?? ''}
-          placeholder={suggestion}
-          onChange={(e) => onChange(e.target.value.trim() === '' ? null : e.target.value)}
-          className="w-full rounded-xl border border-[#E8E6E0] bg-card px-3 py-2.5 font-mono text-sm text-dark outline-none transition-colors focus:border-dark"
-        />
-      </div>
-      {value === null && (
-        <p className="font-body text-xs text-secondary">{hint}</p>
-      )}
-    </div>
-  )
-}

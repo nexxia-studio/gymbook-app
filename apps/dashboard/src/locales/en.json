@@ -785,7 +785,8 @@
       "gym": "Gym",
       "payments": "Payments",
       "plans": "Plans",
-      "subscription": "Subscription"
+      "subscription": "Subscription",
+      "appearance": "Appearance"
     },
     "gym": {
       "booking_rules_title": "Booking rules",
@@ -903,6 +904,28 @@
       "error_range": "Check these days: {{days}}. Closing must be after opening.",
       "error_save": "Opening hours could not be saved. Try again.",
       "saved": "Opening hours saved."
+    },
+    "appearance": {
+      "title": "Appearance in the app",
+      "subtitle": "Your colours, logo and short name, as your members will see them.",
+      "primary_label": "Primary colour",
+      "secondary_label": "Secondary colour",
+      "color_hint": "Leave empty to keep the Viniz palette.",
+      "short_name_label": "Short name shown in the app",
+      "short_name_helper": "Shown in the header. Leave empty to use the full name.",
+      "logo_label": "Link to your logo",
+      "logo_helper": "Paste the URL of an image already online.",
+      "submit": "Save",
+      "saved": "Appearance saved.",
+      "save_error": "Saving failed. Please try again in a moment.",
+      "warning_title": "The app won’t use everything you picked",
+      "warning_background": "Your secondary colour cannot carry readable text: the app background will stay Viniz.",
+      "warning_accent_text": "No ink reads on your primary colour: buttons will keep the Viniz colour.",
+      "warning_accent_invisible": "Your primary colour does not stand out from the background: buttons will keep the Viniz colour.",
+      "preview_title": "Preview",
+      "preview_note": "What your members will see, fallbacks included.",
+      "preview_body": "Your schedule, your bookings.",
+      "preview_action": "Book"
     }
   },
   "activities": {

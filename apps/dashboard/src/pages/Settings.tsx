@@ -26,13 +26,20 @@ import type { CoachItem, CoachFormData } from '@/types/coach'
 import { MollieConnectCard } from '@/components/settings/MollieConnectCard'
 // GYM-247 — abonnement Viniz de la salle (plan, quotas consommés, grille).
 import { SubscriptionSection } from '@/components/settings/SubscriptionSection'
+// GYM-285 — Réglages → Apparence : le wizard-couleurs (GYM-248) devenu éditable.
+import { AppearanceCard } from '@/components/settings/AppearanceCard'
 
 // GYM-56 — l'onglet "plans" est retiré : le CRUD des formules vit sur la page /plans.
 // GYM-200 — onglet "team" : qui a accès au dashboard de la salle (invitations comprises).
 // GYM-247 — onglet "subscription" : l'abonnement VINIZ de la salle. À ne pas confondre
 // avec "plans" (les formules que la salle vend à ses membres, page /plans) ni avec
 // "payments" (le branchement Mollie).
-const TABS = ['activities', 'coaches', 'team', 'gym', 'payments', 'subscription'] as const
+// GYM-285 — onglet "appearance" : les couleurs, le logo et le nom court de la salle, tels
+// que les membres les voient dans l'app. Placé juste après "gym" parce qu'il parle de la
+// même chose — l'identité de la salle — là où "payments" et "subscription" parlent
+// d'argent. ⚠️ À ne pas fondre DANS l'onglet "gym" : celui-ci porte des réglages
+// d'exploitation (délais, plafonds, horizon) qu'on ne relit pas en changeant une couleur.
+const TABS = ['activities', 'coaches', 'team', 'gym', 'appearance', 'payments', 'subscription'] as const
 type Tab = (typeof TABS)[number]
 
 function isTab(v: string | null): v is Tab {
@@ -335,6 +342,9 @@ export default function Settings() {
             <LegalBillingCard />
           </div>
         )}
+
+        {/* ========= APPEARANCE TAB (GYM-285) ========= */}
+        {activeTab === 'appearance' && <AppearanceCard />}
 
         {/* ========= SUBSCRIPTION TAB (GYM-247) ========= */}
         {activeTab === 'subscription' && <SubscriptionSection />}
