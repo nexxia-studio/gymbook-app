@@ -165,6 +165,25 @@ export let __marques = {}
 export function __setMarques(m) { __marques = m }
 export async function readCachedBrand(slug) { return __marques[slug] ?? null }
 `)
+// GYM-293 — deux doublures de plus : la marque d'inscription et l'appel de rattachement.
+// ⚠️ `takeSignupIntent` rend FALSE par défaut : le banc éprouve le parcours de CONNEXION,
+// celui qui existait avant ce lot. Un défaut à `true` ferait passer tous les cas existants
+// par la branche signup, et le banc ne vérifierait plus ce qu'il prétend vérifier.
+writeFileSync(join(L, 'signupIntent.js'), `
+export let __intent = false
+export function __setIntent(v) { __intent = v }
+export async function takeSignupIntent() { const v = __intent; __intent = false; return v }
+export async function markSignupIntent() { __intent = true }
+`)
+writeFileSync(join(L, 'gymJoin.js'), `
+import { trace } from './gymResolver.js'
+export let __joinRes = { status: 'ok', gymId: 'g-studio', name: 'Studio Test', isActive: true }
+export function __setJoinRes(r) { __joinRes = r }
+export async function joinGym(slug) {
+  trace.push('joinGym(' + slug + ') → ' + __joinRes.status)
+  return __joinRes
+}
+`)
 writeFileSync(join(L, 'gymSwitch.js'), `
 import { trace, writeSelectedGymSlug } from './gymResolver.js'
 import { useAuthStore } from '../stores/useAuthStore.js'
@@ -351,6 +370,47 @@ for (const panne of ['offline', 'error']) {
   console.log(`  ${propre ? '✓' : '✗'} aucune raison d’indisponibilité ne donne la main au serveur`)
   console.log(`      server_wins n’est permis que pour : ${raisons.join(', ')}`)
 }
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-293 — MÊME ÉTAT APPARENT, DEUX INTENTIONS OPPOSÉES
+// ═════════════════════════════════════════════════════════════════════════════════════
+// « Un slug choisi, aucune adhésion » se lit de deux façons, et rien d'autre que la marque
+// de signup ne les sépare. Ces trois cas sont la raison d'être de cette marque : sans elle,
+// le premier afficherait « tu n'es pas membre » à quelqu'un qui vient de s'inscrire.
+console.log('\nGYM-293 : inscription rattachée, et le refus qui reste un refus.\n')
+
+const SI = await import(pathToFileURL(join(L, 'signupIntent.js')).href)
+const GJ = await import(pathToFileURL(join(L, 'gymJoin.js')).href)
+
+await (async () => {
+  // (1) CHOIX-SIGNUP + aucune adhésion → on REJOINT.
+  SI.__setIntent(true)
+  GJ.__setJoinRes({ status: 'ok', gymId: 'g-studio', name: 'Studio Test', isActive: true })
+  await cas('🔴 choix-SIGNUP sans adhésion — la salle est REJOINTE', {
+    slug: 'salle-inconnue', serveur: 'g-dopa',
+    attendu: 'switched', raisonAttendue: 'joined_after_signup',
+    salleAttendue: 'g-studio', slugAttendu: 'salle-inconnue',
+  })
+
+  // (2) CHOIX-SIGNUP + refus serveur → écran d'erreur, RIEN n'est touché.
+  SI.__setIntent(true)
+  GJ.__setJoinRes({ status: 'refused', code: 'GYM_FULL' })
+  await cas('🔴 choix-SIGNUP, salle PLEINE — rien n’est touché', {
+    slug: 'salle-inconnue', serveur: 'g-dopa',
+    attendu: 'unavailable', raisonAttendue: 'join_failed',
+    salleAttendue: null, slugAttendu: 'salle-inconnue',
+  })
+
+  // (3) CHOIX DE CONNEXION + aucune adhésion → INCHANGÉ. C'est le refus de GYM-301, et il
+  // doit rester intact : ce lot ajoute un chemin, il n'en modifie aucun.
+  SI.__setIntent(false)
+  await cas('choix de CONNEXION sans adhésion — refus GYM-301, INCHANGÉ', {
+    slug: 'salle-inconnue', serveur: 'g-dopa',
+    attendu: 'server_wins', raisonAttendue: 'not_member',
+    salleAttendue: 'g-dopa', slugAttendu: 'dopamine-staging',
+  })
+})()
 
 console.log('\nREPRISE : seule une issue INDÉCISE (`unavailable`) l’arme.\n')
 

@@ -704,5 +704,17 @@
     "body": "Tu es membre de cette salle, mais tu consultes actuellement une autre. Veux-tu y aller ?",
     "go": "Aller à {{gym}}",
     "error": "La bascule n'a pas abouti. Réessaie dans un instant."
+  },
+  "join_failed": {
+    "title": "On n'a pas pu te rattacher à cette salle",
+    "full": "{{gym}} a atteint son nombre maximum de membres. Contacte la salle : c'est à elle d'ouvrir une place.",
+    "rate_limited": "Trop de tentatives en peu de temps. Réessaie dans une heure.",
+    "not_found": "Cette salle n'existe plus.",
+    "email": "Ton adresse email n'est pas encore confirmée. Ouvre le lien qu'on vient de t'envoyer.",
+    "unavailable": "Le service est momentanément indisponible. Réessaie dans un instant.",
+    "generic": "Le rattachement n'a pas abouti.",
+    "account_exists": "Ton compte est bien créé — inutile de recommencer l'inscription.",
+    "choose_another": "Choisir une autre salle",
+    "sign_out": "Se déconnecter"
   }
 }
