@@ -458,7 +458,47 @@ Trois salles staging + les deux salles fictives de la planche pour les rampes.
 | M10 | 🔴 Feuille de paiement → option « à la séance » | libellé **et** sous-titre lisibles sur le fond du bouton, chez une salle à accent **clair** comme chez Dopamine |
 | M11 | Compte à rebours de liste d'attente | un seul rouge, un seul orange — plus deux orangés voisins sur la même ligne |
 | M12 | 🔴 Non-régression **single** : build Dopamine, parcours complet | identique au pixel **SAUF** les 17 écarts listés dans la PR (A-1 ×6, A-2 ×5, ambres ×3, A-6 ×2, GYM-307 ×1) |
+## N — GYM-287 / GYM-303 : pages web (recette NAVIGATEUR, post-merge, staging)
 
+⚠️ **Vercel déploie au merge.** Ces vérifications se font sur le déploiement, pas en local.
+
+### N′ — La preuve AASA, à jouer AVANT et APRÈS le merge
+
+```bash
+bash apps/links/scripts-verif-aasa.sh              # production
+```
+
+Les blocs « AASA » et « chemins déclarés » doivent sortir **identiques** aux deux passages :
+même code, même Content-Type, même empreinte, mêmes tailles. Toute différence = un rewrite
+intercepte un chemin qu'il ne doit pas.
+
+| # | geste | attendu |
+|---|---|---|
+| N1 | 🔴 `curl -I links.viniz.app/.well-known/apple-app-site-association` | **200**, `application/json`, empreinte inchangée |
+| N2 | 🔴 Ouvrir `links.viniz.app/dopamine/reset-password` | page **Dopamine** inchangée, relais vers le dashboard |
+| N3 | Les 4 autres `/dopamine/*` | inchangées, octet pour octet |
+| N4 | 🔴 `links.viniz.app/studio-yoga-test-1/bookings` | **404 Viniz** : Violet Ink, ViNiZ, bouton viniz.app. C'était un 404 nu de 79 octets |
+| N5 | `/…/confirm-waitlist`, `/…/delete-account`, `/…/payment-success` | idem N4 |
+| N6 | 🔴 `links.viniz.app/studio-yoga-test-1/reset-password` | **PAS** un 404 : relais Viniz → dashboard avec `?gym=studio-yoga-test-1` |
+| N7 | `/studio-yoga-test-1/nimporte-quoi` | 404 nu — **connu et remonté** (alternative attrape-tout, README-ROUTES.md) |
+
+### Les trois états de `/reset-password`
+
+| # | geste | attendu |
+|---|---|---|
+| N8 | 🔴 Parcours COMPLET : app **Dopamine** → mot de passe oublié → email → lien | mot-marque **DOPAMINE**, CTA app **Dopamine**. **Inchangé** |
+| N9 | 🔴 Parcours COMPLET : app **Studio Yoga Test 1** → même geste | mot-marque **ViNiZ** sur Violet Ink, CTA **viniz.app**. Aucune trace de Dopamine |
+| N10 | 🔴 Dashboard **gérant** → « mot de passe oublié » → lien | mot-marque **ViNiZ** — le lien gérant ne porte aucun contexte |
+| N11 | `app.viniz.app/reset-password` **sans paramètre** | neutre **ViNiZ**. Le neutre est le DÉFAUT, jamais Dopamine |
+| N12 | Dans les trois cas, après avoir défini le mot de passe | le CTA « Revenir à l'écran de connexion » est présent |
+| N13 | 🔴 Le mot de passe est **réellement** changé dans les trois cas | se reconnecter avec le nouveau — le fragment doit survivre au relais |
+
+### Volet mobile
+
+| # | geste | attendu |
+|---|---|---|
+| N14 | App **multi** → écran « mot de passe oublié » | mot-marque **ViNiZ** en pied |
+| N15 | Build **Dopamine** → même écran | **inchangé**, aucune signature Viniz |
 ## L — GYM-299 / GYM-304 : nom court, dimanche neutre, encres lisibles
 
 Jeu de données : **Studio Yoga Test 1** porte `short_name = « Yoga Club »`. Les deux autres
