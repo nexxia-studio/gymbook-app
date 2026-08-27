@@ -39,7 +39,17 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8')
 const pairs = (src, re) => Object.fromEntries([...src.matchAll(re)].map((m) => [m[1], m[2].toUpperCase()]))
 
 const TW = pairs(read('tailwind.config.js'), /'(move-[a-z-]+)':\s*'(#[0-9a-fA-F]{6})'/g)
-const DOP = pairs(read('lib/theme/ThemeProvider.tsx').match(/DOPAMINE_THEME: ThemeTokens = \{([\s\S]*?)\n\}/)[1], /^\s{2}([A-Za-z]+):\s*'([^']+)'/gm)
+const DOP_BLOC = read('lib/theme/ThemeProvider.tsx').match(/DOPAMINE_THEME: ThemeTokens = \{([\s\S]*?)\n\}/)[1]
+const DOP = pairs(DOP_BLOC, /^\s{2}([A-Za-z]+):\s*'([^']+)'/gm)
+// 🔴 GYM-290 (A-8) — LES JETONS INDEXÉS. `ramp` est un TRIPLET, pas une chaîne : la
+// lecture ci-dessus ne le voyait pas, et les six emplois de `tokens.ramp[n]` disparaissaient
+// de la suite « après ». Six couleurs manquantes, donc six faux écarts sur un écran dont
+// aucun pixel n'avait bougé.
+const DOP_LISTES = Object.fromEntries(
+  [...DOP_BLOC.matchAll(/^\s{2}([A-Za-z]+):\s*\[([^\]]+)\]/gm)].map((m) => [
+    m[1], [...m[2].matchAll(/'(#[0-9a-fA-F]{6})'/g)].map((x) => x[1].toUpperCase()),
+  ]),
+)
 const SEM = pairs(read('lib/theme/semantic.ts').match(/SEMANTIC = \{([\s\S]*?)\n\} as const/)[1], /^\s{2}([A-Za-z]+):\s*'(#[0-9a-fA-F]{6})'/gm)
 
 /**
@@ -109,6 +119,7 @@ const alphaHex = (pct) => Math.round((Number(pct) / 100) * 255).toString(16).pad
 const TOKEN = new RegExp(
   "SEMANTIC\\.(?<semAlpha>[A-Za-z]+)\\s*\\+\\s*'(?<semAlphaHex>[0-9a-fA-F]{2})'"
   + "|tokens\\.(?<tokAlpha>[A-Za-z]+)\\s*\\+\\s*'(?<tokAlphaHex>[0-9a-fA-F]{2})'"
+  + "|tokens\\.(?<tokListe>[A-Za-z]+)\\[(?<tokIndex>[0-9]+)\\]"
   + '|tokens\\.(?<tok>[A-Za-z]+)'
   + '|SEMANTIC\\.(?<sem>[A-Za-z]+)',
   'g',
@@ -218,6 +229,7 @@ const suite = (src0, avecBrut = false) => {
     else if (IMPORT_PALETTE.test(m[0])) valeurs = PALETTE  // le module partagé, déplié
     else if (g.semAlpha) valeurs = [SEM[g.semAlpha] + g.semAlphaHex.toUpperCase()]  // A-10
     else if (g.tokAlpha) valeurs = [DOP[g.tokAlpha] + g.tokAlphaHex.toUpperCase()]  // 3c
+    else if (g.tokListe) valeurs = [(DOP_LISTES[g.tokListe] ?? [])[Number(g.tokIndex)]]
     else if (g.tok) valeurs = [DOP[g.tok]]
     else if (g.sem) valeurs = [SEM[g.sem]]
     else valeurs = [valeurAvant(m[0], g)]

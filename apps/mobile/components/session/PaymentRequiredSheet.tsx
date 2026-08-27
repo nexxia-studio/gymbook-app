@@ -137,9 +137,9 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
           <View className="items-center">
             <View className="h-12 w-12 items-center justify-center rounded-2xl bg-move-accent/10">
-              {/* GYM-286 — A-1, EN ATTENTE : #9DB800 (lime atténué) n'est pas tranché
-                  entre `tokens.accentDim` et `SEMANTIC.success`. */}
-              <CreditCard size={24} color="#9DB800" />
+              {/* 🔴 GYM-290 (A-1) — TRANCHÉ : un moyen de paiement n'est pas un succès,
+                  c'est de la marque. Il rejoint `accentDim`. */}
+              <CreditCard size={24} color={tokens.accentDim} />
             </View>
             <Text className="mt-4 text-center font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
               {context === 'waitlist' ? t('payment_required.waitlist_title') : t('payment_required.title')}

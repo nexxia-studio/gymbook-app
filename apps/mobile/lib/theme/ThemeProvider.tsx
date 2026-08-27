@@ -49,6 +49,15 @@ export const DOPAMINE_THEME: ThemeTokens = {
   // production — elles recopient `move-dark` et `move-accent`, à l'octet.
   actionBg: '#111111',          // move-dark
   onAction: '#C8F000',          // move-accent
+  // 🔴 GYM-290 (A-6) — LE GRIS-SUR-SOMBRE, ENFIN NOMMÉ. #333333 est la valeur que Dopamine
+  // emploie depuis toujours pour ses pistes de barre ; c'est elle qui a servi à calibrer
+  // `PAS_RAIL` (1,49:1 sur #111111). Les sites qui la portaient en dur s'y rattachent sans
+  // bouger d'un pixel.
+  rail: '#333333',
+  // 🔴 GYM-290 (A-8) — LA RAMPE DE DOPAMINE, FIGÉE. Ses trois verts d'affluence, recopiés
+  // à l'octet depuis les écrans où ils étaient en dur. Chez une salle ils se DÉRIVENT de
+  // son accent (voir `rampe()`) ; ici ils ne bougent pas, comme tout le reste de ce fichier.
+  ramp: ['#C0DD97', '#97C459', '#3B6D11'] as const,
   limeAllowed: true,
 }
 

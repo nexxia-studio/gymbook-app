@@ -41,6 +41,23 @@ import {
  */
 export const PAS_BANDE = 1.3
 
+/**
+ * 🔴 GYM-290 (A-6) — LE PAS DU RAIL : le gris-sur-sombre qui manquait à la charte.
+ *
+ * Trois gris orphelins traînaient depuis GYM-286 — #333333 (deux pistes de barre), #555555
+ * (une pastille vide) — sans aucun jeton voisin. Le commentaire de l'époque disait le
+ * manque en toutes lettres : « il manque à la charte un gris NEUTRE SUR FOND SOMBRE ».
+ *
+ * Un RAIL n'est ni une encre ni une surface d'action : c'est une marque inerte, qui doit se
+ * distinguer du fond SANS attirer l'œil. Le seuil des éléments d'interface (3:1) serait
+ * donc faux ici — il produirait un trait dur là où il faut un creux.
+ *
+ * ⚠️ 1,49:1 EST MESURÉ SUR DOPAMINE, PAS CHOISI. C'est exactement le rapport de son
+ * #333333 sur son #111111 : la valeur qui a servi pendant deux ans dans l'app de
+ * production. On ne calibre pas un jeton neuf à vue quand une référence existe.
+ */
+export const PAS_RAIL = 1.49
+
 export const VINIZ = {
   lime: '#C8FF3D',
   /** « Violet Ink » — l'encre de Viniz sur fond clair, et le repli des actions. */
@@ -116,6 +133,23 @@ export interface ThemeTokens {
   actionBg: string
   onAction: string
   /**
+   * 🔴 GYM-290 (A-6) — MARQUE INERTE SUR LE FOND : piste de barre, pastille vide.
+   *
+   * Ni une encre (elle ne porte aucun texte) ni une action (elle n'appelle aucun geste) :
+   * elle doit se voir sans se faire remarquer. C'est le rôle qu'aucun jeton ne nommait, et
+   * faute duquel trois gris étaient restés en dur depuis GYM-286.
+   */
+  rail: string
+  /**
+   * 🔴 GYM-290 (A-8) — LA RAMPE D'AFFLUENCE : trois paliers d'intensité croissante.
+   *
+   * C'est une LECTURE DE DONNÉE, pas un signal : elle peut suivre la marque sans rien
+   * perdre de son sens, contrairement à un message d'erreur. Mais elle doit garantir trois
+   * paliers DISTINGUABLES sur n'importe quelle primaire — ce qui est un vrai travail, pas
+   * un remplacement. Voir `rampe()`.
+   */
+  ramp: readonly [string, string, string]
+  /**
    * 🔴 LE LIME NE VA QUE SUR FOND SOMBRE. En mode clair il DISPARAÎT de l'interface —
    * règle de l'écran 09 de la maquette, pas une préférence esthétique : sur un fond clair
    * ce vert ne porte aucun texte et ne se distingue d'aucune surface.
@@ -158,6 +192,8 @@ function vinizDark(): ThemeTokens {
     accentDim: VINIZ.lime,
     actionBg: VINIZ.lime,
     onAction: bestInkOn(parseHex(VINIZ.lime)!, [VINIZ.light, VINIZ.ink, VINIZ.dark]).ink,
+    rail: toHex(decalerDe(parseHex(VINIZ.dark)!, parseHex(VINIZ.light)!, PAS_RAIL)!),
+    ramp: rampe(parseHex(VINIZ.dark)!, parseHex(VINIZ.lime)!),
     limeAllowed: true,
   }
 }
@@ -425,11 +461,27 @@ export function resolveTheme(
   const onSurfaceSecondary = toHex(
     mutedInkOn(surfaceRgb, parseHex(onSurface)!, SEUIL_TEXTE),
   )
-  const accentDim = accent
+  // 🔴 GYM-290 (A-5) — `accentDim` DEVIENT UNE VRAIE DÉRIVATION. Il valait `accent` : une
+  // « variante atténuée » identique à ce qu'elle atténue ne sert à rien. A-1 vient de dire
+  // ce qui reste dedans — de la MARQUE, jamais un succès — donc on peut enfin le dériver.
+  //
+  // ⚠️ IL EST POSÉ COMME TEXTE (`+not-found`, `SessionDescription`) : il se valide donc au
+  // seuil TEXTE sur le fond, pas au seuil surface. C'est exactement ce que la
+  // recommandation d'A-5 demandait — « l'action à ~75 % de luminosité, revalidée à 4,5:1 ».
+  // `mutedInkOn` fait les deux d'un coup : il atténue autant que le seuil l'autorise, et
+  // pas davantage.
+  const accentDim = toHex(
+    mutedInkOn(background, parseHex(accent)!, SEUIL_TEXTE, pageRgb),
+  )
   // Décision A, option 1 : chez une salle, l'action EST l'accent, et son encre est celle
   // que le garde-fou a retenue pour lui — jamais une couleur choisie à la main.
   const actionBg = accent
   const onAction = onAccent
+  // Le rail se dérive du FOND vers l'encre, du pas mesuré sur Dopamine. Vers l'encre et non
+  // vers le blanc : sur une salle claire, éclaircir le fond ne produirait rien de visible.
+  const rail = toHex(
+    decalerDe(background, parseHex(onBackground)!, PAS_RAIL) ?? parseHex(onBackground)!,
+  )
 
   return {
     tokens: {
@@ -447,6 +499,8 @@ export function resolveTheme(
       accentDim,
       actionBg,
       onAction,
+      rail,
+      ramp: rampe(background, parseHex(accent)!),
       // 🔴 Le lime ne touche JAMAIS un fond clair.
       limeAllowed: mode === 'dark',
     },
@@ -463,6 +517,40 @@ export function resolveTheme(
       reasons,
     },
   }
+}
+
+/**
+ * 🔴 GYM-290 (A-8) — TROIS PALIERS DÉRIVÉS DE L'ACCENT, DISTINGUABLES PARTOUT.
+ *
+ * ⚠️ LE PIÈGE EST D'ÉCHELONNER EN OPACITÉ. Trois mélanges à 33 / 66 / 100 % donnent trois
+ * paliers bien séparés sur un fond sombre et trois quasi-jumeaux sur un fond clair — la
+ * même formule, deux résultats. On échelonne donc en CONTRASTE SUR LE FOND, la grandeur
+ * que l'œil mesure : chaque palier est le plus petit mélange qui atteint son ratio.
+ *
+ * Les trois cibles montent régulièrement du seuil de visibilité (le palier 1 doit se voir,
+ * donc SEUIL_SURFACE) jusqu'à l'accent plein. Un palier qui ne peut pas atteindre sa cible
+ * — accent trop proche du fond — retombe sur l'accent : trois paliers dont deux se
+ * confondent restent lisibles, là où un palier invisible ferait disparaître une donnée.
+ */
+function rampe(background: Rgb, accent: Rgb): readonly [string, string, string] {
+  // ⚠️ PREMIÈRE TENTATIVE, ÉCARTÉE PAR LA MESURE : trois cibles FIXES (3 / 3,75 / 4,5).
+  // Elles supposaient que tout accent atteint 4,5:1 sur son fond — or le garde-fou ne lui
+  // demande que 3:1. Résultat mesuré sur les cinq salles de test : des paliers séparés de
+  // 1,19 seulement, et un terracotta dont les paliers 2 et 3 étaient IDENTIQUES (1,00),
+  // faute de pouvoir monter plus haut. Une rampe dont deux barreaux se confondent ne dit
+  // plus rien de la donnée qu'elle représente.
+  //
+  // 🔴 ON ÉCHELONNE DONC SUR LE CONTRASTE DE L'ACCENT LUI-MÊME, GÉOMÉTRIQUEMENT. Le palier
+  // 3 est l'accent plein ; les deux autres sont à C^(1/3) et C^(2/3) de son contraste. La
+  // progression géométrique donne le MÊME rapport entre paliers consécutifs — une rampe
+  // régulière à l'œil — et ce rapport vaut C^(1/3). Comme le garde-fou garantit déjà
+  // C ≥ 3:1 pour tout accent retenu, la séparation minimale est 3^(1/3) ≈ 1,44 : elle est
+  // acquise par construction, sur n'importe quelle primaire.
+  const C = contrastRatio(accent, background)
+  return [1 / 3, 2 / 3, 1].map((k) => {
+    const cible = Math.pow(C, k)
+    return toHex(decalerDe(background, accent, cible) ?? accent)
+  }) as unknown as readonly [string, string, string]
 }
 
 /** Le thème par défaut, sans aucune salle : Viniz, mode sombre. */
