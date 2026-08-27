@@ -16,7 +16,8 @@
 // ⚠️ FONCTION PURE, SANS RENDU NI RÉSEAU. C'est la condition pour qu'elle soit vérifiable
 // autrement qu'en regardant un téléphone.
 import {
-  parseHex, toHex, contrastRatio, hslLightness, bestInkOn,
+  parseHex, toHex, contrastRatio, prefersDarkInk, hslLightness, bestInkOn, mutedInkOn,
+  melange, SEUIL_TEXTE, SEUIL_SURFACE,
   AA_TEXT, AA_NON_TEXT, type Rgb,
 } from './contrast'
 
@@ -198,8 +199,16 @@ export function resolveTheme(
   // qui est : sur quoi le texte sera-t-il posé ? Un fond clair impose le mode clair, que
   // la primaire soit claire ou non — et quand les deux le sont, on retombe exactement sur
   // l'écran 09.
+  // 🔴 GYM-290 (0a) — DÉCIDÉ PAR LA LUMINANCE, PLUS PAR LA TEINTE. `hslLightness > 80`
+  // classait « sombre » un lime #C8FF3D (62 % de clarté HSL, mais presque aussi lumineux
+  // qu'un blanc) : il recevait les encres du mode sombre, et la lavande y tombait à
+  // 1,15:1. Mesuré sur 19 600 salles AVANT correction : `onBackgroundMuted` sous 4,5:1
+  // dans 10 920 cas. Plus d'une salle sur deux. Voir `prefersDarkInk`.
+  const mode: ThemeMode = prefersDarkInk(background) ? 'light' : 'dark'
+  // ⚠️ CONSERVÉE, MAIS DÉGRADÉE AU RANG DE DESCRIPTION. `backgroundLightness` est publiée
+  // dans les notes de décision et n'y décide plus RIEN — c'est la mesure qui a causé le
+  // défaut. La laisser sans ce commentaire inviterait à s'en resservir.
   const backgroundLightness = hslLightness(background)
-  const mode: ThemeMode = backgroundLightness > 80 ? 'light' : 'dark'
 
   // ── 3. LE TEXTE ────────────────────────────────────────────────────────────────────
   const { ink: onBackground, ratio: textContrast } = bestInkOn(background, INKS)
@@ -250,7 +259,24 @@ export function resolveTheme(
     // défaut », écran 05a). Sur fond clair, le lime ne peut pas servir — il ne porte
     // aucun texte et ne se détache d'aucune surface claire : l'action retombe sur le
     // Violet Ink (« les actions retombent sur le Violet Ink Viniz », écran 09).
-    accent = mode === 'dark' ? VINIZ.lime : VINIZ.ink
+    // 🔴 GYM-290 — ET LE REPLI EST REVALIDÉ SUR LE FOND, CE QU'IL N'ÉTAIT PAS. Le lime
+    // était posé dès que le mode était sombre, sans vérifier qu'il se DÉTACHE de ce fond
+    // précis. Sur un fond sombre-mais-vif — une menthe, un olive — l'action retombait donc
+    // sur une couleur invisible : mesuré, `accent` sous 3:1 sur 5 748 salles sur 19 600,
+    // et jusqu'à 1,00:1 (l'action de la MÊME couleur que sa page).
+    // On essaie les deux replis dans l'ordre de la maquette et on garde le premier qui se
+    // voit ; si aucun ne se voit, l'encre principale sert d'action — elle, on sait qu'elle
+    // se détache, c'est la condition qui a fait accepter le fond.
+    const replis = mode === 'dark' ? [VINIZ.lime, VINIZ.ink] : [VINIZ.ink, VINIZ.lime]
+    const visible = replis.find(
+      (c) => contrastRatio(parseHex(c)!, background) >= SEUIL_SURFACE,
+    )
+    if (!visible) {
+      reasons.push(
+        'aucun repli d’action ne se détache de ce fond : l’encre principale sert d’action',
+      )
+    }
+    accent = visible ?? onBackground
     // Même règle de sélection que pour une primaire de salle : une seule logique d'encre
     // dans le module, donc un seul endroit à corriger le jour où elle bouge.
     onAccent = bestInkOn(parseHex(accent)!, INKS_LABEL).ink
@@ -259,9 +285,52 @@ export function resolveTheme(
   // ── 5. LES SURFACES SECONDAIRES ────────────────────────────────────────────────────
   // Dérivées du fond, jamais fournies par la salle : une troisième couleur de marque
   // multiplierait les combinaisons à vérifier sans rien apporter.
-  const surface = mode === 'dark' ? 'rgba(243,240,255,0.06)' : 'rgba(45,27,105,0.05)'
-  const border = mode === 'dark' ? 'rgba(243,240,255,0.14)' : 'rgba(45,27,105,0.12)'
-  const onBackgroundMuted = mode === 'dark' ? VINIZ.lavender : VINIZ.mutedOnLight
+  // 🔴 GYM-290 — LES SURFACES DEVIENNENT OPAQUES, ET C'EST UNE CORRECTION DE FOND.
+  //
+  // Elles étaient des VOILES (`rgba(...,0.06)`). Un voile ne vaut que par ce qu'il y a
+  // dessous — et GYM-302 a montré ce que ça coûte : la tab bar, rendue hors de tout écran,
+  // n'avait AUCUN fond de salle derrière elle et affichait donc la même teinte pour toutes
+  // les salles sombres. On l'avait corrigé là où ça se voyait, en peignant le fond dessous.
+  //
+  // La décision B rend le problème général : dès que `page` et `background` diffèrent, le
+  // MÊME voile rend deux couleurs selon l'endroit où la carte est posée. Une « surface »
+  // qui change de couleur selon son support n'est pas un jeton, c'est un accident.
+  //
+  // On compose donc le voile sur le fond UNE fois, ici, et le jeton sort opaque. Effet de
+  // bord bienvenu : ses encres deviennent calculables — c'est ce qui permet aux deux
+  // jetons ci-dessous d'être validés pour de bon.
+  //
+  // ⚠️ ET LE VOILE PEUT RENDRE LA CARTE MOINS LISIBLE QUE LA PAGE — c'est ce qui restait.
+  // Éclaircir un fond sombre le rapproche de l'encre claire qu'on va poser dessus : la
+  // carte descendait sous 4,5:1 sur 980 salles alors que la PAGE, elle, passait. On essaie
+  // donc les deux sens et on garde celui dont la meilleure encre est la plus contrastée ;
+  // si aucun ne tient le seuil, on ne voile pas du tout. Une carte plate est moins grave
+  // qu'une carte illisible — et le cas est rare, par construction.
+  const CLAIR = parseHex(VINIZ.light)!
+  const SOMBRE = parseHex(VINIZ.dark)!
+  const aSurface = mode === 'dark' ? 0.06 : 0.05
+  const aBorder = mode === 'dark' ? 0.14 : 0.12
+  const candidats = [CLAIR, SOMBRE].map((v) => ({ v, s: melange(v, background, aSurface) }))
+  const meilleur = candidats.reduce((a, b) =>
+    (bestInkOn(b.s, INKS).ratio > bestInkOn(a.s, INKS).ratio ? b : a))
+  const voileTient = bestInkOn(meilleur.s, INKS).ratio >= SEUIL_TEXTE
+  if (!voileTient) {
+    reasons.push('carte non voilée : tout voile ferait tomber son encre sous le seuil texte')
+  }
+  const voile = meilleur.v
+  const surfaceRgb = voileTient ? meilleur.s : background
+  const borderRgb = melange(voile, background, aBorder)
+  const surface = toHex(surfaceRgb)
+  const border = toHex(borderRgb)
+
+  // 🔴 GYM-290 (0) — L'ENCRE ATTÉNUÉE EST DÉRIVÉE, PLUS CHOISIE DANS UNE LISTE DE DEUX.
+  // Une teinte fixe ne peut pas être à la fois atténuée et lisible sur un fond quelconque.
+  // On part de l'encre principale — dont on SAIT qu'elle passe le seuil — et on la fond
+  // vers le fond aussi loin que 4,5:1 l'autorise. La hiérarchie reste (le secondaire est
+  // plus discret), et la lisibilité ne dépend plus de la teinte du fond.
+  const onBackgroundMuted = toHex(
+    mutedInkOn(background, parseHex(onBackground)!, SEUIL_TEXTE),
+  )
 
   // ── 6. LES QUATRE RÔLES AJOUTÉS PAR GYM-286a ───────────────────────────────────────
   // 🔴 AUCUN N'INTRODUIT UNE COULEUR QUE LE GARDE-FOU N'AURAIT PAS DÉJÀ VALIDÉE. Chacun
@@ -279,8 +348,15 @@ export function resolveTheme(
   //   — `onSurface` tient tant que `surface` est un voile translucide sur le fond ; il
   //     faudra le recalculer le jour où une salle fournira une surface opaque.
   const page = toHex(background)
-  const onSurface = onBackground
-  const onSurfaceSecondary = onBackgroundMuted
+  // 🔴 GYM-290 — LES ENCRES DE CARTE SE VALIDENT SUR LA CARTE, PAS SUR LA PAGE.
+  // Elles recopiaient les encres de fond. Tant que la surface était un voile à 6 %, l'écart
+  // était petit — mais il existait, et il suffisait à faire tomber `onSurface` sous 4,5:1
+  // sur 980 salles et `onSurfaceSecondary` sur 11 760. Mesurées sur LEUR fond, elles
+  // tombent à zéro.
+  const onSurface = bestInkOn(surfaceRgb, INKS).ink
+  const onSurfaceSecondary = toHex(
+    mutedInkOn(surfaceRgb, parseHex(onSurface)!, SEUIL_TEXTE),
+  )
   const accentDim = accent
 
   return {

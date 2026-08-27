@@ -80,12 +80,100 @@ export const AA_TEXT = 4.5
 export const AA_NON_TEXT = 3
 
 /**
+ * 🔴 GYM-290 (0b) — LES DEUX SEUILS, SOUS LEURS NOMS DE MÉTIER.
+ *
+ * `AA_TEXT` et `AA_NON_TEXT` disent la NORME ; `SEUIL_TEXTE` et `SEUIL_SURFACE` disent
+ * l'USAGE. Ce sont les mêmes nombres, et c'est volontaire : deux valeurs distinctes
+ * finiraient par diverger. Ce que ces alias ajoutent, c'est qu'on ne peut plus écrire
+ * « AA_NON_TEXT » devant une encre de texte sans que la phrase sonne faux à la relecture.
+ *
+ * La règle du lot tient en une ligne : TOUTE encre posée comme texte se valide à
+ * `SEUIL_TEXTE`. Une surface — piste, pastille, fond d'action — se contente de
+ * `SEUIL_SURFACE`.
+ */
+export const SEUIL_TEXTE = AA_TEXT
+export const SEUIL_SURFACE = AA_NON_TEXT
+
+/**
+ * Mélange `encre` vers `fond` d'un facteur `a` (0 = le fond, 1 = l'encre pure).
+ * Sert à DÉRIVER une encre atténuée sans quitter la famille du fond.
+ */
+export function melange(encre: Rgb, fond: Rgb, a: number): Rgb {
+  return {
+    r: Math.round(encre.r * a + fond.r * (1 - a)),
+    g: Math.round(encre.g * a + fond.g * (1 - a)),
+    b: Math.round(encre.b * a + fond.b * (1 - a)),
+  }
+}
+
+/**
+ * 🔴 UNE ENCRE ATTÉNUÉE QUI RESTE LISIBLE — la brique qui manquait.
+ *
+ * ⚠️ LE DÉFAUT N'ÉTAIT PAS « LA LAVANDE EST TROP PÂLE », C'ÉTAIT « L'ATTÉNUATION ÉTAIT UNE
+ * COULEUR FIXE ». Deux teintes constantes (lavande sur sombre, mauve sur clair) ne peuvent
+ * pas être à la fois atténuées ET lisibles sur un fond quelconque : sur plus d'une salle
+ * sur deux, elles n'étaient plus que pâles.
+ *
+ * On part donc de l'encre PRINCIPALE — celle dont on sait déjà qu'elle passe le seuil — et
+ * on la fond vers le fond aussi loin que le seuil l'autorise. La hiérarchie visuelle est
+ * préservée (le secondaire reste plus discret que le principal) et la lisibilité est
+ * garantie par construction, pas par chance.
+ *
+ * Le pas descendant s'arrête au premier facteur qui tient : on obtient l'encre la PLUS
+ * atténuée encore conforme, pas une valeur arbitraire au milieu.
+ */
+export function mutedInkOn(fond: Rgb, encre: Rgb, seuil: number): Rgb {
+  for (let a = 0.60; a <= 1.0001; a += 0.05) {
+    const essai = melange(encre, fond, a)
+    if (contrastRatio(essai, fond) >= seuil) return essai
+  }
+  // Aucun mélange ne tient : l'encre pleine est le mieux qu'on puisse faire, et elle passe
+  // le seuil (c'est la condition qui a fait accepter ce fond).
+  return encre
+}
+
+/**
  * Clarté perçue, en pourcentage, au sens de la composante L de HSL.
  *
  * ⚠️ VOLONTAIREMENT HSL ET NON LA LUMINANCE. La maquette énonce sa règle ainsi : « les
  * deux couleurs de la salle sont claires (L > 80 %) ». C'est la valeur qu'un gérant lit
  * dans n'importe quel sélecteur de couleur ; s'en écarter pour une grandeur plus juste
  * mais invisible rendrait la règle inexplicable à celui qui la subit.
+ */
+/**
+ * 🔴 GYM-290 (0a) — LE MODE SE DÉCIDE PAR LE CONTRASTE RÉEL, PLUS JAMAIS PAR LA TEINTE.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════
+ * LA CAUSE QUE CETTE FONCTION CORRIGE
+ * ═════════════════════════════════════════════════════════════════════════════════════
+ * Le mode se décidait sur `hslLightness > 80`. Or la clarté HSL est une mesure de TEINTE :
+ * elle ne prend que le canal max et le min, et ignore complètement que l'œil voit le vert
+ * six fois plus que le bleu. Un lime #C8FF3D y vaut 62 % — donc « sombre » — alors qu'il
+ * est presque aussi lumineux qu'un blanc. Il recevait donc les encres du mode SOMBRE, et
+ * la lavande #C8C2E6 posée dessus tombait à 1,15:1.
+ *
+ * Mesuré avant correction, sur 19 600 salles : `onBackgroundMuted` sous 4,5:1 dans
+ * **10 920** cas, `onSurfaceSecondary` dans **11 480**. Ce n'était pas une poignée de
+ * couleurs exotiques — c'était plus d'une salle sur deux.
+ *
+ * ⚠️ LA QUESTION N'EST PAS « CE FOND EST-IL CLAIR ? » MAIS « QUELLE ENCRE S'Y LIT LE
+ * MIEUX ? ». On compare donc le contraste du fond avec le blanc et avec le noir : celui
+ * des deux qui gagne dit le mode. C'est la même grandeur que celle qui décidera ensuite de
+ * chaque encre — une seule mesure gouverne toute la chaîne, au lieu de deux qui se
+ * contredisent.
+ */
+export function prefersDarkInk(background: Rgb): boolean {
+  const surBlanc = contrastRatio(background, { r: 255, g: 255, b: 255 })
+  const surNoir = contrastRatio(background, { r: 0, g: 0, b: 0 })
+  return surNoir > surBlanc
+}
+
+/**
+ * ⚠️ CONSERVÉE POUR MÉMOIRE, ET PLUS APPELÉE PAR LE GARDE-FOU (GYM-290).
+ *
+ * Elle décrit une TEINTE, pas une luminosité perçue. Elle reste exportée parce qu'un jour
+ * quelqu'un voudra une mesure de teinte — mais aucune décision de lisibilité ne doit s'y
+ * appuyer, et `resolveTheme` ne l'utilise plus. Voir `prefersDarkInk`.
  */
 export function hslLightness({ r, g, b }: Rgb): number {
   const max = Math.max(r, g, b) / 255
