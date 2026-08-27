@@ -68,6 +68,16 @@ const UTILS = 'bg|text|border|fill|stroke|ring|divide|placeholder|shadow'
 // ⚠️ LES VARIANTES `/alpha` SONT EXCLUES DU MOTIF, PAS OUBLIÉES. `bg-red-500/10` n'est
 // migrable par aucun jeton : il reste donc identique des deux côtés, et le compter
 // ajouterait la même valeur aux deux suites — du bruit, pas une vérification.
+//
+// 🔴 GYM-300 — SAUF `text-white/NN`, ET L'EXCEPTION SE MÉRITE. Cette exclusion reposait
+// sur « aucun jeton ne peut les remplacer ». C'est devenu FAUX : la finition 3c migre
+// exactement ces blancs, parce qu'un blanc en dur est illisible sur le fond clair d'une
+// salle. Les laisser hors du motif rendrait la migration INVISIBLE au script — le côté
+// « avant » ne compterait rien, le côté « après » compterait un jeton, et chaque écran
+// migré sortirait en faux écart. Ils sont donc comptés des deux côtés, à leur alpha
+// exact : `text-white/40` vaut #FFFFFF66, ce que rend aussi `tokens.onBackground + '66'`
+// chez Dopamine. Les `move-*/alpha`, eux, restent exclus : A-3/A-4 sont toujours en
+// attente, et rien ne les migre encore.
 const MOVE = new RegExp(
   // `(?!\\/)` : `bg-move-accent/5` est un lavis, pas la couleur pleine — jamais migrable,
   // donc jamais comparé. Sans cette exclusion il était compté des DEUX côtés, mais à des
@@ -75,25 +85,54 @@ const MOVE = new RegExp(
   // `style` : quatre faux écarts sur WeekSlots, pour un fichier exact.
   'move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border)\\b(?!\\/)'
   + '|#[0-9a-fA-F]{8}\\b|#[0-9a-fA-F]{6}\\b'
-  + `|\\b(?:${UTILS})-(${PALETTES})-([0-9]{2,3})(?![0-9/])`
-  + `|\\b(?:${UTILS})-(white|black)(?![a-z/])`,
+  // ⚠️ LA VARIANTE À ALPHA PASSE AVANT LA PLEINE, sans quoi `text-white/40` serait lu
+  // comme `text-white` suivi d'un « /40 » orphelin — un blanc PLEIN là où il y en a 40 %.
+  + `|\\b(?:${UTILS})-(?<bwAlphaName>white|black)\\/(?<bwAlphaPct>[0-9]{1,3})\\b`
+  + `|\\b(?:${UTILS})-(?<palFam>${PALETTES})-(?<palTon>[0-9]{2,3})(?![0-9/])`
+  + `|\\b(?:${UTILS})-(?<bwName>white|black)(?![a-z/])`,
   'g',
 )
+
+/** Tailwind exprime l'alpha en POURCENTS, le hex sur 8 chiffres en octets. */
+const alphaHex = (pct) => Math.round((Number(pct) / 100) * 255).toString(16).padStart(2, '0').toUpperCase()
 // ⚠️ LA CONCATÉNATION D'A-10 EST RECONNUE AVANT LE JETON NU, et l'ordre compte : sans
 // elle, `SEMANTIC.success + '20'` serait lu comme le vert PLEIN #22C55E là où le fichier
 // d'origine portait #22C55E20 — un succès à 12,5 % d'opacité. Le script signalerait un
 // écart sur la seule écriture que le cockpit ait explicitement demandée (A-10).
-const TOKEN = /SEMANTIC\.([A-Za-z]+)\s*\+\s*'([0-9a-fA-F]{2})'|tokens\.([A-Za-z]+)|SEMANTIC\.([A-Za-z]+)/g
+//
+// 🔴 GYM-300 — ET `tokens.X + 'aa'` OBÉIT À LA MÊME RÈGLE, POUR LA MÊME RAISON. La
+// finition 3c écrit `tokens.onBackground + '66'` : sans cette alternative placée AVANT le
+// jeton nu, le script lirait le blanc PLEIN et signalerait un écart sur l'écriture même
+// que le lot demande. Les groupes sont NOMMÉS depuis ce lot — les index positionnels
+// se décalaient à chaque alternative ajoutée, et une renumérotation silencieuse fait dire
+// au script l'inverse de ce qu'il vérifie.
+const TOKEN = new RegExp(
+  "SEMANTIC\\.(?<semAlpha>[A-Za-z]+)\\s*\\+\\s*'(?<semAlphaHex>[0-9a-fA-F]{2})'"
+  + "|tokens\\.(?<tokAlpha>[A-Za-z]+)\\s*\\+\\s*'(?<tokAlphaHex>[0-9a-fA-F]{2})'"
+  + '|tokens\\.(?<tok>[A-Za-z]+)'
+  + '|SEMANTIC\\.(?<sem>[A-Za-z]+)',
+  'g',
+)
 
-/** La valeur d'une occurrence « avant », quelle que soit la population dont elle vient. */
-function valeurAvant(m) {
-  const [texte, palFam, palTon, bwName] = [m[0], m[1], m[2], m[3]]
+/**
+ * La valeur d'une occurrence « avant », quelle que soit la population dont elle vient.
+ *
+ * ⚠️ LIT DES GROUPES NOMMÉS (GYM-300). La version positionnelle recevait `m[5]`, `m[6]`,
+ * `m[7]` — des index qui dépendaient du NOMBRE d'alternatives déclarées avant elle dans
+ * `RESTE_OU_JETON`. Ajouter une alternative les décalait tous, sans erreur ni avertissement :
+ * le script continuait de tourner et comparait des couleurs prises au mauvais endroit.
+ */
+function valeurAvant(texte, g) {
   if (texte.startsWith('#')) return texte.toUpperCase()
-  if (palFam) {
-    const v = TW_COLORS[palFam] && TW_COLORS[palFam][palTon]
+  if (g.palFam) {
+    const v = TW_COLORS[g.palFam] && TW_COLORS[g.palFam][g.palTon]
     return typeof v === 'string' ? v.toUpperCase() : null
   }
-  if (bwName) return bwName === 'white' ? '#FFFFFF' : '#000000'
+  // GYM-300 — `text-white/40` → #FFFFFF66, la valeur que rend aussi `tokens.X + '66'`.
+  if (g.bwAlphaName) {
+    return (g.bwAlphaName === 'white' ? '#FFFFFF' : '#000000') + alphaHex(g.bwAlphaPct)
+  }
+  if (g.bwName) return g.bwName === 'white' ? '#FFFFFF' : '#000000'
   const cls = texte.match(/move-[a-z-]+/)
   return cls ? TW[cls[0]] ?? null : null
 }
@@ -169,15 +208,17 @@ const suite = (src0) => {
   )
   const noms = Object.keys(CST)
   const motif = noms.length
-    ? new RegExp(`${RESTE_OU_JETON.source}|\\b(${noms.join('|')})\\b`, 'g')
+    ? new RegExp(`${RESTE_OU_JETON.source}|\\b(?<cst>${noms.join('|')})\\b`, 'g')
     : RESTE_OU_JETON
   return [...src.matchAll(motif)].flatMap((m) => {
+    const g = m.groups ?? {}
     if (CST[m[0]]) return [CST[m[0]]]
     if (IMPORT_PALETTE.test(m[0])) return PALETTE   // le module partagé, déplié à sa place
-    if (m[1]) return [SEM[m[1]] + m[2].toUpperCase()] // SEMANTIC.X + 'aa'  (A-10)
-    if (m[3]) return [DOP[m[3]]]                   // tokens.X
-    if (m[4]) return [SEM[m[4]]]                   // SEMANTIC.X
-    return [valeurAvant({ 0: m[0], 1: m[5], 2: m[6], 3: m[7] })]
+    if (g.semAlpha) return [SEM[g.semAlpha] + g.semAlphaHex.toUpperCase()]  // A-10
+    if (g.tokAlpha) return [DOP[g.tokAlpha] + g.tokAlphaHex.toUpperCase()]  // GYM-300 (3c)
+    if (g.tok) return [DOP[g.tok]]
+    if (g.sem) return [SEM[g.sem]]
+    return [valeurAvant(m[0], g)]
   })
 }
 const A = suite(before)

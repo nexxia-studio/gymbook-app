@@ -85,8 +85,22 @@ export default function Home() {
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground }}>
             {marque.toUpperCase()}
           </Text>
+          {/* 🔴 GYM-300 (3c) — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/40` était un
+              BLANC EN DUR : illisible dès que la salle a un fond clair, et l'en-tête de
+              Studio Test le montrait — le nom de la salle disparaissait purement et
+              simplement de sa propre bande.
+
+              ⚠️ ET `onBackgroundMuted` N'AURAIT PAS FAIT L'AFFAIRE. Chez Dopamine il vaut
+              #9A9890, alors qu'un blanc à 40 % sur #111111 rend #707070 : le
+              remplacement direct aurait déplacé un pixel en single, ce que le cadrage
+              interdit. `tokens.onBackground` + la MÊME opacité 0,4 rend exactement le
+              blanc à 40 % chez Dopamine, et l'encre de la salle ailleurs. C'est le motif
+              A-10 de GYM-286 : on migre la teinte, on ne touche pas à l'alpha. */}
           {descriptif ? (
-            <Text className="font-dmsans text-[11px] text-white/40">
+            <Text
+              className="font-dmsans text-[11px]"
+              style={{ color: tokens.onBackground + '66' }}
+            >
               {descriptif}
             </Text>
           ) : null}
