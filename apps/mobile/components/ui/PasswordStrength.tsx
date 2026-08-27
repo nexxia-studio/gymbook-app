@@ -22,12 +22,16 @@ function getStrength(pw: string): { score: number; label: 'weak' | 'medium' | 's
 // fait disparaître : la barre portait des littéraux, le libellé des classes, et rien
 // n'obligeait les deux à rester d'accord.
 //
-// GYM-286 — A-2 ET A-1, EN ATTENTE, pour deux des trois niveaux :
-//   `medium` #F59E0B est l'ambre 500, PAS `SEMANTIC.warning` #F97316 — une autre couleur ;
-//   `strong` #9DB800 dit un succès mais reste un lime de marque (A-1).
-// Les approcher par le jeton voisin serait la régression d'un pixel que ce lot interdit.
-const barColors = { weak: SEMANTIC.danger, medium: '#F59E0B', strong: '#9DB800' }
-const textColors = { weak: SEMANTIC.danger, medium: '#F59E0B', strong: '#9DB800' }
+// 🔴 GYM-290 (décision C, A-1) — `strong` DIT UN SUCCÈS, il devient `SEMANTIC.success`.
+// ⚠️ CHANGE UN PIXEL CHEZ DOPAMINE (#9DB800 → #22C55E). Le motif est le même partout : chez
+// une salle rouge, un mot de passe FORT s'affichait en rouge.
+//
+// ⚠️ `medium` #F59E0B RESTE, et c'est A-2 : l'ambre 500 n'est PAS `SEMANTIC.warning`
+// #F97316, c'est une autre couleur. L'approcher serait la régression d'un pixel que la
+// règle absolue de 286b interdit — la cible des ambres est proposée dans la PR de ce lot,
+// et exécutée dans son propre commit.
+const barColors = { weak: SEMANTIC.danger, medium: SEMANTIC.warning, strong: SEMANTIC.success }
+const textColors = { weak: SEMANTIC.danger, medium: SEMANTIC.warning, strong: SEMANTIC.success }
 
 export function PasswordStrength({ password }: PasswordStrengthProps) {
   const { t } = useTranslation()

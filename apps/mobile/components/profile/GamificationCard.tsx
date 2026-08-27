@@ -55,7 +55,7 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
           (1,49:1 chez Dopamine), et c'est voulu : une piste de barre est un RAIL, pas de
           l'encre. La résoudre par la luminance la ferait ressortir — et changerait les
           pixels de Dopamine, ce que le cadrage interdit. */}
-      <View className="mt-3 h-2 overflow-hidden rounded-full bg-[#333333]">
+      <View className="mt-3 h-2 overflow-hidden rounded-full" style={{ backgroundColor: tokens.rail }}>
         <Animated.View
           style={[barStyle, { backgroundColor: tokens.accent }]}
           className="h-full rounded-full"
@@ -77,7 +77,7 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
                 // proche, ce n'est pas un voisin. Même manque de vocabulaire que #333333.
                 // ⚠️ GYM-304 : mesuré à 6,10:1 sur le fond clair constaté — lisible. Le
                 // défaut signalé était l'ENCRE de la ligne, pas cette pastille vide.
-                <Circle size={20} color="#555555" />
+                <Circle size={20} color={tokens.rail} />
               )}
               {/* 🔴 GYM-304 — LE DÉFAUT SIGNALÉ : les lignes NON validées étaient en
                   BLANC EN DUR sur `tokens.background`. Sur le fond clair constaté

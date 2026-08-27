@@ -64,13 +64,12 @@ export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time
           <Heart size={18} color={SEMANTIC.danger} fill={SEMANTIC.danger} />
         </TouchableOpacity>
         {hasUpcoming && onBook && (
-          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
           <TouchableOpacity
             onPress={onBook}
             activeOpacity={0.8}
-            className="rounded-lg bg-move-dark px-3 py-1.5"
+            style={{ backgroundColor: tokens.actionBg }} className="rounded-lg px-3 py-1.5"
           >
-            <Text className="font-dmsans-bold text-[10px] text-move-accent">
+            <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-[10px]">
               {t('bookings.book')}
             </Text>
           </TouchableOpacity>

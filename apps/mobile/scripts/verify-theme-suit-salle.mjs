@@ -220,11 +220,18 @@ ok('🔴 trois salles sombres donnent TROIS couleurs de barre distinctes',
   new Set(rendus).size === 3,
   `obtenu ${new Set(rendus).size} couleur(s) — le voile seul en donnait UNE pour toutes`)
 
-// Et la contre-épreuve, qui dit pourquoi le défaut était invisible à la relecture :
-// le voile NU est bien identique pour les trois.
-const voiles = new Set(SOMBRES.map(([, p, sec]) => resolveTheme(p, sec).tokens.surface))
-ok('contre-épreuve : le voile SEUL était identique pour les trois (le défaut d’origine)',
-  voiles.size === 1, `obtenu ${voiles.size} voile(s) distincts`)
+// 🔴 LA CONTRE-ÉPREUVE A CHANGÉ DE SENS AVEC GYM-290, ET C'EST UNE VICTOIRE.
+// Elle vérifiait que le voile NU était identique pour les trois salles — le défaut que
+// GYM-302 avait corrigé en peignant un fond dessous. GYM-290 s'attaque à la CAUSE : les
+// surfaces sont désormais composées une fois pour toutes et sortent OPAQUES, donc propres à
+// chaque salle. Le voile partagé n'existe plus.
+//
+// On vérifie donc l'inverse : trois salles, trois surfaces distinctes. Le correctif de la
+// tab bar (peindre le fond dessous) devient une ceinture par-dessus les bretelles — on le
+// garde, il ne coûte rien et il protégera le jour où une surface redeviendrait translucide.
+const surfaces = new Set(SOMBRES.map(([, p, sec]) => resolveTheme(p, sec).tokens.surface))
+ok('la surface est désormais PROPRE à chaque salle (GYM-290 a corrigé la cause)',
+  surfaces.size === 3, `obtenu ${surfaces.size} surface(s) distincte(s) sur 3`)
 
 rmSync(out, { recursive: true, force: true })
 console.log(echecs

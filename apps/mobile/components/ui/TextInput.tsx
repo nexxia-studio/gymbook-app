@@ -16,7 +16,7 @@ export function TextInput({ label, error, helper, style, ...props }: TextInputPr
       {label && <Text className="font-dmsans-medium text-sm" style={{ color: tokens.onSurface }}>{label}</Text>}
       {/* ⚠️ `border` RESTE DANS LA CLASSE — c'est une LARGEUR, pas une couleur (piège P-3).
           Seul `border-move-border` s'en va ; retirer les deux effacerait le trait.
-          GYM-286 — A-2, EN ATTENTE : `border-red-400` vaut #F87171, PAS `SEMANTIC.danger`
+          GYM-290 (addendum, décision C) — `border-red-400` valait #F87171, quatrième rouge ;
           #EF4444. Deux rouges voisins, et l'un n'est pas l'autre. */}
       <RNTextInput
         placeholderTextColor={tokens.onBackgroundMuted}
@@ -24,7 +24,7 @@ export function TextInput({ label, error, helper, style, ...props }: TextInputPr
           {
             backgroundColor: tokens.surface,
             color: tokens.onSurface,
-            borderColor: error ? '#F87171' : tokens.border,
+            borderColor: error ? SEMANTIC.danger : tokens.border,
           },
           style,
         ]}

@@ -137,9 +137,9 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
           <View className="items-center">
             <View className="h-12 w-12 items-center justify-center rounded-2xl bg-move-accent/10">
-              {/* GYM-286 — A-1, EN ATTENTE : #9DB800 (lime atténué) n'est pas tranché
-                  entre `tokens.accentDim` et `SEMANTIC.success`. */}
-              <CreditCard size={24} color="#9DB800" />
+              {/* 🔴 GYM-290 (A-1) — TRANCHÉ : un moyen de paiement n'est pas un succès,
+                  c'est de la marque. Il rejoint `accentDim`. */}
+              <CreditCard size={24} color={tokens.accentDim} />
             </View>
             <Text className="mt-4 text-center font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
               {context === 'waitlist' ? t('payment_required.waitlist_title') : t('payment_required.title')}
@@ -200,24 +200,24 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
               onPress={handleDropIn}
               activeOpacity={0.8}
               disabled={isLoadingDropIn || plansLoading || !dropInPlan}
-              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`,
-              // spinner et icône lime compris — c'est la même paire.
-              className={`flex-row items-center gap-3 rounded-2xl bg-move-dark px-4 py-4 ${isLoadingDropIn || plansLoading || !dropInPlan ? 'opacity-60' : ''}`}
+              style={{ backgroundColor: tokens.actionBg }}
+              className={`flex-row items-center gap-3 rounded-2xl px-4 py-4 ${isLoadingDropIn || plansLoading || !dropInPlan ? 'opacity-60' : ''}`}
             >
               {isLoadingDropIn || plansLoading ? (
-                <ActivityIndicator color="#C8F000" />
+                <ActivityIndicator color={tokens.onAction} />
               ) : (
-                <CreditCard size={20} color="#C8F000" />
+                <CreditCard size={20} color={tokens.onAction} />
               )}
               <View className="flex-1">
-                <Text className="font-dmsans-bold text-sm text-move-accent">
+                <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-sm">
                   {dropInPlan
                     ? t('payment_required.option_drop_in.label_priced', {
                         price: formatPrice(dropInPlan.priceCents, dropInPlan.currency),
                       })
                     : t('payment_required.option_drop_in.label_generic')}
                 </Text>
-                <Text className="font-dmsans text-xs text-white/60">
+                {/* 🔴 GYM-307 — ENCRE RÉSOLUE SUR LE FOND D'ACTION, seuil TEXTE. */}
+                <Text className="font-dmsans text-xs" style={{ color: tokens.onActionMuted }}>
                   {t('payment_required.option_drop_in.sub')}
                 </Text>
               </View>

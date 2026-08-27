@@ -28,7 +28,9 @@ export function OpenGymAvailability({ available }: OpenGymAvailabilityProps) {
   // Fonds : lavis à 10 %, aucun jeton ne les vaut — ils restent des classes.
   // GYM-286 — A-2, EN ATTENTE : `text-green-600` #16A34A n'est pas `SEMANTIC.success`.
   const bg = full ? 'bg-red-500/10' : tight ? 'bg-orange-500/10' : 'bg-green-500/10'
-  const fg = full ? SEMANTIC.danger : tight ? SEMANTIC.warning : '#16A34A'
+  // 🔴 GYM-290 (addendum, décision C) — le vert rejoint ses deux voisins du même ternaire,
+  // qui étaient sémantiques depuis 286b. Un seul des trois restait en dur.
+  const fg = full ? SEMANTIC.danger : tight ? SEMANTIC.warning : SEMANTIC.success
 
   return (
     <View className={`rounded-lg px-2.5 py-1 ${bg}`}>

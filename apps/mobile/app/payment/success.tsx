@@ -48,7 +48,6 @@ type ClassicStatus = 'polling' | 'success' | 'failed' | 'timeout'
 // apparaissaient sur une migration pourtant exacte. La fabrique reste ici, à la place
 // exacte des constantes qu'elle remplace, et reçoit les jetons en argument.
 //
-// GYM-286 — A-3/A-4, EN ATTENTE pour `cta` : ce lime est l'encre des boutons
 // `bg-move-dark` de cet écran, donc la paire bloquée.
 const makeStyles = (tokens: ThemeTokens) => ({
   title: {
@@ -58,7 +57,7 @@ const makeStyles = (tokens: ThemeTokens) => ({
     textAlign: 'center' as const,
     letterSpacing: 2,
   },
-  cta: { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' },
+  cta: { fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onAction },
 })
 
 export default function PaymentSuccess() {
@@ -453,8 +452,7 @@ function ClassicPaymentScreen({
                 </Text>
               </>
             )}
-            // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
-            <Pressable onPress={goToBookings} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+            <Pressable onPress={goToBookings} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
               <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
             </Pressable>
           </>
@@ -467,8 +465,7 @@ function ClassicPaymentScreen({
             <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
               {t('payment.failed_message')}
             </Text>
-            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
-            <Pressable onPress={() => router.replace('/profile/subscription')} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+            <Pressable onPress={() => router.replace('/profile/subscription')} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
               <Text style={ctaLabel}>{t('payment.back_to_plans')}</Text>
             </Pressable>
           </>
@@ -485,8 +482,7 @@ function ClassicPaymentScreen({
                 « Tire pour rafraîchir » qui ne correspondait à aucun geste sur cet écran.
                 Masquée s'il n'y a aucune clé de paiement à interroger. */}
             {(rowId || mollieId) && (
-              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
-              <Pressable onPress={retryPolling} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
+              <Pressable onPress={retryPolling} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
                 <Text style={ctaLabel}>{t('payment.check_again')}</Text>
               </Pressable>
             )}
@@ -522,8 +518,7 @@ function ClassicPaymentScreen({
             </Text>
             <Pressable
               onPress={() => { setSuccessVisible(false); goToSuccessDestination() }}
-              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
-              className="mt-8 w-full items-center rounded-xl bg-move-dark py-4"
+              style={{ backgroundColor: tokens.actionBg }} className="mt-8 w-full items-center rounded-xl py-4"
             >
               <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
             </Pressable>

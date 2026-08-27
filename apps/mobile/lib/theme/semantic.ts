@@ -38,6 +38,30 @@
  * ⚠️ `as const` N'EST PAS DÉCORATIF : il empêche qu'un écran réaffecte un signal en
  * passant. Ces valeurs se lisent, elles ne se calculent pas.
  */
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-290 (décision C) — LES RÈGLES D'USAGE, ET POURQUOI ELLES SONT ICI
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Ces six valeurs ne suivent JAMAIS la salle : c'est ce qui les définit. Mais « ne pas
+// suivre la salle » ne dit pas COMMENT les poser, et c'est là que la charte manquait — d'où
+// trois rouges et trois orangés qui disaient deux choses (A-2).
+//
+// ── 1. LE REMPLISSAGE PLEIN EST RÉSERVÉ AUX BADGES ──────────────────────────────────
+// Une pastille de statut est petite, isolée, et son fond est le signal lui-même : elle peut
+// porter la couleur pleine, avec `onSignal` pour encre. Un BANDEAU ou un TOAST, non — un
+// aplat rouge sur toute la largeur écrase la page et devient l'élément le plus fort de
+// l'écran, quel que soit son message.
+//
+// ── 2. BANDEAUX ET TOASTS : TEINTE RÉAJUSTÉE SUR LE FOND DE LA SALLE ────────────────
+// Ils se posent sur un fond qu'on ne connaît pas à l'écriture. La couleur pleine y sera
+// tantôt criarde, tantôt invisible. On la réajuste donc en contraste sur ce fond — même
+// mécanique que toutes les encres du garde-fou.
+//
+// ── 3. 🔴 LA COULEUR NE PORTE JAMAIS LE SENS À ELLE SEULE ───────────────────────────
+// Toujours une ICÔNE et un MOT. Ce n'est pas une précaution d'accessibilité ajoutée après
+// coup : un membre daltonien — 8 % des hommes — ne distingue pas `danger` de `warning`, et
+// un bandeau qui ne dirait « erreur » que par sa teinte ne dirait rien du tout. C'est aussi
+// ce qui rend la règle 2 possible : une fois le sens porté par l'icône et le mot, la teinte
+// peut être réajustée sans rien perdre.
 export const SEMANTIC = {
   /**
    * Erreur, destruction, refus. 19 emplois recensés — le signal le plus répandu de

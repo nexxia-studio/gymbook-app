@@ -57,7 +57,7 @@ export function SessionDescription({ description }: SessionDescriptionProps) {
         {/* GYM-286 — A-1, EN ATTENTE : #9DB800 dit ici « déplier », pas un succès, mais
             reste un lime de marque. Le cockpit n'a pas tranché entre `tokens.accentDim`
             et `SEMANTIC.success` ; la classe reste. */}
-        <Text className="font-dmsans-bold text-xs text-move-accent-dim">
+        <Text className="font-dmsans-bold text-xs" style={{ color: tokens.accentDim }}>
           {expanded ? t('session.see_less') : t('session.see_more')}
         </Text>
       </TouchableOpacity>

@@ -136,8 +136,9 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
             {/* ÉTAPE 5 — délai expiré : la place est passée au suivant (pas de bouton Confirmer) */}
             {expired && (
               <View className="mt-3 rounded-lg bg-red-500/15 px-3 py-2.5">
-                {/* GYM-286 — A-2, EN ATTENTE : `text-red-400` #F87171 ≠ #EF4444. */}
-                <Text className="font-dmsans-bold text-xs text-red-400">
+                {/* 🔴 GYM-290 (addendum, décision C) — `text-red-400` valait #F87171,
+                    quatrième rouge. Il rejoint `SEMANTIC.danger`. */}
+                <Text className="font-dmsans-bold text-xs" style={{ color: SEMANTIC.danger }}>
                   {t('bookings.waitlist_expired_card')}
                 </Text>
               </View>

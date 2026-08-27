@@ -7,6 +7,7 @@ import { MailCheck } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/ui/Button'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 export default function VerifyEmail() {
   const { tokens } = useTheme()
@@ -50,14 +51,16 @@ export default function VerifyEmail() {
       </View>
 
       <TouchableOpacity onPress={handleResend} disabled={cooldown > 0} className="mt-4">
-        {/* GYM-286 — A-1, EN ATTENTE pour #9DB800 : ni marque ni succès tranché. */}
+        {/* 🔴 GYM-290 (décision C, A-1) — SCISSION : le renvoi REDEVENU POSSIBLE est un
+            succès, pas la marque. Change un pixel chez Dopamine (#9DB800 → #22C55E),
+            exclusion de parité motivée « décision C ». */}
         {/* ⚠️ `style` AVANT `className`, et ce n'est pas cosmétique : `verify-screen-parity`
             compare les couleurs DANS L'ORDRE DU SOURCE. La branche migrée (le gris) doit
             donc apparaître avant la branche laissée en dur (le lime), comme dans le
             fichier d'origine. */}
         <Text
-          style={cooldown > 0 ? { color: tokens.onBackgroundMuted } : undefined}
-          className={`text-center font-dmsans text-sm ${cooldown > 0 ? '' : 'text-move-accent-dim'}`}
+          style={{ color: cooldown > 0 ? tokens.onBackgroundMuted : SEMANTIC.success }}
+          className="text-center font-dmsans text-sm"
         >
           {cooldown > 0
             ? t('auth.resend_cooldown', { seconds: cooldown })

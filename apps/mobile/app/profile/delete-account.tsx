@@ -192,8 +192,10 @@ export default function DeleteAccountScreen() {
           /* GYM-113 — état BLOQUANT (persistant, pas une alerte éphémère). Saisie + CTA masqués. */
           <View className="gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-4">
             <View className="flex-row items-center gap-2">
-              {/* GYM-286 — A-2, EN ATTENTE : #B45309 (ambre 700) ne vaut aucun jeton. */}
-              <AlertTriangle size={18} color="#B45309" />
+              {/* 🔴 GYM-290 (décision C, A-2) — L'AMBRE REJOINT `warning`. Un triangle
+                  d'alerte devant une suppression de compte EST un avertissement : lui
+                  donner sa propre teinte, c'était avoir deux mots pour la même chose. */}
+              <AlertTriangle size={18} color={SEMANTIC.warning} />
               <Text className="font-dmsans-bold text-sm text-amber-800">
                 {t('profile.delete.engaged_title')}
               </Text>

@@ -25,11 +25,12 @@ export function HistoryCard({ booking, dayLabel }: HistoryCardProps) {
   // GYM-286 — A-2, EN ATTENTE pour `text-green-600` #16A34A : ce n'est pas
   // `SEMANTIC.success` #22C55E, et l'approcher serait la régression d'un pixel.
   const STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
-    attended: { bg: 'bg-green-500/10', text: '#16A34A', key: 'status_attended' },
+    // 🔴 GYM-290 (addendum, décision C) — quatrième vert fusionné vers `SEMANTIC.success`.
+    attended: { bg: 'bg-green-500/10', text: SEMANTIC.success, key: 'status_attended' },
     no_show: { bg: 'bg-red-500/10', text: SEMANTIC.danger, key: 'status_noshow' },
     excused: { bg: 'bg-orange-500/10', text: SEMANTIC.warning, key: 'status_excused' },
     cancelled: { bg: 'bg-move-border/50', text: tokens.onBackgroundMuted, key: 'status_cancelled' },
-    confirmed: { bg: 'bg-green-500/10', text: '#16A34A', key: 'status_confirmed' },
+    confirmed: { bg: 'bg-green-500/10', text: SEMANTIC.success, key: 'status_confirmed' },
     waitlisted: { bg: 'bg-orange-500/10', text: SEMANTIC.warning, key: 'status_waitlisted' },
   }
 

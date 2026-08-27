@@ -18,6 +18,7 @@ import { useProgression } from '../../hooks/useProgression'
 import { getLevelInfo } from '../../utils/gamification'
 import { getGymMonday } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 const EASE_OUT = Easing.out(Easing.cubic)
@@ -84,7 +85,7 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
           présenté comme tel. #333333 est de surcroît la PISTE d'une barre de progression
           posée sur une carte #111111 : la ramener au fond effacerait la piste.
           Il manque à la charte un gris NEUTRE SUR FOND SOMBRE. Remonté au cockpit. */}
-      <View className="mb-2 rounded-full" style={{ height: 8, backgroundColor: '#333333' }}>
+      <View className="mb-2 rounded-full" style={{ height: 8, backgroundColor: tokens.rail }}>
         <Animated.View style={barStyle} />
       </View>
       <View className="flex-row justify-between">
@@ -92,8 +93,13 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
         <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>
           {level.name} — {level.min}
         </Text>
+        {/* 🔴 GYM-290 (A-6) — #888888 EST DU TEXTE, PAS UN RAIL. Il n'a donc pas sa
+            place dans le jeton `rail` : une marque inerte et une encre n'ont ni le même
+            rôle ni le même seuil. Il rejoint l'encre atténuée, validée à 4,5:1.
+            ⚠️ Change un pixel chez Dopamine (#888888 → #9A9890, 18 unités) — c'est le
+            « changement visuel assumé » que la recommandation d'A-6 annonçait. */}
         {nextLevel && (
-          <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#888888' }}>
+          <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onBackgroundMuted }}>
             {nextLevel.name} — {nextLevel.min}
           </Text>
         )}
@@ -197,10 +203,13 @@ function MonthCard({ count, lastMonth }: { count: number; lastMonth: number }) {
       <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2, textTransform: 'capitalize' }}>
         {monthName}
       </Text>
+      {/* 🔴 GYM-290 (décision C, A-2) — UNE VARIATION SIGNÉE EST UN SIGNAL, PAS UNE
+          LECTURE. Le couple disait « ça monte / ça descend » avec un vert et un rouge de
+          marque : il rejoint le couple sémantique, qui ne suit jamais la salle. Le vert
+          #639922 était par ailleurs le quatrième vert de la rampe d'A-8 sans en être un
+          palier — un orphelin de plus. */}
       {delta !== 0 && (
-        // GYM-286 — A-8 et A-2, EN ATTENTE : #639922 est le vert de variation positive
-        // (rampe du studio), #E53935 un troisième rouge. Aucun jeton ne les vaut.
-        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: delta > 0 ? '#639922' : '#E53935', marginTop: 4 }}>
+        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: delta > 0 ? SEMANTIC.success : SEMANTIC.danger, marginTop: 4 }}>
           {delta > 0 ? '+' : ''}{delta} vs mois dernier
         </Text>
       )}
@@ -264,8 +273,10 @@ function HistoBar({ count, maxCount, index, recent }: { count: number; maxCount:
     height: height * scaleY.value + (count === 0 ? 2 : 0),
     width: 6,
     borderRadius: 3,
-    // GYM-286 — A-1, EN ATTENTE : #9DB800 est le lime atténué, non tranché.
-    backgroundColor: count === 0 ? tokens.border : recent ? '#9DB800' : tokens.accent,
+    // 🔴 GYM-290 (A-1 + A-5) — A-1 a tranché : ici #9DB800 est de la MARQUE (une lecture
+    // d'affluence récente), pas un succès. Il rejoint donc `accentDim`, devenu une vraie
+    // dérivation par A-5 au lieu d'un alias de `accent`.
+    backgroundColor: count === 0 ? tokens.border : recent ? tokens.accentDim : tokens.accent,
   }))
 
   return <Animated.View style={style} />
@@ -352,7 +363,7 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
               // GYM-286 — A-8, EN ATTENTE : la rampe d'affluence (trois verts) attend une
               // dérivation de `accent` qui garantisse trois paliers distinguables sur
               // n'importe quelle primaire — un vrai travail, pas un remplacement.
-              backgroundColor: v === 0 ? tokens.border : v === 1 ? '#C0DD97' : v === 2 ? '#97C459' : '#3B6D11',
+              backgroundColor: v === 0 ? tokens.border : v === 1 ? tokens.ramp[0] : v === 2 ? tokens.ramp[1] : tokens.ramp[2],
             }}
           />
         ))}
@@ -372,7 +383,7 @@ function HeatmapCell({ count, index, size }: { count: number; index: number; siz
 
   // GYM-286 (A-6) — RATTACHÉ : #F0EFEB → `tokens.page` #F5F4F0, écart 5.
   // GYM-286 — A-8, EN ATTENTE : la rampe d'affluence (trois verts) reste en dur.
-  const bg = count === 0 ? tokens.page : count === 1 ? '#C0DD97' : count === 2 ? '#97C459' : '#3B6D11'
+  const bg = count === 0 ? tokens.page : count === 1 ? tokens.ramp[0] : count === 2 ? tokens.ramp[1] : tokens.ramp[2]
   const style = useAnimatedStyle(() => ({
     width: size,
     height: size,
@@ -396,8 +407,8 @@ function FavoriteCoursCard({ data }: { data: { name: string; count: number } | n
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
       <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Cours favori</Text>
       <View className="flex-row items-center gap-2">
-        {/* GYM-286 — A-2, EN ATTENTE : #EF9F27 est un troisième orangé. */}
-        <Flame size={16} color="#EF9F27" />
+        {/* 🔴 GYM-290 (décision C, A-2) — FUSION : le troisième orangé rejoint `warning`. */}
+        <Flame size={16} color={SEMANTIC.warning} />
         <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onSurface, flex: 1 }} numberOfLines={1}>
           {data.name}
         </Text>

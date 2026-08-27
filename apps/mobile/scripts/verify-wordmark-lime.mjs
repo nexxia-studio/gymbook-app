@@ -70,19 +70,28 @@ ok(`salle claire (fond ${claire.background}, mode ${claire.mode}) → PAS de lim
   wordmarkInk(claire) !== VINIZ.lime && wordmarkInk(claire) === claire.onBackgroundMuted,
   `obtenu ${wordmarkInk(claire)}`)
 
-// ── LE CONTRE-EXEMPLE QUI JUSTIFIE LA SECONDE CONDITION ─────────────────────────────
-console.log('\nLE CONTRE-EXEMPLE — « sombre » ne veut pas dire « contrasté avec le lime »\n')
-// ⚠️ TROUVÉ PAR BALAYAGE, PAS CHOISI À VUE. Mon premier candidat était un vert PROFOND
-// (#2E4A00) : il donne 8,51:1, le lime y est parfaitement lisible. L'intuition « vert
-// sombre = proche du lime » est fausse — c'est la LUMINANCE qui compte, et un vert profond
-// en est loin. Les vrais cas sont des teintes MOYENNES que `hslLightness` classe encore
-// « sombres » : menthe, ambre, or.
+// ── LA SECONDE CONDITION EST DEVENUE INATTEIGNABLE, ET C'EST UNE BONNE NOUVELLE ─────
+console.log('\nLA SECONDE CONDITION, APRÈS GYM-290\n')
+// ⚠️ CE BLOC AFFIRMAIT LE CONTRAIRE JUSQU'À CE LOT, ET IL AVAIT RAISON À L'ÉPOQUE.
+// GYM-302 avait trouvé des fonds « sombres » où le lime tombait à 1,40:1 — une menthe, un
+// ambre. Ils l'étaient au sens de `hslLightness`, la mesure de TEINTE que GYM-290 vient de
+// retirer du garde-fou. Décidé par la LUMINANCE, un fond menthe est désormais CLAIR : la
+// condition (a) l'écarte à elle seule, et le lime n'a plus l'occasion d'échouer.
+//
+// Mesuré : sur 110 965 fonds tirés au hasard qui passent `limeAllowed`, le PIRE contraste
+// du lime est 4,29:1 — au-dessus du seuil surface. La condition (b) ne peut plus se
+// déclencher pour le lime.
+//
+// 🔴 ELLE RESTE DANS LE CODE, ET CE N'EST PAS DE LA SUPERSTITION. Elle ne protège plus
+// contre le cas d'hier ; elle protège contre demain — un changement de `VINIZ.lime`, un
+// ajustement du critère de mode. Une règle de lisibilité qui ne tient que par une
+// propriété d'un AUTRE module est une règle qui casse en silence le jour où l'autre bouge.
+// Ce que ce banc doit dire, c'est laquelle des deux conditions travaille aujourd'hui.
 const MENTHE = '#98D8AA'
 const menthe = resolveTheme(VINIZ.lime, MENTHE).tokens
-const ratioMenthe = contrastRatio(parseHex(VINIZ.lime), parseHex(menthe.background))
-ok(`fond menthe ${menthe.background} : sombre (limeAllowed=${menthe.limeAllowed}) mais ${ratioMenthe.toFixed(2)}:1 → PAS de lime`,
-  menthe.limeAllowed === true && ratioMenthe < AA_NON_TEXT && wordmarkInk(menthe) !== VINIZ.lime,
-  `limeAllowed=${menthe.limeAllowed}, ratio=${ratioMenthe.toFixed(2)}, encre=${wordmarkInk(menthe)}`)
+ok(`fond menthe ${menthe.background} : désormais CLAIR (limeAllowed=${menthe.limeAllowed}) → PAS de lime`,
+  menthe.limeAllowed === false && wordmarkInk(menthe) !== VINIZ.lime,
+  `limeAllowed=${menthe.limeAllowed}, encre=${wordmarkInk(menthe)}`)
 
 // ── LE BALAYAGE ─────────────────────────────────────────────────────────────────────
 console.log('\nBALAYAGE — 20 nuances choisies + 120 tirées (graine fixe, reproductible)\n')
@@ -119,18 +128,13 @@ ok(`${cas} salles : tout lime retenu atteint ${AA_NON_TEXT}:1`, limeIllisible ==
 ok(`${cas} salles : hors lime, le repli est L'ANCIEN RENDU au caractère près`,
   replisDivergents === 0, `${replisDivergents} cas divergents`)
 
-// ── UN CONSTAT HORS PÉRIMÈTRE, MESURÉ ICI PARCE QUE LE BALAYAGE LE CROISE ───────────
-// ⚠️ CE N'EST PAS UNE RÉGRESSION DE CE LOT, ET LE SCRIPT NE DOIT PAS LE FAIRE ÉCHOUER.
-// `onBackgroundMuted` — l'encre atténuée du thème, celle que la signature employait DÉJÀ
-// avant GYM-302 — descend sous 3:1 sur un grand nombre de salles. La cause est en amont :
-// `resolveTheme` décide du mode avec `hslLightness > 80`, si bien qu'un fond VIF mais pas
-// « clair » au sens HSL (le lime lui-même, un ambre, une menthe) reçoit les encres du mode
-// SOMBRE, dont la lavande #C8C2E6 — quasi invisible dessus.
-//
-// Ce lot n'y touche pas : il ne fait que ne PAS aggraver. On le mesure et on le remonte.
-console.log(`\n  ℹ️  hors périmètre — repli \`onBackgroundMuted\` sous ${AA_NON_TEXT}:1 sur ${mutedIllisible} / ${cas} salles.`)
-console.log('      Défaut PRÉEXISTANT (mode décidé par hslLightness > 80, cf. resolveTheme).')
-console.log('      Ce lot ne l’aggrave pas : voir la vérification « repli = ancien rendu ».')
+// ── LE CONSTAT DE LA PR #235 : REFERMÉ ─────────────────────────────────────────────
+// Ce bloc mesurait un défaut PRÉEXISTANT qu'on ne pouvait alors que remonter : l'encre
+// atténuée `onBackgroundMuted` descendait sous le seuil sur 7 000 salles sur 19 600, parce
+// que le mode était décidé par `hslLightness`. GYM-290 a corrigé la cause. On garde la
+// mesure — un chiffre qui doit rester à zéro est plus utile qu'un chiffre qu'on a effacé.
+console.log(`\n  ℹ️  repli \`onBackgroundMuted\` sous ${AA_NON_TEXT}:1 : ${mutedIllisible} / ${cas} salles.`)
+console.log('      Était 7 000 / 19 600 avant GYM-290 (mode décidé par hslLightness).')
 
 rmSync(out, { recursive: true, force: true })
 console.log(echecs

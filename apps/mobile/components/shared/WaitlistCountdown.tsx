@@ -46,7 +46,12 @@ export function WaitlistCountdown({ deadline, onExpire }: Props) {
   // GYM-286 — A-2, EN ATTENTE : #DC2626 et #EA580C sont un second rouge et un second
   // orangé, qu'aucun jeton ne vaut. Seul #F97316 EST `SEMANTIC.warning`, au caractère près.
   const bgClass = isUrgent ? 'bg-red-500/15' : 'bg-orange-500/15'
-  const textColor = isUrgent ? '#DC2626' : isWarning ? '#EA580C' : SEMANTIC.warning
+  // 🔴 GYM-290 (décision C, A-2) — FUSION. Trois rouges et trois orangés coexistaient
+  // pour dire deux choses. #DC2626 rejoint `danger`, #EA580C rejoint `warning` : la
+  // troisième branche portait DÉJÀ `SEMANTIC.warning`, si bien que deux orangés à 8 unités
+  // l'un de l'autre se côtoyaient sur la même ligne, dans le même ternaire.
+  // ⚠️ Change des pixels chez Dopamine — c'est l'objet même de la fusion.
+  const textColor = isUrgent ? SEMANTIC.danger : isWarning ? SEMANTIC.warning : SEMANTIC.warning
   const fontWeight = isUrgent ? '900' as const : 'bold' as const
 
   const text = minutesLeft > 0

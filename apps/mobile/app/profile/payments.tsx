@@ -136,10 +136,9 @@ export default function PaymentsScreen() {
           </Text>
           <Pressable
             onPress={() => router.push('/profile/subscription')}
-            // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
-            className="mt-2 rounded-xl bg-move-dark px-6 py-3.5"
+            style={{ backgroundColor: tokens.actionBg }} className="mt-2 rounded-xl px-6 py-3.5"
           >
-            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
+            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
               {t('payments.view_subscriptions')}
             </Text>
           </Pressable>

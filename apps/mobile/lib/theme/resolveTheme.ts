@@ -16,7 +16,8 @@
 // ⚠️ FONCTION PURE, SANS RENDU NI RÉSEAU. C'est la condition pour qu'elle soit vérifiable
 // autrement qu'en regardant un téléphone.
 import {
-  parseHex, toHex, contrastRatio, hslLightness, bestInkOn,
+  parseHex, toHex, contrastRatio, prefersDarkInk, hslLightness, bestInkOn, mutedInkOn,
+  melange, decalerDe, SEUIL_TEXTE, SEUIL_SURFACE,
   AA_TEXT, AA_NON_TEXT, type Rgb,
 } from './contrast'
 
@@ -27,6 +28,36 @@ import {
 // ⚠️ LE LIME VINIZ N'EST PAS LE LIME DOPAMINE. #C8FF3D contre #C8F000 : deux verts
 // proches à l'œil, deux marques différentes. Les confondre habillerait Viniz aux couleurs
 // d'un de ses clients.
+/**
+ * 🔴 GYM-290 (décision B) — LE PAS QUI SÉPARE LA BANDE DE LA PAGE.
+ *
+ * Exprimé en RATIO DE CONTRASTE et non en pourcentage de luminosité : un pas en pourcentage
+ * se voit sur un fond sombre et disparaît sur un fond clair, alors qu'un pas en contraste
+ * est le même à l'œil partout. Valeur de la planche, recoupée avec les surfaces voisines de
+ * Dopamine (carte/page 1,10:1, bordure/page 1,13:1).
+ *
+ * ⚠️ NE PAS L'AUGMENTER POUR « MIEUX VOIR LA BANDE ». Au-delà, la bande cesse d'être une
+ * séparation et devient une seconde couleur de marque — que la salle n'a pas choisie.
+ */
+export const PAS_BANDE = 1.3
+
+/**
+ * 🔴 GYM-290 (A-6) — LE PAS DU RAIL : le gris-sur-sombre qui manquait à la charte.
+ *
+ * Trois gris orphelins traînaient depuis GYM-286 — #333333 (deux pistes de barre), #555555
+ * (une pastille vide) — sans aucun jeton voisin. Le commentaire de l'époque disait le
+ * manque en toutes lettres : « il manque à la charte un gris NEUTRE SUR FOND SOMBRE ».
+ *
+ * Un RAIL n'est ni une encre ni une surface d'action : c'est une marque inerte, qui doit se
+ * distinguer du fond SANS attirer l'œil. Le seuil des éléments d'interface (3:1) serait
+ * donc faux ici — il produirait un trait dur là où il faut un creux.
+ *
+ * ⚠️ 1,49:1 EST MESURÉ SUR DOPAMINE, PAS CHOISI. C'est exactement le rapport de son
+ * #333333 sur son #111111 : la valeur qui a servi pendant deux ans dans l'app de
+ * production. On ne calibre pas un jeton neuf à vue quand une référence existe.
+ */
+export const PAS_RAIL = 1.49
+
 export const VINIZ = {
   lime: '#C8FF3D',
   /** « Violet Ink » — l'encre de Viniz sur fond clair, et le repli des actions. */
@@ -89,6 +120,45 @@ export interface ThemeTokens {
   /** Variante atténuée de l'action. Chez Dopamine : `move-accent-dim`. */
   accentDim: string
   /**
+   * 🔴 GYM-290 (décision A) — LE FOND DU BOUTON PRIMAIRE, ET SON ENCRE.
+   *
+   * ⚠️ POURQUOI UN COUPLE À PART, ET NON `accent`/`onAccent`. Chez une salle, les deux
+   * paires sont IDENTIQUES — la décision A dit « fond = accent de la salle, encre choisie
+   * par contraste », c'est exactement `accent`/`onAccent`. Mais chez Dopamine le bouton
+   * primaire est l'INVERSE de son accent : fond sombre #111111, libellé lime #C8F000.
+   * Câbler les écrans sur `accent` aurait retourné tous les boutons de l'app de
+   * production. Le couple existe donc pour que `DOPAMINE_THEME` puisse FIGER ce que la
+   * salle, elle, dérive — c'est le mandat du ticket, mot pour mot.
+   */
+  actionBg: string
+  onAction: string
+  /**
+   * 🔴 GYM-290 (A-6) — MARQUE INERTE SUR LE FOND : piste de barre, pastille vide.
+   *
+   * Ni une encre (elle ne porte aucun texte) ni une action (elle n'appelle aucun geste) :
+   * elle doit se voir sans se faire remarquer. C'est le rôle qu'aucun jeton ne nommait, et
+   * faute duquel trois gris étaient restés en dur depuis GYM-286.
+   */
+  /**
+   * 🔴 GYM-307 — L'ENCRE SECONDAIRE POSÉE SUR LE FOND D'ACTION.
+   *
+   * Un sous-titre dans un bouton se pose sur `actionBg`, pas sur la page : il lui faut donc
+   * sa propre encre atténuée, validée sur CE fond. Faute de ce jeton, le seul recours était
+   * un blanc à 60 % — qui vaut 7,22:1 sur le sombre de Dopamine et 1,09:1 sur un accent
+   * lime. Le même code, lisible chez l'un, invisible chez l'autre.
+   */
+  onActionMuted: string
+  rail: string
+  /**
+   * 🔴 GYM-290 (A-8) — LA RAMPE D'AFFLUENCE : trois paliers d'intensité croissante.
+   *
+   * C'est une LECTURE DE DONNÉE, pas un signal : elle peut suivre la marque sans rien
+   * perdre de son sens, contrairement à un message d'erreur. Mais elle doit garantir trois
+   * paliers DISTINGUABLES sur n'importe quelle primaire — ce qui est un vrai travail, pas
+   * un remplacement. Voir `rampe()`.
+   */
+  ramp: readonly [string, string, string]
+  /**
    * 🔴 LE LIME NE VA QUE SUR FOND SOMBRE. En mode clair il DISPARAÎT de l'interface —
    * règle de l'écran 09 de la maquette, pas une préférence esthétique : sur un fond clair
    * ce vert ne porte aucun texte et ne se distingue d'aucune surface.
@@ -129,6 +199,15 @@ function vinizDark(): ThemeTokens {
     onSurface: VINIZ.light,
     onSurfaceSecondary: VINIZ.lavender,
     accentDim: VINIZ.lime,
+    actionBg: VINIZ.lime,
+    onAction: bestInkOn(parseHex(VINIZ.lime)!, [VINIZ.light, VINIZ.ink, VINIZ.dark]).ink,
+    onActionMuted: toHex(mutedInkOn(
+      parseHex(VINIZ.lime)!,
+      parseHex(bestInkOn(parseHex(VINIZ.lime)!, [VINIZ.light, VINIZ.ink, VINIZ.dark]).ink)!,
+      SEUIL_TEXTE,
+    )),
+    rail: toHex(decalerDe(parseHex(VINIZ.dark)!, parseHex(VINIZ.light)!, PAS_RAIL)!),
+    ramp: rampe(parseHex(VINIZ.dark)!, parseHex(VINIZ.lime)!),
     limeAllowed: true,
   }
 }
@@ -198,11 +277,51 @@ export function resolveTheme(
   // qui est : sur quoi le texte sera-t-il posé ? Un fond clair impose le mode clair, que
   // la primaire soit claire ou non — et quand les deux le sont, on retombe exactement sur
   // l'écran 09.
+  // 🔴 GYM-290 (0a) — DÉCIDÉ PAR LA LUMINANCE, PLUS PAR LA TEINTE. `hslLightness > 80`
+  // classait « sombre » un lime #C8FF3D (62 % de clarté HSL, mais presque aussi lumineux
+  // qu'un blanc) : il recevait les encres du mode sombre, et la lavande y tombait à
+  // 1,15:1. Mesuré sur 19 600 salles AVANT correction : `onBackgroundMuted` sous 4,5:1
+  // dans 10 920 cas. Plus d'une salle sur deux. Voir `prefersDarkInk`.
+  const mode: ThemeMode = prefersDarkInk(background) ? 'light' : 'dark'
+  // ⚠️ CONSERVÉE, MAIS DÉGRADÉE AU RANG DE DESCRIPTION. `backgroundLightness` est publiée
+  // dans les notes de décision et n'y décide plus RIEN — c'est la mesure qui a causé le
+  // défaut. La laisser sans ce commentaire inviterait à s'en resservir.
   const backgroundLightness = hslLightness(background)
-  const mode: ThemeMode = backgroundLightness > 80 ? 'light' : 'dark'
 
   // ── 3. LE TEXTE ────────────────────────────────────────────────────────────────────
   const { ink: onBackground, ratio: textContrast } = bestInkOn(background, INKS)
+
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // 🔴 GYM-290 (décision B) — LA BANDE EXISTE ENFIN CHEZ UNE SALLE
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // `page === background` : un écran migré rendait À PLAT chez une salle, sans la bande
+  // d'en-tête qui structure tous les écrans de Dopamine. Ce n'était pas un choix de design,
+  // c'était une position d'attente assumée depuis GYM-286a — faute de savoir de combien
+  // décaler sans inventer une couleur.
+  //
+  // LE PAS EST UN CONTRASTE, PAS UN POURCENTAGE. Éclaircir « de 8 % » donne un écart bien
+  // visible sur un fond sombre et invisible sur un fond clair : la même formule produit
+  // deux résultats différents selon la salle. Un pas exprimé en RATIO DE CONTRASTE est le
+  // même à l'œil partout, parce que c'est justement la grandeur que l'œil mesure.
+  //
+  // ⚠️ 1,30:1 EST CALIBRÉ, PAS CHOISI. C'est le pas de la planche, et il se recoupe avec ce
+  // que fait Dopamine entre ses propres surfaces voisines : carte/page 1,10:1, bordure/page
+  // 1,13:1. Sa bande à elle est à 17,16:1 — mais c'est un fond SOMBRE sur une page CLAIRE,
+  // un parti pris d'identité, pas un pas de séparation. Reproduire 17:1 chez une salle
+  // reviendrait à lui imposer le contraste de Dopamine ; 1,30:1 sépare sans imposer.
+  //
+  // ⚠️ ET LE SENS SUIT L'ÉLÉVATION. En mode sombre la page s'enfonce (plus sombre que la
+  // bande), en mode clair elle se lève : la bande et les cartes restent « au-dessus » de la
+  // page, dans l'ordre auquel l'œil est habitué. Quand le fond est déjà trop extrême pour
+  // le pas demandé — un noir qu'on ne peut plus assombrir — on part dans l'autre sens
+  // plutôt que de rendre un pas trop petit, qui ne se verrait pas.
+  const versLaPage = mode === 'dark' ? parseHex('#000000')! : parseHex('#FFFFFF')!
+  const versLAutre = mode === 'dark' ? parseHex('#FFFFFF')! : parseHex('#000000')!
+  const pageRgb =
+    decalerDe(background, versLaPage, PAS_BANDE)
+    ?? decalerDe(background, versLAutre, PAS_BANDE)
+    ?? background
+  const page = toHex(pageRgb)
 
   // ── 4. L'ACTION ────────────────────────────────────────────────────────────────────
   // Deux conditions, et il faut les DEUX :
@@ -220,7 +339,15 @@ export function resolveTheme(
   if (p) {
     const inkOnPrimary = bestInkOn(p, INKS_LABEL)
     accentContrast = inkOnPrimary.ratio
-    accentVsBackground = contrastRatio(p, background)
+    // 🔴 GYM-290 (décision B) — SUR LES DEUX FONDS. Une action n'est pas posée que sur la
+    // bande : les écrans en mettent aussi sur la page. Ne la valider que sur `background`
+    // laissait 466 salles sur 19 600 avec un bouton invisible sur leur propre page — le
+    // défaut que la séparation bande/page vient de rendre possible, et qu'elle doit donc
+    // couvrir. On garde le PIRE des deux : c'est celui que le membre rencontrera.
+    accentVsBackground = Math.min(
+      contrastRatio(p, background),
+      contrastRatio(p, pageRgb),
+    )
     if (accentContrast >= AA_TEXT && accentVsBackground >= AA_NON_TEXT) {
       accent = toHex(p)
       onAccent = inkOnPrimary.ink
@@ -250,7 +377,25 @@ export function resolveTheme(
     // défaut », écran 05a). Sur fond clair, le lime ne peut pas servir — il ne porte
     // aucun texte et ne se détache d'aucune surface claire : l'action retombe sur le
     // Violet Ink (« les actions retombent sur le Violet Ink Viniz », écran 09).
-    accent = mode === 'dark' ? VINIZ.lime : VINIZ.ink
+    // 🔴 GYM-290 — ET LE REPLI EST REVALIDÉ SUR LE FOND, CE QU'IL N'ÉTAIT PAS. Le lime
+    // était posé dès que le mode était sombre, sans vérifier qu'il se DÉTACHE de ce fond
+    // précis. Sur un fond sombre-mais-vif — une menthe, un olive — l'action retombait donc
+    // sur une couleur invisible : mesuré, `accent` sous 3:1 sur 5 748 salles sur 19 600,
+    // et jusqu'à 1,00:1 (l'action de la MÊME couleur que sa page).
+    // On essaie les deux replis dans l'ordre de la maquette et on garde le premier qui se
+    // voit ; si aucun ne se voit, l'encre principale sert d'action — elle, on sait qu'elle
+    // se détache, c'est la condition qui a fait accepter le fond.
+    const replis = mode === 'dark' ? [VINIZ.lime, VINIZ.ink] : [VINIZ.ink, VINIZ.lime]
+    const visible = replis.find(
+      (c) => contrastRatio(parseHex(c)!, background) >= SEUIL_SURFACE
+        && contrastRatio(parseHex(c)!, pageRgb) >= SEUIL_SURFACE,
+    )
+    if (!visible) {
+      reasons.push(
+        'aucun repli d’action ne se détache de ce fond : l’encre principale sert d’action',
+      )
+    }
+    accent = visible ?? onBackground
     // Même règle de sélection que pour une primaire de salle : une seule logique d'encre
     // dans le module, donc un seul endroit à corriger le jour où elle bouge.
     onAccent = bestInkOn(parseHex(accent)!, INKS_LABEL).ink
@@ -259,9 +404,52 @@ export function resolveTheme(
   // ── 5. LES SURFACES SECONDAIRES ────────────────────────────────────────────────────
   // Dérivées du fond, jamais fournies par la salle : une troisième couleur de marque
   // multiplierait les combinaisons à vérifier sans rien apporter.
-  const surface = mode === 'dark' ? 'rgba(243,240,255,0.06)' : 'rgba(45,27,105,0.05)'
-  const border = mode === 'dark' ? 'rgba(243,240,255,0.14)' : 'rgba(45,27,105,0.12)'
-  const onBackgroundMuted = mode === 'dark' ? VINIZ.lavender : VINIZ.mutedOnLight
+  // 🔴 GYM-290 — LES SURFACES DEVIENNENT OPAQUES, ET C'EST UNE CORRECTION DE FOND.
+  //
+  // Elles étaient des VOILES (`rgba(...,0.06)`). Un voile ne vaut que par ce qu'il y a
+  // dessous — et GYM-302 a montré ce que ça coûte : la tab bar, rendue hors de tout écran,
+  // n'avait AUCUN fond de salle derrière elle et affichait donc la même teinte pour toutes
+  // les salles sombres. On l'avait corrigé là où ça se voyait, en peignant le fond dessous.
+  //
+  // La décision B rend le problème général : dès que `page` et `background` diffèrent, le
+  // MÊME voile rend deux couleurs selon l'endroit où la carte est posée. Une « surface »
+  // qui change de couleur selon son support n'est pas un jeton, c'est un accident.
+  //
+  // On compose donc le voile sur le fond UNE fois, ici, et le jeton sort opaque. Effet de
+  // bord bienvenu : ses encres deviennent calculables — c'est ce qui permet aux deux
+  // jetons ci-dessous d'être validés pour de bon.
+  //
+  // ⚠️ ET LE VOILE PEUT RENDRE LA CARTE MOINS LISIBLE QUE LA PAGE — c'est ce qui restait.
+  // Éclaircir un fond sombre le rapproche de l'encre claire qu'on va poser dessus : la
+  // carte descendait sous 4,5:1 sur 980 salles alors que la PAGE, elle, passait. On essaie
+  // donc les deux sens et on garde celui dont la meilleure encre est la plus contrastée ;
+  // si aucun ne tient le seuil, on ne voile pas du tout. Une carte plate est moins grave
+  // qu'une carte illisible — et le cas est rare, par construction.
+  const CLAIR = parseHex(VINIZ.light)!
+  const SOMBRE = parseHex(VINIZ.dark)!
+  const aSurface = mode === 'dark' ? 0.06 : 0.05
+  const aBorder = mode === 'dark' ? 0.14 : 0.12
+  const candidats = [CLAIR, SOMBRE].map((v) => ({ v, s: melange(v, background, aSurface) }))
+  const meilleur = candidats.reduce((a, b) =>
+    (bestInkOn(b.s, INKS).ratio > bestInkOn(a.s, INKS).ratio ? b : a))
+  const voileTient = bestInkOn(meilleur.s, INKS).ratio >= SEUIL_TEXTE
+  if (!voileTient) {
+    reasons.push('carte non voilée : tout voile ferait tomber son encre sous le seuil texte')
+  }
+  const voile = meilleur.v
+  const surfaceRgb = voileTient ? meilleur.s : background
+  const borderRgb = melange(voile, background, aBorder)
+  const surface = toHex(surfaceRgb)
+  const border = toHex(borderRgb)
+
+  // 🔴 GYM-290 (0) — L'ENCRE ATTÉNUÉE EST DÉRIVÉE, PLUS CHOISIE DANS UNE LISTE DE DEUX.
+  // Une teinte fixe ne peut pas être à la fois atténuée et lisible sur un fond quelconque.
+  // On part de l'encre principale — dont on SAIT qu'elle passe le seuil — et on la fond
+  // vers le fond aussi loin que 4,5:1 l'autorise. La hiérarchie reste (le secondaire est
+  // plus discret), et la lisibilité ne dépend plus de la teinte du fond.
+  const onBackgroundMuted = toHex(
+    mutedInkOn(background, parseHex(onBackground)!, SEUIL_TEXTE, pageRgb),
+  )
 
   // ── 6. LES QUATRE RÔLES AJOUTÉS PAR GYM-286a ───────────────────────────────────────
   // 🔴 AUCUN N'INTRODUIT UNE COULEUR QUE LE GARDE-FOU N'AURAIT PAS DÉJÀ VALIDÉE. Chacun
@@ -278,10 +466,39 @@ export function resolveTheme(
   //     elle-même ;
   //   — `onSurface` tient tant que `surface` est un voile translucide sur le fond ; il
   //     faudra le recalculer le jour où une salle fournira une surface opaque.
-  const page = toHex(background)
-  const onSurface = onBackground
-  const onSurfaceSecondary = onBackgroundMuted
-  const accentDim = accent
+  // 🔴 GYM-290 — LES ENCRES DE CARTE SE VALIDENT SUR LA CARTE, PAS SUR LA PAGE.
+  // Elles recopiaient les encres de fond. Tant que la surface était un voile à 6 %, l'écart
+  // était petit — mais il existait, et il suffisait à faire tomber `onSurface` sous 4,5:1
+  // sur 980 salles et `onSurfaceSecondary` sur 11 760. Mesurées sur LEUR fond, elles
+  // tombent à zéro.
+  const onSurface = bestInkOn(surfaceRgb, INKS).ink
+  const onSurfaceSecondary = toHex(
+    mutedInkOn(surfaceRgb, parseHex(onSurface)!, SEUIL_TEXTE),
+  )
+  // 🔴 GYM-290 (A-5) — `accentDim` DEVIENT UNE VRAIE DÉRIVATION. Il valait `accent` : une
+  // « variante atténuée » identique à ce qu'elle atténue ne sert à rien. A-1 vient de dire
+  // ce qui reste dedans — de la MARQUE, jamais un succès — donc on peut enfin le dériver.
+  //
+  // ⚠️ IL EST POSÉ COMME TEXTE (`+not-found`, `SessionDescription`) : il se valide donc au
+  // seuil TEXTE sur le fond, pas au seuil surface. C'est exactement ce que la
+  // recommandation d'A-5 demandait — « l'action à ~75 % de luminosité, revalidée à 4,5:1 ».
+  // `mutedInkOn` fait les deux d'un coup : il atténue autant que le seuil l'autorise, et
+  // pas davantage.
+  const accentDim = toHex(
+    mutedInkOn(background, parseHex(accent)!, SEUIL_TEXTE, pageRgb),
+  )
+  // Décision A, option 1 : chez une salle, l'action EST l'accent, et son encre est celle
+  // que le garde-fou a retenue pour lui — jamais une couleur choisie à la main.
+  const actionBg = accent
+  const onAction = onAccent
+  const onActionMuted = toHex(
+    mutedInkOn(parseHex(actionBg)!, parseHex(onAction)!, SEUIL_TEXTE),
+  )
+  // Le rail se dérive du FOND vers l'encre, du pas mesuré sur Dopamine. Vers l'encre et non
+  // vers le blanc : sur une salle claire, éclaircir le fond ne produirait rien de visible.
+  const rail = toHex(
+    decalerDe(background, parseHex(onBackground)!, PAS_RAIL) ?? parseHex(onBackground)!,
+  )
 
   return {
     tokens: {
@@ -297,6 +514,11 @@ export function resolveTheme(
       onSurface,
       onSurfaceSecondary,
       accentDim,
+      actionBg,
+      onAction,
+      onActionMuted,
+      rail,
+      ramp: rampe(background, parseHex(accent)!),
       // 🔴 Le lime ne touche JAMAIS un fond clair.
       limeAllowed: mode === 'dark',
     },
@@ -313,6 +535,40 @@ export function resolveTheme(
       reasons,
     },
   }
+}
+
+/**
+ * 🔴 GYM-290 (A-8) — TROIS PALIERS DÉRIVÉS DE L'ACCENT, DISTINGUABLES PARTOUT.
+ *
+ * ⚠️ LE PIÈGE EST D'ÉCHELONNER EN OPACITÉ. Trois mélanges à 33 / 66 / 100 % donnent trois
+ * paliers bien séparés sur un fond sombre et trois quasi-jumeaux sur un fond clair — la
+ * même formule, deux résultats. On échelonne donc en CONTRASTE SUR LE FOND, la grandeur
+ * que l'œil mesure : chaque palier est le plus petit mélange qui atteint son ratio.
+ *
+ * Les trois cibles montent régulièrement du seuil de visibilité (le palier 1 doit se voir,
+ * donc SEUIL_SURFACE) jusqu'à l'accent plein. Un palier qui ne peut pas atteindre sa cible
+ * — accent trop proche du fond — retombe sur l'accent : trois paliers dont deux se
+ * confondent restent lisibles, là où un palier invisible ferait disparaître une donnée.
+ */
+function rampe(background: Rgb, accent: Rgb): readonly [string, string, string] {
+  // ⚠️ PREMIÈRE TENTATIVE, ÉCARTÉE PAR LA MESURE : trois cibles FIXES (3 / 3,75 / 4,5).
+  // Elles supposaient que tout accent atteint 4,5:1 sur son fond — or le garde-fou ne lui
+  // demande que 3:1. Résultat mesuré sur les cinq salles de test : des paliers séparés de
+  // 1,19 seulement, et un terracotta dont les paliers 2 et 3 étaient IDENTIQUES (1,00),
+  // faute de pouvoir monter plus haut. Une rampe dont deux barreaux se confondent ne dit
+  // plus rien de la donnée qu'elle représente.
+  //
+  // 🔴 ON ÉCHELONNE DONC SUR LE CONTRASTE DE L'ACCENT LUI-MÊME, GÉOMÉTRIQUEMENT. Le palier
+  // 3 est l'accent plein ; les deux autres sont à C^(1/3) et C^(2/3) de son contraste. La
+  // progression géométrique donne le MÊME rapport entre paliers consécutifs — une rampe
+  // régulière à l'œil — et ce rapport vaut C^(1/3). Comme le garde-fou garantit déjà
+  // C ≥ 3:1 pour tout accent retenu, la séparation minimale est 3^(1/3) ≈ 1,44 : elle est
+  // acquise par construction, sur n'importe quelle primaire.
+  const C = contrastRatio(accent, background)
+  return [1 / 3, 2 / 3, 1].map((k) => {
+    const cible = Math.pow(C, k)
+    return toHex(decalerDe(background, accent, cible) ?? accent)
+  }) as unknown as readonly [string, string, string]
 }
 
 /** Le thème par défaut, sans aucune salle : Viniz, mode sombre. */

@@ -518,13 +518,12 @@ export default function SessionDetail() {
               onPress={handleConfirmWaitlist}
               disabled={loading}
               activeOpacity={0.8}
-              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
-              className="rounded-xl bg-move-dark px-6 py-3.5"
+              style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>
                   {t('session.confirm_my_place').toUpperCase()}
                 </Text>
               )}
@@ -545,17 +544,20 @@ export default function SessionDetail() {
               onPress={handleBook}
               disabled={loading}
               activeOpacity={0.8}
-              // 🔴 GYM-286 — A-3/A-4 : la branche `bg-move-dark` est un fond de BOUTON et
               // reste en classe. La branche `bg-orange-500` est un SIGNAL (liste d'attente)
               // et pourrait passer à `SEMANTIC.warning` — mais le ternaire porte les deux
               // dans la même chaîne : les séparer inverserait l'ordre des couleurs du
               // fichier sans rien gagner tant que l'autre branche ne peut pas bouger.
-              className={`rounded-xl px-6 py-3.5 ${isFull ? 'bg-orange-500' : 'bg-move-dark'}`}
+              // ⚠️ `bg-orange-500` VAUT EXACTEMENT #F97316, c'est-à-dire `SEMANTIC.warning` — ce
+              // n'est pas une approximation mais la MÊME valeur, donc une migration licite
+              // (règle absolue de 286b : on ne migre que sur une égalité exacte).
+              style={{ backgroundColor: isFull ? SEMANTIC.warning : tokens.actionBg }}
+              className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : '#C8F000' }}>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : tokens.onAction }}>
                   {isFull ? t('session.waitlist').toUpperCase() : t('session.enroll').toUpperCase()}
                 </Text>
               )}

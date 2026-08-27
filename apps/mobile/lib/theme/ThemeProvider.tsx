@@ -42,6 +42,28 @@ export const DOPAMINE_THEME: ThemeTokens = {
   onSurface: '#111111',         // move-dark, dans son emploi de TEXTE (≠ onAccent)
   onSurfaceSecondary: '#6B6861', // move-text-secondary
   accentDim: '#9DB800',         // move-accent-dim
+  // 🔴 GYM-290 (décision A) — LE BOUTON DE DOPAMINE, FIGÉ ICI ET NULLE PART AILLEURS.
+  // Chez une salle, l'action est son accent avec une encre choisie par contraste. Chez
+  // Dopamine, c'est l'inverse : fond sombre, libellé lime. Ces deux lignes sont ce qui
+  // permet aux 22 pressables de se câbler sur des jetons SANS retourner l'app de
+  // production — elles recopient `move-dark` et `move-accent`, à l'octet.
+  actionBg: '#111111',          // move-dark
+  onAction: '#C8F000',          // move-accent
+  // 🔴 GYM-290 (A-6) — LE GRIS-SUR-SOMBRE, ENFIN NOMMÉ. #333333 est la valeur que Dopamine
+  // emploie depuis toujours pour ses pistes de barre ; c'est elle qui a servi à calibrer
+  // `PAS_RAIL` (1,49:1 sur #111111). Les sites qui la portaient en dur s'y rattachent sans
+  // bouger d'un pixel.
+  // 🔴 GYM-307 — LE RENDU EST INCHANGÉ, SEULE L'ÉCRITURE CHANGE. Le sous-titre du bouton
+  // « à la séance » était un blanc à 60 % sur #111111 : composé, cela donne EXACTEMENT
+  // #A0A0A0 (0,6 × 255 + 0,4 × 17 = 159,8). Ce jeton porte donc le pixel d'aujourd'hui, et
+  // c'est en MULTI qu'il change quelque chose — là où le même blanc à 60 % tombait à 1,09:1
+  // sur un accent lime.
+  onActionMuted: '#A0A0A0',
+  rail: '#333333',
+  // 🔴 GYM-290 (A-8) — LA RAMPE DE DOPAMINE, FIGÉE. Ses trois verts d'affluence, recopiés
+  // à l'octet depuis les écrans où ils étaient en dur. Chez une salle ils se DÉRIVENT de
+  // son accent (voir `rampe()`) ; ici ils ne bougent pas, comme tout le reste de ce fichier.
+  ramp: ['#C0DD97', '#97C459', '#3B6D11'] as const,
   limeAllowed: true,
 }
 

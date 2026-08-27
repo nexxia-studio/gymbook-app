@@ -112,12 +112,12 @@ export function OpenGymCard({ group, onSelectSlot }: OpenGymCardProps) {
 
           {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`,
               chevron lime compris — c'est la même paire. */}
-          <View className="flex-row items-center gap-1 rounded-lg bg-move-dark px-3 py-2.5">
-            <Text className="font-dmsans-bold text-xs text-move-accent">
+          <View style={{ backgroundColor: tokens.actionBg }} className="flex-row items-center gap-1 rounded-lg px-3 py-2.5">
+            <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-xs">
               {expanded ? t('open_gym.hide') : t('open_gym.show')}
             </Text>
             <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
-              <ChevronDown size={14} color="#C8F000" />
+              <ChevronDown size={14} color={tokens.onAction} />
             </View>
           </View>
         </View>

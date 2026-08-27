@@ -95,9 +95,9 @@ export default function ExportDataScreen() {
             PRINCIPE confirmé, pas la seule forme nommée. */}
         <Pressable
           onPress={handleRequest}
-          className="mt-2 flex-row items-center justify-center gap-2 rounded-xl bg-move-dark py-4"
+          style={{ backgroundColor: tokens.actionBg }} className="mt-2 flex-row items-center justify-center gap-2 rounded-xl py-4"
         >
-          <Mail size={18} color="#C8F000" />
+          <Mail size={18} color={tokens.onAction} />
           <Text className="font-dmsans-bold text-sm text-white">
             {t('profile.export.button')}
           </Text>
