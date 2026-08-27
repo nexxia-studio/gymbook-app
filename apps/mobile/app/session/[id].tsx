@@ -25,6 +25,9 @@ import { getDisplayStatus } from '../../utils/slotStatus'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
+import { useCrossGymGuard } from '../../hooks/useCrossGymGuard'
+import { CrossGymInterstitial } from '../../components/gym/CrossGymInterstitial'
+import { raiseNotMemberNotice } from '../../lib/activeGymSession'
 
 export default function SessionDetail() {
   const { tokens } = useTheme()
@@ -53,6 +56,11 @@ export default function SessionDetail() {
   const gymAddress = formatGymAddress(gym)
 
   const slotId = params.id ?? ''
+
+  // GYM-294 — `null` tant que la requête n'a pas répondu : le garde lit « on ne sait pas
+  // encore », jamais « c'est la bonne salle ».
+  const [gymDuCreneau, setGymDuCreneau] = useState<string | null>(null)
+  const garde = useCrossGymGuard(gymDuCreneau)
 
   // Slot data — fetched from Supabase, params used as initial fallback only.
   // activityId/startsAt are resolved from the fetch and needed to derive the
@@ -98,8 +106,12 @@ export default function SessionDetail() {
   //
   // ⚠️ GYM-292 — LECTURE PAR IDENTIFIANT DE LIGNE, pas par salle : un créneau appartient à
   // une seule salle par construction, la clé `slotId` suffit. La RLS de `time_slots` fait
-  // le reste. ⚠️ Rien ne vérifie pour autant que ce créneau appartient à la salle ACTIVE —
-  // un lien profond vers un créneau d'une autre salle l'afficherait. Remonté au cockpit.
+  // le reste.
+  //
+  // 🔴 GYM-294 — CE COMMENTAIRE ANNONÇAIT LE DÉFAUT, IL DÉCRIT MAINTENANT LE CORRECTIF.
+  // Rien ne vérifiait que le créneau appartenait à la salle ACTIVE : un lien profond vers
+  // un créneau d'une autre salle l'affichait sous la marque de la sienne. La requête ramène
+  // désormais `gym_id`, et `useCrossGymGuard` tranche — interstitiel, refus, ou rien.
   useEffect(() => {
     if (!slotId) return
     setBookingModalVisible(false)
@@ -109,7 +121,7 @@ export default function SessionDetail() {
       const { data } = await supabase
         .from('time_slots')
         .select(`
-          id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
+          id, gym_id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
           activities(name, duration_min, description, image_url, color, icon),
           coaches(name)
         `)
@@ -117,6 +129,10 @@ export default function SessionDetail() {
         .single()
 
       if (data) {
+        // 🔴 GYM-294 — LA SALLE DU CRÉNEAU, mémorisée pour le garde. On ne décide RIEN ici :
+        // l'écran ne sait pas ce qu'il faut faire d'un créneau d'ailleurs, et cette
+        // question a désormais une réponse unique, dans `useCrossGymGuard`.
+        setGymDuCreneau((data as { gym_id?: string }).gym_id ?? null)
         const act = data.activities as unknown as {
           name: string
           duration_min: number
@@ -379,6 +395,44 @@ export default function SessionDetail() {
     if (isFav) removeFavorite(input)
     else addFavorite(input)
   }, [isFav, slotData.activityId, slotData.startsAt, addFavorite, removeFavorite])
+
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // 🔴 GYM-294 — LES TROIS ISSUES D'UN CRÉNEAU QUI N'EST PAS DE LA SALLE ACTIVE
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // Elles précèdent tout rendu : afficher l'écran puis le remplacer ferait apparaître, une
+  // fraction de seconde, le cours d'une autre salle sous la marque de celle-ci — c'est-à-dire
+  // exactement le défaut qu'on corrige, en plus bref et donc en plus difficile à signaler.
+  //
+  // ⚠️ EN SINGLE, `garde.kind` VAUT TOUJOURS 'ok' : le hook sort à sa première ligne, sans
+  // état ni requête. Ces deux branches sont donc inertes chez Dopamine — aucun détour, aucun
+  // aller-retour réseau ajouté.
+
+  // Membre de la salle du créneau : on annonce, il décide. Jamais de bascule silencieuse.
+  if (garde.kind === 'elsewhere') {
+    return (
+      <CrossGymInterstitial
+        gym={garde.gym}
+        onCancel={() => router.back()}
+        // Après bascule, l'écran se recharge avec la nouvelle salle active : le garde
+        // repasse à 'ok' et le créneau s'affiche sous SA marque, qui est désormais la bonne.
+        onSwitched={() => setGymDuCreneau(null)}
+      />
+    )
+  }
+
+  // Pas membre : on réutilise l'écran de refus de GYM-301 plutôt que d'en écrire un second.
+  // ⚠️ L'AVIS EST POSÉ AVANT DE NAVIGUER, sans quoi l'écran s'ouvrirait les mains vides —
+  // c'est la mécanique de GYM-301, et elle est faite pour être alimentée d'ici.
+  if (garde.kind === 'not_member') {
+    // ⚠️ ON NE CONNAÎT QUE L'IDENTIFIANT DE LA SALLE, PAS SON SLUG — et il n'est pas
+    // récupérable : la RLS de `nexxia_gyms` n'expose une salle qu'à ses membres, et c'est
+    // exactement le cas où le membre n'en est pas un. L'avis part donc sans marque ni slug,
+    // et l'écran de GYM-301 rend sa formulation « sans nom » : « Tu n'es pas encore membre
+    // de cette salle ». Inventer un nom serait pire que de ne pas en donner.
+    raiseNotMemberNotice({ requested: null, requestedSlug: '', landed: gym?.name ?? '' })
+    router.replace('/gym/not-member' as never)
+    return null
+  }
 
   return (
     <View className="flex-1" style={{ backgroundColor: tokens.page }}>

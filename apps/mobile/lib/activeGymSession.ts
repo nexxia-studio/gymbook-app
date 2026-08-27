@@ -116,6 +116,22 @@ export type ReconcileReason =
   | 'no_local_choice'
   /** Le choix ÉTAIT déjà la salle active. Rien à faire, et c'est le cas nominal. */
   | 'already_aligned'
+  /**
+   * 🔴 GYM-294 — LA SEULE VALEUR AJOUTÉE PAR CE LOT, et elle décrit un geste, pas une
+   * réconciliation. Le membre a ouvert un lien profond vers une ressource d'une AUTRE de
+   * ses salles, l'app le lui a dit, et il a accepté de basculer.
+   *
+   * ⚠️ AUCUNE VALEUR EXISTANTE NE CONVENAIT, et c'est pour cela qu'on en ajoute une plutôt
+   * que d'en emprunter une. `choice_accepted` décrit le choix fait AVANT connexion, à la
+   * recherche de salle, et confirmé à l'ouverture de session : le confondre avec un geste
+   * intentionnel en pleine session rendrait le premier illisible dans le tableau de bord,
+   * au moment précis où il sert à diagnostiquer un parcours de connexion.
+   *
+   * L'événement reste `active_gym_reconciled` : c'est bien la salle active qui change, par
+   * le même chemin sanctionné (`switch_active_gym`), et un second nom d'événement pour la
+   * même conséquence obligerait à additionner deux séries pour compter les bascules.
+   */
+  | 'deep_link_accepted'
 
 /**
  * Aligne la salle active du serveur et le choix local, une fois la session ouverte.
@@ -303,6 +319,31 @@ function annonce(avis: ActiveGymNotice): void {
   // Best-effort : un abonné qui lève ne doit pas faire échouer la réconciliation, dont le
   // travail — la salle active — est déjà fait et bien plus important que le bandeau.
   abonnes.forEach((fn) => { try { fn() } catch { /* le bandeau n'est pas critique */ } })
+}
+
+/**
+ * 🔴 GYM-294 — LÈVE UN AVIS « PAS MEMBRE » DEPUIS L'EXTÉRIEUR DE LA RÉCONCILIATION.
+ *
+ * L'écran de refus de GYM-301 (`app/gym/not-member.tsx`) sait déjà tout faire : il se peint
+ * aux couleurs de la salle demandée, propose de revenir se connecter, et de rejoindre sa
+ * propre salle. Le lot GYM-294 rencontre exactement la même situation par un autre chemin —
+ * un lien profond vers une salle où le membre n'est pas inscrit.
+ *
+ * ⚠️ ON RÉUTILISE L'ÉCRAN, ON NE LE RECOPIE PAS. Une seconde page de refus aurait divergé de
+ * la première au premier changement de formulation — et c'est la page qui annonce une
+ * mauvaise nouvelle, celle où une incohérence se remarque le plus.
+ *
+ * ⚠️ CETTE FONCTION N'ÉMET AUCUNE TÉLÉMÉTRIE, et c'est délibéré : `active_gym_reconciled`
+ * décrit une RÉCONCILIATION d'ouverture de session. Ici rien n'est réconcilié — un lien a
+ * été refusé, la salle active n'a pas bougé. L'émettre gonflerait le compteur de
+ * `not_member` avec des événements qui ne viennent pas du parcours de connexion.
+ */
+export function raiseNotMemberNotice(avis: {
+  requested: GymBrand | null
+  requestedSlug: string
+  landed: string
+}): void {
+  annonce({ kind: 'not_member', ...avis })
 }
 
 /** Remise à zéro — tests uniquement. */

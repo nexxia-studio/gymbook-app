@@ -440,6 +440,16 @@ compte à salle **unique** qui vise ailleurs : `member.yoga@` choisissant Studio
 | J′4 | Écran de **lancement** (pulse-V) | **inchangé** |
 | J′5 | Non-régression **single** : build Dopamine | l'écran de recherche est **inatteignable** ; navbar, connexion et accueil de Dopamine strictement identiques |
 
+## Recettes par lot → `docs/recettes/`
+
+> 🔴 LES RECETTES DES LOTS RÉCENTS NE SONT PLUS ICI. Chaque lot écrit la sienne dans
+> `docs/recettes/<ticket>.md` — trois lots ajoutant une section à ce document conflictaient
+> deux à deux à chaque merge, pour des blocs pourtant indépendants les uns des autres.
+>
+> Les blocs A à M ci-dessous restent en place : ils décrivent la recette consolidée du train
+> #228–#237 et se lisent ensemble. La règle vaut pour la SUITE — voir
+> `docs/recettes/README.md`.
+
 ## M — GYM-290 : le lot charte (garde-fou, bande, boutons, sémantiques)
 
 Trois salles staging + les deux salles fictives de la planche pour les rampes.
@@ -458,7 +468,6 @@ Trois salles staging + les deux salles fictives de la planche pour les rampes.
 | M10 | 🔴 Feuille de paiement → option « à la séance » | libellé **et** sous-titre lisibles sur le fond du bouton, chez une salle à accent **clair** comme chez Dopamine |
 | M11 | Compte à rebours de liste d'attente | un seul rouge, un seul orange — plus deux orangés voisins sur la même ligne |
 | M12 | 🔴 Non-régression **single** : build Dopamine, parcours complet | identique au pixel **SAUF** les 17 écarts listés dans la PR (A-1 ×6, A-2 ×5, ambres ×3, A-6 ×2, GYM-307 ×1) |
-
 ## L — GYM-299 / GYM-304 : nom court, dimanche neutre, encres lisibles
 
 Jeu de données : **Studio Yoga Test 1** porte `short_name = « Yoga Club »`. Les deux autres
