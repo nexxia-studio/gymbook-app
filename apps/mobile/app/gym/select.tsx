@@ -9,7 +9,7 @@
 // et cet écran n'en demande pas davantage. Une commune situe une salle ; une rue permet
 // de se présenter chez quelqu'un.
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { View, Text, ActivityIndicator, TouchableOpacity, FlatList, Image } from 'react-native'
+import { View, Text, TouchableOpacity, FlatList, Image } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -28,6 +28,32 @@ import { GYM_MODE } from '../../lib/gymResolver'
 import { Redirect } from 'expo-router'
 import { VINIZ, VINIZ_THEME, type ThemeTokens } from '../../lib/theme/resolveTheme'
 import { PoweredByViniz } from '../../components/viniz/PoweredByViniz'
+import { VinizPulse } from '../../components/viniz/VinizPulse'
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-302 (2) — L'ATTENTE EST À LA MARQUE, ELLE AUSSI
+// ═════════════════════════════════════════════════════════════════════════════════════
+// `ActivityIndicator` est le spinner du SYSTÈME : la roue d'iOS, celle d'Android. Sur le
+// seul écran qui présente Viniz à quelqu'un qui ne la connaît pas encore, c'était la
+// dernière chose qui n'était pas à elle. Le pulse-V du lancement y reprend sa place, en
+// miniature.
+//
+// ⚠️ MINIATURISER NE SUFFISAIT PAS. Le pulse de l'écran 01 dure 3 400 ms — il se dessine
+// une fois, puis s'éteint. Une recherche dure 300 à 800 ms : le membre n'aurait vu que le
+// premier cinquième du tracé, une ligne qui commence et disparaît sans jamais battre. La
+// durée de cycle est donc raccourcie pour cet usage — c'est ce qui transforme un tracé qui
+// se dessine en une OSCILLATION qui se répète.
+//
+// ⚠️ AUCUNE DÉPENDANCE NI COULEUR NOUVELLE. Le composant existe, ses deux couleurs (le
+// lime du halo, le presque-blanc de la bille) vivent déjà dans son fichier depuis GYM-102.
+// L'inventaire ne bouge pas d'une occurrence.
+
+/** Le cycle de l'attente. Assez court pour battre pendant une recherche de 300–800 ms. */
+const PULSE_ATTENTE_MS = 1200
+/** Le bloc d'état, centré : la boîte de la spec ramenée à un tiers. */
+const PULSE_ETAT_W = 46
+/** La ligne en cours d'ouverture : calé sur la hauteur de la roue système qu'il remplace. */
+const PULSE_LIGNE_W = 30
 
 // ═════════════════════════════════════════════════════════════════════════════════════
 // 🔴 GYM-301 (3) — CET ÉCRAN EST À VINIZ, PAS À UNE SALLE
@@ -191,7 +217,11 @@ export default function GymSelect() {
           </View>
         ) : null}
       </View>
-      {opening === item.slug ? <ActivityIndicator color={tokens.onSurfaceSecondary} /> : null}
+      {/* ⚠️ LA MÊME ATTENTE QUE CELLE DE LA RECHERCHE, EN PLUS PETIT. Laisser ici la roue
+          du système aurait mis les deux côte à côte sur le même écran — le pulse pour la
+          recherche, la roue grise pour la ligne qu'on ouvre. Une migration à moitié se
+          voit plus qu'une absence de migration. */}
+      {opening === item.slug ? <VinizPulse width={PULSE_LIGNE_W} durationMs={PULSE_ATTENTE_MS} /> : null}
     </TouchableOpacity>
   ), [handleSelect, opening, tokens])
 
@@ -199,8 +229,17 @@ export default function GymSelect() {
   const renderState = () => {
     if (searching) {
       return (
-        <View className="items-center py-10">
-          <ActivityIndicator color={tokens.onSurface} />
+        // ⚠️ L'ÉTAT D'ATTENTE DOIT RESTER ANNONÇABLE. `ActivityIndicator` porte nativement
+        // un rôle de progression ; le pulse, lui, est une IMAGE de marque — laissé nu, un
+        // lecteur d'écran aurait annoncé « Viniz » à la place de « chargement ». Le rôle
+        // est donc porté par le bloc, avec une clé qui existe déjà.
+        <View
+          className="items-center py-10"
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={t('common.loading')}
+        >
+          <VinizPulse width={PULSE_ETAT_W} durationMs={PULSE_ATTENTE_MS} />
         </View>
       )
     }
@@ -269,7 +308,7 @@ export default function GymSelect() {
           extrait de `BrandedLogin` pour ce lot. L'encre est passée explicitement — sans
           elle il lirait le thème AMBIANT, c'est-à-dire les couleurs d'une salle, sur le
           seul écran qui n'en représente aucune. */}
-      <PoweredByViniz ink={tokens.onBackgroundMuted} />
+      <PoweredByViniz tokens={tokens} />
     </SafeAreaView>
   )
 }

@@ -440,6 +440,21 @@ compte à salle **unique** qui vise ailleurs : `member.yoga@` choisissant Studio
 | J′4 | Écran de **lancement** (pulse-V) | **inchangé** |
 | J′5 | Non-régression **single** : build Dopamine | l'écran de recherche est **inatteignable** ; navbar, connexion et accueil de Dopamine strictement identiques |
 
+## K — GYM-302 : le lime du wordmark, et le pulse d'attente
+
+| # | geste | attendu |
+|---|---|---|
+| K1 | 🔴 Écran « Trouve ta salle » (Violet Ink), pied de page | le wordmark **ViNiZ** est en **Neon Lime**. « propulsé par » reste en lavande — deux teintes, pas une |
+| K2 | 🔴 Connexion d'une salle au fond **CLAIR** (Studio Test), pied de page | le wordmark n'est **PAS** lime : il suit l'encre atténuée du fond. C'est la règle du garde-fou, et c'est le cas qui compte |
+| K3 | Connexion d'une salle au fond **sombre** (Dopamine Staging Clone) | wordmark **lime** |
+| K4 | Écran « pas encore membre » (K2 puis un choix hors adhésion) | le pied suit la salle **DEMANDÉE**, donc la même règle qu'en K2/K3 |
+| K5 | 🔴 Taper 3 lettres dans la recherche | pendant le chargement : le **pulse-V** miniature **bat** — le tracé se dessine et recommence. Ce n'est plus la roue du système, et ce n'est pas une ligne figée |
+| K6 | 🔴 Toucher une salle dans la liste | la ligne affiche le **même** pulse, en plus petit. Aucune roue grise ne doit subsister sur cet écran |
+| K7 | Réglages système → **Réduire les animations** activé, rejouer K5 | le tracé s'affiche **entier et immobile**, sans bille. Comportement voulu, hérité de l'écran 01 |
+| K8 | VoiceOver / TalkBack sur K5 | l'état est annoncé comme un **chargement**, pas comme « Viniz » |
+| K9 | Écran de **lancement** (pulse-V plein écran) | **inchangé** : même durée, même rendu |
+| K10 | Non-régression **single** : build Dopamine | aucun de ces écrans n'est atteignable ; navbar, connexion et accueil strictement identiques |
+
 ## I — Les trois finitions (GYM-300)
 
 | # | geste | attendu |

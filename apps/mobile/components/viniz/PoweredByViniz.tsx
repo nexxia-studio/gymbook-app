@@ -10,6 +10,8 @@ import { View, Text } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { SvgXml } from 'react-native-svg'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { type ThemeTokens } from '../../lib/theme/resolveTheme'
+import { wordmarkInk } from './wordmarkInk'
 import { VINIZ_WORDMARK_SVG } from '../../assets/viniz/brandSvg'
 
 /** Recadrage du wordmark sur l'emprise mesurée de son art (cf. VinizLaunch). */
@@ -26,24 +28,41 @@ const WORDMARK_W = 62
  * ces chemins portent un `fill` explicite. On remplace donc la valeur dans le XML, une
  * fois par teinte.
  *
- * ⚠️ `ink` EST OPTIONNELLE, ET SON DÉFAUT EST CE QUI GARANTIT LA NON-RÉGRESSION. Sans
- * argument, elle rend exactement ce que rendait la version privée de `BrandedLogin` :
- * l'encre atténuée du thème AMBIANT. Les appelants qui peignent un fond que le thème
- * ambiant ne décrit PAS — l'écran de recherche est aux couleurs Viniz, l'écran « pas
- * encore membre » à celles de la salle demandée — passent la leur, sinon la signature
+ * ⚠️ `tokens` EST OPTIONNELLE, ET SON DÉFAUT EST CE QUI GARANTIT LA NON-RÉGRESSION. Sans
+ * argument, la signature s'accorde au thème AMBIANT. Les appelants qui peignent un fond que
+ * le thème ambiant ne décrit PAS — l'écran de recherche est aux couleurs Viniz, l'écran
+ * « pas encore membre » à celles de la salle DEMANDÉE — passent le leur, sinon la signature
  * s'accorderait à une salle qui n'est pas celle affichée.
+ *
+ * ⚠️ ELLE REÇOIT LES JETONS, PLUS UNE ENCRE. GYM-302 rend le wordmark LIME quand le fond
+ * s'y prête — et « s'y prêter » est une propriété du FOND, pas une couleur qu'un appelant
+ * pourrait transmettre. Passer une encre déjà choisie obligerait chaque appelant à
+ * refaire la règle du garde-fou, c'est-à-dire à la réimplémenter trois fois, et à se
+ * tromper une fois sur trois. Le composant la tient, une seule fois, ici.
  */
-export function PoweredByViniz({ ink }: { ink?: string }) {
+export function PoweredByViniz({ tokens: tokensFournis }: { tokens?: ThemeTokens }) {
   const { t } = useTranslation()
-  const { tokens } = useTheme()
+  const { tokens: tokensAmbiants } = useTheme()
+  const tokens = tokensFournis ?? tokensAmbiants
+
+  // 🔴 GYM-302 — LE LIME NE VA QUE SUR FOND SOMBRE, ET CE COMPOSANT EST PARTAGÉ.
+  // La marque veut son wordmark en Neon Lime, mais cette signature est en pied de TROIS
+  // écrans, dont la connexion de CHAQUE salle : le fond n'est pas toujours celui de Viniz.
+  // La règle — et la raison de ses deux conditions — vit dans `wordmarkInk`, isolée pour
+  // pouvoir être balayée sur des centaines de salles plutôt que relue.
+  const encreWordmark = wordmarkInk(tokens)
+
   const tinted = useMemo(
-    () => VINIZ_WORDMARK_SVG.replace(/#c8ff3d/gi, ink ?? tokens.onBackgroundMuted),
-    [ink, tokens.onBackgroundMuted],
+    () => VINIZ_WORDMARK_SVG.replace(/#c8ff3d/gi, encreWordmark),
+    [encreWordmark],
   )
 
   return (
     <View className="flex-row items-center justify-center gap-2 pb-3" style={{ opacity: 0.75 }}>
-      <Text className="font-dmsans text-[11px]" style={{ color: ink ?? tokens.onBackgroundMuted }}>
+      {/* ⚠️ SEUL LE WORDMARK CHANGE. « propulsé par » reste en encre atténuée : c'est une
+          mention de service, pas la marque. La passer au lime ferait deux limes côte à
+          côte et retirerait au nom la distinction qu'on vient de lui donner. */}
+      <Text className="font-dmsans text-[11px]" style={{ color: tokens.onBackgroundMuted }}>
         {t('branding.powered_by')}
       </Text>
       <SvgXml
