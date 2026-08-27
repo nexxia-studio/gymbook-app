@@ -12,6 +12,8 @@ import { Checkbox } from '../../components/ui/Checkbox'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface FormErrors {
   firstName?: string
@@ -37,6 +39,7 @@ interface FormErrors {
 const SIGNUP_MIN_LENGTH = 8
 
 export default function Signup() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { signUp, isLoading, error, clearError } = useAuthStore()
@@ -90,7 +93,7 @@ export default function Signup() {
   }, [email, password, firstName, lastName, phone, terms, privacy, marketing, signUp, clearError, router])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
       <InScreenBanner
         message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
@@ -99,9 +102,9 @@ export default function Signup() {
       />
 
       {/* Dark header */}
-      <View className="bg-move-dark px-6 pb-16 pt-14">
-        <Text className="font-barlow text-lg text-white">DOPAMINE</Text>
-        <Text className="mt-4 font-barlow text-3xl uppercase text-white">
+      <View className="px-6 pb-16 pt-14" style={{ backgroundColor: tokens.background }}>
+        <Text className="font-barlow text-lg" style={{ color: tokens.onBackground }}>DOPAMINE</Text>
+        <Text className="mt-4 font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('auth.signup_title')}
         </Text>
       </View>
@@ -109,7 +112,7 @@ export default function Signup() {
       {/* Form */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
         <ScrollView className="-mt-8 flex-1" contentContainerClassName="px-6 pb-8" keyboardShouldPersistTaps="handled">
-          <View className="rounded-3xl bg-white p-6 shadow-sm">
+          <View className="rounded-3xl p-6 shadow-sm" style={{ backgroundColor: tokens.surface }}>
             <View className="gap-4">
               {/* OAuth en haut (fix rejet App Store Guideline 4 — GYM-149) :
                   Sign in with Apple / Google au-dessus du formulaire d'inscription. */}
@@ -180,14 +183,15 @@ export default function Signup() {
               />
 
               {/* Consents */}
-              <View className="gap-3 rounded-2xl border border-move-border p-4">
+              <View className="gap-3 rounded-2xl border p-4" style={{ borderColor: tokens.border }}>
                 <Checkbox checked={terms} onToggle={() => setTerms(!terms)}>
-                  <Text className="font-dmsans text-sm text-move-text-secondary">
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                     {t('auth.terms_accept')}{' '}
                     {/* Lien tapable : le <Text onPress> imbriqué capture le tap et navigue
                         sans déclencher le toggle de la Checkbox parente. */}
                     <Text
-                      className="font-dmsans-bold text-move-dark underline"
+                      className="font-dmsans-bold underline"
+                      style={{ color: tokens.onSurface }}
                       accessibilityRole="link"
                       onPress={() => router.push('/profile/legal/cgu')}
                     >
@@ -195,13 +199,14 @@ export default function Signup() {
                     </Text>
                   </Text>
                 </Checkbox>
-                {errors.terms && <Text className="font-dmsans text-xs text-red-500">{errors.terms}</Text>}
+                {errors.terms && <Text className="font-dmsans text-xs" style={{ color: SEMANTIC.danger }}>{errors.terms}</Text>}
 
                 <Checkbox checked={privacy} onToggle={() => setPrivacy(!privacy)}>
-                  <Text className="font-dmsans text-sm text-move-text-secondary">
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                     {t('auth.privacy_accept')}{' '}
                     <Text
-                      className="font-dmsans-bold text-move-dark underline"
+                      className="font-dmsans-bold underline"
+                      style={{ color: tokens.onSurface }}
                       accessibilityRole="link"
                       onPress={() => router.push('/profile/legal/privacy')}
                     >
@@ -209,10 +214,10 @@ export default function Signup() {
                     </Text>
                   </Text>
                 </Checkbox>
-                {errors.privacy && <Text className="font-dmsans text-xs text-red-500">{errors.privacy}</Text>}
+                {errors.privacy && <Text className="font-dmsans text-xs" style={{ color: SEMANTIC.danger }}>{errors.privacy}</Text>}
 
                 <Checkbox checked={marketing} onToggle={() => setMarketing(!marketing)}>
-                  <Text className="font-dmsans text-sm text-move-text-secondary">
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                     {t('auth.marketing_accept')}
                   </Text>
                 </Checkbox>
@@ -223,9 +228,9 @@ export default function Signup() {
           </View>
 
           <TouchableOpacity onPress={() => router.replace('/(auth)/login')} className="mt-6">
-            <Text className="text-center font-dmsans text-sm text-move-text-secondary">
+            <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('auth.already_account')}{' '}
-              <Text className="font-dmsans-bold text-move-dark">{t('auth.login')}</Text>
+              <Text className="font-dmsans-bold" style={{ color: tokens.onSurface }}>{t('auth.login')}</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>

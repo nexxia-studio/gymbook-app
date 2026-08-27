@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, Mail, Clock, User, CalendarCheck, CreditCard, Activity } from 'lucide-react-native'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { SUPPORT_EMAIL, buildMailto } from '../../constants/support'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 const DATA_ITEMS: Array<{ key: string; Icon: typeof User }> = [
   { key: 'identity', Icon: User },
@@ -15,6 +16,7 @@ const DATA_ITEMS: Array<{ key: string; Icon: typeof User }> = [
 ]
 
 export default function ExportDataScreen() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const accountEmail = useAuthStore((s) => s.user?.email) ?? ''
@@ -32,38 +34,40 @@ export default function ExportDataScreen() {
   }, [t, accountEmail])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
         <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
-          <ChevronLeft size={24} color="#FFFFFF" />
+          <ChevronLeft size={24} color={tokens.onBackground} />
         </Pressable>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground, letterSpacing: 2 }}>
           {t('profile.export.title').toUpperCase()}
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
-        className="flex-1 bg-move-bg"
+        className="flex-1"
+        style={{ backgroundColor: tokens.page }}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text className="font-dmsans text-[13px] leading-6 text-move-text-secondary">
+        <Text className="font-dmsans text-[13px] leading-6" style={{ color: tokens.onSurfaceSecondary }}>
           {t('profile.export.intro')}
         </Text>
 
         {/* Données incluses */}
-        <View className="rounded-2xl bg-move-card p-4">
-          <Text className="mb-3 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+        <View className="rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+          <Text className="mb-3 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
             {t('profile.export.what_title')}
           </Text>
           {DATA_ITEMS.map((item, i) => (
             <View
               key={item.key}
-              className={`flex-row items-center gap-3 py-2.5 ${i > 0 ? 'border-t border-move-border' : ''}`}
+              className={`flex-row items-center gap-3 py-2.5 ${i > 0 ? 'border-t' : ''}`}
+              style={i > 0 ? { borderColor: tokens.border } : undefined}
             >
-              <item.Icon size={18} color="#6B6861" />
-              <Text className="flex-1 font-dmsans text-sm text-move-dark">
+              <item.Icon size={18} color={tokens.onSurfaceSecondary} />
+              <Text className="flex-1 font-dmsans text-sm" style={{ color: tokens.onSurface }}>
                 {t(`profile.export.what_${item.key}`)}
               </Text>
             </View>
@@ -71,14 +75,19 @@ export default function ExportDataScreen() {
         </View>
 
         {/* Délai */}
-        <View className="flex-row gap-2 rounded-xl border border-move-border bg-move-bg p-3">
-          <Clock size={16} color="#9A9890" />
-          <Text className="flex-1 font-dmsans text-xs leading-5 text-move-text-secondary">
+        <View className="flex-row gap-2 rounded-xl border p-3" style={{ borderColor: tokens.border, backgroundColor: tokens.page }}>
+          <Clock size={16} color={tokens.onBackgroundMuted} />
+          <Text className="flex-1 font-dmsans text-xs leading-5" style={{ color: tokens.onSurfaceSecondary }}>
             {t('profile.export.delay')}
           </Text>
         </View>
 
         {/* CTA mailto */}
+        {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE. Un fond `bg-move-dark` sur un BOUTON vaudrait
+            celui de la page en mode multi (1,00:1) : le bouton disparaîtrait. Le motif
+            nommé par le cockpit est `bg-move-dark` + `text-move-accent` ; celui-ci porte
+            un libellé BLANC et subit pourtant le même effacement. Le blocage suit le
+            PRINCIPE confirmé, pas la seule forme nommée. */}
         <Pressable
           onPress={handleRequest}
           className="mt-2 flex-row items-center justify-center gap-2 rounded-xl bg-move-dark py-4"
@@ -89,7 +98,7 @@ export default function ExportDataScreen() {
           </Text>
         </Pressable>
 
-        <Text className="text-center font-dmsans text-xs text-move-text-muted">
+        <Text className="text-center font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
           {t('profile.export.recipient', { email: SUPPORT_EMAIL })}
         </Text>
       </ScrollView>

@@ -23,8 +23,10 @@ import {
   type GymSearchResult,
   type GymSearchOutcome,
 } from '../../lib/gymSearch'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 export default function GymSelect() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   // GYM-102 (4/5) — un lien profond dont le slug n'existe pas atterrit ici. Sans ce
@@ -79,7 +81,8 @@ export default function GymSelect() {
   const renderItem = useCallback(({ item }: { item: GymSearchResult }) => (
     <TouchableOpacity
       onPress={() => handleSelect(item)}
-      className="mb-3 flex-row items-center gap-4 rounded-2xl border border-move-border bg-white p-4"
+      className="mb-3 flex-row items-center gap-4 rounded-2xl border p-4"
+      style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}
       accessibilityRole="button"
       accessibilityLabel={item.city ? `${item.name}, ${item.city}` : item.name}
     >
@@ -88,6 +91,7 @@ export default function GymSelect() {
       {item.logo_url ? (
         <Image source={{ uri: item.logo_url }} className="h-12 w-12 rounded-xl" resizeMode="contain" />
       ) : (
+        // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
         <View className="h-12 w-12 items-center justify-center rounded-xl bg-move-dark">
           <Text className="font-barlow text-lg text-move-accent">
             {item.name.charAt(0).toUpperCase()}
@@ -95,15 +99,15 @@ export default function GymSelect() {
         </View>
       )}
       <View className="flex-1">
-        <Text className="font-dmsans-bold text-base text-move-dark" numberOfLines={1}>
+        <Text className="font-dmsans-bold text-base" style={{ color: tokens.onSurface }} numberOfLines={1}>
           {item.name}
         </Text>
         {/* GYM-229 — pas de ligne vide ni de libellé orphelin : sans commune, la ligne
             disparaît entièrement. */}
         {item.city ? (
           <View className="mt-0.5 flex-row items-center gap-1">
-            <MapPin size={12} color="#9A9890" />
-            <Text className="font-dmsans text-xs text-move-text-muted">{item.city}</Text>
+            <MapPin size={12} color={tokens.onBackgroundMuted} />
+            <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>{item.city}</Text>
           </View>
         ) : null}
       </View>
@@ -115,7 +119,7 @@ export default function GymSelect() {
     if (searching) {
       return (
         <View className="items-center py-10">
-          <ActivityIndicator color="#111111" />
+          <ActivityIndicator color={tokens.onSurface} />
         </View>
       )
     }
@@ -140,12 +144,12 @@ export default function GymSelect() {
   const results = outcome.status === 'ok' ? outcome.results : []
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['top', 'bottom']}>
       <View className="flex-1 px-6 pt-4">
-        <Text className="font-barlow text-3xl uppercase text-move-dark">
+        <Text className="font-barlow text-3xl uppercase" style={{ color: tokens.onSurface }}>
           {t('gym_select.title')}
         </Text>
-        <Text className="mt-2 font-dmsans text-sm text-move-text-secondary">
+        <Text className="mt-2 font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
           {reason === 'unknown_gym' ? t('deep_link.unknown_gym') : t('gym_select.subtitle')}
         </Text>
 
@@ -176,9 +180,10 @@ export default function GymSelect() {
 }
 
 function Hint({ text }: { text: string }) {
+  const { tokens } = useTheme()
   return (
     <View className="items-center px-6 py-10">
-      <Text className="text-center font-dmsans text-sm text-move-text-muted">{text}</Text>
+      <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{text}</Text>
     </View>
   )
 }
