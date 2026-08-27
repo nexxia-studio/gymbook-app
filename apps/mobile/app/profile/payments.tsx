@@ -139,7 +139,7 @@ export default function PaymentsScreen() {
             // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
             style={{ backgroundColor: tokens.actionBg }} className="mt-2 rounded-xl px-6 py-3.5"
           >
-            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
+            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
               {t('payments.view_subscriptions')}
             </Text>
           </Pressable>

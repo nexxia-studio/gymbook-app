@@ -522,9 +522,9 @@ export default function SessionDetail() {
               style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>
                   {t('session.confirm_my_place').toUpperCase()}
                 </Text>
               )}
@@ -557,9 +557,9 @@ export default function SessionDetail() {
               className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : '#C8F000' }}>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : tokens.onAction }}>
                   {isFull ? t('session.waitlist').toUpperCase() : t('session.enroll').toUpperCase()}
                 </Text>
               )}

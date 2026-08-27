@@ -117,7 +117,7 @@ export function OpenGymCard({ group, onSelectSlot }: OpenGymCardProps) {
               {expanded ? t('open_gym.hide') : t('open_gym.show')}
             </Text>
             <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
-              <ChevronDown size={14} color="#C8F000" />
+              <ChevronDown size={14} color={tokens.onAction} />
             </View>
           </View>
         </View>

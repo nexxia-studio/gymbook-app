@@ -24,7 +24,7 @@ export default function PaymentCancel() {
           // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond sombre + libellé lime.
           style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4"
         >
-          <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' }}>
+          <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onAction }}>
             {t('payment.back_to_plans')}
           </Text>
         </Pressable>

@@ -58,7 +58,7 @@ const makeStyles = (tokens: ThemeTokens) => ({
     textAlign: 'center' as const,
     letterSpacing: 2,
   },
-  cta: { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' },
+  cta: { fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onAction },
 })
 
 export default function PaymentSuccess() {
