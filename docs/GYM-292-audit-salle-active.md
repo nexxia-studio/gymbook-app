@@ -440,6 +440,16 @@ compte à salle **unique** qui vise ailleurs : `member.yoga@` choisissant Studio
 | J′4 | Écran de **lancement** (pulse-V) | **inchangé** |
 | J′5 | Non-régression **single** : build Dopamine | l'écran de recherche est **inatteignable** ; navbar, connexion et accueil de Dopamine strictement identiques |
 
+## Recettes par lot → `docs/recettes/`
+
+> 🔴 LES RECETTES DES LOTS RÉCENTS NE SONT PLUS ICI. Chaque lot écrit la sienne dans
+> `docs/recettes/<ticket>.md` — trois lots ajoutant une section à ce document conflictaient
+> deux à deux à chaque merge, pour des blocs pourtant indépendants les uns des autres.
+>
+> Les blocs A à M ci-dessous restent en place : ils décrivent la recette consolidée du train
+> #228–#237 et se lisent ensemble. La règle vaut pour la SUITE — voir
+> `docs/recettes/README.md`.
+
 ## M — GYM-290 : le lot charte (garde-fou, bande, boutons, sémantiques)
 
 Trois salles staging + les deux salles fictives de la planche pour les rampes.
@@ -458,28 +468,6 @@ Trois salles staging + les deux salles fictives de la planche pour les rampes.
 | M10 | 🔴 Feuille de paiement → option « à la séance » | libellé **et** sous-titre lisibles sur le fond du bouton, chez une salle à accent **clair** comme chez Dopamine |
 | M11 | Compte à rebours de liste d'attente | un seul rouge, un seul orange — plus deux orangés voisins sur la même ligne |
 | M12 | 🔴 Non-régression **single** : build Dopamine, parcours complet | identique au pixel **SAUF** les 17 écarts listés dans la PR (A-1 ×6, A-2 ×5, ambres ×3, A-6 ×2, GYM-307 ×1) |
-## O — GYM-294 : lien profond vers une ressource d'une autre salle
-
-⚠️ **Lire d'abord la mesure de la PR** : la RLS de `time_slots` borne déjà la lecture à la
-salle ACTIVE. Un lien profond vers un créneau d'une autre salle rend donc **« introuvable »**,
-pas « mauvaise marque ». O1–O3 vérifient ce fait ; l'interstitiel est aujourd'hui atteignable
-sur le **paiement** seulement.
-
-Comptes : `admin.dopamine@` (3 salles) et `member.yoga@` (1 salle).
-
-| # | geste | attendu |
-|---|---|---|
-| O1 | 🔴 `admin.dopamine@`, salle active Dopamine → lien `exp://…/session/<id d'un créneau STUDIO TEST>` | **« créneau introuvable »** — l'erreur actuelle, inchangée. La RLS a filtré |
-| O2 | Même compte, lien vers un créneau **de la salle active** | le créneau s'ouvre normalement — **rien ne change** |
-| O3 | `member.yoga@`, lien vers un créneau de Dopamine | **« introuvable »** aussi. Pas de fuite, pas d'écran de refus |
-| O4 | 🔴 Build **Dopamine** (single), n'importe quel lien de créneau | **identique à avant** : le garde sort à sa première ligne, aucun aller-retour ajouté |
-| O5 | 🔴 Retour de paiement d'une **autre salle** du membre (le cas latent) | **interstitiel** aux couleurs de la salle du paiement : « Ce contenu est chez X » |
-| O6 | O5 → **« Aller à X »** | bascule par `switch_active_gym`, puis l'écran se recharge sous la marque de X |
-| O7 | O5 → **« Annuler »** | retour, **salle active inchangée** |
-| O8 | PostHog après O6 | `active_gym_reconciled` · `outcome=switched` · **`reason=deep_link_accepted`** |
-
-> **O5 est difficile à provoquer aujourd'hui** : aucun membre n'a de paiement dans plusieurs
-> salles (mesuré : 0). Il faut fabriquer la donnée, ou s'en tenir à O1–O4 et O8.
 ## L — GYM-299 / GYM-304 : nom court, dimanche neutre, encres lisibles
 
 Jeu de données : **Studio Yoga Test 1** porte `short_name = « Yoga Club »`. Les deux autres
