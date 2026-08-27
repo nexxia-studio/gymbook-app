@@ -87,8 +87,20 @@
       // derrière une garde de rôle sans casser la réinitialisation membre.
       var WEB_RESET_BASE = 'https://app.viniz.app/reset-password'
 
+      // 🔴 GYM-303 — LE CONTEXTE DE SALLE EST RELAYÉ, ET C'EST CE QUI GARDE DOPAMINE
+      // CHEZ ELLE. La page d'arrivée du dashboard était brandée Dopamine POUR TOUT LE
+      // MONDE ; elle devient neutre par défaut et ne reprend la marque Dopamine que si le
+      // contexte le dit. Sans cette ligne, les membres de Dopamine — les seuls pour qui
+      // cette marque est JUSTE — seraient les seuls à la perdre.
+      //
+      // ⚠️ `dopamine` est écrit en dur ICI, et nulle part ailleurs : cette page EST celle
+      // de Dopamine, c'est son propre nom, pas une donnée de salle empruntée. Le pendant
+      // générique (_viniz/reset-password.html) lit le slug dans le chemin.
+      var search = window.location.search
+      search += (search ? '&' : '?') + 'gym=dopamine'
+
       // Préserve query + fragment intacts (les tokens de recovery vivent dans le fragment).
-      var dest = WEB_RESET_BASE + window.location.search + window.location.hash
+      var dest = WEB_RESET_BASE + search + window.location.hash
       document.getElementById('continue').setAttribute('href', dest)
       window.location.replace(dest)
     </script>

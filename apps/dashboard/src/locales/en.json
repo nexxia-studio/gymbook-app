@@ -116,7 +116,8 @@
     "invalid_title": "Invalid or expired link",
     "invalid_message": "This link is no longer valid. Enter your email to get a new one.",
     "resend_submit": "Resend link",
-    "resend_success": "If an account exists with this email, you will receive a new link."
+    "resend_success": "If an account exists with this email, you will receive a new link.",
+    "back_to_login": "Back to the sign-in screen"
   },
   "activation": {
     "checking": "Checking your invitation...",

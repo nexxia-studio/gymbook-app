@@ -116,7 +116,8 @@
     "invalid_title": "Lien invalide ou expiré",
     "invalid_message": "Ce lien n'est plus valide. Entre ton email pour en recevoir un nouveau.",
     "resend_submit": "Renvoyer le lien",
-    "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien."
+    "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien.",
+    "back_to_login": "Revenir à l'écran de connexion"
   },
   "activation": {
     "checking": "Vérification de votre invitation...",

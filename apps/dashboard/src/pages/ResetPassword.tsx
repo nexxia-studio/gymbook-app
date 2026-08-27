@@ -10,6 +10,7 @@
 // relit getSession() (l'événement a pu partir avant le montage).
 import { useState, useEffect, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation, Link } from 'react-router-dom'
 import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
@@ -31,20 +32,72 @@ const MIN_PASSWORD = 8
 // ouvre cette page depuis un navigateur desktop.
 const APP_DOWNLOAD_URL = 'https://apps.apple.com/be/app/dopamine-performance-club/id6781670485'
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-303 — CETTE PAGE ÉTAIT BRANDÉE DOPAMINE POUR TOUT LE MONDE
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// C'est ELLE que Antoine a vue, et non l'infra de liens : mesuré avant ce lot,
+// links.viniz.app rendait un 404 NU (79 octets) pour les autres salles, sans marque. La
+// marque Dopamine venait d'ici — mot-marque `DOPAMINE` en lime, et lien de téléchargement
+// vers l'app Dopamine sur l'App Store.
+//
+// Or cette page est atteinte par TOUT LE MONDE, et par quatre chemins distincts :
+//   · les membres de Dopamine, relayés depuis links.viniz.app/dopamine/reset-password ;
+//   · les membres de TOUTE AUTRE salle, relayés depuis /<slug>/reset-password (GYM-303) ;
+//   · les GÉRANTS de toute salle (ForgotPassword → `${origin}/reset-password`) ;
+//   · tout membre créé par `admin-create-member`, quelle que soit sa salle.
+// Les trois derniers voyaient donc la marque d'un client qui n'est pas le leur, et se
+// voyaient proposer le téléchargement d'une app où ils n'ont pas de compte.
+//
+// ⚠️ LE CONTEXTE VIENT DE `?gym=<slug>`, ET DE RIEN D'AUTRE. Vérifié dans le dépôt, pas
+// supposé : le lien de reset MEMBRE porte le slug dans son CHEMIN
+// (`apps/mobile/lib/gymUrls.ts` → `${LINKS_BASE}/${slug}/reset-password`), et les pages de
+// relais de `apps/links` le transmettent ici en query. Le lien GÉRANT, lui, ne porte AUCUN
+// contexte (`${window.location.origin}/reset-password`) : il rend donc le neutre, ce qui
+// est exactement ce qu'il doit rendre.
+//
+// ⚠️ ET LE NEUTRE EST LE DÉFAUT, PAS L'EXCEPTION. Sans paramètre, sans slug reconnu, sur un
+// lien ancien : Viniz. Une page qui retomberait sur Dopamine « au cas où » reproduirait le
+// défaut exact qu'on corrige, en le rendant plus difficile à voir.
+const DOPAMINE_SLUG = 'dopamine'
+const VINIZ_APP_URL = 'https://viniz.app'
+
+/** Le contexte de salle porté par le lien, ou `null` — jamais deviné. */
+function useGymContext(): string | null {
+  const { search } = useLocation()
+  const slug = new URLSearchParams(search).get('gym')?.trim().toLowerCase()
+  return slug ? slug : null
+}
+
 type Status = 'checking' | 'ready' | 'invalid' | 'done'
 
-function DopamineWordmark() {
+/**
+ * Le mot-marque de la page : celui de la salle quand le lien le dit, celui de Viniz sinon.
+ *
+ * ⚠️ LE LIME NE VA QUE SUR FOND SOMBRE, et les deux pastilles respectent la règle : le
+ * `#111111` de Dopamine et le Violet Ink `#2D1B69` de Viniz sont l'un et l'autre des fonds
+ * sombres. C'est la même contrainte que le garde-fou de l'app applique aux salles.
+ */
+function Wordmark({ dopamine }: { dopamine: boolean }) {
   return (
     <div className="mb-10 flex items-center justify-center">
-      <span className="rounded-xl bg-[#111111] px-4 py-2 font-display text-lg font-black tracking-[0.2em] text-[#C8F000]">
-        DOPAMINE
-      </span>
+      {dopamine ? (
+        <span className="rounded-xl bg-[#111111] px-4 py-2 font-display text-lg font-black tracking-[0.2em] text-[#C8F000]">
+          DOPAMINE
+        </span>
+      ) : (
+        <span className="rounded-xl bg-[#2D1B69] px-4 py-2 font-display text-lg font-black tracking-[0.2em] text-[#C8FF3D]">
+          ViNiZ
+        </span>
+      )}
     </div>
   )
 }
 
 export default function ResetPassword() {
   const { t } = useTranslation()
+  // 🔴 GYM-303 — trois états : Dopamine si le lien le dit, Viniz neutre sinon.
+  const gym = useGymContext()
+  const estDopamine = gym === DOPAMINE_SLUG
   const [status, setStatus] = useState<Status>('checking')
 
   const [password, setPassword] = useState('')
@@ -145,7 +198,7 @@ export default function ResetPassword() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-[440px]">
-        <DopamineWordmark />
+        <Wordmark dopamine={estDopamine} />
 
         {/* ── Vérification du lien ── */}
         {status === 'checking' && (
@@ -212,16 +265,31 @@ export default function ResetPassword() {
               {t('reset.success_message')}
             </p>
 
-            {/* GYM-170 — inviter au téléchargement de l'app (moment clé d'activation). */}
+            {/* GYM-170 — inviter au téléchargement de l'app (moment clé d'activation).
+                🔴 GYM-303 — L'APP DOPAMINE N'EST PROPOSÉE QUE SI LE CONTEXTE EST DOPAMINE.
+                Envoyer un membre de Studio Kama sur la fiche App Store de Dopamine, c'est
+                l'envoyer télécharger une app où il n'a pas de compte — le pire moment pour
+                ça étant précisément celui où il vient de réussir à récupérer le sien. */}
             <div className="mt-8 border-t border-[#E8E6E0] pt-6">
               <p className="font-body text-sm font-bold text-dark">{t('reset.next_step_title')}</p>
               <p className="mt-1 font-body text-sm text-dark/50">{t('reset.next_step_text')}</p>
               <a
-                href={APP_DOWNLOAD_URL}
-                className="mt-4 inline-block rounded-xl bg-[#111111] px-6 py-3 font-ui text-sm font-bold text-[#C8F000] transition-opacity hover:opacity-90"
+                href={estDopamine ? APP_DOWNLOAD_URL : VINIZ_APP_URL}
+                className={
+                  estDopamine
+                    ? 'mt-4 inline-block rounded-xl bg-[#111111] px-6 py-3 font-ui text-sm font-bold text-[#C8F000] transition-opacity hover:opacity-90'
+                    : 'mt-4 inline-block rounded-xl bg-[#2D1B69] px-6 py-3 font-ui text-sm font-bold text-[#C8FF3D] transition-opacity hover:opacity-90'
+                }
               >
                 {t('reset.download_app')}
               </a>
+              {/* CTA demandé par l'arbitrage : revenir se connecter, quel que soit le
+                  contexte — c'est la suite naturelle après un mot de passe redéfini. */}
+              <div className="mt-4">
+                <Link to="/login" className="font-body text-sm text-dark/50 underline">
+                  {t('reset.back_to_login')}
+                </Link>
+              </div>
             </div>
           </div>
         )}

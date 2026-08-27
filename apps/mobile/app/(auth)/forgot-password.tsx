@@ -10,6 +10,8 @@ import { supabase } from '../../lib/supabase'
 import { buildMemberResetPasswordUrl } from '../../lib/gymUrls'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
+import { GYM_MODE } from '../../lib/gymResolver'
+import { PoweredByViniz } from '../../components/viniz/PoweredByViniz'
 
 export default function ForgotPassword() {
   const { tokens } = useTheme()
@@ -107,6 +109,20 @@ export default function ForgotPassword() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* 🔴 GYM-303 — LE MOT-MARQUE VINIZ SUR L'ÉCRAN DE DEMANDE DE RÉINITIALISATION.
+          C'est le point de départ d'un parcours qui se poursuit hors de l'app — email,
+          navigateur, page web — et où la marque Viniz apparaît désormais partout. Sans lui,
+          le membre partait d'un écran anonyme pour arriver sur des pages signées.
+
+          ⚠️ COMPOSANT RÉUTILISÉ, PAS RECOPIÉ : c'est celui extrait au lot GYM-301, avec sa
+          règle de teinte du lot GYM-302 (le lime seulement là où il est lisible). Une
+          seconde signature aurait divergé de la première au premier changement de charte.
+
+          ⚠️ MULTI SEULEMENT. En single, l'app est celle de Dopamine : y ajouter une
+          signature Viniz changerait l'app de production, ce que le cadrage interdit — et
+          la parité le vérifie. */}
+      {GYM_MODE === 'multi' ? <PoweredByViniz /> : null}
     </SafeAreaView>
   )
 }

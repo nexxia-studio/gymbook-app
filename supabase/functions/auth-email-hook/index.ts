@@ -93,6 +93,32 @@ const RESEND_TIMEOUT_MS = 3_000
 //   ctaBg/ctaFg    #4827B4 sur #C8FF3D           → le bouton violet de la marque
 // `slug` vide est VOULU : aucun Universal Link membre n'a de sens ici, et tous les boutons
 // de ces emails passent par `ctaUrl` (une URL GoTrue absolue), jamais par `ctaPath`.
+//
+// 🔴 GYM-303 — LE MOT-MARQUE RÉEL MANQUE, ET JE N'AI PAS VOULU LE SIMULER.
+//
+// Le ticket demande de remplacer le « VINIZ » en texte brut de l'en-tête par le vrai
+// mot-marque. `headerHtml` sait déjà le faire : il rend une `<img>` dès que `logoUrl` est
+// une URL https se terminant par `.png`, et retombe sur le texte sinon.
+//
+// ⚠️ CE QUI BLOQUE N'EST PAS LE CODE, C'EST L'ASSET. Le dépôt ne contient aucun PNG du
+// mot-marque : `viniz-logo.png` et `icon-512.png` sont des icônes CARRÉES 512×512 en RGB
+// sans transparence — posées sur l'en-tête sombre, elles afficheraient un carré, pas un
+// logotype. Le SVG existe (`viniz-wordmark-transparent.svg`) mais Gmail et Outlook ne
+// rendent pas les SVG, et le dépôt n'a aucun rastériseur (`sharp` absent, cf. le
+// commentaire de `scripts/generate-icons.js`).
+//
+// ⚠️ ET CE HOOK EST BLOQUANT SANS REPLI : un gabarit cassé casse les inscriptions. Câbler
+// `logoUrl` vers un PNG qui n'existe pas encore afficherait une image brisée dans tous les
+// emails d'authentification — exactement ce que la règle du fichier interdit (« un logo
+// cassé est pire qu'un texte juste »). On laisse donc le texte, qui est correct.
+//
+// POUR LE COCKPIT — il n'y a qu'UNE ligne à changer une fois l'asset en place :
+//   1. déposer un PNG du mot-marque, lime sur fond TRANSPARENT, ≥ 320 px de large
+//      (l'en-tête le rend à 160 px, donc ×2 pour les écrans à haute densité) ;
+//   2. le publier sur une URL https finissant par `.png` — `apps/links/public/brand/` est
+//      la place naturelle, le domaine `links.viniz.app` étant déjà public et statique ;
+//   3. remplacer `logoUrl: null` ci-dessous par cette URL. `isUsablePng` fait le reste, et
+//      protège encore : une URL qui ne finit pas par `.png` retombe sur le texte.
 const VINIZ_BRANDING: GymBranding = {
   name: 'Viniz',
   slug: '',
