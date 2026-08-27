@@ -117,7 +117,11 @@
     "invalid_message": "This link is no longer valid. Enter your email to get a new one.",
     "resend_submit": "Resend link",
     "resend_success": "If an account exists with this email, you will receive a new link.",
-    "back_to_login": "Back to the sign-in screen"
+    "back_to_login": "Back to the sign-in screen",
+    "subtitle_neutral": "Choose a new password for your account.",
+    "success_message_neutral": "You can now log in to your app.",
+    "next_step_text_neutral": "Book your classes from your app.",
+    "download_app_neutral": "Download the app"
   },
   "activation": {
     "checking": "Checking your invitation...",
