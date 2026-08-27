@@ -22,7 +22,7 @@ export default function PaymentCancel() {
         <Pressable
           onPress={() => router.replace('/profile/subscription')}
           // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond sombre + libellé lime.
-          className="mt-10 w-full items-center rounded-xl bg-move-dark py-4"
+          style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4"
         >
           <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' }}>
             {t('payment.back_to_plans')}

@@ -174,9 +174,9 @@ export function FilterSheet({
             activeOpacity={0.8}
             accessibilityRole="button"
             // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
-            className="min-h-[48px] items-center justify-center rounded-xl bg-move-dark"
+            style={{ backgroundColor: tokens.actionBg }} className="min-h-[48px] items-center justify-center rounded-xl"
           >
-            <Text className="font-dmsans-bold text-sm text-move-accent">
+            <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-sm">
               {resultCount === 0
                 ? t('schedule.filters.show_none')
                 : t('schedule.filters.show_count', { count: resultCount })}

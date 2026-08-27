@@ -294,9 +294,9 @@ export default function Bookings() {
                 <TouchableOpacity
                   onPress={() => router.navigate('/(tabs)/schedule')}
                   activeOpacity={0.8}
-                  className="mt-4 rounded-xl bg-move-dark px-5 py-2.5"
+                  style={{ backgroundColor: tokens.actionBg }} className="mt-4 rounded-xl px-5 py-2.5"
                 >
-                  <Text className="font-dmsans-bold text-xs text-move-accent">
+                  <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-xs">
                     {t('bookings.empty_upcoming_cta')}
                   </Text>
                 </TouchableOpacity>

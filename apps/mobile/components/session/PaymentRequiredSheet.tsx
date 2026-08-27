@@ -202,7 +202,8 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
               disabled={isLoadingDropIn || plansLoading || !dropInPlan}
               // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`,
               // spinner et icône lime compris — c'est la même paire.
-              className={`flex-row items-center gap-3 rounded-2xl bg-move-dark px-4 py-4 ${isLoadingDropIn || plansLoading || !dropInPlan ? 'opacity-60' : ''}`}
+              style={{ backgroundColor: tokens.actionBg }}
+              className={`flex-row items-center gap-3 rounded-2xl px-4 py-4 ${isLoadingDropIn || plansLoading || !dropInPlan ? 'opacity-60' : ''}`}
             >
               {isLoadingDropIn || plansLoading ? (
                 <ActivityIndicator color="#C8F000" />
@@ -210,7 +211,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 <CreditCard size={20} color="#C8F000" />
               )}
               <View className="flex-1">
-                <Text className="font-dmsans-bold text-sm text-move-accent">
+                <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-sm">
                   {dropInPlan
                     ? t('payment_required.option_drop_in.label_priced', {
                         price: formatPrice(dropInPlan.priceCents, dropInPlan.currency),

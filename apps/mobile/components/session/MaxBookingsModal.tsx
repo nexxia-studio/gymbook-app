@@ -45,9 +45,9 @@ export function MaxBookingsModal({ visible, limit, onViewBookings, onClose }: Ma
             <TouchableOpacity
               onPress={onViewBookings}
               activeOpacity={0.8}
-              className="items-center rounded-2xl bg-move-dark py-4"
+              style={{ backgroundColor: tokens.actionBg }} className="items-center rounded-2xl py-4"
             >
-              <Text className="font-dmsans-bold text-sm text-move-accent">
+              <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-sm">
                 {t('session.view_bookings')}
               </Text>
             </TouchableOpacity>

@@ -68,9 +68,9 @@ export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time
           <TouchableOpacity
             onPress={onBook}
             activeOpacity={0.8}
-            className="rounded-lg bg-move-dark px-3 py-1.5"
+            style={{ backgroundColor: tokens.actionBg }} className="rounded-lg px-3 py-1.5"
           >
-            <Text className="font-dmsans-bold text-[10px] text-move-accent">
+            <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-[10px]">
               {t('bookings.book')}
             </Text>
           </TouchableOpacity>

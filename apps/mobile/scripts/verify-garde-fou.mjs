@@ -56,6 +56,11 @@ const JETONS = [
   { nom: 'onSurface', sur: 'surface', seuil: AA_TEXT, quoi: 'texte sur carte' },
   { nom: 'onSurfaceSecondary', sur: 'surface', seuil: AA_TEXT, quoi: 'texte secondaire sur carte' },
   { nom: 'accent', sur: 'background', seuil: AA_NON_TEXT, quoi: 'surface d’action' },
+  // 🔴 GYM-290 (décision A) — LE COUPLE DU BOUTON PRIMAIRE. C'est une ENCRE posée sur une
+  // surface : seuil TEXTE. Les 22 pressables débloqués par la décision A en dépendent tous
+  // — s'il tombe, c'est le libellé de l'action principale de l'app qui devient illisible.
+  { nom: 'onAction', sur: 'actionBg', seuil: AA_TEXT, quoi: 'libellé du bouton primaire' },
+  { nom: 'actionBg', sur: 'page', seuil: AA_NON_TEXT, quoi: 'bouton primaire sur la page' },
   // ⚠️ `border` EST MESURÉ, PAS SANCTIONNÉ — et il faut dire pourquoi plutôt que de le
   // retirer du tableau. C'est un filet de séparation à 12-14 % : le soumettre à 3:1
   // reviendrait à exiger un trait épais et sombre entre chaque ligne de liste. WCAG

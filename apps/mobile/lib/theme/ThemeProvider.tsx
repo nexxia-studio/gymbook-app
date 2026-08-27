@@ -42,6 +42,13 @@ export const DOPAMINE_THEME: ThemeTokens = {
   onSurface: '#111111',         // move-dark, dans son emploi de TEXTE (≠ onAccent)
   onSurfaceSecondary: '#6B6861', // move-text-secondary
   accentDim: '#9DB800',         // move-accent-dim
+  // 🔴 GYM-290 (décision A) — LE BOUTON DE DOPAMINE, FIGÉ ICI ET NULLE PART AILLEURS.
+  // Chez une salle, l'action est son accent avec une encre choisie par contraste. Chez
+  // Dopamine, c'est l'inverse : fond sombre, libellé lime. Ces deux lignes sont ce qui
+  // permet aux 22 pressables de se câbler sur des jetons SANS retourner l'app de
+  // production — elles recopient `move-dark` et `move-accent`, à l'octet.
+  actionBg: '#111111',          // move-dark
+  onAction: '#C8F000',          // move-accent
   limeAllowed: true,
 }
 

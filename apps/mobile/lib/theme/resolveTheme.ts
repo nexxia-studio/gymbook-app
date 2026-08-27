@@ -103,6 +103,19 @@ export interface ThemeTokens {
   /** Variante atténuée de l'action. Chez Dopamine : `move-accent-dim`. */
   accentDim: string
   /**
+   * 🔴 GYM-290 (décision A) — LE FOND DU BOUTON PRIMAIRE, ET SON ENCRE.
+   *
+   * ⚠️ POURQUOI UN COUPLE À PART, ET NON `accent`/`onAccent`. Chez une salle, les deux
+   * paires sont IDENTIQUES — la décision A dit « fond = accent de la salle, encre choisie
+   * par contraste », c'est exactement `accent`/`onAccent`. Mais chez Dopamine le bouton
+   * primaire est l'INVERSE de son accent : fond sombre #111111, libellé lime #C8F000.
+   * Câbler les écrans sur `accent` aurait retourné tous les boutons de l'app de
+   * production. Le couple existe donc pour que `DOPAMINE_THEME` puisse FIGER ce que la
+   * salle, elle, dérive — c'est le mandat du ticket, mot pour mot.
+   */
+  actionBg: string
+  onAction: string
+  /**
    * 🔴 LE LIME NE VA QUE SUR FOND SOMBRE. En mode clair il DISPARAÎT de l'interface —
    * règle de l'écran 09 de la maquette, pas une préférence esthétique : sur un fond clair
    * ce vert ne porte aucun texte et ne se distingue d'aucune surface.
@@ -143,6 +156,8 @@ function vinizDark(): ThemeTokens {
     onSurface: VINIZ.light,
     onSurfaceSecondary: VINIZ.lavender,
     accentDim: VINIZ.lime,
+    actionBg: VINIZ.lime,
+    onAction: bestInkOn(parseHex(VINIZ.lime)!, [VINIZ.light, VINIZ.ink, VINIZ.dark]).ink,
     limeAllowed: true,
   }
 }
@@ -411,6 +426,10 @@ export function resolveTheme(
     mutedInkOn(surfaceRgb, parseHex(onSurface)!, SEUIL_TEXTE),
   )
   const accentDim = accent
+  // Décision A, option 1 : chez une salle, l'action EST l'accent, et son encre est celle
+  // que le garde-fou a retenue pour lui — jamais une couleur choisie à la main.
+  const actionBg = accent
+  const onAction = onAccent
 
   return {
     tokens: {
@@ -426,6 +445,8 @@ export function resolveTheme(
       onSurface,
       onSurfaceSecondary,
       accentDim,
+      actionBg,
+      onAction,
       // 🔴 Le lime ne touche JAMAIS un fond clair.
       limeAllowed: mode === 'dark',
     },
