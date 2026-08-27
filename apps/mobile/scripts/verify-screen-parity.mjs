@@ -69,7 +69,11 @@ const UTILS = 'bg|text|border|fill|stroke|ring|divide|placeholder|shadow'
 // migrable par aucun jeton : il reste donc identique des deux côtés, et le compter
 // ajouterait la même valeur aux deux suites — du bruit, pas une vérification.
 const MOVE = new RegExp(
-  'move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border)\\b'
+  // `(?!\\/)` : `bg-move-accent/5` est un lavis, pas la couleur pleine — jamais migrable,
+  // donc jamais comparé. Sans cette exclusion il était compté des DEUX côtés, mais à des
+  // POSITIONS différentes dès qu'une migration déplace une couleur de `className` vers
+  // `style` : quatre faux écarts sur WeekSlots, pour un fichier exact.
+  'move-(?:bg|card|dark|accent-dim|accent|text-secondary|text-muted|border)\\b(?!\\/)'
   + '|#[0-9a-fA-F]{8}\\b|#[0-9a-fA-F]{6}\\b'
   + `|\\b(?:${UTILS})-(${PALETTES})-([0-9]{2,3})(?![0-9/])`
   + `|\\b(?:${UTILS})-(white|black)(?![a-z/])`,
