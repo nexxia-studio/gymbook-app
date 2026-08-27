@@ -64,7 +64,15 @@ const JETONS = [
   // n'échoue pas dessus : un seuil qu'on ne peut pas tenir et qu'on garde quand même
   // apprend à ignorer les rouges.
   { nom: 'border', sur: 'background', seuil: AA_NON_TEXT, quoi: 'séparateur (décoratif)', informatif: true },
-  { nom: 'page', sur: 'background', seuil: 0, quoi: 'bande vs page (§ décision B)' },
+  // 🔴 GYM-290 (décision B) — LA PAGE EST UN SECOND FOND, DONC UN SECOND JEU DE MESURES.
+  // Séparer `page` de `background` crée une surface de plus sur laquelle du texte est
+  // posé — et qui n'était vérifiée par rien, puisque les deux étaient la même couleur.
+  // Les écrans posent `onBackground` et `onBackgroundMuted` indifféremment sur l'une ou
+  // l'autre : les deux doivent tenir sur les DEUX fonds, sans quoi on aurait corrigé la
+  // bande en cassant la page.
+  { nom: 'onBackground', sur: 'page', seuil: AA_TEXT, quoi: 'texte principal SUR LA PAGE' },
+  { nom: 'onBackgroundMuted', sur: 'page', seuil: AA_TEXT, quoi: 'texte secondaire SUR LA PAGE' },
+  { nom: 'accent', sur: 'page', seuil: AA_NON_TEXT, quoi: 'action posée sur la page' },
 ]
 
 // ⚠️ `surface` EST UN VOILE TRANSLUCIDE (GYM-302) : le composer sur le fond est la SEULE
@@ -89,7 +97,8 @@ const tirage = () => ((graine = (graine * 1103515245 + 12345) % 2147483648) / 21
 NUANCES.push(...Array.from({ length: 120 }, () =>
   '#' + Math.floor(tirage() * 0x1000000).toString(16).padStart(6, '0')))
 
-const compteurs = Object.fromEntries(JETONS.map((j) => [j.nom, { sous: 0, pire: Infinity }]))
+const cle = (j) => `${j.nom}@${j.sur}`
+const compteurs = Object.fromEntries(JETONS.map((j) => [cle(j), { sous: 0, pire: Infinity }]))
 let total = 0
 for (const p of NUANCES) for (const s of NUANCES) {
   total++
@@ -99,8 +108,8 @@ for (const p of NUANCES) for (const s of NUANCES) {
     const fond = composer(t[j.sur], t.background)
     const encre = composer(t[j.nom], t.background)
     const r = contrastRatio(parseHex(encre), parseHex(fond))
-    if (r < j.seuil) compteurs[j.nom].sous++
-    if (r < compteurs[j.nom].pire) compteurs[j.nom].pire = r
+    if (r < j.seuil) compteurs[cle(j)].sous++
+    if (r < compteurs[cle(j)].pire) compteurs[cle(j)].pire = r
   }
 }
 
@@ -111,15 +120,15 @@ if (process.argv.includes('--json')) {
 }
 
 console.log(`\nBALAYAGE DU GARDE-FOU — ${total} salles\n`)
-console.log('jeton'.padEnd(22) + 'rôle'.padEnd(30) + 'seuil'.padEnd(8) + 'sous seuil'.padEnd(14) + 'pire')
+console.log('jeton @ fond'.padEnd(36) + 'rôle'.padEnd(32) + 'seuil'.padEnd(8) + 'sous seuil'.padEnd(14) + 'pire')
 let echecs = 0
 for (const j of JETONS) {
   if (j.seuil === 0) continue
-  const c = compteurs[j.nom]
+  const c = compteurs[cle(j)]
   const ko = c.sous > 0 && !j.informatif
   if (ko) echecs++
   console.log(
-    `${ko ? '✗' : (j.informatif && c.sous ? 'ℹ' : '✓')} ${j.nom.padEnd(20)}${j.quoi.padEnd(30)}${String(j.seuil).padEnd(8)}`
+    `${ko ? '✗' : (j.informatif && c.sous ? 'ℹ' : '✓')} ${(j.nom + '@' + j.sur).padEnd(34)}${j.quoi.padEnd(32)}${String(j.seuil).padEnd(8)}`
     + `${(c.sous + ' / ' + total).padEnd(14)}${c.pire.toFixed(2)}:1`,
   )
 }

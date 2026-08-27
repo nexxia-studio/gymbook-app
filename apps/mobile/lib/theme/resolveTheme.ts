@@ -17,7 +17,7 @@
 // autrement qu'en regardant un téléphone.
 import {
   parseHex, toHex, contrastRatio, prefersDarkInk, hslLightness, bestInkOn, mutedInkOn,
-  melange, SEUIL_TEXTE, SEUIL_SURFACE,
+  melange, decalerDe, SEUIL_TEXTE, SEUIL_SURFACE,
   AA_TEXT, AA_NON_TEXT, type Rgb,
 } from './contrast'
 
@@ -28,6 +28,19 @@ import {
 // ⚠️ LE LIME VINIZ N'EST PAS LE LIME DOPAMINE. #C8FF3D contre #C8F000 : deux verts
 // proches à l'œil, deux marques différentes. Les confondre habillerait Viniz aux couleurs
 // d'un de ses clients.
+/**
+ * 🔴 GYM-290 (décision B) — LE PAS QUI SÉPARE LA BANDE DE LA PAGE.
+ *
+ * Exprimé en RATIO DE CONTRASTE et non en pourcentage de luminosité : un pas en pourcentage
+ * se voit sur un fond sombre et disparaît sur un fond clair, alors qu'un pas en contraste
+ * est le même à l'œil partout. Valeur de la planche, recoupée avec les surfaces voisines de
+ * Dopamine (carte/page 1,10:1, bordure/page 1,13:1).
+ *
+ * ⚠️ NE PAS L'AUGMENTER POUR « MIEUX VOIR LA BANDE ». Au-delà, la bande cesse d'être une
+ * séparation et devient une seconde couleur de marque — que la salle n'a pas choisie.
+ */
+export const PAS_BANDE = 1.3
+
 export const VINIZ = {
   lime: '#C8FF3D',
   /** « Violet Ink » — l'encre de Viniz sur fond clair, et le repli des actions. */
@@ -213,6 +226,38 @@ export function resolveTheme(
   // ── 3. LE TEXTE ────────────────────────────────────────────────────────────────────
   const { ink: onBackground, ratio: textContrast } = bestInkOn(background, INKS)
 
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // 🔴 GYM-290 (décision B) — LA BANDE EXISTE ENFIN CHEZ UNE SALLE
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // `page === background` : un écran migré rendait À PLAT chez une salle, sans la bande
+  // d'en-tête qui structure tous les écrans de Dopamine. Ce n'était pas un choix de design,
+  // c'était une position d'attente assumée depuis GYM-286a — faute de savoir de combien
+  // décaler sans inventer une couleur.
+  //
+  // LE PAS EST UN CONTRASTE, PAS UN POURCENTAGE. Éclaircir « de 8 % » donne un écart bien
+  // visible sur un fond sombre et invisible sur un fond clair : la même formule produit
+  // deux résultats différents selon la salle. Un pas exprimé en RATIO DE CONTRASTE est le
+  // même à l'œil partout, parce que c'est justement la grandeur que l'œil mesure.
+  //
+  // ⚠️ 1,30:1 EST CALIBRÉ, PAS CHOISI. C'est le pas de la planche, et il se recoupe avec ce
+  // que fait Dopamine entre ses propres surfaces voisines : carte/page 1,10:1, bordure/page
+  // 1,13:1. Sa bande à elle est à 17,16:1 — mais c'est un fond SOMBRE sur une page CLAIRE,
+  // un parti pris d'identité, pas un pas de séparation. Reproduire 17:1 chez une salle
+  // reviendrait à lui imposer le contraste de Dopamine ; 1,30:1 sépare sans imposer.
+  //
+  // ⚠️ ET LE SENS SUIT L'ÉLÉVATION. En mode sombre la page s'enfonce (plus sombre que la
+  // bande), en mode clair elle se lève : la bande et les cartes restent « au-dessus » de la
+  // page, dans l'ordre auquel l'œil est habitué. Quand le fond est déjà trop extrême pour
+  // le pas demandé — un noir qu'on ne peut plus assombrir — on part dans l'autre sens
+  // plutôt que de rendre un pas trop petit, qui ne se verrait pas.
+  const versLaPage = mode === 'dark' ? parseHex('#000000')! : parseHex('#FFFFFF')!
+  const versLAutre = mode === 'dark' ? parseHex('#FFFFFF')! : parseHex('#000000')!
+  const pageRgb =
+    decalerDe(background, versLaPage, PAS_BANDE)
+    ?? decalerDe(background, versLAutre, PAS_BANDE)
+    ?? background
+  const page = toHex(pageRgb)
+
   // ── 4. L'ACTION ────────────────────────────────────────────────────────────────────
   // Deux conditions, et il faut les DEUX :
   //   (a) la primaire doit porter du texte      → ≥ 4,5:1 avec l'une des deux encres ;
@@ -229,7 +274,15 @@ export function resolveTheme(
   if (p) {
     const inkOnPrimary = bestInkOn(p, INKS_LABEL)
     accentContrast = inkOnPrimary.ratio
-    accentVsBackground = contrastRatio(p, background)
+    // 🔴 GYM-290 (décision B) — SUR LES DEUX FONDS. Une action n'est pas posée que sur la
+    // bande : les écrans en mettent aussi sur la page. Ne la valider que sur `background`
+    // laissait 466 salles sur 19 600 avec un bouton invisible sur leur propre page — le
+    // défaut que la séparation bande/page vient de rendre possible, et qu'elle doit donc
+    // couvrir. On garde le PIRE des deux : c'est celui que le membre rencontrera.
+    accentVsBackground = Math.min(
+      contrastRatio(p, background),
+      contrastRatio(p, pageRgb),
+    )
     if (accentContrast >= AA_TEXT && accentVsBackground >= AA_NON_TEXT) {
       accent = toHex(p)
       onAccent = inkOnPrimary.ink
@@ -269,7 +322,8 @@ export function resolveTheme(
     // se détache, c'est la condition qui a fait accepter le fond.
     const replis = mode === 'dark' ? [VINIZ.lime, VINIZ.ink] : [VINIZ.ink, VINIZ.lime]
     const visible = replis.find(
-      (c) => contrastRatio(parseHex(c)!, background) >= SEUIL_SURFACE,
+      (c) => contrastRatio(parseHex(c)!, background) >= SEUIL_SURFACE
+        && contrastRatio(parseHex(c)!, pageRgb) >= SEUIL_SURFACE,
     )
     if (!visible) {
       reasons.push(
@@ -329,7 +383,7 @@ export function resolveTheme(
   // vers le fond aussi loin que 4,5:1 l'autorise. La hiérarchie reste (le secondaire est
   // plus discret), et la lisibilité ne dépend plus de la teinte du fond.
   const onBackgroundMuted = toHex(
-    mutedInkOn(background, parseHex(onBackground)!, SEUIL_TEXTE),
+    mutedInkOn(background, parseHex(onBackground)!, SEUIL_TEXTE, pageRgb),
   )
 
   // ── 6. LES QUATRE RÔLES AJOUTÉS PAR GYM-286a ───────────────────────────────────────
@@ -347,7 +401,6 @@ export function resolveTheme(
   //     elle-même ;
   //   — `onSurface` tient tant que `surface` est un voile translucide sur le fond ; il
   //     faudra le recalculer le jour où une salle fournira une surface opaque.
-  const page = toHex(background)
   // 🔴 GYM-290 — LES ENCRES DE CARTE SE VALIDENT SUR LA CARTE, PAS SUR LA PAGE.
   // Elles recopiaient les encres de fond. Tant que la surface était un voile à 6 %, l'écart
   // était petit — mais il existait, et il suffisait à faire tomber `onSurface` sous 4,5:1

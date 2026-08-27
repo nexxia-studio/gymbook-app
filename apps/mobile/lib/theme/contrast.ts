@@ -122,10 +122,42 @@ export function melange(encre: Rgb, fond: Rgb, a: number): Rgb {
  * Le pas descendant s'arrête au premier facteur qui tient : on obtient l'encre la PLUS
  * atténuée encore conforme, pas une valeur arbitraire au milieu.
  */
-export function mutedInkOn(fond: Rgb, encre: Rgb, seuil: number): Rgb {
+/**
+ * 🔴 GYM-290 (décision B) — DÉCALER UNE COULEUR D'UN PAS DE CONTRASTE DONNÉ.
+ *
+ * Rend la couleur obtenue en fondant `base` vers `cible` jusqu'à atteindre `ratio` — le
+ * plus petit décalage qui l'atteint, pas un mélange arbitraire. Sert à fabriquer la PAGE à
+ * partir de la BANDE : deux surfaces qui doivent se distinguer sans que l'une devienne un
+ * accent.
+ *
+ * ⚠️ REND `null` PLUTÔT QUE DE S'APPROCHER. Si même `cible` pure n'atteint pas le ratio —
+ * un fond déjà quasi noir qu'on essaie d'assombrir — l'appelant doit essayer l'autre sens,
+ * pas se contenter d'un pas trop petit qui ne se verrait pas.
+ */
+export function decalerDe(base: Rgb, cible: Rgb, ratio: number): Rgb | null {
+  if (contrastRatio(base, cible) < ratio) return null
+  let bas = 0
+  let haut = 1
+  for (let i = 0; i < 24; i++) {
+    const mid = (bas + haut) / 2
+    if (contrastRatio(melange(cible, base, mid), base) >= ratio) haut = mid
+    else bas = mid
+  }
+  return melange(cible, base, haut)
+}
+
+export function mutedInkOn(fond: Rgb, encre: Rgb, seuil: number, second?: Rgb): Rgb {
+  // ⚠️ `second` N'EST PAS UN RAFFINEMENT, C'EST UNE NÉCESSITÉ DEPUIS LA DÉCISION B.
+  // L'encre atténuée est posée indifféremment sur la BANDE et sur la PAGE, deux fonds
+  // désormais distincts. La dériver sur un seul revient à la garantir sur un seul :
+  // mesuré, 980 salles sur 19 600 avaient un texte secondaire conforme sur la bande et
+  // sous le seuil sur la page. On exige donc le seuil sur les DEUX, et l'atténuation
+  // s'arrête au premier facteur qui tient partout.
   for (let a = 0.60; a <= 1.0001; a += 0.05) {
     const essai = melange(encre, fond, a)
-    if (contrastRatio(essai, fond) >= seuil) return essai
+    const tient = contrastRatio(essai, fond) >= seuil
+      && (!second || contrastRatio(essai, second) >= seuil)
+    if (tient) return essai
   }
   // Aucun mélange ne tient : l'encre pleine est le mieux qu'on puisse faire, et elle passe
   // le seuil (c'est la condition qui a fait accepter ce fond).
