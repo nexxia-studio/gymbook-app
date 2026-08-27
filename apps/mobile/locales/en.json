@@ -698,5 +698,11 @@
     "back_to_login": "Back to {{gym}} sign-in",
     "back_to_login_unnamed": "Back to sign-in",
     "go_to_mine": "Go to {{gym}}"
+  },
+  "cross_gym": {
+    "title": "This content belongs to {{gym}}",
+    "body": "You're a member there, but you're currently viewing another gym. Do you want to go?",
+    "go": "Go to {{gym}}",
+    "error": "The switch didn't go through. Try again in a moment."
   }
 }

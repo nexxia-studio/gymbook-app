@@ -698,5 +698,11 @@
     "back_to_login": "Revenir à la connexion {{gym}}",
     "back_to_login_unnamed": "Revenir à la connexion",
     "go_to_mine": "Aller à {{gym}}"
+  },
+  "cross_gym": {
+    "title": "Ce contenu est chez {{gym}}",
+    "body": "Tu es membre de cette salle, mais tu consultes actuellement une autre. Veux-tu y aller ?",
+    "go": "Aller à {{gym}}",
+    "error": "La bascule n'a pas abouti. Réessaie dans un instant."
   }
 }

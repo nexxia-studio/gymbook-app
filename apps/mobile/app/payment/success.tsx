@@ -12,6 +12,8 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { runNetworkSafe } from '../../lib/networkError'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import type { ThemeTokens } from '../../lib/theme/resolveTheme'
+import { useCrossGymGuard } from '../../hooks/useCrossGymGuard'
+import { CrossGymInterstitial } from '../../components/gym/CrossGymInterstitial'
 
 interface Payment {
   id: string
@@ -230,6 +232,12 @@ function ClassicPaymentScreen({
   const { title: titleStyle, cta: ctaLabel } = makeStyles(tokens)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [status, setStatus] = useState<ClassicStatus>('polling')
+  // 🔴 GYM-294 — MÊME GARDE QUE L'ÉCRAN DE CRÉNEAU, PAS UNE SECONDE VÉRIFICATION.
+  // La policy de `payments` (`member_id = auth.uid()`) n'a AUCUNE clause de salle : un
+  // paiement d'une autre salle du membre est lisible, et s'afficherait sous la marque de la
+  // salle active. En single le hook sort à sa première ligne — aucun détour ajouté.
+  const [gymDuPaiement, setGymDuPaiement] = useState<string | null>(null)
+  const gardePaiement = useCrossGymGuard(gymDuPaiement)
   // GYM-240 — la connexion est-elle tombée pendant le poll ? État d'AFFICHAGE seulement :
   // il ne change ni le cycle de poll, ni l'issue du paiement.
   const [offline, setOffline] = useState(false)
@@ -282,7 +290,12 @@ function ClassicPaymentScreen({
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
     let query = supabase
       .from('payments')
-      .select('id, status, plan_name, amount, currency, credits_granted')
+      // 🔴 GYM-294 — `gym_id` RAMENÉ POUR LE GARDE. La policy de `payments` est
+      // `member_id = auth.uid()` — SANS clause de salle : contrairement à `time_slots`,
+      // elle autorise donc bien la lecture d'un paiement d'une AUTRE salle du membre.
+      // Défaut LATENT aujourd'hui (mesuré : 0 membre a des paiements dans plusieurs
+      // salles), mais la policy l'autorise, et c'est la policy qui fait foi.
+      .select('id, gym_id, status, plan_name, amount, currency, credits_granted')
     if (rowId) query = query.eq('id', rowId)
     else if (mollieId) query = query.eq('mollie_payment_id', mollieId)
     else return
@@ -299,6 +312,8 @@ function ClassicPaymentScreen({
     setOffline(false)
     const { data } = res.data
     if (!data || settledRef.current) return
+    // GYM-294 — la salle du paiement, pour le garde partagé. `null` tant qu'on ne sait pas.
+    setGymDuPaiement((data as { gym_id?: string }).gym_id ?? null)
     setPayment(data as Payment)
     const s = data.status as string
     if (s === 'paid') {
@@ -403,6 +418,21 @@ function ClassicPaymentScreen({
     }, 5000)
     return () => clearTimeout(id)
   }, [successVisible, goToSuccessDestination])
+
+  // 🔴 GYM-294 — MÊME MÉCANIQUE QUE L'ÉCRAN DE CRÉNEAU, avant tout rendu.
+  // ⚠️ PAS DE BRANCHE `not_member` ICI, et ce n'est pas un oubli : la policy borne la
+  // lecture à `member_id = auth.uid()`. Un paiement lisible est, par construction, CELUI DU
+  // MEMBRE — il ne peut donc pas appartenir à une salle dont il n'est pas membre. Ajouter
+  // un refus impossible ferait croire à un cas qui n'existe pas.
+  if (gardePaiement.kind === 'elsewhere') {
+    return (
+      <CrossGymInterstitial
+        gym={gardePaiement.gym}
+        onCancel={() => router.back()}
+        onSwitched={() => setGymDuPaiement(null)}
+      />
+    )
+  }
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['top', 'bottom']}>

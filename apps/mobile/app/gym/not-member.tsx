@@ -80,8 +80,21 @@ export default function NotMember() {
     if (busy) return
     setBusy(true)
     await signOut()
-    await writeSelectedGymSlug(refus!.requestedSlug)
-    router.replace('/(auth)/login' as never)
+    // 🔴 GYM-294 — LE SLUG PEUT MANQUER, ET CE N'EST PAS UN BUG.
+    // Cet écran est désormais aussi atteint depuis un lien profond vers un créneau (voir
+    // `useCrossGymGuard`). Dans ce cas on ne connaît que l'IDENTIFIANT de la salle : son
+    // slug est illisible, la RLS de `nexxia_gyms` n'exposant une salle qu'à ses membres —
+    // et c'est précisément le cas où le membre n'en est pas un.
+    //
+    // ⚠️ ÉCRIRE UN SLUG VIDE SERAIT PIRE QUE DE NE RIEN ÉCRIRE : le membre repartirait vers
+    // une connexion sans marque, sur une salle inexistante. Sans slug, on l'envoie donc à la
+    // recherche de salle — le seul écran qui sache repartir de zéro.
+    if (refus!.requestedSlug) {
+      await writeSelectedGymSlug(refus!.requestedSlug)
+      router.replace('/(auth)/login' as never)
+      return
+    }
+    router.replace('/gym/select' as never)
   }
 
   // ── Action secondaire : aller dans sa salle, sans ressaisir son mot de passe ───────
