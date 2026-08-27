@@ -265,3 +265,115 @@ elle-même** (« aucune adoption du serveur avant la soumission du choix »).
 Rejoué contre le code de `develop`, il **échoue sur cinq cas**. C'est ce qui manquait : la
 fonction n'avait aucun test, et son silence empêchait de voir laquelle des branches
 s'exécutait.
+
+---
+
+# GYM-293 / GYM-298 — Compléments
+
+## GYM-293 (mitigation) — l'inscription retirée en mode multi
+
+En `multi`, `signupGymId()` rend `null` : le profil est créé **sans salle**, la session
+s'ouvre, et l'app est vide — aucune requête ne matche, rien ne l'explique. Deux verrous,
+parce qu'un seul ne tient pas :
+
+| verrou | où | pourquoi |
+|---|---|---|
+| le **lien** disparaît | `components/viniz/BrandedLogin.tsx` | cet écran n'existe qu'en multi ; l'écran de Dopamine est un composant distinct, intact |
+| la **route** est fermée | `app/(auth)/signup.tsx` — `<Redirect>` | le routeur enregistre le fichier dans **tous** les builds : un lien profond rouvrirait ce que le masquage ferme |
+
+⚠️ Vérifié : **aucun autre chemin n'y mène en multi.** L'écran de connexion brandé ne porte
+pas les boutons OAuth — ils créeraient un compte de la même façon. Les deux autres liens
+vers l'inscription vivent dans des composants **single uniquement**.
+
+## GYM-298 — rejouer la réconciliation au retour de veille
+
+292b a remplacé une **perte définitive** par une **attente indéfinie** : un membre hors
+ligne au lancement restait sans salle jusqu'à ce qu'il relance l'app. La reprise est armée
+par la **seule** issue indécise :
+
+| issue | reprise |
+|---|---|
+| `switched` · `aligned` · `server_wins` | **au repos** — ce sont des décisions, pas des incidents |
+| `unavailable` | **armée** |
+
+🔴 **Aucune nouvelle source de vérité** : `derniereIssue` dit si la dernière tentative a
+abouti, jamais quelle est la salle. Et la garde compteur d'`activeGymWrites.ts` est
+**consultée**, pas dupliquée — un retour de veille pendant une bascule manuelle ne relance
+rien.
+
+---
+
+# RECETTE — version consolidée (#228 + #293 + #298)
+
+Build **multi**, app réinstallée entre les blocs A et B.
+Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` (une salle chacun) et
+`admin.dopamine@` (les trois), tous `@staging.test`.
+
+## A — Comptes à salle unique
+
+| # | geste | attendu |
+|---|---|---|
+| A1 | Recherche → **Studio Test Staging** → login `member.studiotest@` | connexion brandée → accueil **Studio Test, avec ses cours**. /profil : **rien ne bouge**. |
+| A2 | Réinstaller → **Studio Yoga Test 1** → `member.yoga@` | idem en Yoga |
+| A3 | Réinstaller → **Dopamine** → `member.dopamine@` | idem. Cours présents **immédiatement**, sans passer par /profil |
+| A4 | 🔴 Réinstaller → **Studio Test Staging** → `member.yoga@` (membre de Yoga **seulement**) | le serveur **refuse** (PT403) : bascule sur **Yoga**, marque **et** données cohérentes |
+
+## B — Compte multi-salles (la régression de #228)
+
+`admin.dopamine@`, membre des 3, salle active serveur = **Dopamine**.
+
+| # | geste | attendu |
+|---|---|---|
+| B1 | 🔴 Réinstaller → **Studio Test Staging** → login | **reste sur Studio Test Staging**. Aucune bascule vers Dopamine, **même fugitive** |
+| B2 | /profil, /planning, /reservations | **rien ne bouge** |
+| B3 | Réinstaller → **Studio Yoga Test 1** → login | reste sur **Yoga** |
+| B4 | Réinstaller → **Dopamine** → login | reste sur **Dopamine** (le choix est déjà actif) |
+
+## C — Incident réseau, et la reprise (GYM-298)
+
+| # | geste | attendu |
+|---|---|---|
+| C1 | 🔴 Réinstaller → **Studio Test Staging**, **couper le réseau**, login (échoue) → rétablir → login | l'app va sur **Studio Test Staging**. Le choix a survécu |
+| C2 | 🔴 Réinstaller → **Studio Test Staging** → login, **couper le réseau dans les 2 s** | soit Studio Test, soit un écran sans données — **jamais Dopamine** |
+| C3 | 🔴 **Suite de C2, réseau toujours coupé** : passer l'app en arrière-plan, revenir | **rien ne change** (pas de réseau), et **aucune boucle** : pas de clignotement, pas de requêtes en rafale |
+| C4 | 🔴 **Suite de C3** : rétablir le réseau **sans relancer l'app**, passer en arrière-plan, revenir | la salle **Studio Test Staging** apparaît, marque **et** données. **C'est le cas que GYM-298 corrige** : avant, il fallait relancer l'app |
+| C5 | Après C4, refaire arrière-plan / retour **trois fois** | **plus aucune** réconciliation : la reprise s'est désarmée. Vérifiable dans PostHog — un seul `active_gym_reconciled` de plus, pas trois |
+| C6 | 🔴 Lancer une bascule manuelle (Profil → Changer de salle) puis passer en arrière-plan / revenir **pendant** la bascule | la bascule aboutit normalement. **Aucune réconciliation concurrente** |
+
+## D — Inscription masquée en multi (GYM-293)
+
+| # | geste | attendu |
+|---|---|---|
+| D1 | 🔴 Écran de connexion brandé (multi) | **aucun lien « Créer un compte »**. « Ce n'est pas ma salle » est toujours là |
+| D2 | 🔴 Forcer la route : lien profond ou navigation vers `/(auth)/signup` en multi | **redirection immédiate** vers la connexion. **Aucun formulaire ne clignote** avant |
+| D3 | Depuis la connexion brandée, « Ce n'est pas ma salle » → autre salle → connexion | parcours 291 intact, toujours **sans** lien d'inscription |
+| D4 | 🔴 Build **single** (Dopamine) : écran d'accueil, connexion, inscription | **inchangés**. Le lien « Créer un compte » est là, le formulaire s'ouvre, l'inscription fonctionne |
+
+## E — Switch manuel et course (non-régression #227/#228)
+
+| # | geste | attendu |
+|---|---|---|
+| E1 | `admin.dopamine@` : **3 allers-retours** de bascule sans attendre l'écran | à l'arrêt : marque **et** données de la dernière salle. Aucun retour en arrière spontané |
+| E2 | Idem en coupant le réseau au milieu | message d'échec, **salle inchangée**, jamais d'état mixte |
+
+## F — Cloisonnement (non-régression #227)
+
+| # | geste | attendu |
+|---|---|---|
+| F1 | Abonnement / Paiements / statistiques en salle A puis B | les trois **diffèrent** |
+| F2 | Nom et adresse de la salle après bascule | ceux de la salle **courante** |
+
+## G — En-têtes et logo (non-régression #229)
+
+| # | geste | attendu |
+|---|---|---|
+| G1 | multi : /accueil, /planning, /reservations, /profil | le nom de la salle **active** partout, aucune mention de Dopamine |
+| G2 | multi : bouton central de la barre | **pulse-V Viniz** teinté de l'accent de la salle |
+| G3 | single : les mêmes écrans | « **DOPAMINE / Performance Club** », « **D** » sur fond noir — **au pixel** |
+
+## H — Observabilité
+
+| # | geste | attendu |
+|---|---|---|
+| H1 | Après A1, A4, B1, C1 | un `active_gym_reconciled` par ouverture de session : `aligned`, `server_wins`, `switched`, `unavailable` |
+| H2 | Après C4 | un `active_gym_reconciled` **supplémentaire**, `outcome=switched` — la reprise a abouti |
