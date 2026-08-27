@@ -49,6 +49,11 @@ export function AppearanceCard() {
   const [secondary, setSecondary] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState('')
   const [shortName, setShortName] = useState('')
+  // 🔴 GYM-306 — LE NOM DE MARQUE, DÉSORMAIS ÉDITABLE.
+  const [nom, setNom] = useState('')
+  // La dénomination LÉGALE, en lecture seule ici : elle s'édite dans « Informations
+  // légales ». Voir la note du champ pour la raison de l'afficher quand même.
+  const [nomLegal, setNomLegal] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -58,12 +63,14 @@ export function AppearanceCard() {
     void (async () => {
       const { data } = await supabase
         .from('nexxia_gyms')
-        .select('logo_url, primary_color, secondary_color, short_name')
+        .select('logo_url, primary_color, secondary_color, short_name, name, commercial_name')
         .eq('id', gym.id)
         .single()
       if (cancelled || !data) return
       setLogoUrl(data.logo_url ?? '')
       setShortName(data.short_name ?? '')
+      setNom(data.name ?? '')
+      setNomLegal(data.commercial_name ?? '')
       setPrimary(data.primary_color ?? null)
       setSecondary(data.secondary_color ?? null)
       setLoaded(true)
@@ -76,6 +83,14 @@ export function AppearanceCard() {
 
   async function handleSave() {
     if (!gym?.id) return
+    // 🔴 UN NOM VIDE N'EST PAS UN CHOIX, C'EST UNE PERTE. `name` est NOT NULL en base, et
+    // c'est lui que lisent l'app, les emails et les factures : l'enregistrer vide ferait
+    // disparaître la salle de sa propre interface. On refuse AVANT d'écrire plutôt que de
+    // laisser PostgREST rendre une erreur que le gérant ne saurait pas lire.
+    if (!nom.trim()) {
+      addToast(t('settings.appearance.name_required'), 'warning')
+      return
+    }
     setSaving(true)
     // 🔴 CHAQUE CHAMP VIDE PART EN `null`, JAMAIS EN CHAÎNE VIDE NI EN DÉFAUT. `''` en base
     // se lit comme « renseigné, mais vide » : le mobile afficherait alors un nom court vide
@@ -86,6 +101,11 @@ export function AppearanceCard() {
       .update({
         logo_url: logoUrl.trim() || null,
         short_name: shortName.trim() || null,
+        // ⚠️ `name` EST NOT NULL et c'est le nom que voient les membres : un champ vidé ne
+        // part PAS en `null` comme les autres, il est refusé plus haut. C'est la seule
+        // exception à la règle « champ vidé => null » de cette carte, et elle vient de la
+        // colonne, pas d'un choix d'écran.
+        name: nom.trim(),
         primary_color: primary,
         secondary_color: secondary,
       })
@@ -164,6 +184,43 @@ export function AppearanceCard() {
               </div>
             </div>
           )}
+
+          {/* ═══════════════════════════════════════════════════════════════════════
+              🔴 GYM-306 — LES DEUX NOMS, CÔTE À CÔTE, ET UN SEUL ÉDITABLE ICI.
+              ═══════════════════════════════════════════════════════════════════════
+              La salle porte TROIS noms qui ne doivent JAMAIS être synchronisés de force :
+                · `name`            — la marque, ce que les membres lisent partout ;
+                · `commercial_name` — la dénomination légale, celle des factures ;
+                · `short_name`      — l'en-tête de l'app (GYM-285).
+
+              ⚠️ POURQUOI `name` EST DANS « APPARENCE » ET NON DANS « INFORMATIONS LÉGALES ».
+              Cette carte réunit déjà tout ce que le MEMBRE voit : couleurs, logo, nom court.
+              `name` est de cette famille — c'est la marque. La dénomination légale, elle,
+              appartient à la carte qui porte le numéro de TVA et l'adresse d'émission. Les
+              séparer selon ce que le gérant CHERCHE (« changer ce que voient mes membres »
+              vs « corriger mes mentions de facture ») est ce qui empêche de les confondre.
+
+              ⚠️ MAIS LA LÉGALE EST AFFICHÉE ICI QUAND MÊME, EN LECTURE SEULE. C'est ce que
+              l'arbitrage demandait — les voir côte à côte — sans créer un second chemin
+              d'écriture pour la même donnée. Deux champs modifiables pour une seule colonne
+              divergeraient au premier enregistrement concurrent. */}
+          <Input
+            label={t('settings.appearance.name_label')}
+            name="gymName"
+            value={nom}
+            onChange={(e) => setNom(e.target.value)}
+            helper={t('settings.appearance.name_helper')}
+          />
+
+          <Input
+            label={t('settings.appearance.legal_name_label')}
+            name="gymLegalName"
+            value={nomLegal}
+            readOnly
+            disabled
+            placeholder={t('settings.appearance.legal_name_empty')}
+            helper={t('settings.appearance.legal_name_helper')}
+          />
 
           <Input
             label={t('settings.appearance.short_name_label')}
