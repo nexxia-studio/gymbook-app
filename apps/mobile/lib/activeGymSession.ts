@@ -64,8 +64,12 @@ import { captureEvent } from './analytics'
 
 /** Ce que la réconciliation a fait — pour le journal et les tests. */
 export type ReconcileOutcome =
-  /** Mode `single` : rien à réconcilier, la salle vient du build. */
+  // ⚠️ `single` N'A PAS DE `reason`, ET C'EST VOULU. Il ne franchit jamais `journalise` :
+  // rien n'est réconcilié, donc rien n'est mesuré. Lui inventer une raison obligerait à
+  // ajouter au jeu fermé une huitième valeur qui n'apparaîtrait dans aucun événement — et
+  // le lecteur du tableau de bord chercherait longtemps ce qu'elle veut dire.
   | { status: 'single' }
+  | ({ reason: ReconcileReason } & (
   /** Choix local et serveur concordaient déjà. */
   | { status: 'aligned'; gymId: string }
   /** Le choix du membre a été accepté par le serveur : la salle active a changé. */
@@ -74,6 +78,43 @@ export type ReconcileOutcome =
   | { status: 'server_wins'; gymId: string }
   /** Hors ligne ou serveur indisponible : rien n'a été touché. */
   | { status: 'unavailable' }
+  ))
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-300 — `reason` : CE QUI A MANQUÉ AU DIAGNOSTIC, ET CE QU'IL A COÛTÉ
+// ═════════════════════════════════════════════════════════════════════════════════════
+// GYM-292b avait ajouté `outcome` — c'était déjà énorme, mais insuffisant. `server_wins`
+// dit que le serveur a gardé la main ; il ne dit PAS pourquoi, et les deux raisons
+// possibles n'appellent pas du tout la même réaction :
+//
+//   · `not_member`      — on n'a même pas soumis : le slug choisi n'est pas dans les
+//                         adhésions. C'est une décision prise PAR L'APP, sur sa lecture.
+//   · `refused_pt403`   — on a soumis, et le SERVEUR a refusé. C'est sa décision à lui.
+//
+// La QA du 27/08 s'est arrêtée exactement là : 9 événements, 2 `server_wins`, et aucun
+// moyen de savoir lequel des deux chemins avait été pris. Il a fallu interroger la base
+// pour trancher — et découvrir que la prémisse de l'enquête était fausse. Une propriété
+// de plus dans l'événement aurait donné la réponse en trente secondes.
+//
+// ⚠️ ENSEMBLE FERMÉ, et il le reste. Sept valeurs, aucune construite dynamiquement, aucun
+// texte venu du serveur : c'est la convention GYM-273, et c'est aussi ce qui rend
+// l'événement exploitable dans PostHog — une propriété à cardinalité libre n'est pas un
+// filtre, c'est un champ de recherche.
+export type ReconcileReason =
+  /** Le choix a été soumis ET accepté : la salle active a changé. */
+  | 'choice_accepted'
+  /** Le slug choisi n'est pas dans les adhésions — rien n'a été soumis. */
+  | 'not_member'
+  /** Soumis, puis refusé par `switch_active_gym` (PT403). */
+  | 'refused_pt403'
+  /** `switch_active_gym` n'a pas rendu de verdict : réseau, ou erreur serveur. */
+  | 'rpc_error'
+  /** Les adhésions n'ont pas pu être lues, ou ne désignent aucune salle active. */
+  | 'memberships_unavailable'
+  /** Personne n'avait rien choisi : le serveur est la seule réponse possible. */
+  | 'no_local_choice'
+  /** Le choix ÉTAIT déjà la salle active. Rien à faire, et c'est le cas nominal. */
+  | 'already_aligned'
 
 /**
  * Aligne la salle active du serveur et le choix local, une fois la session ouverte.
@@ -96,9 +137,39 @@ export type ReconcileOutcome =
  * convention de GYM-273, qui interdit déjà le texte libre venu du serveur.
  */
 function journalise(outcome: ReconcileOutcome, avaitUnChoix: boolean): ReconcileOutcome {
-  captureEvent('active_gym_reconciled', { outcome: outcome.status, had_local_choice: avaitUnChoix })
+  if (outcome.status === 'single') return outcome
+  captureEvent('active_gym_reconciled', {
+    outcome: outcome.status,
+    had_local_choice: avaitUnChoix,
+    // GYM-300 — la propriété qui a manqué le 27/08. Voir `ReconcileReason`.
+    reason: outcome.reason,
+  })
   derniereIssue = outcome.status
   return outcome
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-300 (§2) — UNE LECTURE QUI ÉCHOUE N'EST PAS UN REFUS D'ADHÉSION
+// ═════════════════════════════════════════════════════════════════════════════════════
+// C'est la règle que le cockpit a posée, et elle mérite d'être dite dans le code plutôt
+// que seulement dans un ticket : « ne pas avoir PU LIRE les adhésions » et « ne pas être
+// MEMBRE » sont deux faits différents, et les confondre fait perdre au membre la salle
+// qu'il a choisie pour une simple coupure réseau.
+//
+// La distinction tient à un endroit et un seul : `listMyGyms()` rend un statut à trois
+// valeurs (`ok` / `offline` / `error`), et TOUT ce qui n'est pas `ok` sort par
+// `memberships_unavailable` — jamais par `server_wins`. Le slug n'est pas réécrit, la
+// salle n'est pas abaissée, et GYM-298 réarme une reprise.
+//
+// ⚠️ CET INVARIANT NE SE RELIT PAS, IL SE MESURE. `scripts/verify-course-salle-active.mjs`
+// rejoue les branches et refuse tout `server_wins` dont la raison n'est pas l'une des deux
+// qui l'autorisent. Une refonte qui reviendrait en arrière casserait le script, pas la
+// recette d'un mardi.
+const RAISONS_QUI_DONNENT_LA_MAIN_AU_SERVEUR: ReconcileReason[] = ['not_member', 'refused_pt403']
+
+/** Exportée pour le script de vérification : la liste fermée, lisible depuis l'extérieur. */
+export function serverWinsReasons(): ReconcileReason[] {
+  return [...RAISONS_QUI_DONNENT_LA_MAIN_AU_SERVEUR]
 }
 
 // ═════════════════════════════════════════════════════════════════════════════════════
@@ -159,17 +230,19 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
     if (memberships.status !== 'ok') {
       // Hors ligne : ON NE TOUCHE À RIEN. Ni la salle, ni le slug. Le choix survit à une
       // coupure réseau ; la prochaine ouverture de session réessaiera.
-      return journalise({ status: 'unavailable' }, slugLocal !== null)
+      return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, slugLocal !== null)
     }
     const active = memberships.gyms.find((g) => g.isActive)
 
     // ── 3. AUCUN CHOIX LOCAL — LE SERVEUR EST LA SEULE RÉPONSE ──────────────────────
     // Connexion directe, lien profond, restauration de session : personne n'a rien choisi.
     if (!slugLocal) {
-      if (!active) return journalise({ status: 'unavailable' }, slugLocal !== null)
+      if (!active) {
+        return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, false)
+      }
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
-      return journalise({ status: 'aligned', gymId: active.gymId }, slugLocal !== null)
+      return journalise({ status: 'aligned', reason: 'no_local_choice', gymId: active.gymId }, false)
     }
 
     const choisie = memberships.gyms.find((g) => g.slug === slugLocal)
@@ -178,7 +251,7 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
     // Rien à basculer : on pose la salle confirmée par le serveur et on s'arrête.
     if (choisie?.isActive) {
       useAuthStore.getState().setActiveGymConfirmed(choisie.gymId)
-      return journalise({ status: 'aligned', gymId: choisie.gymId }, slugLocal !== null)
+      return journalise({ status: 'aligned', reason: 'already_aligned', gymId: choisie.gymId }, true)
     }
 
     // ── 5. LE CHOIX DÉSIGNE UNE SALLE OÙ LE MEMBRE N'EST PAS INSCRIT ────────────────
@@ -186,10 +259,14 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
     // slug n'y figure pas, `switch_active_gym` répondrait PT403. On s'épargne l'aller-retour
     // et on applique le même verdict — le serveur garde la main, le slug est corrigé.
     if (!choisie) {
-      if (!active) return journalise({ status: 'unavailable' }, slugLocal !== null)
+      if (!active) {
+        return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, true)
+      }
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
-      return journalise({ status: 'server_wins', gymId: active.gymId }, slugLocal !== null)
+      return journalise(
+        { status: 'server_wins', reason: 'not_member', gymId: active.gymId }, true,
+      )
     }
 
     // ── 6. LE CHOIX EST LÉGITIME ET DIFFÈRE — ON LE SOUMET ──────────────────────────
@@ -198,16 +275,22 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
     // allers-retours, et la laissait là dès que la correction échouait pour n'importe
     // quelle raison.
     const res = await switchGym(choisie)
-    if (res.status === 'ok') return journalise({ status: 'switched', gymId: choisie.gymId }, true)
+    if (res.status === 'ok') {
+      return journalise({ status: 'switched', reason: 'choice_accepted', gymId: choisie.gymId }, true)
+    }
 
     // ── 7. REFUS EXPLICITE DU SERVEUR — ET LUI SEUL FAIT CÉDER LE CHOIX ─────────────
     // ⚠️ SEUL `not_a_member` (PT403) donne la main au serveur. L'appartenance a pu être
     // retirée entre la liste et la bascule ; c'est un refus, pas un incident.
     if (res.status === 'not_a_member') {
-      if (!active) return journalise({ status: 'unavailable' }, slugLocal !== null)
+      if (!active) {
+        return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, true)
+      }
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
-      return journalise({ status: 'server_wins', gymId: active.gymId }, slugLocal !== null)
+      return journalise(
+        { status: 'server_wins', reason: 'refused_pt403', gymId: active.gymId }, true,
+      )
     }
 
     // ── 8. INCIDENT RÉSEAU — ON NE DÉTRUIT PAS LE CHOIX ────────────────────────────
@@ -215,6 +298,6 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
     // coupure, retombait sur « le serveur fait foi » ET RÉÉCRIVAIT LE SLUG. Une seconde
     // sans réseau effaçait DÉFINITIVEMENT le choix du membre — il ne pouvait plus le
     // retrouver qu'en repassant par la recherche. Un incident ne tranche rien.
-    return journalise({ status: 'unavailable' }, slugLocal !== null)
+    return journalise({ status: 'unavailable', reason: 'rpc_error' }, true)
   })
 }
