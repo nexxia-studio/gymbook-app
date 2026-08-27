@@ -119,11 +119,16 @@ code : les deux comportements sont ceux que la spécification demande.
 
 ## 4. À REMONTER AU COCKPIT
 
-1. 🔴 **Staging ne peut pas recetter le multi-salles.** Les 19 comptes ont une adhésion
-   chacun. Les blocs B et C de la recette, le bouton « Changer de salle », l'écran
-   `profile/gym-switch` et l'issue `switched` sont **inexerçables en l'état**. Il faut
-   ajouter au moins une adhésion à un compte de test — c'est une écriture en base sur un
-   environnement partagé, donc une décision cockpit, pas une initiative de ce lot.
+1. ~~🔴 **Staging ne peut pas recetter le multi-salles.**~~ **RÉGLÉ — 27/08, 11:58:38 UTC
+   (13h58).** Le cockpit a posé l'adhésion : `admin.dopamine@staging.test` est membre des
+   trois salles staging, et le parcours a été exercé depuis (`choice_accepted` en
+   télémétrie). Les blocs B et C de la recette sont exerçables.
+
+   ⚠️ **Cela ne périme AUCUNE conclusion de cet audit — cela la date.** La QA analysée ici
+   s'est déroulée de 12h33 à 13h21, soit AVANT 13h58. À cet instant le compte n'avait
+   qu'une adhésion : les deux `server_wins` étaient légitimes, `switch_active_gym` aurait
+   bien refusé en PT403, et le bouton « Changer de salle » avait raison de rester caché.
+   La chronologie confirme le diagnostic au lieu de l'infirmer.
 2. **La prémisse du ticket était fausse**, et rien dans l'outillage ne permettait de s'en
    apercevoir. C'est ce que `reason` corrige pour la prochaine fois.
 3. **`my_gym_memberships` et `switch_active_gym` divergent sur deux filtres**
