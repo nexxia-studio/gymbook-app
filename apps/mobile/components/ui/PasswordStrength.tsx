@@ -30,8 +30,8 @@ function getStrength(pw: string): { score: number; label: 'weak' | 'medium' | 's
 // #F97316, c'est une autre couleur. L'approcher serait la régression d'un pixel que la
 // règle absolue de 286b interdit — la cible des ambres est proposée dans la PR de ce lot,
 // et exécutée dans son propre commit.
-const barColors = { weak: SEMANTIC.danger, medium: '#F59E0B', strong: SEMANTIC.success }
-const textColors = { weak: SEMANTIC.danger, medium: '#F59E0B', strong: SEMANTIC.success }
+const barColors = { weak: SEMANTIC.danger, medium: SEMANTIC.warning, strong: SEMANTIC.success }
+const textColors = { weak: SEMANTIC.danger, medium: SEMANTIC.warning, strong: SEMANTIC.success }
 
 export function PasswordStrength({ password }: PasswordStrengthProps) {
   const { t } = useTranslation()
