@@ -9,5 +9,12 @@
         { "key": "Content-Type", "value": "application/json" }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/:slug/reset-password", "destination": "/_viniz/reset-password.html" },
+    { "source": "/:slug/bookings", "destination": "/_viniz/404.html" },
+    { "source": "/:slug/confirm-waitlist", "destination": "/_viniz/404.html" },
+    { "source": "/:slug/delete-account", "destination": "/_viniz/404.html" },
+    { "source": "/:slug/payment-success", "destination": "/_viniz/404.html" }
   ]
 }
