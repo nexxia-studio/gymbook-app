@@ -22,11 +22,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { clearSelectedGymSlug } from '../../lib/gymResolver'
 import { clearCachedBrand } from '../../lib/theme/brand'
-import { VINIZ_WORDMARK_SVG } from '../../assets/viniz/brandSvg'
-
-/** Recadrage du wordmark sur l'emprise mesurée de son art (cf. VinizLaunch). */
-const WORDMARK_VIEWBOX = '90 574 1275 353'
-const WORDMARK_W = 62
+import { PoweredByViniz } from './PoweredByViniz'
 
 export function BrandedLogin() {
   const { t } = useTranslation()
@@ -239,35 +235,3 @@ function GymMark() {
   )
 }
 
-/**
- * La signature Viniz en pied.
- *
- * ⚠️ LE WORDMARK EST RETEINT, ET IL LE FAUT. Son art est du lime #C8FF3D en dur dans le
- * SVG — or le lime ne va que sur fond sombre. Posé tel quel sur une salle aux couleurs
- * claires, il deviendrait illisible : exactement ce que le garde-fou interdit deux lignes
- * plus haut. Une prop `color` de react-native-svg ne suffirait pas — elle n'alimente que
- * `currentColor`, et ces chemins portent un `fill` explicite. On remplace donc la valeur
- * dans le XML, une fois par thème.
- */
-function PoweredByViniz() {
-  const { t } = useTranslation()
-  const { tokens } = useTheme()
-  const tinted = useMemo(
-    () => VINIZ_WORDMARK_SVG.replace(/#c8ff3d/gi, tokens.onBackgroundMuted),
-    [tokens.onBackgroundMuted],
-  )
-
-  return (
-    <View className="flex-row items-center justify-center gap-2 pb-3" style={{ opacity: 0.75 }}>
-      <Text className="font-dmsans text-[11px]" style={{ color: tokens.onBackgroundMuted }}>
-        {t('branding.powered_by')}
-      </Text>
-      <SvgXml
-        xml={tinted}
-        viewBox={WORDMARK_VIEWBOX}
-        width={WORDMARK_W}
-        height={WORDMARK_W * (353 / 1275)}
-      />
-    </View>
-  )
-}

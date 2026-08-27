@@ -180,6 +180,7 @@ const PALETTE = (() => {
 })()
 const IMPORT_PALETTE = /from '[^']*theme\/palette'/
 
+
 // ── LES CONSTANTES DE COULEUR HISSÉES ────────────────────────────────────────────────
 // 🔴 UNE COULEUR DÉCLARÉE UNE FOIS ET EMPLOYÉE TROIS FOIS COMPTAIT POUR UNE.
 // `const ACTIVE_COLOR = '#111111'` puis deux `color={ACTIVE_COLOR}` : le côté « avant »
