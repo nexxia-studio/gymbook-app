@@ -137,7 +137,7 @@ export default function NotMember() {
       </View>
 
       {/* La signature suit les couleurs de CET écran, pas celles du thème ambiant. */}
-      <PoweredByViniz ink={tokens.onBackgroundMuted} />
+      <PoweredByViniz tokens={tokens} />
     </SafeAreaView>
   )
 }

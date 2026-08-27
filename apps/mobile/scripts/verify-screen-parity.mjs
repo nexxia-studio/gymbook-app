@@ -237,6 +237,17 @@ const suite = (src0, avecBrut = false) => {
 // rien : l'opacité du voile en single est vérifiée par `verify-theme-parity.mjs`, qui
 // échoue si `DOPAMINE_THEME.surface` cesse d'être opaque. Sans cette seconde vérification
 // le marqueur serait un permis de masquer une régression.
+//
+// 🔴 ET ELLE S'APPLIQUE AUX DEUX CÔTÉS — GYM-302 A CORRIGÉ CE DÉFAUT. Écrite en GYM-301,
+// elle ne filtrait que le côté « après » : à l'époque le fond n'existait que dans le
+// travail en cours, et la référence ne le portait pas. Une fois le lot MERGÉ, la référence
+// porte le marqueur elle aussi — et le comptage devenait asymétrique : 13 couleurs avant,
+// 12 après, trois faux écarts sur un fichier que PERSONNE n'avait touché.
+//
+// Le marqueur décrit une propriété du FICHIER (« ce fond est masqué par un voile opaque »),
+// pas une direction de comparaison. Il doit donc se lire des deux côtés, sans quoi toute
+// exemption devient une bombe à retardement qui explose au merge — le pire moment, celui
+// où l'on ne cherche plus.
 const MARQUEUR = 'parité:fond-sous-voile'
 
 /** Les jetons posés sur une ligne marquée, retirés de la suite « après ». */
@@ -262,11 +273,11 @@ function sansFondSousVoile(src, jetons) {
   return { jetons: gardes, ignores }
 }
 
-const A = suite(before).map((v) => v)
-const brutsApres = suite(after, true)
-const { jetons: B, ignores } = sansFondSousVoile(after, brutsApres)
-if (ignores.length) {
-  console.log(`\n⚠️  ${ignores.length} jeton(s) exemptés — « ${MARQUEUR} » : ${ignores.join(', ')}`)
+const { jetons: A, ignores: ignoresAvant } = sansFondSousVoile(before, suite(before, true))
+const { jetons: B, ignores } = sansFondSousVoile(after, suite(after, true))
+if (ignores.length || ignoresAvant.length) {
+  const total = [...ignoresAvant, ...ignores]
+  console.log(`\n⚠️  ${total.length} jeton(s) exemptés — « ${MARQUEUR} » : ${total.join(', ')}`)
   console.log('   Un fond posé SOUS un voile opaque : compté par le script, invisible à l’écran.')
   console.log('   L’opacité du voile est vérifiée séparément par verify-theme-parity.mjs.')
 }

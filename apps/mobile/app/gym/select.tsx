@@ -269,7 +269,7 @@ export default function GymSelect() {
           extrait de `BrandedLogin` pour ce lot. L'encre est passée explicitement — sans
           elle il lirait le thème AMBIANT, c'est-à-dire les couleurs d'une salle, sur le
           seul écran qui n'en représente aucune. */}
-      <PoweredByViniz ink={tokens.onBackgroundMuted} />
+      <PoweredByViniz tokens={tokens} />
     </SafeAreaView>
   )
 }
