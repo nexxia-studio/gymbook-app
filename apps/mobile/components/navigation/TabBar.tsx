@@ -181,18 +181,56 @@ export function TabBar() {
   }
 
   return (
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-301 (1) — LA BARRE PEINT SON PROPRE FOND. C'EST TOUT LE CORRECTIF.
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // Le symptôme : après trois bascules, la barre garde « les couleurs de la première
+    // salle ». La vérité mesurée est pire — elle n'a JAMAIS eu les couleurs d'aucune
+    // salle.
+    //
+    // `tokens.surface` n'est pas une couleur, c'est un VOILE :
+    //     surface = mode === 'dark' ? 'rgba(243,240,255,0.06)' : 'rgba(45,27,105,0.05)'
+    // Il ne dépend que du MODE, jamais de la salle. Trois salles sombres aux fonds
+    // #2D1B69, #101010 et #1A1A2E rendent la MÊME chaîne — au caractère près. Un voile ne
+    // vaut que par ce qu'il laisse voir, et il fallait donc que le fond de la salle soit
+    // peint DESSOUS.
+    //
+    // ⚠️ ET SOUS LA BARRE, IL N'Y A AUCUN ÉCRAN. Elle est rendue par le navigateur, hors
+    // du `SafeAreaView` de chaque onglet — le seul à peindre `tokens.background`. Le voile
+    // reposait donc sur le fond du conteneur de React Navigation, fixé au montage et
+    // insensible à la salle. La barre ne pouvait pas changer de couleur : ni au switch en
+    // session, ni par « ce n'est pas ma salle ». Le chemin A ne la corrigeait pas non
+    // plus — il donnait seulement l'illusion de le faire, en changeant de MODE.
+    //
+    // Le fond de la salle est donc peint ici, et le voile posé par-dessus. Un seul
+    // mécanisme, valable sur les deux chemins : la barre suit désormais `tokens`, comme
+    // le reste de l'app, au lieu de dépendre de ce qui se trouve derrière elle.
+    //
+    // ⚠️ EN SINGLE, RIEN NE BOUGE : `DOPAMINE_THEME.surface` vaut #FFFFFF, OPAQUE. Le
+    // voile couvre intégralement le fond ajouté, et la barre rend au pixel ce qu'elle
+    // rendait avant.
+    // Le fond de la salle, puis le voile par-dessus — deux calques, dans cet ordre.
+    // ⚠️ L'ORDRE DES COULEURS DANS LE FICHIER EST UNE CONTRAINTE, pas un détail de style :
+    // `verify-screen-parity` compare des SUITES ordonnées. Un calque en superposition
+    // absolue aurait placé le voile APRÈS la bordure et fait sortir l'écran en faux écart
+    // (piège P-9 de GYM-286). L'imbrication garde l'ordre d'origine : voile, puis bordure.
     <View
       style={{
-        height: TAB_HEIGHT + insets.bottom,
-        paddingBottom: insets.bottom,
-        backgroundColor: tokens.surface,
-        borderTopWidth: 1,
-        borderTopColor: tokens.border,
-        ...(Platform.OS === 'ios'
-          ? { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 8 }
-          : { elevation: 8 }),
+        backgroundColor: tokens.background, // parité:fond-sous-voile GYM-301
       }}
     >
+      <View
+        style={{
+          height: TAB_HEIGHT + insets.bottom,
+          paddingBottom: insets.bottom,
+          backgroundColor: tokens.surface,
+          borderTopWidth: 1,
+          borderTopColor: tokens.border,
+          ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 8 }
+            : { elevation: 8 }),
+        }}
+      >
       <View className="flex-1 flex-row items-center">
         {TABS.map((tab) => {
           const active = isActive(tab)
@@ -215,6 +253,7 @@ export function TabBar() {
             />
           )
         })}
+        </View>
       </View>
     </View>
   )
