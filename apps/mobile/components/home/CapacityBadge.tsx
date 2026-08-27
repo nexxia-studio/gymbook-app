@@ -26,7 +26,11 @@ export function CapacityBadge({ booked, capacity }: CapacityBadgeProps) {
     textColor = SEMANTIC.warning
   } else {
     bg = 'bg-green-500/10'
-    textColor = '#16A34A'
+    // 🔴 GYM-290 (addendum, décision C) — QUATRIÈME VERT FUSIONNÉ. #16A34A (green-600)
+    // n'était pas `SEMANTIC.success` #22C55E : deux verts de succès à un cran l'un de
+    // l'autre, sur des écrans voisins. Les deux branches sœurs de ce même bloc portaient
+    // DÉJÀ `SEMANTIC.warning` et `SEMANTIC.danger` — le vert était le seul resté en dur.
+    textColor = SEMANTIC.success
   }
 
   const label =

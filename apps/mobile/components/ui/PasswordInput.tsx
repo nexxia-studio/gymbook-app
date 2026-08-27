@@ -35,7 +35,7 @@ export function PasswordInput({ label, error, style, onChangeText, ...props }: P
     <View className="gap-1.5">
       {label && <Text className="font-dmsans-medium text-sm" style={{ color: tokens.onSurface }}>{label}</Text>}
       <View className="relative">
-        {/* GYM-286 — A-2, EN ATTENTE : `border-red-400` vaut #F87171, PAS `SEMANTIC.danger`
+        {/* GYM-290 (addendum, décision C) — `border-red-400` valait #F87171, quatrième rouge ;
             #EF4444. Et `border` reste dans la classe : c'est une largeur (piège P-3). */}
         <TextInput
           secureTextEntry={!visible}
@@ -47,7 +47,7 @@ export function PasswordInput({ label, error, style, onChangeText, ...props }: P
             {
               backgroundColor: tokens.surface,
               color: tokens.onSurface,
-              borderColor: error ? '#F87171' : tokens.border,
+              borderColor: error ? SEMANTIC.danger : tokens.border,
             },
             style,
           ]}
