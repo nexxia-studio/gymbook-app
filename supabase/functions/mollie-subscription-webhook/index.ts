@@ -669,13 +669,21 @@ Deno.serve(async (req) => {
 
         if (profile?.push_token && plan) {
           try {
-            await supabase.functions.invoke('send-notification', {
-              body: {
+            // GYM-282 — passé en `fetch` pour porter le secret interne.
+            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '',
+              },
+              body: JSON.stringify({
                 tokens: [profile.push_token],
+                gym_id: gymId,
                 title: '✅ Abonnement activé !',
                 body: `${plan.name} — ${(plan.price_cents / 100).toFixed(2)}€/mois`,
                 data: { type: 'subscription_activated' },
-              },
+              }),
             })
           } catch (e) { console.error('[sub-webhook] push error:', e) }
         }

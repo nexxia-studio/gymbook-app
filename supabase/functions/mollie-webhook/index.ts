@@ -326,13 +326,24 @@ Deno.serve(async (req) => {
 
       if (profile?.push_token) {
         try {
-          await supabase.functions.invoke('send-notification', {
-            body: {
+          // GYM-282 — passé en `fetch` : le tuyau exige un en-tête, et `functions.invoke`
+          // ne permet pas d'en poser un de façon fiable. Même forme que les sept autres
+          // appelants — une seule manière d'appeler le tuyau, donc une seule à relire.
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '',
+            },
+            body: JSON.stringify({
               tokens: [profile.push_token],
+              // GYM-282 — `gym_id` OBLIGATOIRE : il arme la garde de plan.
+              gym_id: payment.gym_id,
               title: '✅ Paiement confirmé !',
               body: `${payment.plan_name} — ${deliveredPush}`,
               data: { type: 'payment_confirmed', payment_id: payment.id },
-            },
+            }),
           })
         } catch (e) {
           console.error('[mollie-webhook] push error (non-blocking):', e)
