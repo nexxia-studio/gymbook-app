@@ -15,10 +15,11 @@ import { SectionHeader } from '../../components/schedule/SectionHeader'
 import { EmptySchedule } from '../../components/schedule/EmptySchedule'
 import { Skeleton } from '../../components/schedule/Skeleton'
 import { useTheme } from '../../lib/theme/ThemeProvider'
-import { useGymName } from '../../hooks/useGymName'
+import { useGymHeaderName } from '../../hooks/useGymName'
 
 export default function Schedule() {
-  const nomSalle = useGymName()
+  // GYM-299 — en-tête : le nom COURT s'il existe, sinon le complet.
+  const nomSalle = useGymHeaderName()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
