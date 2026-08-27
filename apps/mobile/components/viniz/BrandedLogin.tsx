@@ -130,14 +130,26 @@ export function BrandedLogin() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={() => router.replace('/(auth)/signup')} className="mt-8">
-            <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
-              {t('auth.no_account')}{' '}
-              <Text className="font-dmsans-bold" style={{ color: tokens.onBackground }}>
-                {t('auth.signup')}
-              </Text>
-            </Text>
-          </TouchableOpacity>
+          {/* ── 🔴 GYM-293 (MITIGATION) — L'INSCRIPTION EST RETIRÉE EN MODE MULTI ───────
+              Cet écran n'existe qu'en `multi`, donc retirer le lien ici SUFFIT à rendre
+              l'inscription inatteignable de ce côté — et n'affecte pas d'un pixel l'écran
+              de Dopamine, qui est un composant distinct (`DopamineLogin`).
+
+              ⚠️ CE QU'ON ÉVITE, ET CE N'EST PAS UNE PRÉCAUTION THÉORIQUE. En `multi`,
+              `signupGymId()` rend `null` (stores/useAuthStore.ts) : le trigger
+              `handle_new_user` crée alors un profil SANS salle. Le compte existe, la
+              session s'ouvre, et l'app est VIDE — aucune requête ne matche, aucun message
+              ne l'explique. Le membre a un compte qu'il ne peut pas utiliser et qu'il ne
+              peut pas non plus rattacher : le parcours d'inscription rattaché à une salle
+              reste à écrire (GYM-293 complet).
+
+              ⚠️ MASQUER PLUTÔT QU'AVERTIR. Un écran d'inscription qui dirait « pas encore
+              disponible » serait un cul-de-sac de plus ; l'absence de lien ne promet rien.
+              Et la route est gardée de son côté (app/(auth)/signup.tsx) — un lien profond
+              ou un retour arrière ne doivent pas rouvrir ce que ce masquage ferme.
+
+              ⚠️ AUCUN AUTRE CHEMIN N'Y MÈNE EN MULTI : cet écran ne porte pas les boutons
+              OAuth (vérifié), qui créeraient un compte de la même façon. */}
 
           {/* ── GYM-288 — LA SORTIE. ───────────────────────────────────────────────────
               🔴 SANS ELLE, UNE SALLE CHOISIE PAR ERREUR ENFERMAIT LE MEMBRE : le slug
