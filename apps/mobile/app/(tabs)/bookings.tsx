@@ -15,7 +15,7 @@ import { supabase } from '../../lib/supabase'
 import { useActiveGymId } from '../../lib/activeGym'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
-import { useGymName } from '../../hooks/useGymName'
+import { useGymHeaderName } from '../../hooks/useGymName'
 
 function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
   const [y, mo, d] = dateStr.split('-').map(Number)
@@ -49,7 +49,8 @@ interface FavoriteCardData {
 }
 
 export default function Bookings() {
-  const nomSalle = useGymName()
+  // GYM-299 — en-tête : le nom COURT s'il existe, sinon le complet.
+  const nomSalle = useGymHeaderName()
   const { tokens } = useTheme()
   // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
   const gymId = useActiveGymId()

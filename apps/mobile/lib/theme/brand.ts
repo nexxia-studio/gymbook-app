@@ -9,6 +9,21 @@ import { supabase } from '../supabase'
 export interface GymBrand {
   slug: string
   name: string
+  /**
+   * 🔴 GYM-299 — LE NOM COURT, ET POURQUOI IL VOYAGE AVEC LA MARQUE.
+   *
+   * `null` = le gérant n'en a pas choisi ; l'app affiche alors le nom complet. Ce n'est
+   * PAS une chaîne vide : la distinction est posée en base depuis GYM-285 et elle porte
+   * une décision — « pas de nom court » n'est pas « nom court vide ».
+   *
+   * ⚠️ IL EST ICI, ET PAS DANS `useGymProfile`, PARCE QUE C'EST LE CANAL QUI SE PROPAGE.
+   * `public_gym_branding` est relue par le fournisseur de thème à chaque changement de
+   * salle, et c'est ce chemin qui fait apparaître instantanément un changement de couleurs
+   * fait au dashboard. Le nom court est de la même nature — une décision d'identité prise
+   * par le gérant — et il doit apparaître par le même chemin, sinon l'app afficherait de
+   * nouvelles couleurs sous un ancien nom.
+   */
+  shortName: string | null
   logoUrl: string | null
   primaryColor: string | null
   secondaryColor: string | null
@@ -36,7 +51,11 @@ export async function readCachedBrand(slug: string): Promise<GymBrand | null> {
   try {
     const raw = await AsyncStorage.getItem(CACHE_KEY)
     if (!raw) return null
-    const b = JSON.parse(raw) as GymBrand
+    // ⚠️ UN CACHE ÉCRIT AVANT GYM-299 N'A PAS DE `shortName`. `JSON.parse` rendrait
+    // `undefined`, que le code aval lit comme « absent » — donc nom complet, le bon repli.
+    // On le NORMALISE quand même à `null` pour que le type ne mente pas sur le contenu.
+    const brut = JSON.parse(raw) as GymBrand
+    const b: GymBrand = { ...brut, shortName: brut.shortName ?? null }
     // ⚠️ ON VÉRIFIE LE SLUG. Sans ce test, changer de salle afficherait la marque de la
     // précédente jusqu'au retour du réseau — la confusion exacte que le cache doit éviter.
     return b && b.slug === slug ? b : null
@@ -88,6 +107,9 @@ export async function fetchBrand(slug: string): Promise<BrandLoad> {
     const brand: GymBrand = {
       slug: String(row.slug ?? slug),
       name: String(row.name ?? ''),
+      // ⚠️ `?? null` ET PAS `String(...)` : `String(null)` rendrait la chaîne « null »,
+      // qui s'afficherait telle quelle en en-tête. Le repli doit rester la valeur nulle.
+      shortName: (row.short_name as string | null) ?? null,
       logoUrl: (row.logo_url as string | null) ?? null,
       primaryColor: (row.primary_color as string | null) ?? null,
       secondaryColor: (row.secondary_color as string | null) ?? null,

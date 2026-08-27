@@ -71,8 +71,24 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
           dans la mise en page. Ternaire explicite vers `null` et non `coach && …` :
           en React Native, une chaîne vide rendue hors d'un <Text> déclenche un
           avertissement « text strings must be rendered within a <Text> ». */}
+            {/* 🔴 GYM-304 — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/60` était un BLANC EN
+                  DUR posé sur `tokens.background` : illisible dès que la salle a un fond clair.
+                  Mesuré sur le fond constaté #E9E8E8 — un blanc à 60 % y disparaît.
+                  
+                  ⚠️ `tokens.onBackground`, PAS `onBackgroundMuted` — c'est toute la leçon de la PR
+                  #235. `onBackgroundMuted` est choisi par le MODE (`hslLightness > 80`), un critère
+                  qui classe « sombre » un fond vif : il descend sous 3:1 sur 7 000 salles sur
+                  19 600. `onBackground`, lui, est choisi par `bestInkOn`, c'est-à-dire par le
+                  CONTRASTE RÉEL. Le critère est la luminance, jamais la teinte.
+                  
+                  ⚠️ L'ALPHA EST CONSERVÉ : 0x99 = 153, soit 153/255 = 0,60 pile. Chez Dopamine
+                  `onBackground` vaut #FFFFFF — le rendu est donc le blanc à 60 % d'aujourd'hui, au
+                  pixel. C'est le motif A-10, comme les en-têtes de #232 (3c). */}
             {booking.coach ? (
-              <Text className="mt-0.5 font-dmsans text-[13px] text-white/60">
+              <Text
+                className="mt-0.5 font-dmsans text-[13px]"
+                style={{ color: tokens.onBackground + '99' }}
+              >
                 {booking.coach}
               </Text>
             ) : null}
