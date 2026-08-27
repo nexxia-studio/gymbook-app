@@ -17,11 +17,13 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useProgression } from '../../hooks/useProgression'
 import { getLevelInfo } from '../../utils/gamification'
 import { getGymMonday } from '../../utils/timezone'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 const EASE_OUT = Easing.out(Easing.cubic)
 
 function AnimatedNumber({ value, delay = 0, suffix = '' }: { value: number; delay?: number; suffix?: string }) {
+  const { tokens } = useTheme()
   const [display, setDisplay] = useState(0)
   const anim = useSharedValue(0)
   const updater = useCallback((v: number) => setDisplay(Math.round(v)), [])
@@ -36,13 +38,14 @@ function AnimatedNumber({ value, delay = 0, suffix = '' }: { value: number; dela
   }, [value])
 
   return (
-    <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 36, color: '#111111' }}>
+    <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 36, color: tokens.onSurface }}>
       {display}{suffix}
     </Text>
   )
 }
 
 function LevelCard({ totalSeances }: { totalSeances: number }) {
+  const { tokens } = useTheme()
   const { level, progress, nextLevel, remaining } = getLevelInfo(totalSeances)
   const barWidth = useSharedValue(0)
 
@@ -58,6 +61,8 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
   }))
 
   return (
+    // GYM-286 — A-6, EN ATTENTE : #141414 est un quasi-noir voisin de `move-dark`
+    // #111111. Le rattacher change des pixels : c'est le commit dédié qui s'en charge.
     <View className="overflow-hidden rounded-2xl p-5" style={{ backgroundColor: '#141414' }}>
       <View className="mb-3 flex-row items-center gap-3">
         <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
@@ -67,11 +72,13 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: level.color }}>
             {level.name.toUpperCase()}
           </Text>
-          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#FFFFFF' }}>
+          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onBackground }}>
             {totalSeances} séances complétées
           </Text>
         </View>
       </View>
+      {/* GYM-286 — A-6, EN ATTENTE : #333333, #666666, #888888 et #999999 sont quatre
+          gris hors de la palette de la charte. */}
       <View className="mb-2 rounded-full" style={{ height: 8, backgroundColor: '#333333' }}>
         <Animated.View style={barStyle} />
       </View>
@@ -95,11 +102,12 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
 }
 
 function StreakCard({ streakWeeks, streakRecord }: { streakWeeks: number; streakRecord: number }) {
+  const { tokens } = useTheme()
   return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 4 }}>Streak</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>Streak</Text>
       <AnimatedNumber value={streakWeeks} delay={100} />
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#6B6861', marginTop: 2 }}>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2 }}>
         semaines d'affilée
       </Text>
       <View className="mt-3 flex-row gap-1.5">
@@ -107,11 +115,11 @@ function StreakCard({ streakWeeks, streakRecord }: { streakWeeks: number; streak
           <View
             key={i}
             className="h-3 w-3 rounded-full"
-            style={{ backgroundColor: i < Math.min(streakWeeks, 4) ? '#C8F000' : '#E8E6E0' }}
+            style={{ backgroundColor: i < Math.min(streakWeeks, 4) ? tokens.accent : tokens.border }}
           />
         ))}
       </View>
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: '#9A9890', marginTop: 6 }}>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: tokens.onBackgroundMuted, marginTop: 6 }}>
         Record : {streakRecord} sem.
       </Text>
     </View>
@@ -119,6 +127,7 @@ function StreakCard({ streakWeeks, streakRecord }: { streakWeeks: number; streak
 }
 
 function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: number }) {
+  const { tokens } = useTheme()
   const total = confirmed + noShow
   const rate = total > 0 ? confirmed / total : 1
   const pct = Math.round(rate * 100)
@@ -139,17 +148,17 @@ function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: numb
   }))
 
   return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 8 }}>Présence</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Présence</Text>
       <View className="items-center">
         <View style={{ width: 76, height: 76 }}>
           <Svg width={76} height={76} viewBox="0 0 76 76">
-            <Circle cx={38} cy={38} r={radius} stroke="#E8E6E0" strokeWidth={strokeWidth} fill="none" />
+            <Circle cx={38} cy={38} r={radius} stroke={tokens.border} strokeWidth={strokeWidth} fill="none" />
             <AnimatedCircle
               cx={38}
               cy={38}
               r={radius}
-              stroke="#C8F000"
+              stroke={tokens.accent}
               strokeWidth={strokeWidth}
               fill="none"
               strokeDasharray={circumference}
@@ -159,11 +168,11 @@ function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: numb
             />
           </Svg>
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: '#111111' }}>{pct}%</Text>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: tokens.onSurface }}>{pct}%</Text>
           </View>
         </View>
       </View>
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: '#9A9890', textAlign: 'center', marginTop: 6 }}>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: tokens.onBackgroundMuted, textAlign: 'center', marginTop: 6 }}>
         {confirmed} confirmées · {noShow} no-shows
       </Text>
     </View>
@@ -171,16 +180,19 @@ function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: numb
 }
 
 function MonthCard({ count, lastMonth }: { count: number; lastMonth: number }) {
+  const { tokens } = useTheme()
   const delta = count - lastMonth
   const monthName = new Date().toLocaleDateString('fr-BE', { month: 'long' })
   return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 4 }}>Ce mois</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>Ce mois</Text>
       <AnimatedNumber value={count} delay={300} />
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#6B6861', marginTop: 2, textTransform: 'capitalize' }}>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2, textTransform: 'capitalize' }}>
         {monthName}
       </Text>
       {delta !== 0 && (
+        // GYM-286 — A-8 et A-2, EN ATTENTE : #639922 est le vert de variation positive
+        // (rampe du studio), #E53935 un troisième rouge. Aucun jeton ne les vaut.
         <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: delta > 0 ? '#639922' : '#E53935', marginTop: 4 }}>
           {delta > 0 ? '+' : ''}{delta} vs mois dernier
         </Text>
@@ -190,13 +202,14 @@ function MonthCard({ count, lastMonth }: { count: number; lastMonth: number }) {
 }
 
 function TotalCard({ total, memberSince }: { total: number; memberSince: string | null }) {
+  const { tokens } = useTheme()
   const since = memberSince ? new Date(memberSince).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
   return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 4 }}>Total</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>Total</Text>
       <AnimatedNumber value={total} delay={400} />
       {since ? (
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#6B6861', marginTop: 2 }}>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2 }}>
           depuis le {since}
         </Text>
       ) : null}
@@ -205,14 +218,15 @@ function TotalCard({ total, memberSince }: { total: number; memberSince: string 
 }
 
 function HistogramCard({ data }: { data: { day: string; count: number }[] }) {
+  const { tokens } = useTheme()
   const maxCount = Math.max(...data.map((d) => d.count), 1)
   const firstLabel = data[0]?.day.slice(5) ?? ''
   const midLabel = data[14]?.day.slice(5) ?? ''
   const lastLabel = data[29]?.day.slice(5) ?? ''
 
   return (
-    <View className="rounded-2xl bg-move-card p-5" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 12 }}>
+    <View className="rounded-2xl p-5" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 12 }}>
         30 derniers jours
       </Text>
       <View className="flex-row items-end justify-between" style={{ height: 80 }}>
@@ -222,15 +236,16 @@ function HistogramCard({ data }: { data: { day: string; count: number }[] }) {
         })}
       </View>
       <View className="mt-2 flex-row justify-between">
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: '#9A9890' }}>{firstLabel}</Text>
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: '#9A9890' }}>{midLabel}</Text>
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: '#9A9890' }}>{lastLabel}</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>{firstLabel}</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>{midLabel}</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>{lastLabel}</Text>
       </View>
     </View>
   )
 }
 
 function HistoBar({ count, maxCount, index, recent }: { count: number; maxCount: number; index: number; recent: boolean }) {
+  const { tokens } = useTheme()
   const height = count > 0 ? (count / maxCount) * 100 : 2.5
   const scaleY = useSharedValue(0)
 
@@ -242,13 +257,15 @@ function HistoBar({ count, maxCount, index, recent }: { count: number; maxCount:
     height: height * scaleY.value + (count === 0 ? 2 : 0),
     width: 6,
     borderRadius: 3,
-    backgroundColor: count === 0 ? '#E8E6E0' : recent ? '#9DB800' : '#C8F000',
+    // GYM-286 — A-1, EN ATTENTE : #9DB800 est le lime atténué, non tranché.
+    backgroundColor: count === 0 ? tokens.border : recent ? '#9DB800' : tokens.accent,
   }))
 
   return <Animated.View style={style} />
 }
 
 function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
+  const { tokens } = useTheme()
   const weekMap = new Map(data.map((d) => [d.week, d.count]))
   // GYM-93 — frontières de semaine sur l'horloge de la SALLE, pas du téléphone. Même
   // défaut que le filtre de période du planning : le dimanche soir à Bruxelles est déjà
@@ -287,8 +304,8 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
   })
 
   return (
-    <View className="rounded-2xl bg-move-card p-5" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 12 }}>
+    <View className="rounded-2xl p-5" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 12 }}>
         Activité (6 mois)
       </Text>
       <View
@@ -307,7 +324,7 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
             style={{
               fontFamily: 'DMSans_400Regular',
               fontSize: 9,
-              color: '#9A9890',
+              color: tokens.onBackgroundMuted,
               position: 'absolute',
               left: m.col * colWidth,
             }}
@@ -317,7 +334,7 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
         ))}
       </View>
       <View className="mt-2 flex-row items-center gap-1">
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: '#9A9890' }}>Moins</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>Moins</Text>
         {[0, 1, 2, 3].map((v) => (
           <View
             key={v}
@@ -325,11 +342,14 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
               width: 10,
               height: 10,
               borderRadius: 2,
-              backgroundColor: v === 0 ? '#E8E6E0' : v === 1 ? '#C0DD97' : v === 2 ? '#97C459' : '#3B6D11',
+              // GYM-286 — A-8, EN ATTENTE : la rampe d'affluence (trois verts) attend une
+              // dérivation de `accent` qui garantisse trois paliers distinguables sur
+              // n'importe quelle primaire — un vrai travail, pas un remplacement.
+              backgroundColor: v === 0 ? tokens.border : v === 1 ? '#C0DD97' : v === 2 ? '#97C459' : '#3B6D11',
             }}
           />
         ))}
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: '#9A9890' }}>Plus</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>Plus</Text>
       </View>
     </View>
   )
@@ -342,6 +362,7 @@ function HeatmapCell({ count, index, size }: { count: number; index: number; siz
     opacity.value = withDelay(index * 3, withTiming(1, { duration: 400 }))
   }, [])
 
+  // GYM-286 — A-8 et A-6, EN ATTENTE : la rampe, et #F0EFEB (gris voisin de `move-bg`).
   const bg = count === 0 ? '#F0EFEB' : count === 1 ? '#C0DD97' : count === 2 ? '#97C459' : '#3B6D11'
   const style = useAnimatedStyle(() => ({
     width: size,
@@ -355,55 +376,59 @@ function HeatmapCell({ count, index, size }: { count: number; index: number; siz
 }
 
 function FavoriteCoursCard({ data }: { data: { name: string; count: number } | null }) {
+  const { tokens } = useTheme()
   if (!data) return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890' }}>Cours favori</Text>
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#6B6861', marginTop: 8 }}>Aucun encore</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted }}>Cours favori</Text>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onSurfaceSecondary, marginTop: 8 }}>Aucun encore</Text>
     </View>
   )
   return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 8 }}>Cours favori</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Cours favori</Text>
       <View className="flex-row items-center gap-2">
+        {/* GYM-286 — A-2, EN ATTENTE : #EF9F27 est un troisième orangé. */}
         <Flame size={16} color="#EF9F27" />
-        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#111111', flex: 1 }} numberOfLines={1}>
+        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onSurface, flex: 1 }} numberOfLines={1}>
           {data.name}
         </Text>
       </View>
-      <View className="mt-2 self-start rounded-full bg-move-bg px-2.5 py-1">
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#6B6861' }}>{data.count} séances</Text>
+      <View className="mt-2 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: tokens.page }}>
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>{data.count} séances</Text>
       </View>
     </View>
   )
 }
 
 function FavoriteCoachCard({ data }: { data: { name: string; count: number } | null }) {
+  const { tokens } = useTheme()
   const initials = data ? data.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : ''
   if (!data) return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890' }}>Coach préféré</Text>
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#6B6861', marginTop: 8 }}>Aucun encore</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted }}>Coach préféré</Text>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onSurfaceSecondary, marginTop: 8 }}>Aucun encore</Text>
     </View>
   )
   return (
-    <View className="flex-1 rounded-2xl bg-move-card p-4" style={{ borderWidth: 1, borderColor: '#E8E6E0' }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#9A9890', marginBottom: 8 }}>Coach préféré</Text>
+    <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Coach préféré</Text>
       <View className="flex-row items-center gap-2">
-        <View className="h-8 w-8 items-center justify-center rounded-full bg-move-dark">
-          <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: '#C8F000' }}>{initials}</Text>
+        <View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: tokens.background }}>
+          <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: tokens.accent }}>{initials}</Text>
         </View>
-        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#111111', flex: 1 }} numberOfLines={1}>
+        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onSurface, flex: 1 }} numberOfLines={1}>
           {data.name}
         </Text>
       </View>
-      <View className="mt-2 self-start rounded-full bg-move-bg px-2.5 py-1">
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#6B6861' }}>{data.count} séances</Text>
+      <View className="mt-2 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: tokens.page }}>
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>{data.count} séances</Text>
       </View>
     </View>
   )
 }
 
 export default function Studio() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const gymId = useAuthStore((s) => s.gym_id)
   const memberId = useAuthStore((s) => s.user?.id)
@@ -411,14 +436,14 @@ export default function Studio() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
-        <View className="bg-move-dark px-5 pb-4 pt-3">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
+        <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
             MA PROGRESSION
           </Text>
         </View>
-        <View className="flex-1 items-center justify-center bg-move-bg">
-          <ActivityIndicator size="large" color="#C8F000" />
+        <View className="flex-1 items-center justify-center" style={{ backgroundColor: tokens.page }}>
+          <ActivityIndicator size="large" color={tokens.accent} />
         </View>
       </SafeAreaView>
     )
@@ -426,14 +451,14 @@ export default function Studio() {
 
   if (error || !data) {
     return (
-      <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
-        <View className="bg-move-dark px-5 pb-4 pt-3">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
+        <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
             MA PROGRESSION
           </Text>
         </View>
-        <View className="flex-1 items-center justify-center bg-move-bg px-6">
-          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#9A9890', textAlign: 'center' }}>
+        <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: tokens.page }}>
+          <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: tokens.onBackgroundMuted, textAlign: 'center' }}>
             {error ?? 'Impossible de charger ta progression'}
           </Text>
         </View>
@@ -442,16 +467,16 @@ export default function Studio() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
-      <View className="bg-move-dark px-5 pb-4 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
+      <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           MA PROGRESSION
         </Text>
         <Text className="font-dmsans text-[13px] text-white/40">
           Tes stats, ton niveau, ta régularité
         </Text>
       </View>
-      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
         <LevelCard totalSeances={data.total_seances} />
 
         <View className="flex-row gap-3">
