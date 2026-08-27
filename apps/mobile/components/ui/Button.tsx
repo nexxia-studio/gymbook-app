@@ -46,6 +46,7 @@ interface ButtonProps {
 // ⚠️ LE MÊME MOTIF EXISTE DANS ONZE AUTRES FICHIERS, tous bloqués de la même façon.
 // Migrer les instances en laissant cette brique produirait exactement l'écran à moitié
 // invisible que le blocage cherche à éviter.
+// GYM-286 — A-3/A-4, EN ATTENTE : la ligne `primary` ci-dessous reste en classes.
 const variants: Record<Variant, { bg: string; text?: string; border?: string }> = {
   primary: { bg: 'bg-move-dark', text: 'text-move-accent' },
   secondary: { bg: 'bg-transparent', border: 'border' },
@@ -77,6 +78,7 @@ export function Button({ title, onPress, variant = 'primary', isLoading, disable
       {isLoading ? (
         // Le spinner de `primary` est l'accent posé sur le fond sombre : même paire, même
         // blocage. Celui des autres variantes est une encre ordinaire.
+        // GYM-286 — A-3/A-4 : le lime du spinner primaire est la même paire bloquée.
         <ActivityIndicator color={variant === 'primary' ? '#C8F000' : tokens.onBackground} size="small" />
       ) : (
         <Text className={`font-dmsans-bold text-base ${v.text ?? ''}`} style={ink.text ? { color: ink.text } : undefined}>

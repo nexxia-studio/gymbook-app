@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import type { Booking } from '../../stores/useBookingStore'
 import { WaitlistCountdown } from '../shared/WaitlistCountdown'
 import { ActivityImage } from '../shared/ActivityImage'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface UpcomingCardProps {
   booking: Booking
@@ -33,6 +35,7 @@ function isWaitlistExpired(booking: Booking): boolean {
 
 export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistExpire, dayLabel }: UpcomingCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
 
   const notified = isWaitlistNotified(booking)
   const expired = isWaitlistExpired(booking)
@@ -40,14 +43,16 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
   // BUG 2 (GYM-96) — délai passé, statut client encore waitlisted : tag « Expirée » neutre
   // (rien à annuler, le cron va retirer la ligne). Prioritaire sur waitlisted/confirmed.
   const statusKey = expired ? 'status_expired' : isWaitlisted ? 'status_waitlisted' : 'status_confirmed'
-  const badgeBg = expired ? 'bg-neutral-500' : isWaitlisted ? 'bg-orange-500' : 'bg-green-500'
+  // GYM-286 — A-2/gris, EN ATTENTE pour `bg-neutral-500` #737373 : aucun jeton ne le vaut.
+  const badgeBg = expired ? '#737373' : isWaitlisted ? SEMANTIC.warning : SEMANTIC.success
 
   return (
     <ActivityImage
       imageUrl={booking.imageUrl}
       activity={booking.activity}
       accentColor={booking.activityColor}
-      className="mb-3 overflow-hidden rounded-2xl bg-move-dark"
+      className="mb-3 overflow-hidden rounded-2xl"
+      style={{ backgroundColor: tokens.background }}
       imageStyle={{ borderRadius: 16, opacity: 0.35 }}
       initialsSize={110}
     >
@@ -58,7 +63,7 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
 
           <View className="ml-3 flex-1">
             {/* Top: activity + coach */}
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: '#FFFFFF' }}>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: tokens.onBackground }}>
               {booking.activity.toUpperCase()}
             </Text>
             {/* GYM-229 — une activité en accès libre (Open Gym) n'a pas de coach.
@@ -75,14 +80,20 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
             {/* Date + time + status */}
             <View className="mt-3 flex-row items-center gap-3">
               <View className="flex-1">
-                <Text className="font-dmsans-bold text-sm text-move-accent">
+                <Text className="font-dmsans-bold text-sm" style={{ color: tokens.accent }}>
                   {dayLabel}
                 </Text>
-                <Text className="font-dmsans text-sm text-white">
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onBackground }}>
                   {booking.time} → {booking.endTime}
                 </Text>
               </View>
-              <View className={`rounded-lg px-2.5 py-1 ${badgeBg}`}>
+              {/* ⚠️ `text-white` RESTE UNE CLASSE : c'est l'encre posée sur une pastille
+                  de SIGNAL (gris / orange / vert), dont aucun jeton ne nomme l'encre.
+                  `tokens.onBackground` serait faux — chez une salle claire il vaut une
+                  encre SOMBRE, illisible sur l'orange. Un jeton générique « encre sur
+                  signal » manque ; il est remonté au cockpit. */}
+              <View className="rounded-lg px-2.5 py-1" style={{ backgroundColor: badgeBg }}>
+                {/* GYM-286 — encre sur SIGNAL, laissée : aucun jeton ne la nomme. */}
                 <Text className="font-dmsans-bold text-[10px] text-white">
                   {t(`bookings.${statusKey}`)}
                 </Text>
@@ -98,9 +109,10 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
                 <TouchableOpacity
                   onPress={onConfirmWaitlist}
                   activeOpacity={0.8}
-                  className="mt-2 self-start rounded-lg bg-move-accent px-4 py-2"
+                  className="mt-2 self-start rounded-lg px-4 py-2"
+                  style={{ backgroundColor: tokens.accent }}
                 >
-                  <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 14, color: '#111111' }}>
+                  <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 14, color: tokens.onAccent }}>
                     {t('bookings.confirm_my_place').toUpperCase()}
                   </Text>
                 </TouchableOpacity>
@@ -110,6 +122,7 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
             {/* ÉTAPE 5 — délai expiré : la place est passée au suivant (pas de bouton Confirmer) */}
             {expired && (
               <View className="mt-3 rounded-lg bg-red-500/15 px-3 py-2.5">
+                {/* GYM-286 — A-2, EN ATTENTE : `text-red-400` #F87171 ≠ #EF4444. */}
                 <Text className="font-dmsans-bold text-xs text-red-400">
                   {t('bookings.waitlist_expired_card')}
                 </Text>
@@ -121,7 +134,8 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
               <TouchableOpacity
                 onPress={onCancel}
                 activeOpacity={0.7}
-                className="mt-3 self-start rounded-lg border border-red-500 px-3 py-1.5"
+                className="mt-3 self-start rounded-lg border px-3 py-1.5"
+                style={{ borderColor: SEMANTIC.danger }}
               >
                 <Text className="font-dmsans-bold text-xs text-red-400">
                   {notified ? t('bookings.decline') : t('bookings.cancel')}

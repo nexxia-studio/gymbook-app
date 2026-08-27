@@ -2,6 +2,8 @@ import { View, Text, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { Heart } from 'lucide-react-native'
 import { ActivityImage } from '../shared/ActivityImage'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface FavoriteCardProps {
   activity: string
@@ -20,9 +22,10 @@ interface FavoriteCardProps {
 
 export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time, coach, hasUpcoming, nextDateLabel, onRemove, onBook }: FavoriteCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
 
   return (
-    <View className="mb-3 flex-row items-center overflow-hidden rounded-2xl bg-move-card">
+    <View className="mb-3 flex-row items-center overflow-hidden rounded-2xl" style={{ backgroundColor: tokens.surface }}>
       {/* Image — GYM-216 : activities.image_url, repli neutre si vide. */}
       <ActivityImage
         imageUrl={imageUrl}
@@ -36,18 +39,18 @@ export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time
 
       {/* Info — the recurring motif */}
       <View className="flex-1 px-3 py-2">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 18, color: '#111111' }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 18, color: tokens.onSurface }}>
           {activity.toUpperCase()}
         </Text>
-        <Text className="font-dmsans text-[13px] text-move-text-secondary">
+        <Text className="font-dmsans text-[13px]" style={{ color: tokens.onSurfaceSecondary }}>
           {dayLabel} · {time}
         </Text>
         {hasUpcoming ? (
-          <Text className="font-dmsans text-xs text-move-text-muted">
+          <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
             {nextDateLabel}{coach ? ` · ${coach}` : ''}
           </Text>
         ) : (
-          <Text className="font-dmsans text-xs text-move-text-muted">
+          <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
             {t('bookings.favorite_no_upcoming')}
           </Text>
         )}
@@ -56,9 +59,12 @@ export function FavoriteCard({ activity, imageUrl, activityColor, dayLabel, time
       {/* Actions */}
       <View className="items-center gap-2 pr-3">
         <TouchableOpacity onPress={onRemove} hitSlop={8}>
-          <Heart size={18} color="#EF4444" fill="#EF4444" />
+          {/* Le cœur emploie `SEMANTIC.danger` pour ce que ce jeton GARANTIT — une
+              couleur fixe, qui ne suit jamais la marque — non pour ce qu'il nomme. */}
+          <Heart size={18} color={SEMANTIC.danger} fill={SEMANTIC.danger} />
         </TouchableOpacity>
         {hasUpcoming && onBook && (
+          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
           <TouchableOpacity
             onPress={onBook}
             activeOpacity={0.8}

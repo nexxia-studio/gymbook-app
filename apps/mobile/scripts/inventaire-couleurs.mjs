@@ -257,7 +257,24 @@ function twValue(famille, ton) {
 const rows = []
 for (const abs of DIRS.flatMap((d) => walk(join(ROOT, d)))) {
   const rel = relative(ROOT, abs)
-  const src = blankComments(readFileSync(abs, 'utf8'))
+  const brut = readFileSync(abs, 'utf8')
+  const src = blankComments(brut)
+  // ── LES EXCEPTIONS DÉCLARÉES ───────────────────────────────────────────────────────
+  // 🔴 « COMBIEN RESTE-T-IL » N'A DE SENS QUE SI L'ON SAIT DISTINGUER UN OUBLI D'UN ORDRE.
+  // Le cockpit a laissé des couleurs en dur DÉLIBÉRÉMENT : A-1, A-2, A-3/A-4, A-6, A-8,
+  // les marques tierces A-9, et les encres posées sur un signal que nul jeton ne nomme.
+  // Sans marquage, elles se comptent comme du travail non fait, et le lot ne peut jamais
+  // annoncer sa fin.
+  //
+  // La convention est celle que les fichiers portent déjà : un commentaire contenant
+  // `GYM-286` dans les DIX lignes qui précèdent l'occurrence. Elle est vérifiable à la
+  // lecture, et elle oblige à écrire la raison à côté de la couleur — pas dans un
+  // fichier d'exceptions que personne ne relit.
+  const lignesBrutes = brut.split('\n')
+  const marquee = (n) => lignesBrutes
+    .slice(Math.max(0, n - 11), n)
+    .some((l) => /(\/\/|\*).*GYM-286/.test(l))
+
   src.split('\n').forEach((line, i) => {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return // les commentaires ne peignent rien
     for (const m of line.matchAll(RE)) {
@@ -312,7 +329,7 @@ for (const abs of DIRS.flatMap((d) => walk(join(ROOT, d)))) {
       else role = 'bg' // style={{ backgroundColor }} multiligne : le fond est le cas par défaut
 
       const [fam, token, note] = classifyAny(value, role, alpha)
-      rows.push({ file: rel, line: i + 1, raw, value, role, fam, token, note, alpha })
+      rows.push({ file: rel, line: i + 1, raw, value, role, fam, token, note, alpha, declaree: marquee(i + 1) })
     }
   })
 }
@@ -352,8 +369,8 @@ if (arg === '--md') {
   // occurrence laissée sur ordre du cockpit et une occurrence oubliée se ressemblent dans
   // un total ; elles n'ont rien à voir. Ce mode ventile, pour qu'un reste-à-faire ne
   // puisse pas se confondre avec un travail non fait.
-  const migrables = rows.filter((r) => r.token && !r.token.includes('?'))
-  const attentes = rows.filter((r) => !r.token || r.token.includes('?'))
+  const migrables = rows.filter((r) => r.token && !r.token.includes('?') && !r.declaree)
+  const attentes = rows.filter((r) => !r.token || r.token.includes('?') || r.declaree)
 
   console.log(`\n🔴 MIGRABLES ENCORE EN DUR : ${migrables.length} sur ${new Set(migrables.map((r) => r.file)).size} fichier(s)`)
   if (migrables.length) {
@@ -373,7 +390,9 @@ if (arg === '--md') {
       ? 'valeur transparente — aucun jeton ne la nomme'
       : r.value === 'TRANSPARENT'
         ? 'bg-transparent — absence de fond, pas une couleur'
-        : (r.note ?? 'non classé')
+        : r.declaree && r.token && !r.token.includes('?')
+          ? 'laissée sur ordre, marquée GYM-286 dans le code'
+          : (r.note ?? 'non classé')
     parRaison[raison] = (parRaison[raison] ?? 0) + 1
   }
   for (const [raison, n] of Object.entries(parRaison).sort((a, b) => b[1] - a[1])) {

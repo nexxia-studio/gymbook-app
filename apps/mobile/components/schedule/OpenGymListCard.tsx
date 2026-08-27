@@ -13,6 +13,7 @@
 import { useState } from 'react'
 import { View, Text, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 import { ChevronDown } from 'lucide-react-native'
 import { resolveActivityIcon } from '../../lib/activityIcons'
 import { OpenGymAvailability } from './OpenGymAvailability'
@@ -28,6 +29,7 @@ interface OpenGymListCardProps {
 
 export function OpenGymListCard({ group, onSelectSlot }: OpenGymListCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const [expanded, setExpanded] = useState(false)
 
   // Les créneaux d'un groupe partagent la même activité : le premier porte la couleur et
@@ -42,7 +44,7 @@ export function OpenGymListCard({ group, onSelectSlot }: OpenGymListCardProps) {
   const available = availableSlotCount(group.slots)
 
   return (
-    <View className="mb-2 overflow-hidden rounded-2xl bg-move-card">
+    <View className="mb-2 overflow-hidden rounded-2xl" style={{ backgroundColor: tokens.surface }}>
       <TouchableOpacity
         onPress={() => setExpanded((v) => !v)}
         activeOpacity={0.7}
@@ -57,10 +59,10 @@ export function OpenGymListCard({ group, onSelectSlot }: OpenGymListCardProps) {
             Calculée sur les créneaux réellement présents — un jour dont tout est exclu
             après 17 h affiche 17 h, jamais l'heure de fermeture de la salle. */}
         <View className="w-16 items-center justify-center py-4">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: '#111111' }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: tokens.onSurface }}>
             {formatAmplitudeHour(group.from)}
           </Text>
-          <Text className="font-dmsans text-[11px] text-move-text-muted">
+          <Text className="font-dmsans text-[11px]" style={{ color: tokens.onBackgroundMuted }}>
             {formatAmplitudeHour(group.to)}
           </Text>
         </View>
@@ -69,12 +71,12 @@ export function OpenGymListCard({ group, onSelectSlot }: OpenGymListCardProps) {
             accès libre n'a pas (GYM-229). */}
         <View className="flex-1 py-3">
           <View className="flex-row items-center gap-1.5">
-            <Icon size={14} color="#111111" />
-            <Text className="font-dmsans-bold text-[15px] text-move-dark">
+            <Icon size={14} color={tokens.onSurface} />
+            <Text className="font-dmsans-bold text-[15px]" style={{ color: tokens.onSurface }}>
               {group.activity}
             </Text>
           </View>
-          <Text className="mt-0.5 font-dmsans text-[13px] text-move-text-secondary">
+          <Text className="mt-0.5 font-dmsans text-[13px]" style={{ color: tokens.onSurfaceSecondary }}>
             {t('open_gym.free_access')}
           </Text>
         </View>
@@ -82,7 +84,7 @@ export function OpenGymListCard({ group, onSelectSlot }: OpenGymListCardProps) {
         <View className="flex-row items-center gap-2 pr-3">
           <OpenGymAvailability available={available} />
           <View style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}>
-            <ChevronDown size={16} color="#9A9890" />
+            <ChevronDown size={16} color={tokens.onBackgroundMuted} />
           </View>
         </View>
       </TouchableOpacity>
@@ -91,7 +93,7 @@ export function OpenGymListCard({ group, onSelectSlot }: OpenGymListCardProps) {
           cours, réutilisé tel quel. Choisir un créneau ouvre SA fiche, où la réservation
           suit le chemin habituel. */}
       {expanded && (
-        <View className="border-t border-move-border">
+        <View className="border-t" style={{ borderColor: tokens.border }}>
           <WeekSlots
             slots={group.slots.map((s) => ({
               id: s.id,
