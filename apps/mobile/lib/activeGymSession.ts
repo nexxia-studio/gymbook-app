@@ -59,6 +59,7 @@
 import { useAuthStore } from '../stores/useAuthStore'
 import { GYM_MODE, readSelectedGymSlug, writeSelectedGymSlug } from './gymResolver'
 import { listMyGyms, switchGym } from './gymSwitch'
+import { readCachedBrand } from './theme/brand'
 import { withActiveGymWrite } from './activeGymWrites'
 import { captureEvent } from './analytics'
 
@@ -342,8 +343,19 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
       if (!active) {
         return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, true)
       }
+      // 🔴 GYM-300 (3a) — LE NOM DE LA SALLE DEMANDÉE, S'IL EST CONNU. Ici `choisie` est
+      // `undefined` : on ne dispose QUE du slug, et un slug n'est pas un nom. Le cache de
+      // marque, lui, a été rempli par la recherche juste avant la connexion
+      // (`app/gym/select.tsx` appelle `fetchBrand` avant de naviguer) — c'est une lecture
+      // LOCALE, aucun aller-retour ajouté sur un chemin déjà long.
+      //
+      // ⚠️ ET S'IL EST INCONNU, ON NE MET PAS LE SLUG À LA PLACE : le membre n'a jamais vu
+      // « studio-test-staging », et lui montrer un identifiant technique au moment où on
+      // lui explique une bascule ajouterait de la confusion à la confusion.
+      const demandee = await readCachedBrand(slugLocal)
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
+      annonce({ kind: 'not_member', requested: demandee?.name ?? null, landed: active.name })
       return journalise(
         { status: 'server_wins', reason: 'not_member', gymId: active.gymId }, true,
       )
@@ -366,8 +378,11 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
       if (!active) {
         return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, true)
       }
+      // Ici le nom est SÛR : `choisie` vient des adhésions, et le refus est postérieur à
+      // la soumission — l'appartenance a été retirée entre la liste et la bascule.
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
+      annonce({ kind: 'not_member', requested: choisie.name, landed: active.name })
       return journalise(
         { status: 'server_wins', reason: 'refused_pt403', gymId: active.gymId }, true,
       )
