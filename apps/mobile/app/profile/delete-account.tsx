@@ -8,6 +8,8 @@ import { TextInput } from '../../components/ui/TextInput'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { ACTIVE_SUBSCRIPTION_STATUSES } from '../../lib/subscription'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 /** Lit le corps d'erreur d'une réponse Edge Function (JSON dans error.context) : code + ends_at. */
 async function readErrorBody(
@@ -34,6 +36,7 @@ function formatEngagedDate(iso: string): string {
 }
 
 export default function DeleteAccountScreen() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const signOut = useAuthStore((s) => s.signOut)
@@ -115,46 +118,47 @@ export default function DeleteAccountScreen() {
 
   const RemovedRow = ({ label }: { label: string }) => (
     <View className="flex-row items-start gap-2 py-1">
-      <X size={16} color="#EF4444" style={{ marginTop: 2 }} />
-      <Text className="flex-1 font-dmsans text-sm text-move-dark">{label}</Text>
+      <X size={16} color={SEMANTIC.danger} style={{ marginTop: 2 }} />
+      <Text className="flex-1 font-dmsans text-sm" style={{ color: tokens.onSurface }}>{label}</Text>
     </View>
   )
   const KeptRow = ({ label }: { label: string }) => (
     <View className="flex-row items-start gap-2 py-1">
-      <Check size={16} color="#6B6861" style={{ marginTop: 2 }} />
-      <Text className="flex-1 font-dmsans text-sm text-move-dark">{label}</Text>
+      <Check size={16} color={tokens.onSurfaceSecondary} style={{ marginTop: 2 }} />
+      <Text className="flex-1 font-dmsans text-sm" style={{ color: tokens.onSurface }}>{label}</Text>
     </View>
   )
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
         <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
-          <ChevronLeft size={24} color="#FFFFFF" />
+          <ChevronLeft size={24} color={tokens.onBackground} />
         </Pressable>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground, letterSpacing: 2 }}>
           {t('profile.delete.title').toUpperCase()}
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
-        className="flex-1 bg-move-bg"
+        className="flex-1"
+        style={{ backgroundColor: tokens.page }}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         {/* Bandeau d'avertissement */}
         <View className="flex-row gap-2 rounded-2xl border border-red-200 bg-red-50 p-4">
-          <AlertTriangle size={20} color="#EF4444" />
+          <AlertTriangle size={20} color={SEMANTIC.danger} />
           <Text className="flex-1 font-dmsans-bold text-sm text-red-600">
             {t('profile.delete.warning')}
           </Text>
         </View>
 
         {/* Ce qui est supprimé */}
-        <View className="rounded-2xl bg-move-card p-4">
-          <Text className="mb-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+        <View className="rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+          <Text className="mb-2 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
             {t('profile.delete.removed_title')}
           </Text>
           <RemovedRow label={t('profile.delete.removed_profile')} />
@@ -165,24 +169,25 @@ export default function DeleteAccountScreen() {
         </View>
 
         {/* Ce qui est conservé */}
-        <View className="rounded-2xl bg-move-card p-4">
-          <Text className="mb-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+        <View className="rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+          <Text className="mb-2 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
             {t('profile.delete.kept_title')}
           </Text>
           <KeptRow label={t('profile.delete.kept_payments')} />
-          <Text className="mt-2 font-dmsans text-xs leading-5 text-move-text-muted">
+          <Text className="mt-2 font-dmsans text-xs leading-5" style={{ color: tokens.onBackgroundMuted }}>
             {t('profile.delete.kept_note')}
           </Text>
         </View>
 
         {checking ? (
           <View className="items-center py-4">
-            <ActivityIndicator color="#EF4444" />
+            <ActivityIndicator color={SEMANTIC.danger} />
           </View>
         ) : engagedUntil ? (
           /* GYM-113 — état BLOQUANT (persistant, pas une alerte éphémère). Saisie + CTA masqués. */
           <View className="gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-4">
             <View className="flex-row items-center gap-2">
+              {/* GYM-286 — A-2, EN ATTENTE : #B45309 (ambre 700) ne vaut aucun jeton. */}
               <AlertTriangle size={18} color="#B45309" />
               <Text className="font-dmsans-bold text-sm text-amber-800">
                 {t('profile.delete.engaged_title')}
@@ -195,8 +200,8 @@ export default function DeleteAccountScreen() {
         ) : (
           <>
             {/* Saisie de confirmation */}
-            <View className="rounded-2xl bg-move-card p-4">
-              <Text className="mb-2 font-dmsans text-sm text-move-dark">
+            <View className="rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+              <Text className="mb-2 font-dmsans text-sm" style={{ color: tokens.onSurface }}>
                 {t('profile.delete.type_to_confirm', { word: confirmWord })}
               </Text>
               <TextInput
@@ -216,9 +221,12 @@ export default function DeleteAccountScreen() {
               className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${canDelete ? 'bg-red-600' : 'bg-red-200'}`}
             >
               {deleting ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                // ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : l'encre est posée
+                // sur le rouge destructif, qui ne bouge pas. Chez une salle claire,
+                // `onBackground` vaut une encre SOMBRE, illisible sur ce rouge.
+                <ActivityIndicator color={SEMANTIC.onSignal} size="small" />
               ) : (
-                <Text className="font-dmsans-bold text-base text-white">
+                <Text className="font-dmsans-bold text-base" style={{ color: SEMANTIC.onSignal }}>
                   {t('profile.delete.cta')}
                 </Text>
               )}

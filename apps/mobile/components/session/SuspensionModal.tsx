@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { ShieldAlert } from 'lucide-react-native'
 import { toLocalTime } from '../../utils/timezone'
 import { useGymProfile } from '../../hooks/useGymProfile'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface SuspensionModalProps {
   visible: boolean
@@ -12,6 +14,7 @@ interface SuspensionModalProps {
 
 export function SuspensionModal({ visible, suspendedUntil, onClose }: SuspensionModalProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   // GYM-216 — nom et email de contact lus dans nexxia_gyms. L'email était écrit en dur
   // (contact@dopamineclub.be) : au white-label, un membre suspendu d'une autre salle
   // aurait écrit à Dopamine.
@@ -32,20 +35,23 @@ export function SuspensionModal({ visible, suspendedUntil, onClose }: Suspension
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View className="flex-1 justify-end bg-black/40">
-        <View className="rounded-t-3xl bg-move-card px-6 pb-10 pt-8">
+        <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
           <View className="items-center">
-            <ShieldAlert size={48} color="#EF4444" />
+            <ShieldAlert size={48} color={SEMANTIC.danger} />
 
-            <Text className="mt-4 font-barlow text-2xl uppercase text-move-dark">
+            <Text className="mt-4 font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
               {t('session.suspended_title')}
             </Text>
 
-            <Text className="mt-3 text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
+            <Text className="mt-3 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
               {message}
             </Text>
           </View>
 
           <View className="mt-8 gap-3">
+            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE. Le bouton primaire de Dopamine
+                (`bg-move-dark` + `text-move-accent`) reste en dur : en mode multi son
+                fond vaudrait celui de la page, 1,00:1, invisible. Voir Button.tsx. */}
             <TouchableOpacity
               onPress={onClose}
               activeOpacity={0.8}
@@ -65,7 +71,7 @@ export function SuspensionModal({ visible, suspendedUntil, onClose }: Suspension
                 activeOpacity={0.7}
                 className="items-center py-3"
               >
-                <Text className="font-dmsans text-sm text-move-text-muted">
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
                   {t('session.contact_gym', { gym: gym.name ?? '' }).trim()}
                 </Text>
               </TouchableOpacity>

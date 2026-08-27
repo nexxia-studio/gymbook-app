@@ -1,11 +1,14 @@
 import { Stack } from 'expo-router'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 export default function AuthLayout() {
+  const { tokens } = useTheme()
+
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#F5F4F0' },
+        contentStyle: { backgroundColor: tokens.page },
       }}
     />
   )

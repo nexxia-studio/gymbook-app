@@ -12,6 +12,8 @@ import { TextInput } from '../../components/ui/TextInput'
 import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { avatarColor } from '../../lib/theme/palette'
 
 type FocusField = 'photo' | 'phone' | 'birth_date' | 'address' | 'emergency'
 
@@ -73,14 +75,8 @@ async function fetchBelgianCityFromPostalCode(code: string): Promise<string | nu
   }
 }
 
-function nameToColor(name: string): string {
-  const colors = ['#4ECDC4', '#FF6B6B', '#6C5CE7', '#FF8E53', '#A8E6CF', '#B8B8FF']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
-}
-
 export default function EditProfileScreen() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { focus } = useLocalSearchParams<{ focus?: FocusField }>()
@@ -283,16 +279,16 @@ export default function EditProfileScreen() {
   }, [form, refreshProfile, router, t])
 
   const initials = `${form.firstName[0] ?? ''}${form.lastName[0] ?? ''}`.toUpperCase()
-  const bgColor = nameToColor(`${form.firstName} ${form.lastName}`)
+  const bgColor = avatarColor(`${form.firstName} ${form.lastName}`)
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
         <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
-          <ChevronLeft size={24} color="#FFFFFF" />
+          <ChevronLeft size={24} color={tokens.onBackground} />
         </Pressable>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground, letterSpacing: 2 }}>
           {t('profile.edit.title').toUpperCase()}
         </Text>
         <View style={{ width: 24 }} />
@@ -300,7 +296,8 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 bg-move-bg"
+        className="flex-1"
+        style={{ backgroundColor: tokens.page }}
       >
         <ScrollView
           className="flex-1"
@@ -308,38 +305,41 @@ export default function EditProfileScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Avatar */}
-          <View className="items-center rounded-2xl bg-move-card p-6">
+          <View className="items-center rounded-2xl p-6" style={{ backgroundColor: tokens.surface }}>
             <Pressable onPress={handleSelectPhoto} disabled={uploading}>
               <View
                 className="h-24 w-24 items-center justify-center overflow-hidden rounded-full"
-                style={{ backgroundColor: bgColor, borderWidth: 3, borderColor: '#C8F000' }}
+                style={{ backgroundColor: bgColor, borderWidth: 3, borderColor: tokens.accent }}
               >
                 {form.avatarUrl ? (
                   <Image source={{ uri: form.avatarUrl }} className="h-full w-full" />
                 ) : (
-                  <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 36, color: '#FFFFFF' }}>
+                  <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 36, color: tokens.onBackground }}>
                     {initials || '?'}
                   </Text>
                 )}
               </View>
-              <View className="absolute -bottom-1 -right-1 h-8 w-8 items-center justify-center rounded-full border-2 border-move-card bg-move-dark">
+              {/* Pastille d'appareil photo — ce n'est PAS un bouton `bg-move-dark` isolé :
+                  elle est posée SUR l'avatar, dont la couleur vient de la palette de
+                  membres, et se détache donc de son support quoi qu'il arrive. */}
+              <View className="absolute -bottom-1 -right-1 h-8 w-8 items-center justify-center rounded-full border-2" style={{ borderColor: tokens.surface, backgroundColor: tokens.background }}>
                 {uploading ? (
-                  <Text style={{ color: '#C8F000', fontSize: 10 }}>...</Text>
+                  <Text style={{ color: tokens.accent, fontSize: 10 }}>...</Text>
                 ) : (
-                  <Camera size={14} color="#C8F000" />
+                  <Camera size={14} color={tokens.accent} />
                 )}
               </View>
             </Pressable>
             <Pressable onPress={handleSelectPhoto} disabled={uploading} className="mt-3 flex-row items-center gap-1.5">
-              <Pencil size={12} color="#6B6861" />
-              <Text className="font-dmsans-medium text-xs text-move-text-secondary">
+              <Pencil size={12} color={tokens.onSurfaceSecondary} />
+              <Text className="font-dmsans-medium text-xs" style={{ color: tokens.onSurfaceSecondary }}>
                 {t('profile.edit.edit_photo')}
               </Text>
             </Pressable>
           </View>
 
           {/* Identity */}
-          <View className="gap-4 rounded-2xl bg-move-card p-4">
+          <View className="gap-4 rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
             <View className="flex-row gap-3">
               <View className="flex-1">
                 <TextInput
@@ -449,8 +449,8 @@ export default function EditProfileScreen() {
           </View>
 
           {/* Emergency */}
-          <View className="gap-4 rounded-2xl bg-move-card p-4">
-            <Text className="font-dmsans-bold text-base text-move-dark">
+          <View className="gap-4 rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-base" style={{ color: tokens.onSurface }}>
               {t('profile.edit.emergency_section')}
             </Text>
 

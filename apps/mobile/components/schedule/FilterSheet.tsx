@@ -16,6 +16,7 @@ import { useMemo } from 'react'
 import { View, Text, Modal, Pressable, ScrollView, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react-native'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 import type { PeriodFilter } from '../../hooks/useSchedule'
 
 interface FilterSheetProps {
@@ -42,18 +43,21 @@ interface FilterSheetProps {
  * recommandée par Apple, et les pastilles précédentes (py-2, ~32 px) passaient dessous.
  */
 function Option({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const { tokens } = useTheme()
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: active }}
-      className={`min-h-[44px] justify-center rounded-xl px-4 py-2.5 ${
-        active ? 'bg-move-accent' : 'border border-move-border bg-transparent'
-      }`}
+      className={`min-h-[44px] justify-center rounded-xl px-4 py-2.5 ${active ? '' : 'border bg-transparent'}`}
+      style={active ? { backgroundColor: tokens.accent } : { borderColor: tokens.border }}
     >
+      {/* ⚠️ `onAccent`, PAS `onSurface` — l'étiquette active est posée SUR `accent`. */}
       <Text
-        className={`font-dmsans-medium text-sm ${active ? 'text-[#111111]' : 'text-move-text-secondary'}`}
+        className="font-dmsans-medium text-sm"
+        style={{ color: active ? tokens.onAccent : tokens.onSurfaceSecondary }}
       >
         {label}
       </Text>
@@ -62,9 +66,11 @@ function Option({ label, active, onPress }: { label: string; active: boolean; on
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const { tokens } = useTheme()
+
   return (
     <View className="mb-6">
-      <Text className="mb-3 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+      <Text className="mb-3 font-dmsans-bold text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
         {title}
       </Text>
       <View className="flex-row flex-wrap gap-2">{children}</View>
@@ -78,6 +84,7 @@ export function FilterSheet({
   onToggleActivity, onToggleCoach, onPeriodChange, onReset, hasActiveFilters,
 }: FilterSheetProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
 
   // Les trois périodes, « plus tard » retirée quand elle ne peut rien contenir.
   const periods = useMemo(() => {
@@ -99,13 +106,14 @@ export function FilterSheet({
         accessibilityLabel={t('common.close')}
         className="flex-1 bg-black/40"
       />
-      <View className="max-h-[80%] rounded-t-3xl bg-move-bg pb-8">
+      {/* `bg-black/40` reste : un voile à 40 % n'est nommé par aucun jeton. */}
+      <View className="max-h-[80%] rounded-t-3xl pb-8" style={{ backgroundColor: tokens.page }}>
         {/* Poignée + en-tête */}
         <View className="items-center pt-3">
-          <View className="h-1 w-10 rounded-full bg-move-border" />
+          <View className="h-1 w-10 rounded-full" style={{ backgroundColor: tokens.border }} />
         </View>
         <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onSurface }}>
             {t('schedule.filters.title').toUpperCase()}
           </Text>
           <TouchableOpacity
@@ -114,7 +122,7 @@ export function FilterSheet({
             accessibilityRole="button"
             accessibilityLabel={t('common.close')}
           >
-            <X size={22} color="#9A9890" />
+            <X size={22} color={tokens.onBackgroundMuted} />
           </TouchableOpacity>
         </View>
 
@@ -153,10 +161,10 @@ export function FilterSheet({
 
         {/* Pied — le bouton ANNONCE LE RÉSULTAT. Le membre sait ce qu'il obtient avant de
             fermer, au lieu de valider puis découvrir un écran vide. */}
-        <View className="border-t border-move-border px-5 pt-4">
+        <View className="border-t px-5 pt-4" style={{ borderColor: tokens.border }}>
           {hasActiveFilters && (
             <TouchableOpacity onPress={onReset} hitSlop={8} className="mb-3 self-start" accessibilityRole="button">
-              <Text className="font-dmsans-medium text-sm text-move-text-secondary underline">
+              <Text className="font-dmsans-medium text-sm underline" style={{ color: tokens.onSurfaceSecondary }}>
                 {t('schedule.filters.clear_all')}
               </Text>
             </TouchableOpacity>
@@ -165,6 +173,7 @@ export function FilterSheet({
             onPress={onClose}
             activeOpacity={0.8}
             accessibilityRole="button"
+            // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
             className="min-h-[48px] items-center justify-center rounded-xl bg-move-dark"
           >
             <Text className="font-dmsans-bold text-sm text-move-accent">

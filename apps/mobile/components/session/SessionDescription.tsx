@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, LayoutAnimation } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 interface SessionDescriptionProps {
   /**
@@ -29,6 +30,7 @@ interface SessionDescriptionProps {
  */
 export function SessionDescription({ description }: SessionDescriptionProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const [expanded, setExpanded] = useState(false)
 
   const toggle = useCallback(() => {
@@ -40,17 +42,21 @@ export function SessionDescription({ description }: SessionDescriptionProps) {
   if (!text) return null
 
   return (
-    <View className="bg-move-card px-5 py-4">
-      <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+    <View className="px-5 py-4" style={{ backgroundColor: tokens.surface }}>
+      <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
         {t('session.about')}
       </Text>
       <Text
-        className="font-dmsans text-sm leading-5 text-move-text-secondary"
+        className="font-dmsans text-sm leading-5"
+        style={{ color: tokens.onSurfaceSecondary }}
         numberOfLines={expanded ? undefined : 3}
       >
         {text}
       </Text>
       <TouchableOpacity onPress={toggle} className="mt-1">
+        {/* GYM-286 — A-1, EN ATTENTE : #9DB800 dit ici « déplier », pas un succès, mais
+            reste un lime de marque. Le cockpit n'a pas tranché entre `tokens.accentDim`
+            et `SEMANTIC.success` ; la classe reste. */}
         <Text className="font-dmsans-bold text-xs text-move-accent-dim">
           {expanded ? t('session.see_less') : t('session.see_more')}
         </Text>

@@ -13,6 +13,7 @@ import { PasswordInput } from '../../components/ui/PasswordInput'
 import { PasswordRules } from '../../components/ui/PasswordRules'
 import { supabase } from '../../lib/supabase'
 import { validatePassword, mapPasswordError } from '../../lib/passwordPolicy'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
  * Route Universal Link : cible de https://links.viniz.app/dopamine/reset-password#access_token=…
@@ -52,6 +53,7 @@ function parseAuthParams(rawUrl: string | null): Record<string, string> {
 }
 
 export default function ResetPassword() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const incomingUrl = Linking.useURL()
@@ -145,27 +147,29 @@ export default function ResetPassword() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top', 'bottom']}>
       <View className="flex-1 justify-center px-6">
         <View className="items-center mb-8">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#C8F000', letterSpacing: 2 }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: tokens.accent, letterSpacing: 2 }}>
             DOPAMINE
           </Text>
         </View>
 
         {status === 'checking' && (
           <View className="items-center gap-4">
-            <ActivityIndicator size="large" color="#C8F000" />
-            <Text className="font-dmsans text-sm text-move-text-muted">{t('reset.checking')}</Text>
+            <ActivityIndicator size="large" color={tokens.accent} />
+            <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('reset.checking')}</Text>
           </View>
         )}
 
         {status === 'ready' && (
-          <View className="rounded-2xl bg-move-card p-6">
-            <Text className="font-dmsans-bold text-lg text-move-dark">{t('reset.title')}</Text>
-            <Text className="mt-1 mb-5 font-dmsans text-sm text-move-text-secondary">{t('reset.subtitle')}</Text>
+          <View className="rounded-2xl p-6" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-lg" style={{ color: tokens.onSurface }}>{t('reset.title')}</Text>
+            <Text className="mt-1 mb-5 font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>{t('reset.subtitle')}</Text>
 
             {error && (
+              // GYM-286 — A-2, EN ATTENTE : `bg-red-50` #FEF2F2 et `text-red-600` #DC2626
+              // ne valent aucun jeton — ce n'est ni le rouge d'erreur ni son fond.
               <View className="mb-4 rounded-xl bg-red-50 px-4 py-3">
                 <Text className="font-dmsans text-sm text-red-600">{error}</Text>
               </View>
@@ -196,6 +200,7 @@ export default function ResetPassword() {
             <Pressable
               onPress={handleSubmit}
               disabled={saving}
+              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
               className={`mt-6 flex-row items-center justify-center rounded-xl bg-move-dark py-3.5 ${saving ? 'opacity-60' : ''}`}
             >
               {saving ? (
@@ -210,11 +215,12 @@ export default function ResetPassword() {
         )}
 
         {status === 'done' && (
-          <View className="items-center rounded-2xl bg-move-card p-8">
-            <Text className="font-dmsans-bold text-lg text-move-dark">{t('reset.success_title')}</Text>
-            <Text className="mt-2 mb-6 text-center font-dmsans text-sm text-move-text-secondary">
+          <View className="items-center rounded-2xl p-8" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-lg" style={{ color: tokens.onSurface }}>{t('reset.success_title')}</Text>
+            <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('reset.success_message')}
             </Text>
+            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={goToLogin} className="rounded-xl bg-move-dark px-6 py-3.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
                 {t('reset.go_login')}
@@ -224,11 +230,12 @@ export default function ResetPassword() {
         )}
 
         {status === 'invalid' && (
-          <View className="items-center rounded-2xl bg-move-card p-8">
-            <Text className="font-dmsans-bold text-lg text-move-dark">{t('reset.invalid_title')}</Text>
-            <Text className="mt-2 mb-6 text-center font-dmsans text-sm text-move-text-secondary">
+          <View className="items-center rounded-2xl p-8" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-lg" style={{ color: tokens.onSurface }}>{t('reset.invalid_title')}</Text>
+            <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('reset.invalid_message')}
             </Text>
+            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={goToLogin} className="rounded-xl bg-move-dark px-6 py-3.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
                 {t('reset.go_login')}

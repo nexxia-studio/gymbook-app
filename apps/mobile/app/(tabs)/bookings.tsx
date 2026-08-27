@@ -14,6 +14,7 @@ import { useBookingStore, type FavoritePattern } from '../../stores/useBookingSt
 import { supabase } from '../../lib/supabase'
 import { useActiveGymId } from '../../lib/activeGym'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
   const [y, mo, d] = dateStr.split('-').map(Number)
@@ -47,6 +48,7 @@ interface FavoriteCardData {
 }
 
 export default function Bookings() {
+  const { tokens } = useTheme()
   // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
   const gymId = useActiveGymId()
 
@@ -222,10 +224,10 @@ export default function Bookings() {
   }, [favorites, t, gymId])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="bg-move-dark px-5 pb-4 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('bookings.title').toUpperCase()}
         </Text>
         <Text className="font-dmsans text-[13px] text-white/40">
@@ -235,10 +237,11 @@ export default function Bookings() {
 
       {/* Content */}
       <ScrollView
-        className="flex-1 bg-move-bg"
+        className="flex-1"
+        style={{ backgroundColor: tokens.page }}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" colors={['#C8F000']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.accent} colors={[tokens.accent]} />
         }
       >
         {/* Tabs (inside the off-white area) */}
@@ -256,13 +259,14 @@ export default function Bookings() {
 
             {bookings.length === 0 ? (
               <View className="items-center py-20">
-                <CalendarX size={40} color="#9A9890" />
-                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                <CalendarX size={40} color={tokens.onBackgroundMuted} />
+                <Text className="mt-3 font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                   {t('bookings.empty_upcoming')}
                 </Text>
-                <Text className="mt-1 font-dmsans text-xs text-move-text-muted">
+                <Text className="mt-1 font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_upcoming_hint')}
                 </Text>
+                {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`. */}
                 <TouchableOpacity
                   onPress={() => router.navigate('/(tabs)/schedule')}
                   activeOpacity={0.8}
@@ -293,11 +297,11 @@ export default function Bookings() {
           <>
             {favoritesData.length === 0 ? (
               <View className="items-center py-20">
-                <Heart size={40} color="#9A9890" />
-                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                <Heart size={40} color={tokens.onBackgroundMuted} />
+                <Text className="mt-3 font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                   {t('bookings.empty_favorites')}
                 </Text>
-                <Text className="mt-1 text-center font-dmsans text-xs text-move-text-muted">
+                <Text className="mt-1 text-center font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_favorites_hint')}
                 </Text>
               </View>
@@ -344,11 +348,11 @@ export default function Bookings() {
           <>
             {pastBookings.length === 0 ? (
               <View className="items-center py-20">
-                <Clock size={40} color="#9A9890" />
-                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                <Clock size={40} color={tokens.onBackgroundMuted} />
+                <Text className="mt-3 font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                   {t('bookings.empty_history')}
                 </Text>
-                <Text className="mt-1 font-dmsans text-xs text-move-text-muted">
+                <Text className="mt-1 font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_history_hint')}
                 </Text>
               </View>

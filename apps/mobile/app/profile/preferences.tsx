@@ -7,6 +7,8 @@ import * as Localization from 'expo-localization'
 import { ChevronLeft, CheckCircle, Clock, Users, AlertTriangle, MessageCircle, Info, Check } from 'lucide-react-native'
 import i18n from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 type NotifKey =
   | 'push_booking' | 'push_reminder' | 'push_waitlist' | 'push_noshow'
@@ -36,6 +38,7 @@ function detectDeviceLanguage(): Language {
 }
 
 export default function PreferencesScreen() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_PREFS)
@@ -101,32 +104,32 @@ export default function PreferencesScreen() {
   }, [language, t])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
         <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
-          <ChevronLeft size={24} color="#FFFFFF" />
+          <ChevronLeft size={24} color={tokens.onBackground} />
         </Pressable>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground, letterSpacing: 2 }}>
           {t('preferences.title').toUpperCase()}
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
+      <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
         {/* Notifications */}
-        <View className="rounded-2xl bg-move-card p-4">
-          <Text className="mb-3 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+        <View className="rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+          <Text className="mb-3 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
             {t('preferences.notifications_section')}
           </Text>
 
           {/* Column headers */}
           <View className="flex-row items-center pb-2">
             <View className="flex-1" />
-            <Text className="w-14 text-center font-dmsans-medium text-[11px] uppercase tracking-wider text-move-text-muted">
+            <Text className="w-14 text-center font-dmsans-medium text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
               {t('preferences.push_col')}
             </Text>
-            <Text className="w-14 text-center font-dmsans-medium text-[11px] uppercase tracking-wider text-move-text-muted">
+            <Text className="w-14 text-center font-dmsans-medium text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
               {t('preferences.email_col')}
             </Text>
           </View>
@@ -135,10 +138,10 @@ export default function PreferencesScreen() {
             const pushKey = `push_${cat.key}` as NotifKey
             const emailKey = `email_${cat.key}` as NotifKey
             return (
-              <View key={cat.key} className="flex-row items-center border-t border-move-border py-2.5">
+              <View key={cat.key} className="flex-row items-center border-t py-2.5" style={{ borderColor: tokens.border }}>
                 <View className="flex-1 flex-row items-center gap-2">
-                  <cat.Icon size={16} color="#111111" />
-                  <Text className="font-dmsans text-sm text-move-dark">
+                  <cat.Icon size={16} color={tokens.onSurface} />
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurface }}>
                     {t(`preferences.category_${cat.key}`)}
                   </Text>
                 </View>
@@ -147,8 +150,8 @@ export default function PreferencesScreen() {
                     value={prefs[pushKey]}
                     onValueChange={(v) => updatePref(pushKey, v)}
                     disabled={loading}
-                    trackColor={{ true: '#C8F000', false: '#E5E5E5' }}
-                    thumbColor="#111111"
+                    trackColor={{ true: tokens.accent, false: SEMANTIC.disabledTrack }}
+                    thumbColor={tokens.onAccent}
                   />
                 </View>
                 <View className="w-14 items-center">
@@ -156,8 +159,8 @@ export default function PreferencesScreen() {
                     value={prefs[emailKey]}
                     onValueChange={(v) => updatePref(emailKey, v)}
                     disabled={loading}
-                    trackColor={{ true: '#C8F000', false: '#E5E5E5' }}
-                    thumbColor="#111111"
+                    trackColor={{ true: tokens.accent, false: SEMANTIC.disabledTrack }}
+                    thumbColor={tokens.onAccent}
                   />
                 </View>
               </View>
@@ -165,13 +168,15 @@ export default function PreferencesScreen() {
           })}
 
           {/* WhatsApp placeholder */}
-          <View className="flex-row items-center gap-2 border-t border-move-border py-3 opacity-60">
+          <View className="flex-row items-center gap-2 border-t py-3 opacity-60" style={{ borderColor: tokens.border }}>
+            {/* 🔴 GYM-286 — MARQUE TIERCE (A-9) : le vert WhatsApp officiel, ne jamais
+                thématiser. Sans ce commentaire, il ressemble à un oubli. */}
             <MessageCircle size={16} color="#25D366" />
-            <Text className="flex-1 font-dmsans text-sm text-move-dark">
+            <Text className="flex-1 font-dmsans text-sm" style={{ color: tokens.onSurface }}>
               {t('preferences.whatsapp_label')}
             </Text>
-            <View className="rounded-full bg-move-bg px-2.5 py-1">
-              <Text className="font-dmsans text-[11px] text-move-text-muted">
+            <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: tokens.page }}>
+              <Text className="font-dmsans text-[11px]" style={{ color: tokens.onBackgroundMuted }}>
                 {t('preferences.whatsapp_coming_soon')}
               </Text>
             </View>
@@ -179,16 +184,16 @@ export default function PreferencesScreen() {
         </View>
 
         {/* Push info */}
-        <View className="flex-row gap-2 rounded-xl border border-move-border bg-move-bg p-3">
-          <Info size={14} color="#9A9890" />
-          <Text className="flex-1 font-dmsans text-xs leading-5 text-move-text-secondary">
+        <View className="flex-row gap-2 rounded-xl border p-3" style={{ borderColor: tokens.border, backgroundColor: tokens.page }}>
+          <Info size={14} color={tokens.onBackgroundMuted} />
+          <Text className="flex-1 font-dmsans text-xs leading-5" style={{ color: tokens.onSurfaceSecondary }}>
             {t('preferences.push_info')}
           </Text>
         </View>
 
         {/* Language */}
-        <View className="rounded-2xl bg-move-card p-4">
-          <Text className="mb-3 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+        <View className="rounded-2xl p-4" style={{ backgroundColor: tokens.surface }}>
+          <Text className="mb-3 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
             {t('preferences.language_section')}
           </Text>
 
@@ -201,13 +206,15 @@ export default function PreferencesScreen() {
               <Pressable
                 key={lang.code}
                 onPress={() => handleLanguageChange(lang.code)}
-                className={`mb-2 flex-row items-center gap-3 rounded-xl border p-3.5 ${active ? 'border-move-accent bg-move-accent/10' : 'border-move-border bg-move-card'}`}
+                // `bg-move-accent/10` reste : un lavis à 10 % n'est pas `tokens.accent`.
+                className={`mb-2 flex-row items-center gap-3 rounded-xl border p-3.5 ${active ? 'bg-move-accent/10' : ''}`}
+                style={active ? { borderColor: tokens.accent } : { borderColor: tokens.border, backgroundColor: tokens.surface }}
               >
                 <Text style={{ fontSize: 22 }}>{lang.flag}</Text>
-                <Text className="flex-1 font-dmsans-medium text-base text-move-dark">
+                <Text className="flex-1 font-dmsans-medium text-base" style={{ color: tokens.onSurface }}>
                   {lang.label}
                 </Text>
-                {active && <Check size={20} color="#111111" />}
+                {active && <Check size={20} color={tokens.onSurface} />}
               </Pressable>
             )
           })}

@@ -67,14 +67,34 @@ GYM-286a avait mandat d'inventorier. Les 172 autres occurrences sont à inventor
 même format avant 286b ; elles sont pour l'essentiel **sémantiques** (rouges, orangés,
 verts de la palette Tailwind), c'est-à-dire la famille qui compte le plus.
 
-### État après cet lot
+> **✅ FAIT EN GYM-286b.** `scripts/inventaire-couleurs.mjs` couvre désormais les cinq
+> populations et fait autorité sur les comptes : **900 occurrences sur 73 fichiers**
+> (728 + 172), commentaires exclus. La palette Tailwind y est **lue dans le paquet
+> installé**, jamais recopiée — une montée de version ne peut pas rendre le tableau faux
+> en silence.
+>
+> 🔴 **Et seules 64 des 172 se migrent.** Une valeur ne devient un jeton que si elle vaut
+> EXACTEMENT ce jeton : `text-red-500` **est** `SEMANTIC.danger` #EF4444, mais
+> `bg-red-500/10` est un lavis de ce rouge que nul jeton ne nomme. Les 108 autres restent
+> — et **les laisser n'est pas un demi-travail** : ce sont des valeurs sémantiques, dont
+> le seul devoir est de ne jamais suivre la marque, ce qu'une classe Tailwind figée fait
+> déjà parfaitement. Ce qui leur manque est une source unique, pas une correction.
+>
+> `node scripts/inventaire-couleurs.mjs --reste` ventile le restant **par raison** : une
+> occurrence laissée sur ordre du cockpit et une occurrence oubliée se ressemblent dans un
+> total, et n'ont rien à voir.
 
-| | `develop` | branche `gym-286a` |
-|---|---|---|
-| occurrences (hors commentaires) | 752 | **728** |
-| fichiers concernés | 71 | **70** |
+### État après GYM-286a, puis après GYM-286b
 
-Les 24 occurrences de différence sont exactement celles de l'écran pilote.
+| | avant 286a | après 286a | **après 286b** |
+|---|---|---|---|
+| occurrences (5 populations, hors commentaires) | 924 | 900 | **231** |
+| dont **migrables** (un jeton existe, à la valeur exacte) | 762 | 738 | **0** ✅ |
+| dont laissées **sur ordre**, marquées dans le code | 162 | 162 | **231** |
+| fichiers portant encore une couleur | 75 | 73 | **56** |
+
+**Les 231 restantes ne sont pas un reste-à-faire.** Elles sont toutes laissées
+délibérément, marquées `GYM-286` à côté de leur raison. `--reste` les ventile.
 
 ---
 
@@ -1269,6 +1289,84 @@ au-dessus d'un en-tête sombre — visible seulement sur un appareil à encoche.
 single ne peut distinguer une confusion entre les deux : c'est
 `verify-screen-parity.mjs` qui la rend visible, parce qu'il compare des **suites**, et
 `verify-theme-parity.mjs` qui garantit que les valeurs elles-mêmes n'ont pas dérivé.
+
+### 🔴 Les pièges découverts pendant GYM-286b
+
+Les six premiers venaient du pilote. Ceux-ci viennent des 74 fichiers suivants, et ils
+partagent tous une même racine : **une couleur ne doit pas CHANGER DE PLACE dans le
+fichier, seulement changer de nature.** `verify-screen-parity` compare des *suites* ; tout
+ce qui déplace une couleur produit un faux rouge — et un faux rouge finit par se contourner
+de tête, ce qui rend le garde-fou inutile.
+
+**P-7 · P-2 était trop étroit : `{/* … */}` est invalide dans TOUT contexte d'expression.**
+Pas seulement avant la racine d'un `return`, mais aussi après `&& (`, `? (` et `: (`.
+Rencontré **six fois**. `tsc` ne dit jamais « commentaire mal placé » : il dit
+« JSX elements cannot have multiple attributes with the same name » ou « ')' expected »,
+vingt lignes plus bas. Un balayage mécanique traite le cas :
+
+```bash
+# convertit tout {/* … */} mal placé en //  — à relancer après chaque lot
+python3 - <<'EOF'
+import io,re,os
+for root,_,files in os.walk('.'):
+    if 'node_modules' in root or '/viniz' in root: continue
+    if not (root.startswith('./app') or root.startswith('./components')): continue
+    for fn in [f for f in files if f.endswith('.tsx')]:
+        p=os.path.join(root,fn); lines=io.open(p,encoding='utf-8').read().split('\n')
+        out=[];changed=False;i=0
+        while i<len(lines):
+            l=lines[i]; prev=out[-1] if out else ''
+            if re.search(r'(\&\&|\?|:|return)\s*\($', prev.rstrip()) and re.match(r'^\s*\{/\*', l):
+                bloc=[];j=i
+                while j<len(lines):
+                    bloc.append(lines[j])
+                    if '*/}' in lines[j]: break
+                    j+=1
+                ind=re.match(r'^(\s*)',bloc[0]).group(1)
+                for bl in '\n'.join(bloc).replace('{/*','').replace('*/}','').split('\n'):
+                    out.append((ind+'// '+bl.strip()).rstrip())
+                changed=True;i=j+1;continue
+            out.append(l);i+=1
+        if changed: io.open(p,'w',encoding='utf-8').write('\n'.join(out))
+EOF
+```
+
+**P-8 · Un élément peut DÉJÀ porter un `style`.**
+`<Pressable style={({pressed}) => …}>` en avait un, fonctionnel ; la `View` d'un pied
+collant aussi. En ajouter un second produit deux attributs de même nom, que React résout
+silencieusement en gardant le dernier. `tsc` l'attrape ici ; sur un composant moins typé,
+il ne l'attraperait pas. **Fusionner, ne jamais juxtaposer.**
+
+**P-9 · L'ordre des attributs JSX compte — `style` avant `className` quand il le faut.**
+Quand un ternaire a une branche migrée et une branche laissée en dur, la migrée part dans
+`style` et l'autre reste dans `className`. Si la branche laissée précédait la migrée dans
+la chaîne d'origine, écrire `className` d'abord **inverse les deux couleurs**. Rien ne
+change au rendu ; tout change à la preuve. Rencontré sur `verify-email.tsx` et
+`subscription.tsx`.
+
+**P-10 · Trois façons de déplacer une couleur sans le vouloir.**
+
+| ce qu'on fait | ce que ça déplace | ce qu'il faut faire |
+|---|---|---|
+| hisser un littéral dans une constante nommée | 1 déclaration ← N emplois | soit le répéter, soit résoudre les constantes (le script le fait) |
+| descendre une constante de module dans le composant | la couleur descend avec | une **fabrique** `makeStyles(tokens)`, laissée à la place de la constante |
+| passer une couleur en paramètre à une fonction externe | 1 déclaration → N appels | **refermer la fonction sur `tokens`** (la déclarer dans le composant) |
+
+**P-11 · Une classe `move-*` peut porter un alpha.**
+`bg-move-accent/15`, `bg-move-border/30`… : **15 occurrences**, comptées comme la couleur
+PLEINE par l'inventaire de 286a, donc comme migrables. Migrées, elles auraient rempli à
+100 % des fonds prévus à 5, 10, 15, 30 ou 50 % — la seule régression que l'outillage
+aurait **activement recommandée**. Même règle que pour la palette Tailwind : l'alpha exclut
+du migrable, et ce qui ne se migre pas ne se compare pas.
+
+### La convention de marquage
+
+Une couleur laissée en dur **sur ordre** porte un commentaire contenant `GYM-286` dans les
+dix lignes qui la précèdent. `node scripts/inventaire-couleurs.mjs --reste` s'en sert pour
+séparer *l'oubli* de *l'ordre* — sans quoi le lot ne peut jamais annoncer sa fin.
+
+La raison s'écrit **à côté de la couleur**, jamais dans un fichier d'exceptions que
+personne ne relit.
 
 ### Ce qu'il ne faut pas défaire
 

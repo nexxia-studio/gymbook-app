@@ -1,6 +1,8 @@
 import { View, Text, TouchableOpacity, Modal } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle } from 'lucide-react-native'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface MaxBookingsModalProps {
   visible: boolean
@@ -16,19 +18,20 @@ interface MaxBookingsModalProps {
 
 export function MaxBookingsModal({ visible, limit, onViewBookings, onClose }: MaxBookingsModalProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
 
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View className="flex-1 justify-end bg-black/40">
-        <View className="rounded-t-3xl bg-move-card px-6 pb-10 pt-8">
+        <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
           <View className="items-center">
-            <AlertCircle size={48} color="#F97316" />
+            <AlertCircle size={48} color={SEMANTIC.warning} />
 
-            <Text className="mt-4 font-barlow text-2xl uppercase text-move-dark">
+            <Text className="mt-4 font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
               {t('session.max_bookings_title')}
             </Text>
 
-            <Text className="mt-3 text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
+            <Text className="mt-3 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
               {limit
                 ? t('session.max_bookings_message', { count: limit })
                 : t('session.max_bookings_message_generic')}
@@ -36,6 +39,9 @@ export function MaxBookingsModal({ visible, limit, onViewBookings, onClose }: Ma
           </View>
 
           <View className="mt-8 gap-3">
+            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE. Le bouton primaire de Dopamine
+                (`bg-move-dark` + `text-move-accent`) reste en dur : en mode multi son
+                fond vaudrait celui de la page, 1,00:1, invisible. Voir Button.tsx. */}
             <TouchableOpacity
               onPress={onViewBookings}
               activeOpacity={0.8}
@@ -52,7 +58,7 @@ export function MaxBookingsModal({ visible, limit, onViewBookings, onClose }: Ma
                 sa limite de réservations (GYM-196). `common.close` existe dans les deux
                 locales et sert déjà ce rôle exact dans PaymentRequiredSheet. */}
             <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="items-center py-3">
-              <Text className="font-dmsans text-sm text-move-text-muted">
+              <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
                 {t('common.close')}
               </Text>
             </TouchableOpacity>

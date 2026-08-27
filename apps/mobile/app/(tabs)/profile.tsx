@@ -19,6 +19,8 @@ import { useSubscriptionSummary } from '../../hooks/useSubscriptionSummary'
 import { getLevel } from '../../utils/level'
 import { GYM_MODE } from '../../lib/gymResolver'
 import { listMyGyms } from '../../lib/gymSwitch'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface GamificationItem {
   key: string
@@ -75,6 +77,7 @@ function useCanSwitchGym(): boolean {
 }
 
 export default function Profile() {
+  const { tokens } = useTheme()
   const canSwitchGym = useCanSwitchGym()
   const { t } = useTranslation()
   const router = useRouter()
@@ -112,23 +115,23 @@ export default function Profile() {
   }, [signOut, router])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('profile.title').toUpperCase()}
         </Text>
         <View className="flex-row items-center gap-4">
           <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/edit')}>
-            <Pencil size={20} color="#FFFFFF" />
+            <Pencil size={20} color={tokens.onBackground} />
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/preferences')}>
-            <Settings size={22} color="#FFFFFF" />
+            <Settings size={22} color={tokens.onBackground} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView className="flex-1 bg-move-bg" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Profile card */}
         <ProfileHeader
           firstName={firstName}
@@ -160,7 +163,7 @@ export default function Profile() {
             badge={subscriptionSummary.isActive ? t('profile.subscription_active') : undefined}
             onPress={() => router.push('/profile/subscription')}
           />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem
             icon={Receipt}
             label={t('profile.payment_history')}
@@ -176,7 +179,7 @@ export default function Profile() {
             detail={t('profile.notifications_detail')}
             onPress={() => router.push('/profile/preferences')}
           />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem
             icon={Globe}
             label={t('profile.language')}
@@ -196,11 +199,11 @@ export default function Profile() {
                 label={t('profile.switch_gym')}
                 onPress={() => router.push('/profile/gym-switch' as never)}
               />
-              <View className="mx-5 h-px bg-move-border" />
+              <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
             </>
           )}
           <ProfileListItem icon={User} label={t('profile.edit_profile')} onPress={() => router.push('/profile/edit')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem
             icon={Shield}
             label={t('profile.security')}
@@ -212,11 +215,11 @@ export default function Profile() {
         {/* Privacy */}
         <ProfileSection title={t('profile.section_privacy')}>
           <ProfileListItem icon={FileText} label={t('profile.privacy_policy')} onPress={() => router.push('/profile/legal/privacy')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem icon={FileText} label={t('profile.terms')} onPress={() => router.push('/profile/legal/cgu')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem icon={Download} label={t('profile.export_data')} onPress={() => router.push('/profile/export-data')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem icon={Trash2} label={t('profile.delete_account')} destructive onPress={() => router.push('/profile/delete-account')} />
         </ProfileSection>
 
@@ -226,8 +229,8 @@ export default function Profile() {
           activeOpacity={0.7}
           className="mx-4 mt-6 flex-row items-center justify-center gap-2 py-3"
         >
-          <LogOut size={18} color="#EF4444" />
-          <Text className="font-dmsans-bold text-sm text-red-500">
+          <LogOut size={18} color={SEMANTIC.danger} />
+          <Text className="font-dmsans-bold text-sm" style={{ color: SEMANTIC.danger }}>
             {t('profile.logout')}
           </Text>
         </TouchableOpacity>

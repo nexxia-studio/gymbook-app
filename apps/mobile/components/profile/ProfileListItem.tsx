@@ -1,6 +1,8 @@
 import { TouchableOpacity, View, Text } from 'react-native'
 import { ChevronRight } from 'lucide-react-native'
 import type { LucideIcon } from 'lucide-react-native'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface ProfileListItemProps {
   icon: LucideIcon
@@ -13,8 +15,9 @@ interface ProfileListItemProps {
 }
 
 export function ProfileListItem({ icon: Icon, label, detail, badge, badgeColor, destructive, onPress }: ProfileListItemProps) {
-  const textColor = destructive ? 'text-red-500' : 'text-move-dark'
-  const iconColor = destructive ? '#EF4444' : '#6B6861'
+  const { tokens } = useTheme()
+  const textColor = destructive ? SEMANTIC.danger : tokens.onSurface
+  const iconColor = destructive ? SEMANTIC.danger : tokens.onSurfaceSecondary
 
   return (
     <TouchableOpacity
@@ -24,19 +27,25 @@ export function ProfileListItem({ icon: Icon, label, detail, badge, badgeColor, 
     >
       <Icon size={20} color={iconColor} />
       <View className="ml-3 flex-1">
-        <Text className={`font-dmsans-medium text-sm ${textColor}`}>{label}</Text>
+        <Text className="font-dmsans-medium text-sm" style={{ color: textColor }}>{label}</Text>
         {detail && (
-          <Text className="mt-0.5 font-dmsans text-xs text-move-text-muted">{detail}</Text>
+          <Text className="mt-0.5 font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>{detail}</Text>
         )}
       </View>
       {badge && (
-        <View className="mr-2 rounded-md px-2 py-0.5" style={{ backgroundColor: badgeColor ?? '#22C55E20' }}>
-          <Text className="font-dmsans-bold text-[10px]" style={{ color: badgeColor ? '#FFFFFF' : '#22C55E' }}>
+        // GYM-286 (A-10) — `SEMANTIC.success + '20'` : le jeton PLUS son opacité, écrite.
+        // La concaténation rend exactement la chaîne d'origine #22C55E20, au caractère
+        // près — c'est ce que « opacité explicite » veut dire ici, et non un `opacity`
+        // qui s'appliquerait aussi au texte de la pastille.
+        // ⚠️ Le blanc reste en dur : c'est l'encre posée sur une couleur FOURNIE PAR
+        // L'APPELANT (`badgeColor`), dont aucun jeton ne sait rien.
+        <View className="mr-2 rounded-md px-2 py-0.5" style={{ backgroundColor: badgeColor ?? SEMANTIC.success + '20' }}>
+          <Text className="font-dmsans-bold text-[10px]" style={{ color: badgeColor ? '#FFFFFF' : SEMANTIC.success }}>
             {badge}
           </Text>
         </View>
       )}
-      <ChevronRight size={18} color="#9A9890" />
+      <ChevronRight size={18} color={tokens.onBackgroundMuted} />
     </TouchableOpacity>
   )
 }

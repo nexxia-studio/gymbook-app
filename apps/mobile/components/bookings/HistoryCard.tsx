@@ -1,6 +1,8 @@
 import { View, Text } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import type { Booking, BookingStatus } from '../../stores/useBookingStore'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface HistoryCardProps {
   booking: Booking
@@ -9,36 +11,44 @@ interface HistoryCardProps {
 
 type StatusStyle = { bg: string; text: string; key: string }
 
-// GYM-178 — clés = valeurs DB réelles. 'no_show' (rouge/négatif) remplace l'ancien 'noshow'
-// mort ; 'excused' (orange neutre) = absent sans perte de crédit (GYM-174). 'attended' (vert)
-// sera désormais posé massivement par le cron (inversion GYM-174).
-const STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
-  attended: { bg: 'bg-green-500/10', text: 'text-green-600', key: 'status_attended' },
-  no_show: { bg: 'bg-red-500/10', text: 'text-red-500', key: 'status_noshow' },
-  excused: { bg: 'bg-orange-500/10', text: 'text-orange-500', key: 'status_excused' },
-  cancelled: { bg: 'bg-move-border/50', text: 'text-move-text-muted', key: 'status_cancelled' },
-  confirmed: { bg: 'bg-green-500/10', text: 'text-green-600', key: 'status_confirmed' },
-  waitlisted: { bg: 'bg-orange-500/10', text: 'text-orange-500', key: 'status_waitlisted' },
-}
-
-// GYM-178 — fallback défensif pérenne : un statut inconnu ne doit PLUS JAMAIS crasher le
-// rendu. Style neutre + libellé = valeur brute (pas de clé i18n → on affiche le statut tel quel).
-const DEFAULT_STYLE: StatusStyle = { bg: 'bg-move-border/50', text: 'text-move-text-muted', key: '' }
-
 export function HistoryCard({ booking, dayLabel }: HistoryCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
+
+  // GYM-178 — clés = valeurs DB réelles. 'no_show' (rouge/négatif) remplace l'ancien
+  // 'noshow' mort ; 'excused' (orange neutre) = absent sans perte de crédit (GYM-174).
+  // 'attended' (vert) est désormais posé massivement par le cron (inversion GYM-174).
+  //
+  // ⚠️ LA TABLE EST DESCENDUE DANS LE COMPOSANT, et il le fallait : hors de lui elle ne
+  // pouvait pas lire le thème. Les FONDS restent des classes — ce sont des lavis à 10 %
+  // et 50 %, qu'aucun jeton ne nomme. Seules les ENCRES, opaques, passent aux jetons.
+  // GYM-286 — A-2, EN ATTENTE pour `text-green-600` #16A34A : ce n'est pas
+  // `SEMANTIC.success` #22C55E, et l'approcher serait la régression d'un pixel.
+  const STATUS_STYLES: Record<BookingStatus, StatusStyle> = {
+    attended: { bg: 'bg-green-500/10', text: '#16A34A', key: 'status_attended' },
+    no_show: { bg: 'bg-red-500/10', text: SEMANTIC.danger, key: 'status_noshow' },
+    excused: { bg: 'bg-orange-500/10', text: SEMANTIC.warning, key: 'status_excused' },
+    cancelled: { bg: 'bg-move-border/50', text: tokens.onBackgroundMuted, key: 'status_cancelled' },
+    confirmed: { bg: 'bg-green-500/10', text: '#16A34A', key: 'status_confirmed' },
+    waitlisted: { bg: 'bg-orange-500/10', text: SEMANTIC.warning, key: 'status_waitlisted' },
+  }
+
+  // GYM-178 — repli défensif pérenne : un statut inconnu ne doit PLUS JAMAIS casser le
+  // rendu. Style neutre + libellé = valeur brute (pas de clé i18n).
+  const DEFAULT_STYLE: StatusStyle = { bg: 'bg-move-border/50', text: tokens.onBackgroundMuted, key: '' }
+
   const style = STATUS_STYLES[booking.status] ?? DEFAULT_STYLE
   const label = style.key ? t(`bookings.${style.key}`) : booking.status
 
   return (
-    <View className="mb-2 flex-row items-center overflow-hidden rounded-2xl bg-move-card">
+    <View className="mb-2 flex-row items-center overflow-hidden rounded-2xl" style={{ backgroundColor: tokens.surface }}>
       <View className="w-1 self-stretch" style={{ backgroundColor: booking.activityColor }} />
 
       <View className="flex-1 px-3 py-3">
-        <Text className="font-dmsans-bold text-[15px] text-move-dark">
+        <Text className="font-dmsans-bold text-[15px]" style={{ color: tokens.onSurface }}>
           {booking.activity}
         </Text>
-        <Text className="font-dmsans text-[13px] text-move-text-secondary">
+        <Text className="font-dmsans text-[13px]" style={{ color: tokens.onSurfaceSecondary }}>
           {dayLabel} · {booking.time}
         </Text>
         {/* GYM-229 — une activité en accès libre (Open Gym) n'a pas de coach.
@@ -47,14 +57,14 @@ export function HistoryCard({ booking, dayLabel }: HistoryCardProps) {
           en React Native, une chaîne vide rendue hors d'un <Text> déclenche un
           avertissement « text strings must be rendered within a <Text> ». */}
         {booking.coach ? (
-          <Text className="font-dmsans text-xs text-move-text-muted">
+          <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
             {booking.coach}
           </Text>
         ) : null}
       </View>
 
       <View className={`mr-3 rounded-lg px-2.5 py-1 ${style.bg}`}>
-        <Text className={`font-dmsans-bold text-[10px] ${style.text}`}>
+        <Text className="font-dmsans-bold text-[10px]" style={{ color: style.text }}>
           {label}
         </Text>
       </View>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { View, ActivityIndicator } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
  * GYM-207 — Route Universal Link : cible de
@@ -21,6 +22,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
  * create-payment à la redirectUrl — c'est la clé qui arme le poll.
  */
 export default function PaymentSuccessUniversalLink() {
+  const { tokens } = useTheme()
   const router = useRouter()
   const { id, source, slot_id } = useLocalSearchParams<{
     id?: string
@@ -40,8 +42,8 @@ export default function PaymentSuccessUniversalLink() {
   }, [id, source, slot_id, router])
 
   return (
-    <View className="flex-1 items-center justify-center bg-move-bg">
-      <ActivityIndicator size="large" color="#111111" />
+    <View className="flex-1 items-center justify-center" style={{ backgroundColor: tokens.page }}>
+      <ActivityIndicator size="large" color={tokens.onSurface} />
     </View>
   )
 }

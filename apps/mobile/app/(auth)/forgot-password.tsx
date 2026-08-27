@@ -8,8 +8,10 @@ import { TextInput } from '../../components/ui/TextInput'
 import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
 import { buildMemberResetPasswordUrl } from '../../lib/gymUrls'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 export default function ForgotPassword() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
 
@@ -31,38 +33,40 @@ export default function ForgotPassword() {
   }, [email])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
-      {/* Dark header */}
-      <View className="bg-move-dark px-6 pb-16 pt-14">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
+      {/* Bande sombre — `text-white/60` reste : un blanc à 60 % n'est pas `onBackground`. */}
+      <View className="px-6 pb-16 pt-14" style={{ backgroundColor: tokens.background }}>
         <TouchableOpacity onPress={() => router.back()} className="mb-4 flex-row items-center gap-2">
-          <ArrowLeft size={20} color="#FFFFFF" />
+          <ArrowLeft size={20} color={tokens.onBackground} />
           <Text className="font-dmsans text-sm text-white/60">{t('common.back')}</Text>
         </TouchableOpacity>
-        <Text className="font-barlow text-3xl uppercase text-white">
+        <Text className="font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('auth.forgot_password_title')}
         </Text>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
         <ScrollView className="-mt-8 flex-1" contentContainerClassName="px-6 pb-6" keyboardShouldPersistTaps="handled">
-          <View className="rounded-3xl bg-white p-6 shadow-sm">
+          <View className="rounded-3xl p-6 shadow-sm" style={{ backgroundColor: tokens.surface }}>
             {sent ? (
               <View className="items-center py-8">
                 <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-move-accent/10">
+                  {/* GYM-286 — A-1, EN ATTENTE : #9DB800 dit ici un SUCCÈS mais reste un
+                      lime de marque. Le cockpit n'a pas tranché. */}
                   <MailCheck size={32} color="#9DB800" />
                 </View>
-                <Text className="text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
+                <Text className="text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('auth.forgot_password_success')}
                 </Text>
                 <TouchableOpacity onPress={() => router.replace('/(auth)/login')} className="mt-6">
-                  <Text className="font-dmsans-bold text-sm text-move-dark">
+                  <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                     {t('auth.back_to_login')}
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View className="gap-5">
-                <Text className="font-dmsans text-sm text-move-text-secondary">
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('auth.forgot_password_subtitle')}
                 </Text>
 

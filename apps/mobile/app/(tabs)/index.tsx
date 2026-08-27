@@ -9,8 +9,11 @@ import { SessionCard } from '../../components/home/SessionCard'
 import { OpenGymCard } from '../../components/home/OpenGymCard'
 import { EmptyDayState } from '../../components/home/EmptyDayState'
 import { useHomeSchedule, type HomeSlot } from '../../hooks/useHomeSchedule'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 export default function Home() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, isSlotWaitlisted, refresh } = useHomeSchedule()
@@ -64,11 +67,11 @@ export default function Home() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-3 pt-2">
+      <View className="flex-row items-center justify-between px-5 pb-3 pt-2" style={{ backgroundColor: tokens.background }}>
         <View>
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF' }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground }}>
             DOPAMINE
           </Text>
           <Text className="font-dmsans text-[11px] text-white/40">
@@ -76,24 +79,25 @@ export default function Home() {
           </Text>
         </View>
         <View className="relative">
-          <Bell size={22} color="#FFFFFF" />
-          <View className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+          <Bell size={22} color={tokens.onBackground} />
+          <View className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SEMANTIC.danger }} />
         </View>
       </View>
 
       {/* Day tabs */}
-      <View className="bg-move-bg">
+      <View style={{ backgroundColor: tokens.page }}>
         <DayTabs days={days} activeIndex={activeDay} onSelect={handleDaySelect} />
       </View>
 
       {/* Content */}
       <ScrollView
         ref={scrollRef}
-        className="flex-1 bg-move-bg"
+        className="flex-1"
+        style={{ backgroundColor: tokens.page }}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.accent} />
         }
       >
         {scheduleByDay.map(({ date, slots, entries }, dayIndex) => {
@@ -105,7 +109,7 @@ export default function Home() {
           return (
             <View key={dayIndex} className="mb-2">
               {/* Day label */}
-              <Text className="mb-3 mt-4 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+              <Text className="mb-3 mt-4 font-dmsans-bold text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
                 {formatStickyLabel(date)}
               </Text>
 

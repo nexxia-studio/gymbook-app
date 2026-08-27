@@ -21,6 +21,8 @@ import {
   isSubscriptionActive,
   isSubscriptionCompleted,
 } from '../../lib/subscription'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface ActiveSub {
   id: string
@@ -70,6 +72,7 @@ function PlanCard({
   disabled: boolean
   unavailableReason?: string | null
 }) {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   // GYM-189 — DEUX AXES INDÉPENDANTS, à ne pas confondre :
   //   isUnlimited (type)          → CE QU'ON REÇOIT : pilote la ligne de détail
@@ -85,18 +88,24 @@ function PlanCard({
 
   return (
     <View
-      className={`overflow-hidden rounded-2xl bg-move-card ${plan.isPopular ? 'border-2 border-orange-500' : 'border border-move-border'}`}
+      // GYM-286 — A-2, EN ATTENTE : `border-orange-500` VAUT #F97316 mais partage son
+      // ternaire avec `border-move-border` ; migrer la seule branche migrable inverserait
+      // l'ordre des couleurs du fichier.
+      // ⚠️ `style` AVANT `className` : `bg-move-card` précédait le ternaire dans la chaîne
+      // d'origine, la suite des couleurs doit garder cet ordre.
+      style={{ backgroundColor: tokens.surface }}
+      className={`overflow-hidden rounded-2xl ${plan.isPopular ? 'border-2 border-orange-500' : 'border border-move-border'}`}
     >
       {plan.isPopular && (
         <View className="flex-row items-center justify-center gap-1.5 bg-orange-50 py-1.5">
-          <Star size={12} color="#F97316" fill="#F97316" />
+          <Star size={12} color={SEMANTIC.warning} fill={SEMANTIC.warning} />
           <Text className="font-dmsans-bold text-[11px] text-orange-600">{t('subscription.popular')}</Text>
         </View>
       )}
 
-      <View className="flex-row items-center justify-between bg-move-dark p-4">
-        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#FFFFFF' }}>{plan.name}</Text>
-        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 20, color: '#FFFFFF' }}>
+      <View className="flex-row items-center justify-between p-4" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onBackground }}>{plan.name}</Text>
+        <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 20, color: tokens.onBackground }}>
           {formatPrice(plan.priceCents, plan.currency)}
           {/* « /mois » suit le MODE DE PAIEMENT : un abonnement payé en une fois affiche
               un prix total, pas une mensualité. */}
@@ -106,20 +115,20 @@ function PlanCard({
 
       <View className="gap-2 p-4">
         {plan.description ? (
-          <Text className="font-dmsans text-sm text-move-text-secondary">{plan.description}</Text>
+          <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>{plan.description}</Text>
         ) : null}
 
         {/* Ligne de détail : pilotée par le TYPE. Auparavant conditionnée au mode de
             paiement, un unlimited+one_time n'affichait NI séances (creditCount NULL)
             NI durée — donc aucune information. */}
         {!isUnlimited && plan.creditCount ? (
-          <Text className="font-dmsans text-xs text-move-text-muted">
+          <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
             {t('subscription.sessions_count', { count: plan.creditCount })}
           </Text>
         ) : null}
 
         {isUnlimited && plan.durationMonths ? (
-          <Text className="font-dmsans text-xs text-move-text-muted">
+          <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
             {t('subscription.commitment', { count: plan.durationMonths })}
           </Text>
         ) : null}
@@ -127,6 +136,7 @@ function PlanCard({
         <Pressable
           onPress={() => onSelect(plan)}
           disabled={isDisabled}
+          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
           className={`mt-2 flex-row items-center justify-center gap-2 rounded-xl bg-move-dark py-3 ${isDisabled ? 'opacity-60' : ''}`}
         >
           {paying ? (
@@ -143,6 +153,7 @@ function PlanCard({
 }
 
 export default function SubscriptionScreen() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const gymId = useAuthStore((s) => s.gym_id)
@@ -339,40 +350,40 @@ export default function SubscriptionScreen() {
     ))
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
         <Pressable onPress={() => router.replace('/(tabs)/profile')} hitSlop={12}>
-          <ChevronLeft size={24} color="#FFFFFF" />
+          <ChevronLeft size={24} color={tokens.onBackground} />
         </Pressable>
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#FFFFFF', letterSpacing: 2 }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground, letterSpacing: 2 }}>
           {t('subscription.title').toUpperCase()}
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView className="flex-1 bg-move-bg" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
+      <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
         {/* Carte crédits à l'unité */}
         {!loading && activeCredits && (
-          <View className="rounded-2xl border-2 border-move-accent bg-move-card p-5">
+          <View className="rounded-2xl border-2 p-5" style={{ borderColor: tokens.accent, backgroundColor: tokens.surface }}>
             <View className="mb-3 flex-row items-center justify-between">
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onSurface }}>
                 {activeCreditsName.toUpperCase()}
               </Text>
               <View className="rounded-full bg-green-100 px-3 py-1">
                 <Text className="font-dmsans-bold text-[11px] text-green-600">{t('subscription.active_badge')}</Text>
               </View>
             </View>
-            <Text className="font-dmsans-bold text-base text-move-dark">
+            <Text className="font-dmsans-bold text-base" style={{ color: tokens.onSurface }}>
               {t('subscription.credits_remaining', { count: activeCredits.creditsRemaining })}
             </Text>
-            <Text className="mt-1 font-dmsans text-sm text-move-text-secondary">
+            <Text className="mt-1 font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('subscription.credits_usage', { used: activeCredits.creditsUsed, total: activeCredits.creditsTotal })}
             </Text>
             {activeCredits.expiresAt && (
               <View className="mt-3 flex-row items-center gap-1.5">
-                <Calendar size={14} color="#6B6861" />
-                <Text className="font-dmsans text-xs text-move-text-secondary">
+                <Calendar size={14} color={tokens.onSurfaceSecondary} />
+                <Text className="font-dmsans text-xs" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('subscription.valid_until', { date: formatDate(activeCredits.expiresAt) })}
                 </Text>
               </View>
@@ -382,9 +393,11 @@ export default function SubscriptionScreen() {
 
         {/* Carte abonnement récurrent */}
         {loading ? null : activeSub && isSubscriptionActive(activeSub.status, activeSub.endsAt) ? (
-          <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} bg-move-card p-5`}>
+          // GYM-286 — A-2, EN ATTENTE : `border-orange-400` #FB923C ne vaut aucun jeton,
+          // et partage son ternaire avec `border-move-accent`.
+          <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} p-5`} style={{ backgroundColor: tokens.surface }}>
             <View className="mb-3 flex-row items-center justify-between">
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onSurface }}>
                 {activeSub.planName.toUpperCase()}
               </Text>
               {activeSub.status === 'canceling' ? (
@@ -398,23 +411,23 @@ export default function SubscriptionScreen() {
               )}
             </View>
 
-            <Text className="font-dmsans-bold text-base text-move-dark">
+            <Text className="font-dmsans-bold text-base" style={{ color: tokens.onSurface }}>
               {formatPrice(Math.round(activeSub.amount * 100), 'EUR')}{t('subscription.per_month')}
             </Text>
 
             {activeSub.startsAt && (
               <View className="mt-3">
-                <Text className="font-dmsans text-xs uppercase tracking-wider text-move-text-muted">
+                <Text className="font-dmsans text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
                   {t('subscription.since')}
                 </Text>
-                <Text className="font-dmsans-medium text-sm text-move-dark">{formatDate(activeSub.startsAt)}</Text>
+                <Text className="font-dmsans-medium text-sm" style={{ color: tokens.onSurface }}>{formatDate(activeSub.startsAt)}</Text>
               </View>
             )}
 
             {activeSub.status === 'active' && activeSub.nextPaymentAt && (
               <View className="mt-3 flex-row items-center gap-1.5">
-                <Calendar size={14} color="#6B6861" />
-                <Text className="font-dmsans text-xs text-move-text-secondary">
+                <Calendar size={14} color={tokens.onSurfaceSecondary} />
+                <Text className="font-dmsans text-xs" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('subscription.next_billing', { date: formatDate(activeSub.nextPaymentAt) })}
                 </Text>
               </View>
@@ -422,8 +435,8 @@ export default function SubscriptionScreen() {
 
             {activeSub.endsAt && (
               <View className="mt-2 flex-row items-center gap-1.5">
-                <Calendar size={14} color="#6B6861" />
-                <Text className="font-dmsans text-xs text-move-text-secondary">
+                <Calendar size={14} color={tokens.onSurfaceSecondary} />
+                <Text className="font-dmsans text-xs" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('subscription.ends_on', { date: formatDate(activeSub.endsAt) })}
                 </Text>
               </View>
@@ -438,8 +451,8 @@ export default function SubscriptionScreen() {
                   </Text>
                 </View>
               ) : (
-                <Pressable onPress={handleCancelSubscription} className="mt-4 items-center rounded-lg border border-move-border py-2.5">
-                  <Text className="font-dmsans text-[13px] text-move-text-muted">{t('subscription.cancel_action')}</Text>
+                <Pressable onPress={handleCancelSubscription} className="mt-4 items-center rounded-lg border py-2.5" style={{ borderColor: tokens.border }}>
+                  <Text className="font-dmsans text-[13px]" style={{ color: tokens.onBackgroundMuted }}>{t('subscription.cancel_action')}</Text>
                 </Pressable>
               )
             )}
@@ -447,36 +460,36 @@ export default function SubscriptionScreen() {
         ) : activeSub && isSubscriptionCompleted(activeSub.status) ? (
           /* GYM-151 — engagement arrivé à son terme : état NEUTRE/positif (pas une erreur).
              N'ouvre aucun droit ; les formules ci-dessous restent achetables (réabonnement). */
-          <View className="rounded-2xl border-2 border-move-border bg-move-card p-5">
+          <View className="rounded-2xl border-2 p-5" style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}>
             <View className="mb-3 flex-row items-center justify-between">
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onSurface }}>
                 {activeSub.planName.toUpperCase()}
               </Text>
-              <View className="rounded-full bg-move-border px-3 py-1">
-                <Text className="font-dmsans-bold text-[11px] text-move-text-secondary">
+              <View className="rounded-full px-3 py-1" style={{ backgroundColor: tokens.border }}>
+                <Text className="font-dmsans-bold text-[11px]" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('subscription.completed_badge')}
                 </Text>
               </View>
             </View>
             {activeSub.endsAt && (
               <View className="flex-row items-center gap-1.5">
-                <Calendar size={14} color="#6B6861" />
-                <Text className="font-dmsans text-sm text-move-text-secondary">
+                <Calendar size={14} color={tokens.onSurfaceSecondary} />
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('subscription.completed_ended_on', { date: formatDate(activeSub.endsAt) })}
                 </Text>
               </View>
             )}
-            <Text className="mt-2 font-dmsans text-sm text-move-text-muted">
+            <Text className="mt-2 font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
               {t('subscription.completed_subtitle')}
             </Text>
           </View>
         ) : activeCredits ? null : (
-          <View className="items-center rounded-2xl bg-move-card p-8">
-            <CreditCard size={48} color="#9A9890" />
-            <Text className="mt-3 font-dmsans-bold text-base text-move-dark">
+          <View className="items-center rounded-2xl p-8" style={{ backgroundColor: tokens.surface }}>
+            <CreditCard size={48} color={tokens.onBackgroundMuted} />
+            <Text className="mt-3 font-dmsans-bold text-base" style={{ color: tokens.onSurface }}>
               {t('subscription.no_subscription_title')}
             </Text>
-            <Text className="mt-1 font-dmsans text-sm text-move-text-muted">
+            <Text className="mt-1 font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
               {t('subscription.no_subscription_subtitle')}
             </Text>
           </View>
@@ -485,11 +498,12 @@ export default function SubscriptionScreen() {
         {/* === FORMULES (source : gym_plans) === */}
         {plansLoading ? (
           <View className="items-center py-8">
-            <ActivityIndicator color="#111111" />
+            <ActivityIndicator color={tokens.onSurface} />
           </View>
         ) : plansError ? (
-          <View className="items-center rounded-2xl bg-move-card p-6">
-            <Text className="font-dmsans-bold text-sm text-move-dark">{t('subscription.plans_error')}</Text>
+          <View className="items-center rounded-2xl p-6" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>{t('subscription.plans_error')}</Text>
+            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={refetch} className="mt-3 rounded-xl bg-move-dark px-5 py-2.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 13, color: '#C8F000' }}>
                 {t('common.retry')}
@@ -501,7 +515,7 @@ export default function SubscriptionScreen() {
             {/* À l'unité — GYM-94 : cumul libre, toujours visible. Désactivé si abonnement illimité actif. */}
             {creditPlans.length > 0 && (
               <>
-                <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+                <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
                   {t('subscription.section_one_time')}
                 </Text>
                 {renderPlans(creditPlans)}
@@ -511,7 +525,7 @@ export default function SubscriptionScreen() {
             {/* Abonnements — visibles ; en upsell (désactivés) si un abonnement est déjà actif. */}
             {unlimitedPlans.length > 0 && (
               <>
-                <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider text-move-text-muted">
+                <Text className="mt-2 font-dmsans-bold text-xs uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
                   {hasActiveSub
                     ? t('subscription.upsell_switch_title')
                     : t('subscription.section_recurring')}

@@ -6,6 +6,7 @@ import * as AppleAuthentication from 'expo-apple-authentication'
 import { signInWithGoogle, signInWithApple, isAppleSignInCancelled } from '../../lib/oauth'
 import { ADMIN_ACCOUNT_ERROR } from '../../lib/ensureProfile'
 import { GoogleLogo } from './GoogleLogo'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 interface OAuthButtonsProps {
   /**
@@ -21,6 +22,7 @@ interface OAuthButtonsProps {
 
 export function OAuthButtons({ position = 'bottom' }: OAuthButtonsProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const router = useRouter()
 
   const handleGoogle = useCallback(async () => {
@@ -56,11 +58,11 @@ export function OAuthButtons({ position = 'bottom' }: OAuthButtonsProps) {
 
   const divider = (
     <View className="my-4 flex-row items-center gap-3">
-      <View className="h-px flex-1 bg-move-border" />
-      <Text className="font-dmsans text-xs uppercase text-move-text-muted">
+      <View className="h-px flex-1" style={{ backgroundColor: tokens.border }} />
+      <Text className="font-dmsans text-xs uppercase" style={{ color: tokens.onBackgroundMuted }}>
         {t('auth.or')}
       </Text>
-      <View className="h-px flex-1 bg-move-border" />
+      <View className="h-px flex-1" style={{ backgroundColor: tokens.border }} />
     </View>
   )
 
@@ -80,10 +82,11 @@ export function OAuthButtons({ position = 'bottom' }: OAuthButtonsProps) {
     <Pressable
       key="google"
       onPress={handleGoogle}
-      className="flex-row items-center justify-center gap-3 rounded-xl border border-move-border bg-white px-6 py-3.5"
+      className="flex-row items-center justify-center gap-3 rounded-xl border px-6 py-3.5"
+      style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}
     >
       <GoogleLogo size={20} />
-      <Text className="font-dmsans-medium text-base text-move-dark">
+      <Text className="font-dmsans-medium text-base" style={{ color: tokens.onSurface }}>
         {t('auth.continue_with_google')}
       </Text>
     </Pressable>

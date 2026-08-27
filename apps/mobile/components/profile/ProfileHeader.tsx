@@ -1,6 +1,8 @@
 import { View, Text, Pressable, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { avatarColor } from '../../lib/theme/palette'
 
 interface ProfileHeaderProps {
   firstName: string
@@ -15,55 +17,52 @@ interface ProfileHeaderProps {
   accessBadgeCode?: string | null
 }
 
-function nameToColor(name: string): string {
-  const colors = ['#4ECDC4', '#FF6B6B', '#6C5CE7', '#FF8E53', '#A8E6CF', '#B8B8FF']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
-}
-
 export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avatarUrl, accessBadgeCode }: ProfileHeaderProps) {
   const { t } = useTranslation()
   const router = useRouter()
+  const { tokens } = useTheme()
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
-  const bgColor = nameToColor(`${firstName} ${lastName}`)
+  // GYM-286b (A-7) — la palette d'avatars vit maintenant dans lib/theme/palette.ts, avec
+  // son hachage. Elle était dupliquée mot pour mot ici et dans app/profile/edit.tsx.
+  const bgColor = avatarColor(`${firstName} ${lastName}`)
 
   return (
-    <View className="mx-4 mt-4 items-center rounded-3xl bg-move-card px-6 py-6 shadow-sm">
+    <View className="mx-4 mt-4 items-center rounded-3xl px-6 py-6 shadow-sm" style={{ backgroundColor: tokens.surface }}>
       {/* Avatar (tap → edit photo) */}
       <Pressable onPress={() => router.push('/profile/edit?focus=photo' as never)}>
         <View
           className="mb-3 h-20 w-20 items-center justify-center overflow-hidden rounded-full"
-          style={{ backgroundColor: bgColor, borderWidth: 3, borderColor: '#C8F000' }}
+          style={{ backgroundColor: bgColor, borderWidth: 3, borderColor: tokens.accent }}
         >
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} className="h-full w-full" />
           ) : (
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#FFFFFF' }}>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: tokens.onBackground }}>
               {initials}
             </Text>
           )}
         </View>
       </Pressable>
 
-      <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#111111' }}>
+      <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onSurface }}>
         {firstName} {lastName}
       </Text>
 
       {levelKey && (
+        // GYM-286 — `bg-move-accent/15` reste : un lavis à 15 % n'est pas `tokens.accent`.
         <View className="mt-1 rounded-lg bg-move-accent/15 px-3 py-1">
-          <Text className="font-dmsans-bold text-xs text-move-dark">
+          <Text className="font-dmsans-bold text-xs" style={{ color: tokens.onSurface }}>
             {t(`profile.level.${levelKey}`)}
           </Text>
         </View>
       )}
 
-      <Text className="mt-1 font-dmsans text-[13px] text-move-text-secondary">
+      <Text className="mt-1 font-dmsans text-[13px]" style={{ color: tokens.onSurfaceSecondary }}>
         {t('profile.member_since', { date: memberSince })}
       </Text>
 
-      <View className="mt-2 rounded-lg bg-move-bg px-3 py-1">
-        <Text className="font-dmsans-medium text-[10px] text-move-text-muted">
+      <View className="mt-2 rounded-lg px-3 py-1" style={{ backgroundColor: tokens.page }}>
+        <Text className="font-dmsans-medium text-[10px]" style={{ color: tokens.onBackgroundMuted }}>
           {t('profile.badge_gym')}
         </Text>
       </View>
@@ -82,7 +81,7 @@ export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avat
           Le bloc entier disparaît, intitulé compris. */}
       {accessBadgeCode ? (
         <View className="mt-4 w-full items-center rounded-2xl bg-move-accent/15 px-4 py-3">
-          <Text className="font-dmsans-medium text-[10px] uppercase tracking-wider text-move-text-secondary">
+          <Text className="font-dmsans-medium text-[10px] uppercase tracking-wider" style={{ color: tokens.onSurfaceSecondary }}>
             {t('profile.access_badge_label')}
           </Text>
           <Text
@@ -92,7 +91,7 @@ export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avat
               fontSize: 32,
               lineHeight: 38,
               letterSpacing: 2,
-              color: '#111111',
+              color: tokens.onSurface,
             }}
           >
             {accessBadgeCode}

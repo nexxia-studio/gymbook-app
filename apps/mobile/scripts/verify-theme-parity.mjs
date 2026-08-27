@@ -122,16 +122,45 @@ for (const [hex, token, role] of LITERALS) {
 console.log('\nMARQUE + NEUTRE — jeton résolu contre valeur en dur (mode single)')
 console.log(lines.join('\n'))
 
-console.log('\nSÉMANTIQUE — le jeton est-il encore la valeur qu’il remplace ?')
+// ── SÉMANTIQUE — LA QUESTION A DÛ ÊTRE REFORMULÉE (GYM-286b) ─────────────────────────
+// 🔴 LA VERSION DE 286a SE CONDAMNAIT ELLE-MÊME. Elle exigeait que la valeur d'un jeton
+// sémantique soit ENCORE ÉCRITE EN DUR quelque part — bonne règle tant que rien
+// n'employait les jetons, absurde dès qu'on s'en sert : migrer le dernier #C9C7C0 vers
+// `SEMANTIC.disabledInk` faisait échouer la vérification pour cause de succès.
+// Constaté au premier lot de 286b, sur `components/ui/PasswordRules.tsx`.
+//
+// La question utile n'était pas « la valeur survit-elle » mais « le jeton est-il encore
+// RATTACHÉ À QUELQUE CHOSE ». Un jeton est sain s'il est EMPLOYÉ (`SEMANTIC.x` apparaît
+// dans l'app) OU si sa valeur reste en dur quelque part — donc en cours de migration.
+// Les deux absents : plus personne ne s'en sert et plus rien ne lui correspond, c'est un
+// fantôme, et c'est cela qu'il faut signaler.
+console.log('\nSÉMANTIQUE — le jeton est-il rattaché à quelque chose ?')
+// ⚠️ LES COMMENTAIRES SONT VIDÉS AVANT LA MESURE — piège P-1, et il mord ici plus fort
+// qu'ailleurs. Un fichier qui EXPLIQUE pourquoi il n'emploie PAS `SEMANTIC.warning`
+// contient le texte « SEMANTIC.warning » : sans cette passe, le jeton était compté comme
+// employé par la phrase même qui disait le contraire. Constaté sur PasswordStrength.tsx
+// et PasswordRules.tsx, dont les commentaires d'attente A-1/A-2 nomment les jetons
+// qu'ils refusent d'utiliser.
+const videCommentaires = (t) => t
+  .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/^[ \t]*\/\/.*$/gm, ' ')
 const appSrc = ['app', 'components']
   .flatMap((d) => listFiles(join(ROOT, d)))
   .filter((f) => /\.tsx?$/.test(f) && !f.includes('/components/viniz/'))
-  .map((f) => readFileSync(f, 'utf8'))
+  .map((f) => videCommentaires(readFileSync(f, 'utf8')))
   .join('\n')
 for (const [name, hex] of Object.entries(sem)) {
-  const used = new RegExp(hex.replace('#', '#'), 'i').test(appSrc)
-  if (!used) fails.push(`SEMANTIC.${name} = ${hex} : cette valeur n’existe plus en dur dans l’app`)
-  console.log(`  ${used ? '✓' : '✗'} SEMANTIC.${name.padEnd(15)} ${hex}`)
+  const enDur = new RegExp(hex, 'i').test(appSrc)
+  const employe = new RegExp(`SEMANTIC\\.${name}\\b`).test(appSrc)
+  const ok = enDur || employe
+  if (!ok) {
+    fails.push(`SEMANTIC.${name} = ${hex} : jeton fantôme — ni employé, ni présent en dur`)
+  }
+  const etat = employe && enDur ? 'employé, migration en cours'
+    : employe ? 'employé, migration terminée'
+      : enDur ? 'pas encore employé' : 'FANTÔME'
+  console.log(`  ${ok ? '✓' : '✗'} SEMANTIC.${name.padEnd(15)} ${hex}   ${etat}`)
 }
 
 function listFiles(dir) {

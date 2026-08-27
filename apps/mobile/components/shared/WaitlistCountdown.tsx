@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Text, View } from 'react-native'
 import { useTranslation } from 'react-i18next'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface Props {
   deadline: string
@@ -42,8 +43,10 @@ export function WaitlistCountdown({ deadline, onExpire }: Props) {
   const isUrgent = minutesLeft < 5
   const isWarning = minutesLeft < 15
 
+  // GYM-286 — A-2, EN ATTENTE : #DC2626 et #EA580C sont un second rouge et un second
+  // orangé, qu'aucun jeton ne vaut. Seul #F97316 EST `SEMANTIC.warning`, au caractère près.
   const bgClass = isUrgent ? 'bg-red-500/15' : 'bg-orange-500/15'
-  const textColor = isUrgent ? '#DC2626' : isWarning ? '#EA580C' : '#F97316'
+  const textColor = isUrgent ? '#DC2626' : isWarning ? '#EA580C' : SEMANTIC.warning
   const fontWeight = isUrgent ? '900' as const : 'bold' as const
 
   const text = minutesLeft > 0

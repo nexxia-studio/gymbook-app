@@ -1,4 +1,6 @@
 import { View, Text, TextInput as RNTextInput, type TextInputProps as RNTextInputProps } from 'react-native'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface TextInputProps extends RNTextInputProps {
   label?: string
@@ -7,19 +9,30 @@ interface TextInputProps extends RNTextInputProps {
 }
 
 export function TextInput({ label, error, helper, style, ...props }: TextInputProps) {
+  const { tokens } = useTheme()
+
   return (
     <View className="gap-1.5">
-      {label && <Text className="font-dmsans-medium text-sm text-move-dark">{label}</Text>}
+      {label && <Text className="font-dmsans-medium text-sm" style={{ color: tokens.onSurface }}>{label}</Text>}
+      {/* ⚠️ `border` RESTE DANS LA CLASSE — c'est une LARGEUR, pas une couleur (piège P-3).
+          Seul `border-move-border` s'en va ; retirer les deux effacerait le trait.
+          GYM-286 — A-2, EN ATTENTE : `border-red-400` vaut #F87171, PAS `SEMANTIC.danger`
+          #EF4444. Deux rouges voisins, et l'un n'est pas l'autre. */}
       <RNTextInput
-        placeholderTextColor="#9A9890"
-        style={style}
-        className={`rounded-2xl border bg-white px-4 py-3.5 font-dmsans text-sm text-move-dark ${
-          error ? 'border-red-400' : 'border-move-border'
-        }`}
+        placeholderTextColor={tokens.onBackgroundMuted}
+        style={[
+          {
+            backgroundColor: tokens.surface,
+            color: tokens.onSurface,
+            borderColor: error ? '#F87171' : tokens.border,
+          },
+          style,
+        ]}
+        className="rounded-2xl border px-4 py-3.5 font-dmsans text-sm"
         {...props}
       />
-      {error && <Text className="font-dmsans text-xs text-red-500">{error}</Text>}
-      {!error && helper && <Text className="font-dmsans text-xs text-move-text-muted">{helper}</Text>}
+      {error && <Text className="font-dmsans text-xs" style={{ color: SEMANTIC.danger }}>{error}</Text>}
+      {!error && helper && <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>{helper}</Text>}
     </View>
   )
 }

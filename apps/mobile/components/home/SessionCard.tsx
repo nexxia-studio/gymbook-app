@@ -6,6 +6,8 @@ import { getDisplayStatus } from '../../utils/slotStatus'
 import type { HomeSlot } from '../../hooks/useHomeSchedule'
 import { LinearGradient } from '../../components/home/Gradient'
 import { ActivityImage } from '../shared/ActivityImage'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 import { resolveActivityIcon } from '../../lib/activityIcons'
 
 interface SessionCardProps {
@@ -19,6 +21,7 @@ interface SessionCardProps {
 
 export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggleFavorite, onPress }: SessionCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const isFull = slot.booked >= slot.capacity
   // GYM-220 — icône choisie par le gérant (activities.icon), plus déduite du nom.
   const Icon = resolveActivityIcon(slot.icon)
@@ -27,8 +30,11 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-      className="mb-4 overflow-hidden rounded-2xl bg-move-card shadow-sm"
+      style={({ pressed }) => [
+        { opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+        { backgroundColor: tokens.surface },
+      ]}
+      className="mb-4 overflow-hidden rounded-2xl shadow-sm"
     >
       {/* Image area — GYM-216 : activities.image_url, repli neutre si vide.
           Le filigrane d'initiales est porté par le repli lui-même (il n'a plus à être
@@ -49,22 +55,27 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
           activeOpacity={0.7}
           className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full bg-black/30"
         >
-          <Heart size={18} color={isFavorite ? '#EF4444' : '#FFFFFF'} fill={isFavorite ? '#EF4444' : 'none'} />
+          {/* Le cœur emploie `SEMANTIC.danger` pour ce que ce jeton GARANTIT — une
+              couleur fixe, qui ne suit jamais la marque — non pour ce qu'il nomme. */}
+          <Heart size={18} color={isFavorite ? SEMANTIC.danger : tokens.onBackground} fill={isFavorite ? SEMANTIC.danger : 'none'} />
         </TouchableOpacity>
 
         {/* Status badge — top left */}
         {displayStatus === 'in_progress' && (
-          <View className="absolute left-3 top-3 flex-row items-center gap-1 rounded-full bg-green-500 px-2.5 py-1">
-            <View className="h-1.5 w-1.5 rounded-full bg-white" />
-            <Text className="font-dmsans-bold text-[10px] text-white">{t('planning.status.in_progress')}</Text>
+          // ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : le point et le libellé
+          // sont posés sur la pastille VERTE, dont la couleur ne bouge pas. Chez une salle
+          // claire, `onBackground` vaut une encre SOMBRE, illisible sur ce vert.
+          <View className="absolute left-3 top-3 flex-row items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: SEMANTIC.success }}>
+            <View className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: SEMANTIC.onSignal }} />
+            <Text className="font-dmsans-bold text-[10px]" style={{ color: SEMANTIC.onSignal }}>{t('planning.status.in_progress')}</Text>
           </View>
         )}
 
         {/* Activity info */}
         <View className="absolute bottom-3 left-4">
           <View className="flex-row items-center gap-2">
-            <Icon size={18} color="#FFFFFF" />
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#FFFFFF' }}>
+            <Icon size={18} color={tokens.onBackground} />
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground }}>
               {slot.activity.toUpperCase()}
             </Text>
           </View>
@@ -82,10 +93,10 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
       {/* Footer */}
       <View className="flex-row items-center px-4 py-3">
         <View className="flex-1">
-          <Text className="font-dmsans-bold text-sm text-move-dark">
+          <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
             {slot.time} — {slot.endTime}
           </Text>
-          <Text className="font-dmsans text-xs text-move-text-muted">
+          <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
             {t('home.duration_min', { duration: slot.duration })}
           </Text>
         </View>
@@ -101,18 +112,21 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
             </Text>
           </View>
         ) : isWaitlisted ? (
+          // `bg-orange-100` #FFEDD5 reste (A-2, aucun jeton) ; l'encre, elle, EST
+          // `SEMANTIC.warning` #F97316 au caractère près.
           <View className="rounded-lg bg-orange-100 px-4 py-2.5">
-            <Text className="font-dmsans-bold text-xs text-orange-500">
+            <Text className="font-dmsans-bold text-xs" style={{ color: SEMANTIC.warning }}>
               {t('home.waitlisted_badge')}
             </Text>
           </View>
         ) : isFull ? (
-          <View className="rounded-lg bg-orange-500 px-4 py-2.5">
-            <Text className="font-dmsans-bold text-xs text-white">
+          <View className="rounded-lg px-4 py-2.5" style={{ backgroundColor: SEMANTIC.warning }}>
+            <Text className="font-dmsans-bold text-xs" style={{ color: SEMANTIC.onSignal }}>
               {t('session.waitlist')}
             </Text>
           </View>
         ) : (
+          // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
           <View className="rounded-lg bg-move-dark px-4 py-2.5">
             <Text className="font-dmsans-bold text-xs text-move-accent">
               {t('home.book')}

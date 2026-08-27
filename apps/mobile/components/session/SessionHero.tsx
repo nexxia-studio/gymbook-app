@@ -3,6 +3,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ChevronLeft, Heart } from 'lucide-react-native'
 import { ActivityImage } from '../shared/ActivityImage'
 import { resolveActivityIcon } from '../../lib/activityIcons'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface SessionHeroProps {
   activity: string
@@ -19,6 +21,7 @@ interface SessionHeroProps {
 
 export function SessionHero({ activity, imageUrl, activityColor, icon, onBack, isFavorite, onToggleFavorite }: SessionHeroProps) {
   const insets = useSafeAreaInsets()
+  const { tokens } = useTheme()
   // GYM-220 — icône choisie par le gérant (activities.icon), plus déduite du nom.
   const Icon = resolveActivityIcon(icon)
 
@@ -41,7 +44,7 @@ export function SessionHero({ activity, imageUrl, activityColor, icon, onBack, i
           activeOpacity={0.7}
           className="h-10 w-10 items-center justify-center rounded-full bg-white/20"
         >
-          <ChevronLeft size={22} color="#FFFFFF" />
+          <ChevronLeft size={22} color={tokens.onBackground} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -49,14 +52,19 @@ export function SessionHero({ activity, imageUrl, activityColor, icon, onBack, i
           activeOpacity={0.7}
           className="h-10 w-10 items-center justify-center rounded-full bg-white/20"
         >
-          <Heart size={20} color={isFavorite ? '#EF4444' : '#FFFFFF'} fill={isFavorite ? '#EF4444' : 'none'} />
+          {/* ⚠️ LE CŒUR PARTAGE LA VALEUR DU ROUGE D'ERREUR (#EF4444) SANS ÊTRE UNE
+              ERREUR. `SEMANTIC.danger` est ici employé pour ce qu'il garantit — une
+              couleur FIXE, qui ne suit jamais la marque — et non pour ce qu'il nomme :
+              un cœur de favori doit rester rouge chez toutes les salles. La valeur est
+              identique au caractère près ; le nom, lui, mériterait un arbitrage. */}
+          <Heart size={20} color={isFavorite ? SEMANTIC.danger : tokens.onBackground} fill={isFavorite ? SEMANTIC.danger : 'none'} />
         </TouchableOpacity>
       </View>
 
       {/* Activity name */}
       <View className="absolute bottom-5 left-5 flex-row items-center gap-2">
-        <Icon size={22} color="#FFFFFF" />
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 30, color: '#FFFFFF' }}>
+        <Icon size={22} color={tokens.onBackground} />
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 30, color: tokens.onBackground }}>
           {activity.toUpperCase()}
         </Text>
       </View>

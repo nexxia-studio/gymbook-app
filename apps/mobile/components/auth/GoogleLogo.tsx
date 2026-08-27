@@ -7,6 +7,16 @@ interface GoogleLogoProps {
 /**
  * Logo « G » officiel Google (Google Identity), 4 couleurs de marque.
  * viewBox 0 0 48 48 — paths officiels. Utilisé sur le bouton « Continuer avec Google ».
+ *
+ * 🔴 GYM-286 — MARQUE TIERCE, NE JAMAIS THÉMATISER (arbitrage A-9).
+ * Ces quatre valeurs restent en dur, et n'ont délibérément AUCUN jeton. Elles partagent
+ * avec la famille sémantique la propriété qui compte — ne jamais suivre la marque de la
+ * salle — mais leur donner un nom de jeton inviterait un jour quelqu'un à les thématiser.
+ * Le « G » de Google a une charte d'usage : il est bleu, vert, jaune et rouge, ou il
+ * n'est pas le logo de Google.
+ *
+ * ⚠️ CE COMMENTAIRE EST LA MOITIÉ UTILE DE LA DÉCISION. Sans lui, dans un dossier par
+ * ailleurs entièrement migré, ces quatre `fill` ressemblent à un oubli.
  */
 export function GoogleLogo({ size = 20 }: GoogleLogoProps) {
   return (
