@@ -61,9 +61,10 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
   }))
 
   return (
-    // GYM-286 — A-6, EN ATTENTE : #141414 est un quasi-noir voisin de `move-dark`
-    // #111111. Le rattacher change des pixels : c'est le commit dédié qui s'en charge.
-    <View className="overflow-hidden rounded-2xl p-5" style={{ backgroundColor: '#141414' }}>
+    // GYM-286 (A-6) — RATTACHÉ. #141414 → `tokens.background` #111111 : trois unités
+    // d'écart sur le canal le plus éloigné, imperceptible. C'est un quasi-noir qui
+    // n'avait pas de raison d'exister à côté du noir de la charte.
+    <View className="overflow-hidden rounded-2xl p-5" style={{ backgroundColor: tokens.background }}>
       <View className="mb-3 flex-row items-center gap-3">
         <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
           <Text style={{ fontSize: 24 }}>{level.icon}</Text>
@@ -83,7 +84,8 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
         <Animated.View style={barStyle} />
       </View>
       <View className="flex-row justify-between">
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: '#666666' }}>
+        {/* GYM-286 (A-6) — RATTACHÉ. #666666 → `onSurfaceSecondary` #6B6861, écart 5. */}
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>
           {level.name} — {level.min}
         </Text>
         {nextLevel && (
@@ -93,7 +95,8 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
         )}
       </View>
       {nextLevel && (
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#999999', marginTop: 8 }}>
+        // GYM-286 (A-6) — RATTACHÉ. #999999 → `onBackgroundMuted` #9A9890, écart 9.
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onBackgroundMuted, marginTop: 8 }}>
           Plus que {remaining} séances pour {nextLevel.name} {nextLevel.icon}
         </Text>
       )}
@@ -356,14 +359,16 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
 }
 
 function HeatmapCell({ count, index, size }: { count: number; index: number; size: number }) {
+  const { tokens } = useTheme()
   const opacity = useSharedValue(0)
 
   useEffect(() => {
     opacity.value = withDelay(index * 3, withTiming(1, { duration: 400 }))
   }, [])
 
-  // GYM-286 — A-8 et A-6, EN ATTENTE : la rampe, et #F0EFEB (gris voisin de `move-bg`).
-  const bg = count === 0 ? '#F0EFEB' : count === 1 ? '#C0DD97' : count === 2 ? '#97C459' : '#3B6D11'
+  // GYM-286 (A-6) — RATTACHÉ : #F0EFEB → `tokens.page` #F5F4F0, écart 5.
+  // GYM-286 — A-8, EN ATTENTE : la rampe d'affluence (trois verts) reste en dur.
+  const bg = count === 0 ? tokens.page : count === 1 ? '#C0DD97' : count === 2 ? '#97C459' : '#3B6D11'
   const style = useAnimatedStyle(() => ({
     width: size,
     height: size,

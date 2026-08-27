@@ -117,8 +117,8 @@ export default function PaymentsScreen() {
         <View className="flex-1" style={{ backgroundColor: tokens.page }} />
       ) : transactions.length === 0 ? (
         <View className="flex-1 items-center justify-center gap-4 px-8" style={{ backgroundColor: tokens.page }}>
-          {/* GYM-286 — A-6, EN ATTENTE : #E5E5E0, gris voisin de `move-border` #E8E6E0. */}
-          <Receipt size={64} color="#E5E5E0" />
+          {/* GYM-286 (A-6) — RATTACHÉ. #E5E5E0 → `tokens.border` #E8E6E0, écart 3. */}
+          <Receipt size={64} color={tokens.border} />
           <Text className="text-center font-dmsans-bold text-xl" style={{ color: tokens.onSurface }}>
             {t('payments.empty_title')}
           </Text>
