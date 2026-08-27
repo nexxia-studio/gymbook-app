@@ -180,6 +180,7 @@ const PALETTE = (() => {
 })()
 const IMPORT_PALETTE = /from '[^']*theme\/palette'/
 
+
 // ── LES CONSTANTES DE COULEUR HISSÉES ────────────────────────────────────────────────
 // 🔴 UNE COULEUR DÉCLARÉE UNE FOIS ET EMPLOYÉE TROIS FOIS COMPTAIT POUR UNE.
 // `const ACTIVE_COLOR = '#111111'` puis deux `color={ACTIVE_COLOR}` : le côté « avant »
@@ -198,7 +199,7 @@ function constantes(src) {
 }
 
 const RESTE_OU_JETON = new RegExp(`${IMPORT_PALETTE.source}|${TOKEN.source}|${MOVE.source}`, 'g')
-const suite = (src0) => {
+const suite = (src0, avecBrut = false) => {
   const CST = constantes(src0)
   // La déclaration est neutralisée sur place — sans quoi elle compterait EN PLUS de ses
   // emplois. On garde la longueur de la ligne pour ne pas décaler ce qui suit.
@@ -212,17 +213,63 @@ const suite = (src0) => {
     : RESTE_OU_JETON
   return [...src.matchAll(motif)].flatMap((m) => {
     const g = m.groups ?? {}
-    if (CST[m[0]]) return [CST[m[0]]]
-    if (IMPORT_PALETTE.test(m[0])) return PALETTE   // le module partagé, déplié à sa place
-    if (g.semAlpha) return [SEM[g.semAlpha] + g.semAlphaHex.toUpperCase()]  // A-10
-    if (g.tokAlpha) return [DOP[g.tokAlpha] + g.tokAlphaHex.toUpperCase()]  // GYM-300 (3c)
-    if (g.tok) return [DOP[g.tok]]
-    if (g.sem) return [SEM[g.sem]]
-    return [valeurAvant(m[0], g)]
+    let valeurs
+    if (CST[m[0]]) valeurs = [CST[m[0]]]
+    else if (IMPORT_PALETTE.test(m[0])) valeurs = PALETTE  // le module partagé, déplié
+    else if (g.semAlpha) valeurs = [SEM[g.semAlpha] + g.semAlphaHex.toUpperCase()]  // A-10
+    else if (g.tokAlpha) valeurs = [DOP[g.tokAlpha] + g.tokAlphaHex.toUpperCase()]  // 3c
+    else if (g.tok) valeurs = [DOP[g.tok]]
+    else if (g.sem) valeurs = [SEM[g.sem]]
+    else valeurs = [valeurAvant(m[0], g)]
+    return avecBrut ? valeurs.map((valeur) => ({ valeur, brut: m[0] })) : valeurs
   })
 }
-const A = suite(before)
-const B = suite(after)
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-301 — LE SEUL CAS OÙ UN JETON AJOUTÉ NE DÉPLACE AUCUN PIXEL
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Poser un FOND SOUS UN VOILE ajoute une couleur au fichier sans rien changer à l'écran,
+// dès lors que le voile est OPAQUE en single — il couvre alors intégralement le fond
+// ajouté. Ce script compte des couleurs, pas des calques : il verrait une régression là
+// où il n'y en a pas.
+//
+// ⚠️ L'EXEMPTION EST NOMMÉE, LOCALE, ET BRUYANTE. Elle ne s'applique qu'aux lignes
+// portant le marqueur exact, elle est ANNONCÉE à chaque exécution, et elle ne dispense de
+// rien : l'opacité du voile en single est vérifiée par `verify-theme-parity.mjs`, qui
+// échoue si `DOPAMINE_THEME.surface` cesse d'être opaque. Sans cette seconde vérification
+// le marqueur serait un permis de masquer une régression.
+const MARQUEUR = 'parité:fond-sous-voile'
+
+/** Les jetons posés sur une ligne marquée, retirés de la suite « après ». */
+function sansFondSousVoile(src, jetons) {
+  // ⚠️ ON DÉBALLE MÊME SANS MARQUEUR. Rendre les objets tels quels ici comparait des
+  // enveloppes à des chaînes : les 83 fichiers sortaient en écart d'un coup.
+  if (!src.includes(MARQUEUR)) return { jetons: jetons.map((j) => j.valeur), ignores: [] }
+  const lignesMarquees = new Set(
+    src.split('\n').flatMap((l, i) => (l.includes(MARQUEUR) ? [i] : [])),
+  )
+  const ignores = []
+  const gardes = []
+  let curseur = 0
+  for (const j of jetons) {
+    // Les jetons sont produits dans l'ordre du texte : on avance en parallèle pour
+    // retrouver la ligne de chacun.
+    const pos = src.indexOf(j.brut, curseur)
+    if (pos >= 0) curseur = pos + j.brut.length
+    const ligne = pos < 0 ? -1 : src.slice(0, pos).split('\n').length - 1
+    if (lignesMarquees.has(ligne)) ignores.push(j.valeur)
+    else gardes.push(j.valeur)
+  }
+  return { jetons: gardes, ignores }
+}
+
+const A = suite(before).map((v) => v)
+const brutsApres = suite(after, true)
+const { jetons: B, ignores } = sansFondSousVoile(after, brutsApres)
+if (ignores.length) {
+  console.log(`\n⚠️  ${ignores.length} jeton(s) exemptés — « ${MARQUEUR} » : ${ignores.join(', ')}`)
+  console.log('   Un fond posé SOUS un voile opaque : compté par le script, invisible à l’écran.')
+  console.log('   L’opacité du voile est vérifiée séparément par verify-theme-parity.mjs.')
+}
 // Ce qui n'a PAS été migré : toute couleur encore écrite en dur après la passe.
 const restes = [...after.matchAll(MOVE)].map((m) => m[0])
 

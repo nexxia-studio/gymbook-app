@@ -409,6 +409,33 @@ posée par le cockpit** (voir l'encadré en tête de recette) — sans elle, jou
 | H3 | 🔴 GYM-300 — sur TOUS les événements du jour | la propriété **`reason`** est présente, et vaut l'une des 7 valeurs du jeu fermé : `choice_accepted`, `not_member`, `refused_pt403`, `rpc_error`, `memberships_unavailable`, `no_local_choice`, `already_aligned` |
 | H4 | 🔴 GYM-300 — filtrer `outcome=server_wins` | **aucun** ne porte `reason=memberships_unavailable` ni `rpc_error`. Une lecture ratée ne donne JAMAIS la main au serveur |
 
+## J — GYM-301 : bascules en session, écran « pas membre », recherche brandée
+
+⚠️ **J1 à J4 exigent l'adhésion multi-salles** posée par le cockpit (voir l'encadré en tête
+de recette). Sans elle, seuls J5 à J9 sont jouables.
+
+| # | geste | attendu |
+|---|---|---|
+| J1 | 🔴 Profil → Changer de salle → salle B | la **navbar** prend les couleurs de B — fond, bordure, libellé actif — en même temps que l'en-tête et les cartes |
+| J2 | 🔴 Recommencer vers C, puis vers A — **trois bascules dans la même session** | la navbar suit à **chaque** fois. C'est le geste exact du constat : une seule bascule peut réussir par chance |
+| J3 | Comparer deux salles sombres aux fonds proches | les barres ne sont **pas** identiques. Avant ce lot elles l'étaient toutes, au pixel |
+| J4 | Bascule avec le **réseau coupé** | palette **Viniz**, jamais les couleurs de la salle précédente |
+| J5 | 🔴 Recherche → choisir une salle dont on n'est **pas** membre → se connecter | **écran dédié**, aux couleurs de la salle **DEMANDÉE** (pas celles où l'on atterrit) : « Tu n'es pas encore membre de {salle}. Contacte le gérant pour obtenir l'accès. » |
+| J6 | 🔴 J5 → action principale « Revenir à la connexion {salle} » | connexion de la salle **demandée**, **déconnecté** : aucun écran ne doit rester accessible en arrière, et rouvrir l'app ne doit pas ramener une session ouverte |
+| J7 | 🔴 J5 → action secondaire « Aller à {ma salle} » | l'app s'ouvre sur **sa** salle, **sans redemander le mot de passe** |
+| J8 | PostHog, après J5 | `outcome=server_wins`, `reason=not_member` — **inchangé** par ce lot |
+| J9 | 🔴 Couper le réseau → rouvrir connecté (lecture d'adhésions ratée) | **bandeau**, PAS l'écran de refus. `memberships_unavailable` n'est pas `not_member` |
+
+### J′ — « Trouve ta salle » aux couleurs Viniz
+
+| # | geste | attendu |
+|---|---|---|
+| J′1 | 🔴 Lancement sans salle choisie → écran de recherche | fond **Violet Ink**, titre en blanc lavande, sous-titre lavande, cartes en violet saturé. Plus aucune trace de la charte Dopamine ni du gris sombre |
+| J′2 | Une salle **sans logo** dans les résultats | la pastille d'initiale est en fond Viniz + lime — plus le noir et le lime de **Dopamine** |
+| J′3 | Pied de l'écran | « propulsé par ViNiZ », **même rendu** que sur la connexion d'une salle |
+| J′4 | Écran de **lancement** (pulse-V) | **inchangé** |
+| J′5 | Non-régression **single** : build Dopamine | l'écran de recherche est **inatteignable** ; navbar, connexion et accueil de Dopamine strictement identiques |
+
 ## I — Les trois finitions (GYM-300)
 
 | # | geste | attendu |

@@ -689,8 +689,14 @@
     "password_too_short": "Le mot de passe doit contenir au moins 8 caractères."
   },
   "active_gym": {
-    "not_member": "Tu n'es pas membre de {{requested}} — te voilà chez {{landed}}",
-    "not_member_unnamed": "Tu n'es pas membre de cette salle — te voilà chez {{landed}}",
     "unreachable": "On n'a pas pu joindre tes salles — on réessaie dès que ça revient"
+  },
+  "not_member": {
+    "title": "Tu n'es pas encore membre de {{gym}}",
+    "title_unnamed": "Tu n'es pas encore membre de cette salle",
+    "body": "Contacte le gérant pour obtenir l'accès.",
+    "back_to_login": "Revenir à la connexion {{gym}}",
+    "back_to_login_unnamed": "Revenir à la connexion",
+    "go_to_mine": "Aller à {{gym}}"
   }
 }

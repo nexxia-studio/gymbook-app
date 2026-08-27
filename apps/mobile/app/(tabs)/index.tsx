@@ -13,12 +13,14 @@ import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { useGymNameLines } from '../../hooks/useGymName'
 // GYM-300 — l'avis de réconciliation. Rend `null` en single : rien n'est monté de plus.
-import { useActiveGymNotice } from '../../hooks/useActiveGymNotice'
+import { useActiveGymNotice, useNotMemberRedirect } from '../../hooks/useActiveGymNotice'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 
 export default function Home() {
   const { marque, descriptif } = useGymNameLines()
   const { message: avisSalle, dismiss: fermerAvisSalle } = useActiveGymNotice()
+  // GYM-301 (2) — `not_member` a son écran ; l'accueil ne fait que l'ouvrir.
+  useNotMemberRedirect()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()

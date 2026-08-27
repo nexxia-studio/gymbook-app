@@ -173,6 +173,31 @@ function listFiles(dir) {
   return out
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-301 — LA PRÉCONDITION QUI REND L'EXEMPTION DE PARITÉ HONNÊTE
+// ═════════════════════════════════════════════════════════════════════════════════════
+// La tab bar peint le fond de la salle SOUS le voile `tokens.surface`, parce qu'un voile
+// posé sur rien ne montre rien de la salle (le voile ne dépend que du mode : trois salles
+// sombres rendent la même chaîne). `verify-screen-parity` exempte donc ce fond de sa
+// comparaison, via le marqueur « parité:fond-sous-voile ».
+//
+// ⚠️ CETTE EXEMPTION NE TIENT QUE PAR UNE CHOSE : en single, le voile est OPAQUE. Il
+// couvre alors intégralement le fond ajouté, et Dopamine rend au pixel ce qu'elle rendait.
+// Le jour où `DOPAMINE_THEME.surface` deviendrait translucide, le fond transparaîtrait —
+// et l'exemption, elle, continuerait de se taire. C'est ici qu'on l'en empêche : sans
+// cette vérification, le marqueur serait un permis de masquer une régression.
+{
+  const surface = dopamineTheme().surface
+  if (!/^#[0-9A-F]{6}$/.test(surface ?? '')) {
+    fails.push(
+      `DOPAMINE_THEME.surface = « ${surface} » n'est plus un opaque #RRGGBB. `
+      + 'Le fond posé sous le voile de la tab bar (GYM-301) transparaîtrait en single, '
+      + 'et l\'exemption « parité:fond-sous-voile » le cacherait. Retirer l\'exemption '
+      + 'de components/navigation/TabBar.tsx, ou revenir à une surface opaque.',
+    )
+  }
+}
+
 if (fails.length) {
   console.error(`\n🔴 ${fails.length} ÉCART(S) — LA MIGRATION CHANGERAIT LES PIXELS DE DOPAMINE :\n`)
   for (const f of fails) console.error(`   ${f}`)

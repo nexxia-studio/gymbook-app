@@ -689,8 +689,14 @@
     "password_too_short": "Password must be at least 8 characters."
   },
   "active_gym": {
-    "not_member": "You're not a member of {{requested}} — here you are at {{landed}}",
-    "not_member_unnamed": "You're not a member of that gym — here you are at {{landed}}",
     "unreachable": "We couldn't reach your gyms — we'll retry as soon as it's back"
+  },
+  "not_member": {
+    "title": "You're not a member of {{gym}} yet",
+    "title_unnamed": "You're not a member of that gym yet",
+    "body": "Get in touch with the manager to request access.",
+    "back_to_login": "Back to {{gym}} sign-in",
+    "back_to_login_unnamed": "Back to sign-in",
+    "go_to_mine": "Go to {{gym}}"
   }
 }

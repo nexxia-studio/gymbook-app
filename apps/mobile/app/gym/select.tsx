@@ -24,10 +24,50 @@ import {
   type GymSearchResult,
   type GymSearchOutcome,
 } from '../../lib/gymSearch'
-import { useTheme } from '../../lib/theme/ThemeProvider'
+import { GYM_MODE } from '../../lib/gymResolver'
+import { Redirect } from 'expo-router'
+import { VINIZ, VINIZ_THEME, type ThemeTokens } from '../../lib/theme/resolveTheme'
+import { PoweredByViniz } from '../../components/viniz/PoweredByViniz'
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-301 (3) — CET ÉCRAN EST À VINIZ, PAS À UNE SALLE
+// ═════════════════════════════════════════════════════════════════════════════════════
+// « Trouve ta salle » est le seul écran où le membre n'a PAS encore de salle — c'est même
+// sa définition. Il empruntait pourtant `useTheme()`, donc les couleurs de la dernière
+// salle vue, ou le repli Viniz sombre. Un écran de choix habillé aux couleurs d'une des
+// options n'est pas neutre : il en désigne une.
+//
+// La palette est donc FIXE et c'est celle de la marque. Comme tout l'écran passait déjà
+// par `tokens.*`, il suffit d'en changer la SOURCE — aucune couleur n'est écrite dans le
+// JSX, et le jour où la charte Viniz bouge, elle bouge ici.
+//
+// ⚠️ COMPOSÉE À PARTIR DES CONSTANTES EXISTANTES, PAS DE VALEURS RECOPIÉES. `VINIZ.ink`,
+// `VINIZ.light`, `VINIZ.lavender` et `VINIZ.lime` existent depuis GYM-102 ; les réécrire
+// en dur aurait créé une seconde définition de la charte, condamnée à diverger.
+//
+// ⚠️ `VINIZ_THEME` NE CONVENAIT PAS TEL QUEL, et c'est la seule vraie différence : son
+// fond est `VINIZ.dark` (#171310), le repli NEUTRE d'une salle sans couleurs utilisables.
+// La marque, elle, se pose sur le Violet Ink. On part donc de `VINIZ_THEME` — pour hériter
+// de l'accent, de l'encre et de la bordure sans les recopier — et on ne redéfinit que les
+// trois jetons de fond.
+//
+// ⚠️ UN SEUL LITTÉRAL NOUVEAU DANS TOUT LE LOT : la surface des cartes. Le voile standard
+// (`rgba(243,240,255,0.06)`) composé sur le Violet Ink donnerait #392872 ; la charte
+// demande #3A2585, qui est un violet légèrement plus SATURÉ, pas un simple éclaircissement
+// — aucun jeton existant ne le produit. Il est donc nommé ici plutôt que semé dans le JSX.
+const VINIZ_CARD_SURFACE = '#3A2585'
+
+const MARQUE_VINIZ: ThemeTokens = {
+  ...VINIZ_THEME,
+  background: VINIZ.ink,
+  page: VINIZ.ink,
+  surface: VINIZ_CARD_SURFACE,
+  // Le lime reste autorisé : le Violet Ink est un fond SOMBRE, et c'est la condition.
+  // `accent`, `onAccent`, `onBackground`, `onBackgroundMuted` et `border` sont hérités.
+}
 
 export default function GymSelect() {
-  const { tokens } = useTheme()
+  const tokens = MARQUE_VINIZ
   const { t } = useTranslation()
   const router = useRouter()
   // GYM-102 (4/5) — un lien profond dont le slug n'existe pas atterrit ici. Sans ce
@@ -125,9 +165,15 @@ export default function GymSelect() {
       {item.logo_url ? (
         <Image source={{ uri: item.logo_url }} className="h-12 w-12 rounded-xl" resizeMode="contain" />
       ) : (
-        // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : `bg-move-dark` + `text-move-accent`.
-        <View className="h-12 w-12 items-center justify-center rounded-xl bg-move-dark">
-          <Text className="font-barlow text-lg text-move-accent">
+        // 🔴 GYM-301 (3) — LA PASTILLE PORTAIT LA CHARTE DE DOPAMINE SUR UN ÉCRAN VINIZ.
+        // `bg-move-dark` + `text-move-accent`, c'est le noir #111111 et le lime #C8F000 de
+        // Dopamine — posés ici sur du Violet Ink, pour représenter une salle TIERCE.
+        //
+        // ⚠️ CE N'EST PAS UNE ENTORSE À L'ATTENTE A-3/A-4. Ce que le cockpit a gelé, c'est
+        // la DÉRIVATION d'un fond depuis le thème d'une salle. Ici la palette est fixe,
+        // connue à l'écriture, et c'est celle de Viniz : il n'y a rien à dériver.
+        <View className="h-12 w-12 items-center justify-center rounded-xl" style={{ backgroundColor: tokens.background }}>
+          <Text className="font-barlow text-lg" style={{ color: tokens.accent }}>
             {item.name.charAt(0).toUpperCase()}
           </Text>
         </View>
@@ -178,6 +224,14 @@ export default function GymSelect() {
 
   const results = outcome.status === 'ok' ? outcome.results : []
 
+  // 🔴 GYM-301 (3) — LE GARDE DE MODE, QUI MANQUAIT. Cet écran n'était atteint qu'en
+  // multi (lancement Viniz, connexion de salle, lien profond inconnu — tous gardés), mais
+  // rien ne l'empêchait LUI-MÊME de s'afficher en single. C'était sans conséquence tant
+  // qu'il empruntait le thème ambiant ; depuis ce lot il porte une palette Viniz FIXE, et
+  // un lien profond vers `/gym/select` peindrait du Violet Ink dans l'app de Dopamine.
+  // Même garde que `profile/gym-switch.tsx` et `gym/not-member.tsx`.
+  if (GYM_MODE === 'single') return <Redirect href="/+not-found" />
+
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['top', 'bottom']}>
       <View className="flex-1 px-6 pt-4">
@@ -210,12 +264,18 @@ export default function GymSelect() {
           showsVerticalScrollIndicator={false}
         />
       </View>
+
+      {/* ⚠️ MÊME COMPOSANT QUE SUR LES CONNEXIONS DE SALLE, pas une copie : il a été
+          extrait de `BrandedLogin` pour ce lot. L'encre est passée explicitement — sans
+          elle il lirait le thème AMBIANT, c'est-à-dire les couleurs d'une salle, sur le
+          seul écran qui n'en représente aucune. */}
+      <PoweredByViniz ink={tokens.onBackgroundMuted} />
     </SafeAreaView>
   )
 }
 
 function Hint({ text }: { text: string }) {
-  const { tokens } = useTheme()
+  const tokens = MARQUE_VINIZ
   return (
     <View className="items-center px-6 py-10">
       <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{text}</Text>

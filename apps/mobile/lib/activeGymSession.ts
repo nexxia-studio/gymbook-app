@@ -59,7 +59,7 @@
 import { useAuthStore } from '../stores/useAuthStore'
 import { GYM_MODE, readSelectedGymSlug, writeSelectedGymSlug } from './gymResolver'
 import { listMyGyms, switchGym } from './gymSwitch'
-import { readCachedBrand } from './theme/brand'
+import { readCachedBrand, type GymBrand } from './theme/brand'
 import { withActiveGymWrite } from './activeGymWrites'
 import { captureEvent } from './analytics'
 
@@ -240,8 +240,20 @@ export function __resetReconcileState(): void {
 // re-servi à chaque montage d'écran deviendrait un bandeau qui poursuit le membre d'onglet
 // en onglet pour un fait vieux de dix minutes.
 export type ActiveGymNotice =
-  /** Le choix n'a pas été retenu. `requested` est nul si on n'a pas pu le NOMMER. */
-  | { kind: 'not_member'; requested: string | null; landed: string }
+  /**
+   * Le choix n'a pas été retenu.
+   *
+   * 🔴 GYM-301 (2) — L'AVIS PORTE LA MARQUE, PLUS SEULEMENT LE NOM. L'écran dédié doit
+   * s'afficher aux couleurs de la salle DEMANDÉE, et c'est ici — et nulle part ailleurs —
+   * qu'elles sont encore atteignables : deux lignes plus bas, `writeSelectedGymSlug`
+   * bascule le slug sur la salle du serveur, le fournisseur recharge, et le cache de
+   * marque (une seule entrée) est écrasé. Capturer la marque AVANT évite à l'écran un
+   * aller-retour réseau pour retrouver une donnée qu'on avait sous la main.
+   *
+   * `requested` est nul quand le cache ne connaissait pas la salle : l'écran retombe
+   * alors sur la palette Viniz et une formulation sans nom.
+   */
+  | { kind: 'not_member'; requested: GymBrand | null; requestedSlug: string; landed: string }
   /** Les adhésions n'ont pas pu être lues : rien n'a été touché, une reprise est armée. */
   | { kind: 'unreachable' }
 
@@ -258,6 +270,19 @@ export function takeActiveGymNotice(): ActiveGymNotice | null {
   const avis = avisEnAttente
   avisEnAttente = null
   return avis
+}
+
+/**
+ * L'avis en attente, SANS le consommer.
+ *
+ * ⚠️ GYM-301 (2) — IL FAUT LES DEUX LECTURES, ET ELLES NE SE REMPLACENT PAS. Les deux
+ * issues n'ont plus le même destinataire : `unreachable` s'affiche en bandeau sur
+ * l'accueil, qui le CONSOMME ; `not_member` ouvre un écran dédié, et c'est cet écran qui
+ * doit le consommer — s'il était consommé par l'accueil pour décider d'y aller, l'écran
+ * arriverait les mains vides, sans nom de salle ni couleurs.
+ */
+export function peekActiveGymNotice(): ActiveGymNotice | null {
+  return avisEnAttente
 }
 
 /**
@@ -355,7 +380,7 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
       const demandee = await readCachedBrand(slugLocal)
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
-      annonce({ kind: 'not_member', requested: demandee?.name ?? null, landed: active.name })
+      annonce({ kind: 'not_member', requested: demandee, requestedSlug: slugLocal, landed: active.name })
       return journalise(
         { status: 'server_wins', reason: 'not_member', gymId: active.gymId }, true,
       )
@@ -382,7 +407,14 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
       // la soumission — l'appartenance a été retirée entre la liste et la bascule.
       useAuthStore.getState().setActiveGymConfirmed(active.gymId)
       await writeSelectedGymSlug(active.slug)
-      annonce({ kind: 'not_member', requested: choisie.name, landed: active.name })
+      // Ici la marque n'est pas en cache sous la main (le choix venait des adhésions, pas
+      // de la recherche) : on la relit, et l'écran retombera sur Viniz si elle manque.
+      annonce({
+        kind: 'not_member',
+        requested: await readCachedBrand(choisie.slug),
+        requestedSlug: choisie.slug,
+        landed: active.name,
+      })
       return journalise(
         { status: 'server_wins', reason: 'refused_pt403', gymId: active.gymId }, true,
       )
