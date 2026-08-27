@@ -50,10 +50,23 @@ export interface GymProfile {
  */
 export const DEFAULT_HORIZON_DAYS = 30
 
-// Cache module : l'identité de la salle ne change pas pendant la vie du process.
-// Une seule lecture, partagée par tous les appelants (dédoublonnage via `inFlight`).
-let cached: GymProfile | null = null
-let inFlight: Promise<GymProfile | null> | null = null
+// ── LE CACHE, INDEXÉ PAR SALLE (GYM-292) ─────────────────────────────────────────────
+// 🔴 IL NE L'ÉTAIT PAS, ET L'AFFIRMATION QUI LE JUSTIFIAIT EST DEVENUE FAUSSE. Le
+// commentaire d'origine disait « l'identité de la salle ne change pas pendant la vie du
+// process » : c'était vrai quand une app servait une salle. En white-label, la salle
+// active change EN COURS DE SESSION — par le switch GYM-288, et depuis GYM-292 par la
+// réconciliation à l'ouverture de session.
+//
+// Un cache sans clé rendait donc le nom, l'adresse ET l'horizon de réservation de la
+// salle QUITTÉE. `switchGym` le vidait explicitement, ce qui masquait le défaut sur ce
+// chemin-là — mais tout autre changement de salle le laissait mentir. Et l'adresse est
+// exactement la donnée où mentir coûte le plus cher : elle envoie le membre devant une
+// porte.
+//
+// ⚠️ `inFlight` EST INDEXÉ AUSSI. Sans cela, deux salles demandées coup sur coup
+// partageraient la même promesse et la seconde recevrait la réponse de la première.
+const cached = new Map<string, GymProfile>()
+const inFlight = new Map<string, Promise<GymProfile | null>>()
 
 /**
  * Profil de la salle courante, ou `null` si indisponible.
@@ -68,19 +81,17 @@ let inFlight: Promise<GymProfile | null> | null = null
  * tout le reste de la session, une fois le membre pourtant connecté.
  */
 export async function getGymProfile(): Promise<GymProfile | null> {
-  if (cached) return cached
-  if (inFlight) return inFlight
+  // ⚠️ LA SALLE EST LUE AVANT LE CACHE, et pas l'inverse : c'est elle qui désigne l'entrée.
+  const gymId = getActiveGymId()
+  if (!gymId) return null
 
-  inFlight = (async () => {
+  const dejaLu = cached.get(gymId)
+  if (dejaLu) return dejaLu
+  const enCours = inFlight.get(gymId)
+  if (enCours) return enCours
+
+  const promesse = (async () => {
     try {
-      // GYM-289 — la salle vient de la source unique. ⚠️ Sans elle, on ne requête pas et
-      // on ne MET RIEN EN CACHE : l'absence de salle est transitoire (mode `multi`, avant
-      // l'arrivée du profil), et la mémoriser masquerait l'adresse de la salle pour tout
-      // le reste de la session — exactement le piège que ce module documente déjà pour
-      // les échecs réseau.
-      const gymId = getActiveGymId()
-      if (!gymId) return null
-
       const { data, error } = await supabase
         .from('nexxia_gyms')
         // ⚠️ Aucune colonne legal_* ici — voir l'en-tête du module.
@@ -90,7 +101,7 @@ export async function getGymProfile(): Promise<GymProfile | null> {
 
       if (error || !data) return null
 
-      cached = {
+      const profil: GymProfile = {
         name: nullIfBlank(data.name as string | null),
         address: nullIfBlank(data.address as string | null),
         postalCode: nullIfBlank(data.postal_code as string | null),
@@ -102,15 +113,17 @@ export async function getGymProfile(): Promise<GymProfile | null> {
         // que GYM-228 avait perdu `requires_coach`, pourtant bien demandée dans la requête.
         bookingHorizonDays: sanitizeHorizon(data.booking_horizon_days),
       }
-      return cached
+      cached.set(gymId, profil)
+      return profil
     } catch {
       return null
     } finally {
-      inFlight = null
+      inFlight.delete(gymId)
     }
   })()
 
-  return inFlight
+  inFlight.set(gymId, promesse)
+  return promesse
 }
 
 /**
@@ -159,6 +172,6 @@ export function formatGymAddress(profile: GymProfile | null): string | null {
 
 /** Réinitialise le cache — tests uniquement. */
 export function __resetGymProfileCache(): void {
-  cached = null
-  inFlight = null
+  cached.clear()
+  inFlight.clear()
 }

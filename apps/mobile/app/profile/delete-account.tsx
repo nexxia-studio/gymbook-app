@@ -53,6 +53,11 @@ export default function DeleteAccountScreen() {
 
   // Pré-vérification client (RLS) : afficher l'état bloquant AVANT même l'appel serveur.
   // Le guard serveur reste la VÉRITÉ (voir delete-account / getActiveEngagement).
+  //
+  // ⚠️ GYM-292 — CETTE LECTURE N'EST DÉLIBÉRÉMENT PAS FILTRÉE PAR SALLE, et c'est le bon
+  // choix : supprimer son compte le supprime de TOUTES les salles. Un engagement en cours
+  // dans n'importe laquelle bloque la suppression. Ajouter `.eq('gym_id', …)` ici
+  // laisserait supprimer un compte encore engagé ailleurs — l'inverse du but.
   useEffect(() => {
     let cancelled = false
     ;(async () => {

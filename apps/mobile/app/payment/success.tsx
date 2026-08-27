@@ -261,6 +261,10 @@ function ClassicPaymentScreen({
   // « Edge Function returned a non-2xx status code » — alors qu'aucune Edge n'était
   // appelée. Le poll est un cas d'école : il tourne en arrière-plan, longtemps, sur un
   // écran que le membre laisse ouvert pendant qu'il bascule d'application.
+  // ⚠️ GYM-292 — SONDAGE D'UNE LIGNE DE PAIEMENT PAR SON IDENTIFIANT (`rowId` /
+  // `mollieId`). La salle n'entre pas dans la question : on suit UN paiement, celui que
+  // l'app vient de créer. Y ajouter un filtre de salle ne changerait rien et ferait
+  // croire que la clé en dépend.
   const poll = useCallback(async () => {
     if (settledRef.current) return
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.

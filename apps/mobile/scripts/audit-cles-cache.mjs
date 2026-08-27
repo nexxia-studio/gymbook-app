@@ -53,21 +53,42 @@ for (const abs of DIRS.flatMap((d) => walk(join(ROOT, d)))) {
     if (!litDesDonnees) continue
     const ligne = src.slice(0, m.index).split('\n').length
     const porteGym = /gymId|gym_id|activeGym/.test(deps)
-    lignes.push({ fichier: rel, ligne, quoi: hook + ' deps', deps: deps.replace(/\s+/g, ' ').trim() || '(vide)', porteGym })
+    // ── L'EXCEPTION DÉCLARÉE ───────────────────────────────────────────────────────────
+    // 🔴 UNE LISTE QUI NE PEUT PAS ATTEINDRE ZÉRO NE SE LIT PLUS. Trois lectures ne sont
+    // légitimement PAS indexées par salle : un paiement suivi par son identifiant, un
+    // créneau lu par le sien, et la vérification d'engagement avant suppression de compte
+    // — qui DOIT couvrir toutes les salles, puisque supprimer son compte les quitte
+    // toutes. Sans moyen de les déclarer, elles resteraient rouges pour toujours et le
+    // rapport finirait par se lire « il en reste quatre, c'est normal ».
+    //
+    // La convention est celle de GYM-286 : un commentaire contenant `GYM-292` dans les
+    // douze lignes qui précèdent. La raison s'écrit À CÔTÉ du code, pas dans ce script.
+    const avant = src.slice(0, m.index).split('\n').slice(-13)
+    const justifiee = avant.some((l) => /(\/\/|\*).*GYM-292/.test(l))
+    lignes.push({
+      fichier: rel, ligne, quoi: hook + ' deps',
+      deps: deps.replace(/\s+/g, ' ').trim() || '(vide)',
+      porteGym, justifiee,
+    })
   }
   // Les caches de module.
   for (const m of src.matchAll(/^let (cached\w*|\w*Cache)\b.*$/gm)) {
     const ligne = src.slice(0, m.index).split('\n').length
-    lignes.push({ fichier: rel, ligne, quoi: 'cache module', deps: m[0].trim(), porteGym: false })
+    lignes.push({ fichier: rel, ligne, quoi: 'cache module', deps: m[0].trim(), porteGym: false, justifiee: false })
   }
 }
 
 console.log('| fichier:ligne | nature | clé | porte gym_id |')
 console.log('|---|---|---|---|')
 for (const l of lignes.sort((a, b) => a.fichier.localeCompare(b.fichier) || a.ligne - b.ligne)) {
-  const cle = l.deps.length > 62 ? l.deps.slice(0, 59) + '…' : l.deps
-  console.log(`| \`${l.fichier}:${l.ligne}\` | ${l.quoi} | \`${cle}\` | ${l.porteGym ? '**oui**' : '🔴 NON'} |`)
+  const cle = l.deps.length > 58 ? l.deps.slice(0, 55) + '…' : l.deps
+  const etat = l.porteGym ? '**oui**' : l.justifiee ? 'sans objet — justifié `GYM-292`' : '🔴 NON'
+  console.log(`| \`${l.fichier}:${l.ligne}\` | ${l.quoi} | \`${cle}\` | ${etat} |`)
 }
-const ko = lignes.filter((l) => !l.porteGym).length
-console.log(`\n${lignes.length} clé(s) examinée(s) — ${lignes.length - ko} portent gym_id, ${ko} ne le portent pas.`)
+const ok = lignes.filter((l) => l.porteGym).length
+const just = lignes.filter((l) => !l.porteGym && l.justifiee).length
+const ko = lignes.filter((l) => !l.porteGym && !l.justifiee).length
+console.log(`\n${lignes.length} clé(s) : ${ok} portent gym_id, ${just} hors objet (justifiées dans le code), ${ko} sans clé de salle.`)
+if (ko) console.log('🔴 Une clé de données de salle sans gym_id sert les données d’une autre salle.')
+else console.log('✅ Toute clé servant des données de salle porte gym_id.')
 process.exit(ko ? 1 : 0)

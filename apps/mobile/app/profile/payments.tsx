@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, Receipt, FileText } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
+import { useActiveGymId } from '../../lib/activeGym'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 
 type PaymentStatus = 'paid' | 'pending' | 'failed' | 'expired' | 'canceled'
@@ -54,28 +55,36 @@ function statusText(status: PaymentStatus): string {
 
 export default function PaymentsScreen() {
   const { tokens } = useTheme()
+  const gymId = useActiveGymId()
   const { t } = useTranslation()
   const router = useRouter()
   const [transactions, setTransactions] = useState<PaymentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingInvoice, setLoadingInvoice] = useState<string | null>(null)
 
+  // 🔴 GYM-292 — FILTRÉ PAR SALLE, ET IL NE L'ÉTAIT PAS. `.eq('member_id', …)` seul rend
+  // les paiements de TOUTES les salles du membre : un membre de trois salles voyait, sous
+  // la marque d'une seule, l'historique des trois. La colonne `gym_id` existe et est NOT
+  // NULL sur `payments` — c'est le filtre qui manquait, pas la donnée.
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
+      // Salle non résolue : liste vide plutôt que l'historique d'une autre salle.
+      if (!gymId) { setLoading(false); return }
 
       const { data } = await supabase
         .from('payments')
         .select('id, plan_id, plan_name, amount, status, paid_at, created_at')
         .eq('member_id', user.id)
+        .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(50)
 
       setTransactions((data ?? []) as PaymentRow[])
       setLoading(false)
     })()
-  }, [])
+  }, [gymId])
 
   const handleDownloadInvoice = useCallback(async (paymentId: string) => {
     setLoadingInvoice(paymentId)

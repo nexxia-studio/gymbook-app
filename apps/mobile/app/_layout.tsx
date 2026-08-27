@@ -14,8 +14,8 @@ import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
-import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug, writeSelectedGymSlug } from '../lib/gymResolver'
-import { listMyGyms } from '../lib/gymSwitch'
+import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug } from '../lib/gymResolver'
+import { reconcileActiveGym } from '../lib/activeGymSession'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import '../lib/i18n'
 import '../global.css'
@@ -198,33 +198,37 @@ function RootLayout() {
     return () => { alive = false; unsubscribe() }
   }, [])
 
-  // ── GYM-288 (livrable 2) — 🔴 LE PROFIL SERVEUR REPREND LA MAIN SUR LA MARQUE ────────
+  // ── GYM-292 — 🔴 LA RÉCONCILIATION, DÉCLENCHÉE PAR L'ARRIVÉE DE LA SESSION ──────────
   //
-  // Le cas : quelqu'un choisit la salle B avant de se connecter, puis se connecte avec un
-  // compte dont la salle active est A. Depuis GYM-289, les DONNÉES sont justes — elles
-  // viennent de `profiles.gym_id`. La MARQUE, elle, suivait encore le slug local : le
-  // membre voyait le nom, le logo et les couleurs de B posés sur le planning de A.
+  // CE QUI ÉTAIT ICI AVANT, ET POURQUOI ÇA NE POUVAIT PAS MARCHER. Un effet corrigeait le
+  // slug local depuis la salle active du serveur — la règle GYM-288, « le profil serveur
+  // fait foi ». Mais il était déclenché par `gym_id`, et sortait sur `!sessionGymId` :
+  // or `gym_id` restait `null` après la connexion en multi, faute d'un `refreshProfile`
+  // au démarrage. L'effet ne s'exécutait donc JAMAIS… jusqu'à ce que le membre ouvre le
+  // Profil, seul écran à rafraîchir le profil au montage. Le désaccord entre la salle
+  // choisie et la salle du serveur éclatait à ce moment-là, thème et données d'un coup.
   //
-  // ⚠️ CE N'EST PAS UN DÉTAIL D'AFFICHAGE. C'est le cas où l'app se contredit elle-même
-  // sans rien signaler, et où le membre n'a aucun moyen de savoir laquelle des deux
-  // moitiés ment. Le lot 2 avait posé la règle — « le profil serveur fait foi » — sans
-  // que rien ne l'applique ; elle s'applique ici.
+  // La réconciliation est maintenant déclenchée par la SESSION, pas par la salle : elle
+  // s'exécute dès qu'il y a quelqu'un à réconcilier. Et elle fait les deux sens — le choix
+  // du membre est soumis au serveur, qui l'accepte ou garde la main.
+  // Règle complète et arbitrage : lib/activeGymSession.ts.
   //
-  // Le slug local n'est pas effacé, il est CORRIGÉ : il redevient la seule réponse
-  // possible à la déconnexion suivante, quand plus aucun profil ne peut trancher.
-  const sessionGymId = useAuthStore((s) => s.gym_id)
+  // ⚠️ CLÉ SUR L'IDENTIFIANT DE L'UTILISATEUR, PAS SUR L'OBJET `session`. Supabase remplace
+  // cet objet à chaque rafraîchissement de jeton : dépendre de lui relancerait la
+  // réconciliation — donc `listMyGyms` et peut-être un `switch_active_gym` — toutes les
+  // heures, sans que rien n'ait changé.
+  const sessionUserId = useAuthStore((s) => s.user?.id ?? null)
   useEffect(() => {
-    if (GYM_MODE === 'single' || !sessionGymId) return
+    if (GYM_MODE === 'single' || !sessionUserId) return
     let alive = true
-    listMyGyms().then((res) => {
-      if (!alive || res.status !== 'ok') return
-      const active = res.gyms.find((g) => g.isActive)
-      // Hors ligne, ou salle introuvable : on GARDE ce qui est affiché. Effacer la marque
-      // pour cause de réseau ferait clignoter l'app sans rien corriger.
-      if (active?.slug) void writeSelectedGymSlug(active.slug)
+    void reconcileActiveGym().then(() => {
+      if (!alive) return
+      // Le résultat n'a pas de consommateur ici : chaque conséquence est déjà posée dans
+      // le store ou dans le slug par le module lui-même. On l'ignore explicitement plutôt
+      // que de laisser croire qu'il reste quelque chose à faire.
     })
     return () => { alive = false }
-  }, [sessionGymId])
+  }, [sessionUserId])
 
   const initialize = useAuthStore((s) => s.initialize)
   const userId = useAuthStore((s) => s.user?.id ?? null)

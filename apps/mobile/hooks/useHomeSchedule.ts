@@ -179,14 +179,22 @@ export function useHomeSchedule() {
   }, [fetchSlots])
 
   // Fetch member's active bookings (confirmed + waitlisted) as separate sets
+  //
+  // 🔴 GYM-292 — `gymId` AJOUTÉ AU FILTRE ET AUX DÉPENDANCES. La clé était TRANSITIVE :
+  // l'effet se rejouait parce que `slots` changeait avec la salle. Ça marchait, et ça ne
+  // se relisait pas — le jour où `slots` cesserait de changer (mise en cache, pagination),
+  // l'effet garderait les réservations de la salle quittée sans que rien ne l'explique.
+  // Une clé qui dépend d'un effet de bord n'est pas une clé.
   useEffect(() => {
     async function fetchBooked() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      if (!gymId) return
       const { data } = await supabase
         .from('bookings')
         .select('slot_id, status')
         .eq('member_id', user.id)
+        .eq('gym_id', gymId)
         .in('status', ['confirmed', 'waitlisted'])
       const confirmed = new Set<string>()
       const waitlisted = new Set<string>()
@@ -198,7 +206,7 @@ export function useHomeSchedule() {
       setWaitlistedSlotIds(waitlisted)
     }
     fetchBooked()
-  }, [slots]) // re-check when slots change
+  }, [slots, gymId]) // re-check when slots change — et quand la SALLE change (GYM-292)
 
   const scheduleByDay = days.map((d, i) => {
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
