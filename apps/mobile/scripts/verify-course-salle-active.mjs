@@ -157,14 +157,31 @@ let n = 0
 export async function withActiveGymWrite(fn) { n++; try { return await fn() } finally { n-- } }
 export function activeGymWriteInFlight() { return n > 0 }
 `)
+// GYM-300 (3a) — le cache de marque, qui NOMME la salle demandée quand elle n'est pas
+// dans les adhésions. Doublure : ce script prouve des décisions, pas du stockage.
+mkdirSync(join(L, 'theme'), { recursive: true })
+writeFileSync(join(L, 'theme', 'brand.js'), `
+export let __marques = {}
+export function __setMarques(m) { __marques = m }
+export async function readCachedBrand(slug) { return __marques[slug] ?? null }
+`)
 writeFileSync(join(L, 'gymSwitch.js'), `
 import { trace, writeSelectedGymSlug } from './gymResolver.js'
 import { useAuthStore } from '../stores/useAuthStore.js'
 export let __gyms = []
 export let __res = { status: 'ok' }
+// 🔴 GYM-300 (§2) — LA LECTURE D'ADHÉSIONS DOIT POUVOIR ÉCHOUER DANS CE BANC.
+// Elle rendait toujours 'ok' : la branche que le cockpit demande de garantir — « un échec
+// de LECTURE n'est pas un "pas membre" » — n'était donc éprouvée par rien.
+export let __listRes = { status: 'ok' }
 export function __setGyms(g) { __gyms = g }
 export function __setRes(r) { __res = r }
-export async function listMyGyms() { trace.push('listMyGyms'); return { status: 'ok', gyms: __gyms } }
+export function __setListRes(r) { __listRes = r }
+export async function listMyGyms() {
+  trace.push('listMyGyms → ' + __listRes.status)
+  if (__listRes.status !== 'ok') return __listRes
+  return { status: 'ok', gyms: __gyms }
+}
 export async function switchGym(g) {
   trace.push('switchGym(' + g.slug + ') → ' + __res.status)
   if (__res.status === 'ok') {
@@ -204,27 +221,40 @@ const GYMS = [
   { gymId: 'g-dopa', slug: 'dopamine-staging', name: 'Dopamine', logoUrl: null, isActive: false },
 ]
 
-async function cas(nom, { slug, serveur, switchRes = { status: 'ok' }, attendu, salleAttendue, slugAttendu }) {
+async function cas(nom, {
+  slug, serveur, switchRes = { status: 'ok' }, listRes = { status: 'ok' },
+  attendu, raisonAttendue, salleAttendue, slugAttendu,
+}) {
   R.trace.length = 0
   R.__setSlug(slug)
   AU.__setServeur(serveur)
   SW.__setGyms(GYMS.map((g) => ({ ...g, isActive: g.gymId === serveur })))
   SW.__setRes(switchRes)
+  SW.__setListRes(listRes)
   const res = await reconcile()
   const okStatut = res.status === attendu
   const okSalle = AU.__gymId() === salleAttendue
   const okSlug = R.__slug === slugAttendu
+  // GYM-300 (§4) — la raison n'est pas décorative : c'est elle qui distingue les deux
+  // chemins qui rendent `server_wins`, et c'est son absence qui a coûté la QA du 27/08.
+  const okRaison = raisonAttendue === undefined || res.reason === raisonAttendue
+  // 🔴 GYM-300 (§2) — L'INVARIANT DU LOT, ÉPROUVÉ SUR CHAQUE CAS ET PAS SEULEMENT SUR
+  // CEUX QU'ON A PENSÉ À ÉCRIRE. Le serveur ne peut reprendre la main que sur un fait
+  // d'ADHÉSION — jamais parce qu'on n'a pas réussi à lire. Une refonte qui rebrancherait
+  // `memberships_unavailable` sur `server_wins` casse ici, pas en recette un mardi.
+  const invariant = res.status !== 'server_wins' || SESSION.serverWinsReasons().includes(res.reason)
   // 🔴 L'ORDRE EST UNE ASSERTION À PART ENTIÈRE : aucune adoption du serveur ne doit
   // précéder la soumission du choix. C'est le défaut exact que ce lot corrige.
   const pasDAdoptionPrecoce = !R.trace.some((t) => t.startsWith('refreshProfile → ADOPTE'))
-  const bon = okStatut && okSalle && okSlug && pasDAdoptionPrecoce
+  const bon = okStatut && okSalle && okSlug && pasDAdoptionPrecoce && okRaison && invariant
   if (!bon) echecs++
-  console.log(`  ${bon ? '✓' : '✗'} ${nom}`)
+  console.log(`  ${bon ? '✓' : '✗'} ${nom}  [${res.reason ?? '—'}]`)
   console.log(`      ${R.trace.join(' → ')}`)
   if (!bon) {
-    console.log(`      attendu : ${attendu} / salle ${salleAttendue} / slug ${slugAttendu}`)
-    console.log(`      obtenu  : ${res.status} / salle ${AU.__gymId()} / slug ${R.__slug}`)
+    console.log(`      attendu : ${attendu} / raison ${raisonAttendue ?? '—'} / salle ${salleAttendue} / slug ${slugAttendu}`)
+    console.log(`      obtenu  : ${res.status} / raison ${res.reason ?? '—'} / salle ${AU.__gymId()} / slug ${R.__slug}`)
     if (!pasDAdoptionPrecoce) console.log('      🔴 la salle du serveur a été adoptée AVANT la soumission du choix')
+    if (!invariant) console.log('      🔴 server_wins rendu pour une raison qui n’est PAS un fait d’adhésion')
   }
 }
 
@@ -265,6 +295,63 @@ await cas('INCIDENT RÉSEAU — le choix survit, rien n’est touché', {
 // entièrement : « faut-il réessayer ? » Et elle a une mauvaise réponse évidente, qu'il
 // faut interdire : réessayer après un `server_wins` relancerait à CHAQUE retour de veille
 // un `switch_active_gym` que le serveur vient de refuser — indéfiniment.
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-300 — LES DEUX BRANCHES QUE LA QA DU 27/08 N'A PAS SU DISTINGUER
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Ce jour-là, deux `server_wins` ont été lus comme un défaut. Ils étaient conformes — le
+// compte n'avait qu'UNE adhésion, mesuré en base. Mais rien, ni dans l'événement ni à
+// l'écran, ne permettait de le savoir : `server_wins` sur une lecture ratée et
+// `server_wins` sur un vrai refus d'adhésion se ressemblaient trait pour trait.
+//
+// Les deux branches deviennent donc des cas nommés, et la seconde vérifie la règle du
+// cockpit : NE PAS AVOIR PU LIRE n'est PAS NE PAS ÊTRE MEMBRE.
+console.log('\nGYM-300 : membre du choix, et lecture d’adhésions en échec.\n')
+
+// ── (1) MEMBRE DU CHOIX → LE CHOIX EST ACCEPTÉ ──────────────────────────────────────
+// La prémisse du ticket, mise à l'épreuve : quand l'adhésion EXISTE, la soumission a bien
+// lieu et le choix gagne. C'est ce qui prouve que le chemin lui-même n'a jamais été en
+// cause — seule la donnée de staging l'était.
+await cas('🔴 MEMBRE de la salle choisie — le choix est soumis ET accepté', {
+  slug: 'studio-test-staging', serveur: 'g-dopa',
+  attendu: 'switched', raisonAttendue: 'choice_accepted',
+  salleAttendue: 'g-studio', slugAttendu: 'studio-test-staging',
+})
+
+// ── (2) PAS MEMBRE → server_wins, ET C'EST LÉGITIME ────────────────────────────────
+// Exactement le cas d'`admin.dopamine` : une seule adhésion, un choix qui n'y figure pas.
+// L'app tranche sans aller-retour, et la raison le DIT — `not_member`, pas `refused_pt403`.
+await cas('PAS membre de la salle choisie — le serveur garde la main, à raison', {
+  slug: 'salle-inconnue', serveur: 'g-dopa',
+  attendu: 'server_wins', raisonAttendue: 'not_member',
+  salleAttendue: 'g-dopa', slugAttendu: 'dopamine-staging',
+})
+
+// ── (3) 🔴 LA LECTURE ÉCHOUE → SURTOUT PAS server_wins ──────────────────────────────
+// La règle du lot. Hors ligne ou serveur en vrac, on ne SAIT PAS si le membre appartient à
+// la salle choisie : le déduire reviendrait à lui retirer son choix pour une coupure de
+// deux secondes. Rien n'est touché — ni la salle, ni le slug — et une reprise s'arme.
+for (const panne of ['offline', 'error']) {
+  await cas(`🔴 adhésions ILLISIBLES (${panne}) — ce n’est PAS « pas membre »`, {
+    slug: 'studio-test-staging', serveur: 'g-dopa', listRes: { status: panne },
+    attendu: 'unavailable', raisonAttendue: 'memberships_unavailable',
+    // La salle n'est PAS posée et le slug n'est PAS réécrit : le choix survit intact.
+    salleAttendue: null, slugAttendu: 'studio-test-staging',
+  })
+}
+
+// ── (4) L'INVARIANT, ÉNONCÉ UNE FOIS POUR TOUTES ───────────────────────────────────
+// Les cas ci-dessus l'éprouvent sur des scénarios choisis. Celui-ci le dit en clair : le
+// jeu des raisons qui autorisent le serveur à reprendre la main ne contient AUCUNE raison
+// d'indisponibilité. C'est une lecture du code de production, pas une redite du banc.
+{
+  const raisons = SESSION.serverWinsReasons()
+  const propre = !raisons.includes('memberships_unavailable') && !raisons.includes('rpc_error')
+  if (!propre) echecs++
+  console.log(`  ${propre ? '✓' : '✗'} aucune raison d’indisponibilité ne donne la main au serveur`)
+  console.log(`      server_wins n’est permis que pour : ${raisons.join(', ')}`)
+}
+
 console.log('\nREPRISE : seule une issue INDÉCISE (`unavailable`) l’arme.\n')
 
 async function arme(nom, opts, attendu) {
@@ -274,6 +361,11 @@ async function arme(nom, opts, attendu) {
   AU.__setServeur(opts.serveur)
   SW.__setGyms(GYMS.map((g) => ({ ...g, isActive: g.gymId === opts.serveur })))
   SW.__setRes(opts.switchRes ?? { status: 'ok' })
+  // ⚠️ REMISE À L'ÉTAT NEUF, ET PAS SEULEMENT DES CHAMPS QU'ON FAIT VARIER ICI. Les cas
+  // GYM-300 laissent la lecture d'adhésions en panne ; sans cette ligne, tout le bloc
+  // REPRISE en héritait et rendait `unavailable` partout — cinq faux échecs qui ne
+  // parlaient d'aucun défaut du code, seulement de l'ordre des tests.
+  SW.__setListRes(opts.listRes ?? { status: 'ok' })
   const res = await reconcile()
   const obtenu = SESSION.activeGymNeedsRetry()
   const bon = obtenu === attendu

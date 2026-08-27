@@ -481,7 +481,27 @@ export default function Studio() {
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           MA PROGRESSION
         </Text>
-        <Text className="font-dmsans text-[13px] text-white/40">
+        {/* 🔴 GYM-300 (3c) — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/40` était un
+            BLANC EN DUR : illisible dès que la salle a un fond clair, et l'en-tête de
+            Studio Test le montrait — le nom de la salle disparaissait purement et
+            simplement de sa propre bande.
+
+            ⚠️ ET `onBackgroundMuted` N'AURAIT PAS FAIT L'AFFAIRE. Chez Dopamine il vaut
+            #9A9890, alors qu'un blanc à 40 % sur #111111 rend #707070 : le
+            remplacement direct aurait déplacé un pixel en single, ce que le cadrage
+            interdit. `tokens.onBackground + '66'` rend EXACTEMENT le blanc à 40 % chez
+            Dopamine (0x66 = 102, soit 102/255 = 0,40 pile), et l'encre de la salle
+            ailleurs. C'est le motif A-10 de GYM-286 : on migre la teinte, on ne touche
+            pas à l'alpha.
+
+            ⚠️ ALPHA SUR LA COULEUR, PAS `opacity` SUR L'ÉLÉMENT — les deux rendent
+            pareil ICI, mais `opacity` s'applique à toute la descendance : le jour où ce
+            `Text` accueille une icône ou un second fragment, elle les délaverait aussi.
+            L'alpha dans la couleur ne teinte que ce qu'elle colore. */}
+        <Text
+          className="font-dmsans text-[13px]"
+          style={{ color: tokens.onBackground + '66' }}
+        >
           Tes stats, ton niveau, ta régularité
         </Text>
       </View>

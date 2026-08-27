@@ -687,5 +687,10 @@
     "reconnect_required_message": "Reconnectez-vous avec votre mot de passe pour activer {{kind}}.",
     "passwords_dont_match": "Les mots de passe ne correspondent pas.",
     "password_too_short": "Le mot de passe doit contenir au moins 8 caractères."
+  },
+  "active_gym": {
+    "not_member": "Tu n'es pas membre de {{requested}} — te voilà chez {{landed}}",
+    "not_member_unnamed": "Tu n'es pas membre de cette salle — te voilà chez {{landed}}",
+    "unreachable": "On n'a pas pu joindre tes salles — on réessaie dès que ça revient"
   }
 }

@@ -306,8 +306,23 @@ rien.
 # RECETTE — version consolidée (#228 + #293 + #298)
 
 Build **multi**, app réinstallée entre les blocs A et B.
-Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` (une salle chacun) et
-`admin.dopamine@` (les trois), tous `@staging.test`.
+Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` et `admin.dopamine@`,
+tous `@staging.test`.
+
+> ## 🔴 GYM-300 — LIRE AVANT DE LANCER LE BLOC B
+>
+> `admin.dopamine@` **n'est PAS membre des trois salles**. Mesuré en base le 27/08 : il en
+> a **une**, `dopamine-staging`. Et aucun des **19 comptes de staging** n'appartient à plus
+> d'une salle.
+>
+> **Le bloc B n'est donc pas exerçable en l'état**, non plus que le bouton « Changer de
+> salle », l'écran `profile/gym-switch` et l'issue `switched`. Les rejouer tels quels
+> produira des `server_wins` **conformes** qu'on relira comme des défauts — c'est
+> exactement ce qui s'est passé le 27/08.
+>
+> **Prérequis : le cockpit ajoute une adhésion** à `admin.dopamine@` (au minimum
+> `studio-test-staging`). C'est une écriture en base sur un environnement partagé, donc sa
+> décision. Tant qu'elle n'est pas faite, B se lit comme **B′** ci-dessous.
 
 ## A — Comptes à salle unique
 
@@ -320,7 +335,8 @@ Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` (une salle ch
 
 ## B — Compte multi-salles (la régression de #228)
 
-`admin.dopamine@`, membre des 3, salle active serveur = **Dopamine**.
+`admin.dopamine@`, salle active serveur = **Dopamine**. **Exige l'adhésion supplémentaire
+posée par le cockpit** (voir l'encadré en tête de recette) — sans elle, jouer **B′**.
 
 | # | geste | attendu |
 |---|---|---|
@@ -328,6 +344,19 @@ Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` (une salle ch
 | B2 | /profil, /planning, /reservations | **rien ne bouge** |
 | B3 | Réinstaller → **Studio Yoga Test 1** → login | reste sur **Yoga** |
 | B4 | Réinstaller → **Dopamine** → login | reste sur **Dopamine** (le choix est déjà actif) |
+| B5 | 🔴 GYM-300 — après B1, ouvrir /profil | **« Changer de salle » est VISIBLE.** Son absence signifie que l'adhésion n'a pas été posée : arrêter le bloc, ce n'est pas un défaut de l'app |
+| B6 | 🔴 GYM-300 — PostHog, après B1 | `active_gym_reconciled` avec `outcome=switched` **et `reason=choice_accepted`** |
+
+## B′ — Sans adhésion multi-salles (ce qui est exerçable AUJOURD'HUI)
+
+`admin.dopamine@`, une seule adhésion : `dopamine-staging`.
+
+| # | geste | attendu |
+|---|---|---|
+| B′1 | 🔴 Réinstaller → **Studio Test Staging** → login `admin.dopamine@` | atterrit sur **Dopamine**, marque **et** données cohérentes. **Un bandeau annonce** « Tu n'es pas membre de Studio Test Staging — te voilà chez Dopamine (Staging Clone) » |
+| B′2 | PostHog, après B′1 | `outcome=server_wins`, **`reason=not_member`**. C'est le comportement ATTENDU, pas un défaut |
+| B′3 | /profil | « Changer de salle » **absent** — une seule adhésion. Attendu, et cohérent avec B′2 |
+| B′4 | Réinstaller → **Dopamine** → login | reste sur **Dopamine**, **aucun bandeau** (`reason=already_aligned`) |
 
 ## C — Incident réseau, et la reprise (GYM-298)
 
@@ -377,3 +406,16 @@ Comptes : `member.studiotest@`, `member.yoga@`, `member.dopamine@` (une salle ch
 |---|---|---|
 | H1 | Après A1, A4, B1, C1 | un `active_gym_reconciled` par ouverture de session : `aligned`, `server_wins`, `switched`, `unavailable` |
 | H2 | Après C4 | un `active_gym_reconciled` **supplémentaire**, `outcome=switched` — la reprise a abouti |
+| H3 | 🔴 GYM-300 — sur TOUS les événements du jour | la propriété **`reason`** est présente, et vaut l'une des 7 valeurs du jeu fermé : `choice_accepted`, `not_member`, `refused_pt403`, `rpc_error`, `memberships_unavailable`, `no_local_choice`, `already_aligned` |
+| H4 | 🔴 GYM-300 — filtrer `outcome=server_wins` | **aucun** ne porte `reason=memberships_unavailable` ni `rpc_error`. Une lecture ratée ne donne JAMAIS la main au serveur |
+
+## I — Les trois finitions (GYM-300)
+
+| # | geste | attendu |
+|---|---|---|
+| I1 | 3a — rejouer **B′1** | bandeau sombre en bas, 3 s : « Tu n'es pas membre de … — te voilà chez … ». Pas de bandeau **rouge** : ce n'est pas une erreur |
+| I2 | 3a — couper le réseau, forcer la fermeture, rouvrir connecté | bandeau « On n'a pas pu joindre tes salles — on réessaie dès que ça revient ». La salle affichée **ne change pas** |
+| I3 | 🔴 3b — login **Studio Test** → « Ce n'est pas ma salle » → choisir **Dopamine** → login | la **tab bar**, l'en-tête et les cartes prennent les couleurs de **Dopamine**. Aucune trace de Studio Test, **même après attente** |
+| I4 | 🔴 3b — même geste, mais **réseau coupé** au moment de la seconde sélection | palette **Viniz** (fond sombre, lime), **jamais** les couleurs de la salle précédente |
+| I5 | 🔴 3c — login sur **Studio Test** (fond clair) → /accueil, /planning, /reservations, /progression | sous chaque titre, le **nom de la salle est LISIBLE**. Il était invisible (blanc sur clair) |
+| I6 | 3c — non-régression **single** : build Dopamine, mêmes 4 écrans | le sous-titre gris est **exactement** celui d'avant. Doit être indiscernable |
