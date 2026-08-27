@@ -440,6 +440,25 @@ compte à salle **unique** qui vise ailleurs : `member.yoga@` choisissant Studio
 | J′4 | Écran de **lancement** (pulse-V) | **inchangé** |
 | J′5 | Non-régression **single** : build Dopamine | l'écran de recherche est **inatteignable** ; navbar, connexion et accueil de Dopamine strictement identiques |
 
+## M — GYM-290 : le lot charte (garde-fou, bande, boutons, sémantiques)
+
+Trois salles staging + les deux salles fictives de la planche pour les rampes.
+
+| # | geste | attendu |
+|---|---|---|
+| M1 | 🔴 Ouvrir n'importe quelle salle, /accueil | la **bande d'en-tête se distingue de la page** — un pas net mais léger. Elle rendait « à plat » avant ce lot |
+| M2 | Les 3 salles staging, même écran | le pas est le **même à l'œil** partout, quelle que soit la couleur de la salle |
+| M3 | 🔴 Un bouton primaire, chaque salle | fond = **l'accent de la salle**, libellé lisible dessus. Chez Dopamine il reste **sombre à libellé lime** |
+| M4 | Bouton primaire **désactivé** | atténué mais lisible ; le libellé ne disparaît pas |
+| M5 | 🔴 Texte secondaire (sous-titres, libellés atténués) sur une salle au fond **vif** (lime, ambre) | **LISIBLE**. C'est le défaut de fond du lot : il était sous 4,5:1 sur plus d'une salle sur deux |
+| M6 | /profil → progression | la **piste** de la barre se voit sans attirer l'œil ; les pastilles vides aussi |
+| M7 | 🔴 /studio → carte d'affluence, les 5 salles | **trois paliers distincts**. Deux paliers confondus = défaut |
+| M8 | /studio → variation mensuelle | **vert** si positive, **rouge** si négative — les mêmes chez toutes les salles |
+| M9 | Force du mot de passe | rouge / **orange** / vert. L'ambre est devenu orange (décision C) |
+| M10 | 🔴 Feuille de paiement → option « à la séance » | libellé **et** sous-titre lisibles sur le fond du bouton, chez une salle à accent **clair** comme chez Dopamine |
+| M11 | Compte à rebours de liste d'attente | un seul rouge, un seul orange — plus deux orangés voisins sur la même ligne |
+| M12 | 🔴 Non-régression **single** : build Dopamine, parcours complet | identique au pixel **SAUF** les 17 écarts listés dans la PR (A-1 ×6, A-2 ×5, ambres ×3, A-6 ×2, GYM-307 ×1) |
+
 ## L — GYM-299 / GYM-304 : nom court, dimanche neutre, encres lisibles
 
 Jeu de données : **Studio Yoga Test 1** porte `short_name = « Yoga Club »`. Les deux autres
