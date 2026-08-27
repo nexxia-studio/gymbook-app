@@ -66,9 +66,23 @@ const ART_Y_NUDGE = 0
 export interface VinizPulseProps {
   /** Largeur de la boîte. Tout est proportionnel — la spec l'autorise explicitement. */
   width?: number
+  /**
+   * Durée d'un cycle, en millisecondes. Défaut : les 3 400 ms de la spec.
+   *
+   * ⚠️ GYM-302 — CE N'EST PAS UN RÉGLAGE ESTHÉTIQUE, C'EST CE QUI REND LE PULSE UTILISABLE
+   * COMME INDICATEUR D'ATTENTE. Une recherche dure 300 à 800 ms ; sur un cycle de 3 400 ms,
+   * le membre ne verrait JAMAIS que le premier cinquième du tracé — une ligne qui commence
+   * à se dessiner puis disparaît, sans jamais battre. L'attente demande une oscillation
+   * qui se répète, l'écran 01 demande un tracé qui se dessine une fois. Deux usages, deux
+   * durées, un seul composant.
+   *
+   * ⚠️ LE DÉFAUT RESTE 3 400, ET IL LE DOIT : c'est un nombre de la spec, et l'écran de
+   * lancement ne passe pas d'argument. Son rendu est inchangé, à la milliseconde.
+   */
+  durationMs?: number
 }
 
-export function VinizPulse({ width = BOX_W }: VinizPulseProps) {
+export function VinizPulse({ width = BOX_W, durationMs = DURATION_MS }: VinizPulseProps) {
   const k = width / BOX_W
 
   // ⚠️ UNE SEULE sharedValue PILOTE LES DEUX VUES. C'est la condition pour que tout reste
@@ -96,11 +110,11 @@ export function VinizPulse({ width = BOX_W }: VinizPulseProps) {
       // ⚠️ INTERPOLATION LINÉAIRE, ET C'EST STRUCTUREL : le masque et la bille lisent la
       // MÊME horloge. Toute courbe d'accélération les décalerait l'un par rapport à
       // l'autre, et la bille cesserait d'être collée à la pointe du tracé.
-      withTiming(1, { duration: DURATION_MS, easing: Easing.linear }),
+      withTiming(1, { duration: durationMs, easing: Easing.linear }),
       -1,
       false,
     )
-  }, [reduceMotion, t])
+  }, [reduceMotion, t, durationMs])
 
   const mask = useAnimatedStyle(() => ({
     width: interpolate(t.value, MASK_XS, [0, 12 * k, width, width, width]),
