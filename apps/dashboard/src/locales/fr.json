@@ -832,8 +832,8 @@
       "vat_exempt_label": "Exonéré de TVA",
       "vat_exempt_helper": "Cochez uniquement si votre activité est réellement exonérée. La mention légale remplacera le détail de TVA sur la facture.",
       "vat_rate_label": "Taux de TVA (%)",
-      "vat_rate_helper": "Le montant payé par le membre est TTC : la TVA en est extraite pour l'affichage (0 à 100)",
-      "vat_rate_error": "Le taux doit être compris entre 0 et 100",
+      "vat_rate_helper": "Taux de TVA appliqué à tes ventes. 6 % = accès aux installations sportives en Belgique — confirme avec ton comptable.",
+      "vat_rate_error": "Le taux doit être compris entre 0 et 30",
       "vat_mention_label": "Mention légale d'exonération",
       "vat_mention_helper": "Ex. « TVA non applicable — Art. 44 du Code TVA »",
       "save": "Enregistrer",
@@ -925,7 +925,13 @@
       "preview_title": "Aperçu",
       "preview_note": "Ce que verront tes membres, replis compris.",
       "preview_body": "Ton planning, tes réservations.",
-      "preview_action": "Réserver"
+      "preview_action": "Réserver",
+      "name_label": "Nom de la salle",
+      "name_helper": "Nom affiché aux membres — dans l’app, les emails et la recherche.",
+      "name_required": "Le nom de la salle ne peut pas être vide.",
+      "legal_name_label": "Dénomination commerciale (légale)",
+      "legal_name_helper": "Dénomination légale sur les factures. Se modifie dans Réglages → Salle → Informations légales.",
+      "legal_name_empty": "Non renseignée"
     }
   },
   "activities": {
@@ -1467,7 +1473,9 @@
       "secondary_label": "Couleur secondaire",
       "submit": "Enregistrer et continuer",
       "saved": "Identité visuelle enregistrée.",
-      "color_hint": "Laisse vide pour garder la palette Viniz — tu pourras la changer plus tard."
+      "color_hint": "Laisse vide pour garder la palette Viniz — tu pourras la changer plus tard.",
+      "vat_title": "TVA : 6 % appliqués à tes ventes",
+      "vat_helper": "6 % = accès aux installations sportives en Belgique — confirme avec ton comptable. Modifiable dans Réglages → Salle → Informations légales."
     },
     "step2": {
       "title": "Ta première activité",

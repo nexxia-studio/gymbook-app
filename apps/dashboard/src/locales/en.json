@@ -832,8 +832,8 @@
       "vat_exempt_label": "VAT exempt",
       "vat_exempt_helper": "Only tick this if your activity is genuinely exempt. The legal notice will replace the VAT breakdown on the invoice.",
       "vat_rate_label": "VAT rate (%)",
-      "vat_rate_helper": "The amount paid by the member is VAT-inclusive: VAT is extracted from it for display (0 to 100)",
-      "vat_rate_error": "The rate must be between 0 and 100",
+      "vat_rate_helper": "VAT rate applied to your sales. 6% = access to sports facilities in Belgium — confirm with your accountant.",
+      "vat_rate_error": "The rate must be between 0 and 30",
       "vat_mention_label": "Exemption legal notice",
       "vat_mention_helper": "E.g. “VAT not applicable — Art. 44 of the VAT Code”",
       "save": "Save",
@@ -925,7 +925,13 @@
       "preview_title": "Preview",
       "preview_note": "What your members will see, fallbacks included.",
       "preview_body": "Your schedule, your bookings.",
-      "preview_action": "Book"
+      "preview_action": "Book",
+      "name_label": "Gym name",
+      "name_helper": "Shown to members — in the app, emails and search.",
+      "name_required": "The gym name cannot be empty.",
+      "legal_name_label": "Trading name (legal)",
+      "legal_name_helper": "Legal name on invoices. Edited in Settings → Gym → Legal information.",
+      "legal_name_empty": "Not set"
     }
   },
   "activities": {
@@ -1467,7 +1473,9 @@
       "secondary_label": "Secondary colour",
       "submit": "Save and continue",
       "saved": "Branding saved.",
-      "color_hint": "Leave empty to keep the Viniz palette — you can change it later."
+      "color_hint": "Leave empty to keep the Viniz palette — you can change it later.",
+      "vat_title": "VAT: 6% applied to your sales",
+      "vat_helper": "6% = access to sports facilities in Belgium — confirm with your accountant. Editable in Settings → Gym → Legal information."
     },
     "step2": {
       "title": "Your first activity",

@@ -89,7 +89,12 @@ export function useGymLegal() {
     if (!gym?.id) return { error: 'no_gym' }
 
     const rate = Number(next.vatRate)
-    if (!next.vatExempt && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
+    // 🔴 GYM-308 — BORNE À 30, PAS À 100. Aucun taux de TVA européen n'en approche : la
+    // borne large laissait passer une faute de frappe (« 60 » pour « 6,0 ») qui serait
+    // partie telle quelle sur les factures. Vérifié avant de resserrer — aucune salle ne
+    // porte aujourd'hui un taux supérieur à 30. La contrainte de BASE (GYM-180) reste plus
+    // large, volontairement : l'app guide, la base garde.
+    if (!next.vatExempt && (!Number.isFinite(rate) || rate < 0 || rate > 30)) {
       return { error: 'rate' }
     }
 
