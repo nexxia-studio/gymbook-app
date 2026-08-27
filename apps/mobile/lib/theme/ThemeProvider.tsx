@@ -105,12 +105,35 @@ export function BrandThemeProvider({ slug, children }: { slug: string | null; ch
 
   const value = useMemo<BrandState>(() => {
     if (GYM_MODE === 'single') return DEFAULT_STATE
-    // Pas de salle résolue, ou chargement infructueux → palette Viniz complète.
-    // 🔴 JAMAIS un écran blanc, JAMAIS les couleurs d'une autre salle.
-    if (!brand) return { tokens: VINIZ_THEME, brand: null, isLoading }
+
+    // ═════════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-300 (3b) — C'EST ICI QUE L'ANCIENNE SALLE ÉTAIT MÉMORISÉE
+    // ═════════════════════════════════════════════════════════════════════════════════
+    // La ligne d'en dessous disait déjà « JAMAIS les couleurs d'une autre salle » — et
+    // c'est pourtant exactement ce qui se produisait. `brand` est un état de composant :
+    // il n'est PAS remis à zéro quand `slug` change. Il survivait donc à la bascule, et
+    // la salle suivante s'affichait aux couleurs de la précédente.
+    //
+    // Le motif observé en recette : « Ce n'est pas ma salle » → nouvelle sélection → la
+    // tab bar garde les couleurs d'avant. La tab bar n'y était pour rien ; elle lit
+    // `useTheme()` à chaque rendu, fidèlement. C'est ce que le fournisseur lui donnait
+    // qui était périmé.
+    //
+    // ⚠️ ET CE N'ÉTAIT PAS TRANSITOIRE. On aurait pu croire à une fenêtre de chargement
+    // d'un aller-retour — non : `fetchBrand` ne pose `setBrand` que sur `status === 'ok'`
+    // (garde volontaire, pour ne pas faire clignoter l'app à chaque coupure). Salle
+    // inconnue, réseau coupé, serveur en erreur : rien ne remplaçait l'ancienne marque,
+    // et elle restait affichée INDÉFINIMENT — sous le nom d'une autre salle.
+    //
+    // Le correctif ne retire pas cette garde, qui reste juste pour un rafraîchissement à
+    // slug CONSTANT. Il rend simplement la marque solidaire de son slug : une marque ne
+    // vaut que pour la salle dont elle vient, et `GymBrand` porte déjà ce slug — c'est le
+    // même test que `readCachedBrand` applique au cache depuis GYM-288, appliqué cette
+    // fois à l'état en mémoire, qui en avait tout autant besoin.
+    if (!brand || brand.slug !== slug) return { tokens: VINIZ_THEME, brand: null, isLoading }
     const { tokens } = resolveTheme(brand.primaryColor, brand.secondaryColor)
     return { tokens, brand, isLoading }
-  }, [brand, isLoading])
+  }, [brand, isLoading, slug])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
