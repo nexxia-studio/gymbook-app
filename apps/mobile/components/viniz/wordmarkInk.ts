@@ -11,7 +11,7 @@
 // consigne « le chantier couleurs est clos » n'a pas été levée. À remonter si un second
 // élément de marque devait suivre la même règle : sa place serait alors dans le thème.
 import { VINIZ, type ThemeTokens } from '../../lib/theme/resolveTheme'
-import { parseHex, contrastRatio, AA_NON_TEXT } from '../../lib/theme/contrast'
+import { parseHex, contrastRatio, SEUIL_SURFACE } from '../../lib/theme/contrast'
 
 /**
  * L'encre du wordmark « ViNiZ » sur le fond décrit par `tokens`.
@@ -20,8 +20,15 @@ import { parseHex, contrastRatio, AA_NON_TEXT } from '../../lib/theme/contrast'
  *   (a) `limeAllowed` — le fond est SOMBRE. Règle de l'écran 09, déjà tranchée par
  *       `resolveTheme` : sur un fond clair le lime ne porte rien et ne se détache de rien.
  *       Une salle claire ne reçoit donc jamais de lime.
- *   (b) le lime atteint 3:1 SUR CE FOND précis — seuil WCAG § 1.4.11 des éléments non
- *       textuels, celui que le garde-fou applique déjà à l'action.
+ *   (b) le lime atteint 3:1 SUR CE FOND précis — `SEUIL_SURFACE`, le seuil des éléments
+ *       d'interface, celui que le garde-fou applique déjà à l'action.
+ *
+ * ⚠️ APRÈS GYM-290, (a) FAIT PRESQUE TOUT LE TRAVAIL. `limeAllowed` se décide désormais par
+ * la LUMINANCE et non plus par la clarté HSL : les fonds « sombres selon HSL mais vifs à
+ * l'œil » — une menthe, un ambre — sont maintenant classés CLAIRS, et (a) les écarte seule.
+ * (b) reste : elle ne protège plus contre le cas d'hier, mais contre un changement futur de
+ * `VINIZ.lime` ou du critère de mode. Voir `scripts/verify-wordmark-lime.mjs`, qui mesure
+ * laquelle des deux travaille.
  *
  * ⚠️ (b) N'EST PAS REDONDANT AVEC (a), ET C'EST TOUT SON INTÉRÊT. « Sombre » ne veut pas
  * dire « contrasté avec le lime » : une salle au vert profond passe (a) et échoue (b) —
@@ -34,6 +41,6 @@ import { parseHex, contrastRatio, AA_NON_TEXT } from '../../lib/theme/contrast'
 export function wordmarkInk(tokens: ThemeTokens): string {
   const fond = parseHex(tokens.background)
   const lime = parseHex(VINIZ.lime)!
-  const lisible = tokens.limeAllowed && fond !== null && contrastRatio(lime, fond) >= AA_NON_TEXT
+  const lisible = tokens.limeAllowed && fond !== null && contrastRatio(lime, fond) >= SEUIL_SURFACE
   return lisible ? VINIZ.lime : tokens.onBackgroundMuted
 }
