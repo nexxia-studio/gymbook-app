@@ -12,9 +12,13 @@ import { useHomeSchedule, type HomeSlot } from '../../hooks/useHomeSchedule'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { useGymNameLines } from '../../hooks/useGymName'
+// GYM-300 — l'avis de réconciliation. Rend `null` en single : rien n'est monté de plus.
+import { useActiveGymNotice } from '../../hooks/useActiveGymNotice'
+import { InScreenBanner } from '../../components/ui/InScreenBanner'
 
 export default function Home() {
   const { marque, descriptif } = useGymNameLines()
+  const { message: avisSalle, dismiss: fermerAvisSalle } = useActiveGymNotice()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
@@ -155,6 +159,23 @@ export default function Home() {
           )
         })}
       </ScrollView>
+
+      {/* ── 🔴 GYM-300 — L'ACCUEIL EST LE SEUL ENDROIT OÙ CE MESSAGE A UN SENS ─────────
+          C'est ici que le membre atterrit après la réconciliation, et c'est ici qu'il
+          constate le fait à expliquer : la marque et les données ne sont pas celles de la
+          salle qu'il vient de choisir. Le dire sur l'écran de connexion serait trop tôt
+          (rien n'est encore tranché), le dire dans le Profil trop tard.
+
+          ⚠️ MONTÉ SEULEMENT S'IL Y A QUELQUE CHOSE À DIRE. `InScreenBanner` accepte bien
+          `message={null}`, mais rend malgré tout une vue absolue invisible. En single il
+          n'y a jamais d'avis : ne rien monter du tout est la seule façon de garantir que
+          l'arbre de rendu de Dopamine est EXACTEMENT celui d'avant ce lot.
+
+          Variante `success` — la sombre, pas la rouge. Ce n'est pas une erreur : le membre
+          n'a rien raté, l'app a fait ce qu'il fallait. La rouge crierait à la panne. */}
+      {avisSalle ? (
+        <InScreenBanner message={avisSalle} onHide={fermerAvisSalle} anchor="bottom" />
+      ) : null}
     </SafeAreaView>
   )
 }

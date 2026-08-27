@@ -687,5 +687,10 @@
     "reconnect_required_message": "Sign in again with your password to enable {{kind}}.",
     "passwords_dont_match": "Passwords do not match.",
     "password_too_short": "Password must be at least 8 characters."
+  },
+  "active_gym": {
+    "not_member": "You're not a member of {{requested}} — here you are at {{landed}}",
+    "not_member_unnamed": "You're not a member of that gym — here you are at {{landed}}",
+    "unreachable": "We couldn't reach your gyms — we'll retry as soon as it's back"
   }
 }

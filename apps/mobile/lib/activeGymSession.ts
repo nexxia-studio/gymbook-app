@@ -145,6 +145,17 @@ function journalise(outcome: ReconcileOutcome, avaitUnChoix: boolean): Reconcile
     reason: outcome.reason,
   })
   derniereIssue = outcome.status
+
+  // 🔴 GYM-300 (§2) — VISIBLE, PAS SEULEMENT DISTINCTE. Ne pas avoir PU LIRE les
+  // adhésions et ne pas être MEMBRE sont deux faits différents : le premier ne réécrit
+  // rien, ne déclasse rien, et arme une reprise (GYM-298). Il restait pourtant muet — le
+  // membre attendait sans savoir qu'il attendait.
+  //
+  // ⚠️ L'ANNONCE EST FAITE ICI, PAS À CHAQUE `return`. Cinq sorties distinctes rendent
+  // `unavailable` ; en annoncer quatre et oublier la cinquième donnerait un silence
+  // résiduel impossible à repérer autrement qu'en le vivant. Le point de passage unique
+  // est le seul endroit où l'exhaustivité se voit.
+  if (outcome.status === 'unavailable') annonce({ kind: 'unreachable' })
   return outcome
 }
 
@@ -203,6 +214,75 @@ export function activeGymNeedsRetry(): boolean {
 /** Remise à zéro — tests uniquement. */
 export function __resetReconcileState(): void {
   derniereIssue = null
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-300 — L'AVIS AU MEMBRE : LA RÉCONCILIATION NE DÉCIDE PLUS EN SILENCE
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Deux issues sur cinq changent ce que le membre voit sans qu'il ait rien demandé :
+//
+//   · `server_wins`  — il a choisi une salle, il en obtient une autre. Depuis GYM-292 le
+//                      comportement est CORRECT (il n'y est pas inscrit) et pourtant il
+//                      était MUET : la marque et les données changeaient sous ses yeux
+//                      entre l'écran de connexion et l'accueil, sans un mot. Rien ne lui
+//                      permettait de comprendre, ni de savoir quoi faire ensuite.
+//   · `unavailable`  — ses adhésions n'ont pas pu être lues. GYM-298 réarme bien une
+//                      reprise, mais en silence lui aussi : le membre attend sans savoir
+//                      qu'il attend.
+//
+// ⚠️ CE N'EST PAS UNE SOURCE DE VÉRITÉ, C'EST UN MESSAGE. Comme `derniereIssue`, cet avis
+// ne dit RIEN de la salle active — celle-ci reste écrite par le seul chemin sanctionné,
+// `setActiveGymConfirmed`, sur confirmation serveur. Un écran qui lirait l'avis pour en
+// déduire où il se trouve lirait la mauvaise donnée.
+//
+// ⚠️ ET IL SE CONSOMME UNE FOIS. `takeActiveGymNotice()` le rend ET l'efface : un avis
+// re-servi à chaque montage d'écran deviendrait un bandeau qui poursuit le membre d'onglet
+// en onglet pour un fait vieux de dix minutes.
+export type ActiveGymNotice =
+  /** Le choix n'a pas été retenu. `requested` est nul si on n'a pas pu le NOMMER. */
+  | { kind: 'not_member'; requested: string | null; landed: string }
+  /** Les adhésions n'ont pas pu être lues : rien n'a été touché, une reprise est armée. */
+  | { kind: 'unreachable' }
+
+let avisEnAttente: ActiveGymNotice | null = null
+const abonnes = new Set<() => void>()
+
+/**
+ * L'avis en attente, s'il y en a un — ET IL EST CONSOMMÉ PAR CETTE LECTURE.
+ *
+ * ⚠️ APPELÉ DEUX FOIS, IL NE REND L'AVIS QU'UNE FOIS. C'est ce qui permet à plusieurs
+ * écrans de s'abonner sans qu'aucun ne doive savoir si un autre a déjà affiché le message.
+ */
+export function takeActiveGymNotice(): ActiveGymNotice | null {
+  const avis = avisEnAttente
+  avisEnAttente = null
+  return avis
+}
+
+/**
+ * S'abonner à l'arrivée d'un avis.
+ *
+ * ⚠️ IL FAUT UN ABONNEMENT, UNE LECTURE AU MONTAGE NE SUFFIT PAS. La réconciliation part
+ * à l'ouverture de session et dure deux allers-retours ; l'accueil, lui, est monté bien
+ * avant qu'elle ne tranche. Un écran qui se contenterait de lire à son montage ne verrait
+ * jamais rien — c'est exactement le motif de `subscribeSelectedGymSlug` (GYM-288).
+ */
+export function subscribeActiveGymNotice(fn: () => void): () => void {
+  abonnes.add(fn)
+  return () => { abonnes.delete(fn) }
+}
+
+function annonce(avis: ActiveGymNotice): void {
+  avisEnAttente = avis
+  // Best-effort : un abonné qui lève ne doit pas faire échouer la réconciliation, dont le
+  // travail — la salle active — est déjà fait et bien plus important que le bandeau.
+  abonnes.forEach((fn) => { try { fn() } catch { /* le bandeau n'est pas critique */ } })
+}
+
+/** Remise à zéro — tests uniquement. */
+export function __resetActiveGymNotice(): void {
+  avisEnAttente = null
+  abonnes.clear()
 }
 
 export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
