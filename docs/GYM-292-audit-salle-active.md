@@ -440,6 +440,26 @@ compte à salle **unique** qui vise ailleurs : `member.yoga@` choisissant Studio
 | J′4 | Écran de **lancement** (pulse-V) | **inchangé** |
 | J′5 | Non-régression **single** : build Dopamine | l'écran de recherche est **inatteignable** ; navbar, connexion et accueil de Dopamine strictement identiques |
 
+## L — GYM-299 / GYM-304 : nom court, dimanche neutre, encres lisibles
+
+Jeu de données : **Studio Yoga Test 1** porte `short_name = « Yoga Club »`. Les deux autres
+salles staging n'en ont pas.
+
+| # | geste | attendu |
+|---|---|---|
+| L1 | 🔴 Se connecter à **Studio Yoga Test 1** → /accueil | l'en-tête affiche **« YOGA CLUB »** sur **UNE** ligne, dans le style de la ligne principale. **Aucune** seconde ligne, aucune découpe |
+| L2 | /planning et /reservations, même salle | le sous-titre affiche **« Yoga Club »**, pas « Studio Yoga Test 1 » |
+| L3 | Basculer vers une salle **SANS** nom court (Studio Test, Dopamine Clone) | la découpe deux lignes revient — c'est le comportement d'avant, inchangé |
+| L4 | 🔴 Dashboard → Apparence → **vider** le nom court de Yoga → enregistrer → revenir à l'app | l'en-tête reprend la découpe **sans relancer l'app** (même canal que les couleurs) |
+| L5 | 🔴 Dashboard → écrire un nom court sur **Studio Test** → revenir | son en-tête passe à une ligne, celui des autres salles ne bouge pas |
+| L6 | /profil → export de données, et /profil → préférences | le nom **COMPLET** est utilisé, pas le nom court. C'est voulu : ce ne sont pas des en-têtes |
+| L7 | 🔴 Un **dimanche** sans cours, salle multi | « Pas de créneaux prévus ». **Aucune** mention de fermeture |
+| L8 | 🔴 Un dimanche sans cours, build **Dopamine** | « Dopamine est fermé le dimanche » — SA règle, elle reste |
+| L9 | 🔴 /profil sur **Studio Test** (fond clair), liste de progression | les lignes **non validées** sont LISIBLES. Elles étaient blanches sur clair, donc invisibles |
+| L10 | /profil sur **Dopamine Clone** (fond sombre), même liste | inchangé : encre claire, comme aujourd'hui |
+| L11 | Réservation à venir avec coach (salle claire) · écran de paiement · « mot de passe oublié » | même correction : le texte secondaire est lisible sur fond clair |
+| L12 | Non-régression **single** : build Dopamine, /accueil, /planning, /reservations, /profil | **strictement identique**. Dopamine n'a pas de nom court en production |
+
 ## K — GYM-302 : le lime du wordmark, et le pulse d'attente
 
 | # | geste | attendu |
