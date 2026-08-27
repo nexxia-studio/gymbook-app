@@ -59,6 +59,37 @@ const APP_DOWNLOAD_URL = 'https://apps.apple.com/be/app/dopamine-performance-clu
 // lien ancien : Viniz. Une page qui retomberait sur Dopamine « au cas où » reproduirait le
 // défaut exact qu'on corrige, en le rendant plus difficile à voir.
 const DOPAMINE_SLUG = 'dopamine'
+
+/**
+ * 🔴 GYM-303b — LES QUATRE PHRASES QUI CITAIENT DOPAMINE, ET POURQUOI DEUX JEUX DE CLÉS.
+ *
+ * #238 avait rendu le MOT-MARQUE et le LIEN du bouton dépendants du contexte, mais pas les
+ * TEXTES : quatre chaînes de traduction nommaient Dopamine en dur. Un membre de Studio Yoga
+ * lisait donc « ton compte Dopamine » sur le formulaire, puis « Réserve tes cours depuis
+ * l'application Dopamine » après avoir réussi — sous un mot-marque ViNiZ. L'écran se
+ * contredisait lui-même.
+ *
+ * ⚠️ ET LA FUITE N'ÉTAIT PAS QUE DANS L'ÉTAT DE SUCCÈS. `reset.subtitle` est affichée sur le
+ * FORMULAIRE, à l'entrée — l'état que le ticket croyait couvert. Le balayage demandé l'a
+ * trouvée ; la relecture de #238 ne l'avait pas vue parce qu'elle portait sur le JSX, et que
+ * cette phrase-là vit dans un fichier de traduction.
+ *
+ * ⚠️ DEUX JEUX DE CLÉS PLUTÔT QU'UNE INTERPOLATION `{{app}}`. Insérer un nom de marque dans
+ * une phrase suppose que la phrase reste juste quel que soit ce nom — or « ton compte
+ * Viniz » serait FAUX : le membre a un compte chez SA salle, pas chez Viniz. Le neutre ne
+ * nomme donc personne, et c'est ce qui le rend vrai partout. Les clés d'origine restent
+ * intactes, mot pour mot : Dopamine ne bouge pas d'un caractère.
+ */
+function useResetCopy(estDopamine: boolean) {
+  const { t } = useTranslation()
+  const cle = (base: string) => (estDopamine ? `reset.${base}` : `reset.${base}_neutral`)
+  return {
+    subtitle: t(cle('subtitle')),
+    successMessage: t(cle('success_message')),
+    nextStepText: t(cle('next_step_text')),
+    downloadApp: t(cle('download_app')),
+  }
+}
 const VINIZ_APP_URL = 'https://viniz.app'
 
 /** Le contexte de salle porté par le lien, ou `null` — jamais deviné. */
@@ -98,6 +129,7 @@ export default function ResetPassword() {
   // 🔴 GYM-303 — trois états : Dopamine si le lien le dit, Viniz neutre sinon.
   const gym = useGymContext()
   const estDopamine = gym === DOPAMINE_SLUG
+  const copy = useResetCopy(estDopamine)
   const [status, setStatus] = useState<Status>('checking')
 
   const [password, setPassword] = useState('')
@@ -215,7 +247,7 @@ export default function ResetPassword() {
               <h1 className="font-display text-3xl font-black tracking-tight text-dark">
                 {t('reset.title')}
               </h1>
-              <p className="mt-2 font-body text-sm text-dark/50">{t('reset.subtitle')}</p>
+              <p className="mt-2 font-body text-sm text-dark/50">{copy.subtitle}</p>
             </div>
 
             <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
@@ -262,7 +294,7 @@ export default function ResetPassword() {
               {t('reset.success_title')}
             </h1>
             <p className="mt-3 font-body text-sm leading-relaxed text-dark/50">
-              {t('reset.success_message')}
+              {copy.successMessage}
             </p>
 
             {/* GYM-170 — inviter au téléchargement de l'app (moment clé d'activation).
@@ -272,7 +304,7 @@ export default function ResetPassword() {
                 ça étant précisément celui où il vient de réussir à récupérer le sien. */}
             <div className="mt-8 border-t border-[#E8E6E0] pt-6">
               <p className="font-body text-sm font-bold text-dark">{t('reset.next_step_title')}</p>
-              <p className="mt-1 font-body text-sm text-dark/50">{t('reset.next_step_text')}</p>
+              <p className="mt-1 font-body text-sm text-dark/50">{copy.nextStepText}</p>
               <a
                 href={estDopamine ? APP_DOWNLOAD_URL : VINIZ_APP_URL}
                 className={
@@ -281,7 +313,7 @@ export default function ResetPassword() {
                     : 'mt-4 inline-block rounded-xl bg-[#2D1B69] px-6 py-3 font-ui text-sm font-bold text-[#C8FF3D] transition-opacity hover:opacity-90'
                 }
               >
-                {t('reset.download_app')}
+                {copy.downloadApp}
               </a>
               {/* CTA demandé par l'arbitrage : revenir se connecter, quel que soit le
                   contexte — c'est la suite naturelle après un mot de passe redéfini. */}

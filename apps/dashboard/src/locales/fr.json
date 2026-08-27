@@ -117,7 +117,11 @@
     "invalid_message": "Ce lien n'est plus valide. Entre ton email pour en recevoir un nouveau.",
     "resend_submit": "Renvoyer le lien",
     "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien.",
-    "back_to_login": "Revenir à l'écran de connexion"
+    "back_to_login": "Revenir à l'écran de connexion",
+    "subtitle_neutral": "Choisis un nouveau mot de passe pour ton compte.",
+    "success_message_neutral": "Tu peux maintenant te connecter dans ton application.",
+    "next_step_text_neutral": "Réserve tes cours depuis ton application.",
+    "download_app_neutral": "Télécharger l'application"
   },
   "activation": {
     "checking": "Vérification de votre invitation...",
