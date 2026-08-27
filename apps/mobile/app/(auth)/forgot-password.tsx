@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { supabase } from '../../lib/supabase'
 import { buildMemberResetPasswordUrl } from '../../lib/gymUrls'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 export default function ForgotPassword() {
   const { tokens } = useTheme()
@@ -66,9 +67,10 @@ export default function ForgotPassword() {
             {sent ? (
               <View className="items-center py-8">
                 <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-move-accent/10">
-                  {/* GYM-286 — A-1, EN ATTENTE : #9DB800 dit ici un SUCCÈS mais reste un
-                      lime de marque. Le cockpit n'a pas tranché. */}
-                  <MailCheck size={32} color="#9DB800" />
+                  {/* 🔴 GYM-290 (décision C, A-1) — SCISSION : c'est un SUCCÈS (le mail
+                      est parti), donc `SEMANTIC.success`. Change un pixel chez Dopamine,
+                      exclusion de parité motivée « décision C ». */}
+                  <MailCheck size={32} color={SEMANTIC.success} />
                 </View>
                 <Text className="text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
                   {t('auth.forgot_password_success')}

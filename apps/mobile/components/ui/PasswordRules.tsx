@@ -36,10 +36,14 @@ export function PasswordRules({ password, minLength = 8 }: PasswordRulesProps) {
         const ok = rule.test(password)
         return (
           <View key={rule.id} className="flex-row items-center gap-2">
-            <Check size={14} color={ok ? '#9DB800' : SEMANTIC.disabledInk} />
+            {/* 🔴 GYM-290 (décision C, A-1) — SCISSION. Ici #9DB800 disait un SUCCÈS (la
+                règle est satisfaite), pas la marque : il devient `SEMANTIC.success`.
+                ⚠️ CHANGE UN PIXEL CHEZ DOPAMINE, et c'est assumé — chez une salle rouge,
+                une règle satisfaite s'affichait EN ROUGE. */}
+            <Check size={14} color={ok ? SEMANTIC.success : SEMANTIC.disabledInk} />
             <Text
               className="font-dmsans text-xs"
-              style={{ color: ok ? '#9DB800' : tokens.onBackgroundMuted }}
+              style={{ color: ok ? SEMANTIC.success : tokens.onBackgroundMuted }}
             >
               {t(`auth.password_rules.${rule.id}`, { count: minLength })}
             </Text>
