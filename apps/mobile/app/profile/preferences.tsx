@@ -9,6 +9,7 @@ import i18n from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
+import { useGymName } from '../../hooks/useGymName'
 
 type NotifKey =
   | 'push_booking' | 'push_reminder' | 'push_waitlist' | 'push_noshow'
@@ -38,6 +39,7 @@ function detectDeviceLanguage(): Language {
 }
 
 export default function PreferencesScreen() {
+  const nomSalle = useGymName()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
@@ -187,7 +189,7 @@ export default function PreferencesScreen() {
         <View className="flex-row gap-2 rounded-xl border p-3" style={{ borderColor: tokens.border, backgroundColor: tokens.page }}>
           <Info size={14} color={tokens.onBackgroundMuted} />
           <Text className="flex-1 font-dmsans text-xs leading-5" style={{ color: tokens.onSurfaceSecondary }}>
-            {t('preferences.push_info')}
+            {t('preferences.push_info', { gym: nomSalle })}
           </Text>
         </View>
 

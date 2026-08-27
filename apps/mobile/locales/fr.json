@@ -83,7 +83,7 @@
     "terms_link": "Conditions Générales",
     "privacy_accept": "J'accepte la",
     "privacy_link": "Politique de Confidentialité",
-    "marketing_accept": "Recevoir les actualités Dopamine",
+    "marketing_accept": "Recevoir les actualités {{gym}}",
     "terms_required": "Veuillez accepter les CGU",
     "privacy_required": "Veuillez accepter la Politique de Confidentialité",
     "password_strength": {
@@ -132,7 +132,7 @@
       "kind_face_id": "Face ID",
       "kind_touch_id": "Touch ID",
       "kind_biometric": "Biométrie",
-      "enable_prompt": "Activer {{kind}} pour Dopamine",
+      "enable_prompt": "Activer {{kind}} pour {{gym}}",
       "login_prompt": "Connexion avec {{kind}}",
       "use_password": "Utiliser le mot de passe",
       "cancel": "Annuler",
@@ -209,7 +209,6 @@
   },
   "schedule": {
     "title": "Planning",
-    "subtitle": "Dopamine Performance Club",
     "all_classes": "Tous les cours",
     "this_week": "Cette semaine",
     "next_week": "Semaine prochaine",
@@ -333,7 +332,6 @@
   },
   "bookings": {
     "title": "Mes cours",
-    "subtitle": "Dopamine Performance Club",
     "tab_upcoming": "A venir",
     "tab_favorites": "Favoris",
     "tab_history": "Historique",
@@ -371,7 +369,6 @@
   "profile": {
     "title": "Mon profil",
     "member_since": "Membre depuis {{date}}",
-    "badge_gym": "Dopamine Performance Club",
     "progression": "Progression",
     "reward": "1 seance offerte debloquee !",
     "gamification": {
@@ -437,7 +434,7 @@
       "delay": "Votre demande est traitée sous 30 jours, conformément au RGPD.",
       "button": "Demander l'export par email",
       "recipient": "Votre demande sera envoyée à {{email}}",
-      "mail_subject": "Demande d'export de mes données — Dopamine",
+      "mail_subject": "Demande d'export de mes données — {{gym}}",
       "mail_body": "Bonjour,\n\nJe souhaite recevoir une copie de mes données personnelles conformément au RGPD.\n\nEmail du compte : {{email}}\n\nMerci de votre retour.",
       "no_mail_title": "Aucune application mail",
       "no_mail_message": "Aucune application mail n'est configurée. Écrivez-nous directement à {{email}}."
@@ -661,7 +658,7 @@
     "category_noshow": "No-show / Suspension",
     "whatsapp_label": "WhatsApp",
     "whatsapp_coming_soon": "Bientôt disponible",
-    "push_info": "Les notifications push nécessitent d'avoir l'app Dopamine installée sur votre appareil.",
+    "push_info": "Les notifications push nécessitent d'avoir l'app {{gym}} installée sur votre appareil.",
     "language_section": "Langue",
     "language_updated": "Langue mise à jour",
     "save_error": "Impossible d'enregistrer. Réessayez."

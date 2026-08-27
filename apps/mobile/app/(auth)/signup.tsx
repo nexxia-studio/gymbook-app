@@ -14,6 +14,7 @@ import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
+import { useGymName } from '../../hooks/useGymName'
 
 interface FormErrors {
   firstName?: string
@@ -39,6 +40,7 @@ interface FormErrors {
 const SIGNUP_MIN_LENGTH = 8
 
 export default function Signup() {
+  const nomSalle = useGymName()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
@@ -103,7 +105,10 @@ export default function Signup() {
 
       {/* Dark header */}
       <View className="px-6 pb-16 pt-14" style={{ backgroundColor: tokens.background }}>
-        <Text className="font-barlow text-lg" style={{ color: tokens.onBackground }}>DOPAMINE</Text>
+        {/* GYM-297 — le nom de la salle ACTIVE. Cet écran n'a AUCUN aiguillage de mode :
+            il est le même en single et en multi, et il écrivait « DOPAMINE » en dur — un
+            membre de Studio Yoga créait donc son compte sous l'en-tête d'un autre club. */}
+        <Text className="font-barlow text-lg" style={{ color: tokens.onBackground }}>{nomSalle.toUpperCase()}</Text>
         <Text className="mt-4 font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('auth.signup_title')}
         </Text>
@@ -218,7 +223,7 @@ export default function Signup() {
 
                 <Checkbox checked={marketing} onToggle={() => setMarketing(!marketing)}>
                   <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
-                    {t('auth.marketing_accept')}
+                    {t('auth.marketing_accept', { gym: nomSalle })}
                   </Text>
                 </Checkbox>
               </View>

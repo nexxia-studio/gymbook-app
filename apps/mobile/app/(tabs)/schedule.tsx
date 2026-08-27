@@ -15,8 +15,10 @@ import { SectionHeader } from '../../components/schedule/SectionHeader'
 import { EmptySchedule } from '../../components/schedule/EmptySchedule'
 import { Skeleton } from '../../components/schedule/Skeleton'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { useGymName } from '../../hooks/useGymName'
 
 export default function Schedule() {
+  const nomSalle = useGymName()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
@@ -110,8 +112,11 @@ export default function Schedule() {
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('schedule.title').toUpperCase()}
         </Text>
+        {/* GYM-297 — le nom de la salle ACTIVE. Il venait de `schedule.subtitle`,
+            c'est-à-dire d'un fichier de TRADUCTION : l'endroit le plus improbable où
+            chercher le nom d'un client, et celui où personne ne pense à le corriger. */}
         <Text className="font-dmsans text-[13px] text-white/40">
-          {t('schedule.subtitle')}
+          {nomSalle}
         </Text>
       </View>
 
