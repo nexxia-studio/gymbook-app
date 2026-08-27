@@ -14,8 +14,10 @@ import { OpenGymListCard } from '../../components/schedule/OpenGymListCard'
 import { SectionHeader } from '../../components/schedule/SectionHeader'
 import { EmptySchedule } from '../../components/schedule/EmptySchedule'
 import { Skeleton } from '../../components/schedule/Skeleton'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 export default function Schedule() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const {
@@ -102,10 +104,10 @@ export default function Schedule() {
   )
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="bg-move-dark px-5 pb-4 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('schedule.title').toUpperCase()}
         </Text>
         <Text className="font-dmsans text-[13px] text-white/40">
@@ -113,7 +115,8 @@ export default function Schedule() {
         </Text>
       </View>
 
-      <View className="flex-1 bg-move-bg">
+      {/* `text-white/40` reste : un blanc à 40 % n'est pas `tokens.onBackground`. */}
+      <View className="flex-1" style={{ backgroundColor: tokens.page }}>
         {/* GYM-242 — une seule ligne dans l'écran ; tout le reste vit dans la feuille. */}
         <FilterBar
           activeCount={activeFilterCount}
@@ -138,7 +141,7 @@ export default function Schedule() {
             maxToRenderPerBatch={10}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.accent} />
             }
           />
         )}

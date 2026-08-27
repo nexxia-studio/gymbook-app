@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useBiometrics } from '../../hooks/useBiometrics'
 import { GYM_MODE } from '../../lib/gymResolver'
 import { BrandedLogin } from '../../components/viniz/BrandedLogin'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
  * GYM-102 (3/5) — L'AIGUILLAGE, ET RIEN D'AUTRE.
@@ -25,6 +26,7 @@ export default function Login() {
 }
 
 function DopamineLogin() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { signIn, isLoading, error, clearError } = useAuthStore()
@@ -90,7 +92,7 @@ function DopamineLogin() {
   }, [email, password, signIn, clearError, router, offerBiometricSetup])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
       <InScreenBanner
         message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
@@ -99,9 +101,9 @@ function DopamineLogin() {
       />
 
       {/* Dark header */}
-      <View className="bg-move-dark px-6 pb-16 pt-14">
-        <Text className="font-barlow text-lg text-white">DOPAMINE</Text>
-        <Text className="mt-4 font-barlow text-3xl uppercase text-white">
+      <View className="px-6 pb-16 pt-14" style={{ backgroundColor: tokens.background }}>
+        <Text className="font-barlow text-lg" style={{ color: tokens.onBackground }}>DOPAMINE</Text>
+        <Text className="mt-4 font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('auth.login_title')}
         </Text>
       </View>
@@ -116,7 +118,7 @@ function DopamineLogin() {
           contentContainerClassName="px-6 pb-6"
           keyboardShouldPersistTaps="handled"
         >
-          <View className="rounded-3xl bg-white p-6 shadow-sm">
+          <View className="rounded-3xl p-6 shadow-sm" style={{ backgroundColor: tokens.surface }}>
             <View className="gap-5">
               {/* OAuth en haut (fix rejet App Store Guideline 4 — GYM-149) :
                   Sign in with Apple / Google au-dessus du formulaire email. */}
@@ -147,7 +149,7 @@ function DopamineLogin() {
               />
 
               <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
-                <Text className="text-center font-dmsans text-sm text-move-text-muted">
+                <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
                   {t('auth.forgot_password')}
                 </Text>
               </TouchableOpacity>
@@ -155,9 +157,9 @@ function DopamineLogin() {
           </View>
 
           <TouchableOpacity onPress={() => router.replace('/(auth)/signup')} className="mt-6">
-            <Text className="text-center font-dmsans text-sm text-move-text-secondary">
+            <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('auth.no_account')}{' '}
-              <Text className="font-dmsans-bold text-move-dark">{t('auth.signup')}</Text>
+              <Text className="font-dmsans-bold" style={{ color: tokens.onSurface }}>{t('auth.signup')}</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>

@@ -6,8 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { MailCheck } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../../components/ui/Button'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 export default function VerifyEmail() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { email } = useLocalSearchParams<{ email: string }>()
@@ -27,16 +29,16 @@ export default function VerifyEmail() {
   }, [cooldown, email])
 
   return (
-    <SafeAreaView className="flex-1 items-center justify-center bg-move-bg px-8">
+    <SafeAreaView className="flex-1 items-center justify-center px-8" style={{ backgroundColor: tokens.page }}>
       <View className="mb-6 h-20 w-20 items-center justify-center rounded-3xl bg-move-accent/10">
-        <MailCheck size={40} color="#C8F000" />
+        <MailCheck size={40} color={tokens.accent} />
       </View>
 
-      <Text className="text-center font-barlow text-3xl uppercase text-move-dark">
+      <Text className="text-center font-barlow text-3xl uppercase" style={{ color: tokens.onSurface }}>
         {t('auth.verify_email_title')}
       </Text>
 
-      <Text className="mt-4 text-center font-dmsans text-sm leading-relaxed text-move-text-secondary">
+      <Text className="mt-4 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
         {t('auth.verify_email_message', { email: email ?? '' })}
       </Text>
 
@@ -48,7 +50,15 @@ export default function VerifyEmail() {
       </View>
 
       <TouchableOpacity onPress={handleResend} disabled={cooldown > 0} className="mt-4">
-        <Text className={`text-center font-dmsans text-sm ${cooldown > 0 ? 'text-move-text-muted' : 'text-move-accent-dim'}`}>
+        {/* GYM-286 — A-1, EN ATTENTE pour #9DB800 : ni marque ni succès tranché. */}
+        {/* ⚠️ `style` AVANT `className`, et ce n'est pas cosmétique : `verify-screen-parity`
+            compare les couleurs DANS L'ORDRE DU SOURCE. La branche migrée (le gris) doit
+            donc apparaître avant la branche laissée en dur (le lime), comme dans le
+            fichier d'origine. */}
+        <Text
+          style={cooldown > 0 ? { color: tokens.onBackgroundMuted } : undefined}
+          className={`text-center font-dmsans text-sm ${cooldown > 0 ? '' : 'text-move-accent-dim'}`}
+        >
           {cooldown > 0
             ? t('auth.resend_cooldown', { seconds: cooldown })
             : t('auth.resend_email')}

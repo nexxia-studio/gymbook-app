@@ -125,6 +125,12 @@ function useInjectPwaHead() {
     if (!head.querySelector('meta[name="theme-color"]')) {
       const theme = document.createElement('meta')
       theme.name = 'theme-color'
+      // 🔴 GYM-286 — LAISSÉ EN DUR, ET CE N'EST PAS UN OUBLI. Ce `meta[theme-color]`
+      // habille la barre du navigateur sur le web. Il est posé DEPUIS le composant qui
+      // MONTE `BrandThemeProvider` : `useTheme()` appelé ici ne verrait pas le fournisseur
+      // qu'il rend, mais le contexte par défaut — donc jamais les couleurs de la salle.
+      // Le migrer donnerait l'illusion d'un thème dynamique là où il n'y en a pas.
+      // À reprendre quand le provider remontera au-dessus de ce composant.
       theme.content = '#111111'
       head.appendChild(theme)
     }
