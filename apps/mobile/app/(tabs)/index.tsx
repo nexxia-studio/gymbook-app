@@ -11,8 +11,10 @@ import { EmptyDayState } from '../../components/home/EmptyDayState'
 import { useHomeSchedule, type HomeSlot } from '../../hooks/useHomeSchedule'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
+import { useGymNameLines } from '../../hooks/useGymName'
 
 export default function Home() {
+  const { marque, descriptif } = useGymNameLines()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
@@ -70,13 +72,20 @@ export default function Home() {
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 pb-3 pt-2" style={{ backgroundColor: tokens.background }}>
+        {/* GYM-297 — LE NOM DE LA SALLE ACTIVE, PLUS « DOPAMINE » EN DUR. Le découpage en
+            deux lignes reproduit la composition existante (voir hooks/useGymName.ts) : chez
+            Dopamine le rendu est identique au pixel, chez une autre salle c'est son nom qui
+            s'affiche. Un nom d'un seul mot ne rend pas de seconde ligne — pas de ligne vide
+            (règle GYM-229). */}
         <View>
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onBackground }}>
-            DOPAMINE
+            {marque.toUpperCase()}
           </Text>
-          <Text className="font-dmsans text-[11px] text-white/40">
-            Performance Club
-          </Text>
+          {descriptif ? (
+            <Text className="font-dmsans text-[11px] text-white/40">
+              {descriptif}
+            </Text>
+          ) : null}
         </View>
         <View className="relative">
           <Bell size={22} color={tokens.onBackground} />

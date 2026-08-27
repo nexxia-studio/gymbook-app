@@ -7,6 +7,7 @@ import { ChevronLeft, Mail, Clock, User, CalendarCheck, CreditCard, Activity } f
 import { useAuthStore } from '../../stores/useAuthStore'
 import { SUPPORT_EMAIL, buildMailto } from '../../constants/support'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { useGymName } from '../../hooks/useGymName'
 
 const DATA_ITEMS: Array<{ key: string; Icon: typeof User }> = [
   { key: 'identity', Icon: User },
@@ -16,13 +17,17 @@ const DATA_ITEMS: Array<{ key: string; Icon: typeof User }> = [
 ]
 
 export default function ExportDataScreen() {
+  const nomSalle = useGymName()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const accountEmail = useAuthStore((s) => s.user?.email) ?? ''
 
   const handleRequest = useCallback(async () => {
-    const subject = t('profile.export.mail_subject')
+    // GYM-297 — le nom de la salle ACTIVE dans l'objet du mail. Il valait « Dopamine » en
+    // dur dans les deux locales : un membre d'une autre salle envoyait à son gérant une
+    // demande d'export intitulée du nom d'un club concurrent.
+    const subject = t('profile.export.mail_subject', { gym: nomSalle })
     const body = t('profile.export.mail_body', { email: accountEmail || '—' })
     const url = buildMailto(SUPPORT_EMAIL, subject, body)
     const canOpen = await Linking.canOpenURL(url)

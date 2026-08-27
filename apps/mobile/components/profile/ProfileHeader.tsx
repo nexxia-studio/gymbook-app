@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { avatarColor } from '../../lib/theme/palette'
+import { useGymName } from '../../hooks/useGymName'
 
 interface ProfileHeaderProps {
   firstName: string
@@ -21,6 +22,7 @@ export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avat
   const { t } = useTranslation()
   const router = useRouter()
   const { tokens } = useTheme()
+  const nomSalle = useGymName()
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   // GYM-286b (A-7) — la palette d'avatars vit maintenant dans lib/theme/palette.ts, avec
   // son hachage. Elle était dupliquée mot pour mot ici et dans app/profile/edit.tsx.
@@ -62,8 +64,11 @@ export function ProfileHeader({ firstName, lastName, memberSince, levelKey, avat
       </Text>
 
       <View className="mt-2 rounded-lg px-3 py-1" style={{ backgroundColor: tokens.page }}>
+        {/* GYM-297 — le nom de la salle ACTIVE. `profile.badge_gym` valait
+            « Dopamine Performance Club » dans les DEUX locales : un nom de client rangé
+            dans un fichier de traduction, que personne ne pense à corriger. */}
         <Text className="font-dmsans-medium text-[10px]" style={{ color: tokens.onBackgroundMuted }}>
-          {t('profile.badge_gym')}
+          {nomSalle}
         </Text>
       </View>
 

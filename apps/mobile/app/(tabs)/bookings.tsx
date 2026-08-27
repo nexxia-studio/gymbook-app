@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase'
 import { useActiveGymId } from '../../lib/activeGym'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { useGymName } from '../../hooks/useGymName'
 
 function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
   const [y, mo, d] = dateStr.split('-').map(Number)
@@ -48,6 +49,7 @@ interface FavoriteCardData {
 }
 
 export default function Bookings() {
+  const nomSalle = useGymName()
   const { tokens } = useTheme()
   // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
   const gymId = useActiveGymId()
@@ -230,8 +232,9 @@ export default function Bookings() {
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('bookings.title').toUpperCase()}
         </Text>
+        {/* GYM-297 — le nom de la salle ACTIVE, plus une clé i18n. Voir schedule.tsx. */}
         <Text className="font-dmsans text-[13px] text-white/40">
-          {t('bookings.subtitle')}
+          {nomSalle}
         </Text>
       </View>
 
