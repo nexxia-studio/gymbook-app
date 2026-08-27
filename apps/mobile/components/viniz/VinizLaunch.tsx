@@ -11,7 +11,6 @@ import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing,
 } from 'react-native-reanimated'
 import { SvgXml } from 'react-native-svg'
-import { Button } from '../ui/Button'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { readSelectedGymSlug } from '../../lib/gymResolver'
 import { VinizPulse } from './VinizPulse'
@@ -74,10 +73,30 @@ export function VinizLaunch() {
     return () => { alive = false }
   }, [])
 
+  // ── GYM-291 — 🔴 L'ÉCRAN D'ACCUEIL GÉNÉRIQUE EST SUPPRIMÉ ───────────────────────────
+  //
+  // Cet écran affichait, une fois le pulse terminé et la salle connue, deux boutons
+  // « Se connecter » / « Créer un compte » — SANS MARQUE, sur le violet Viniz. Le membre
+  // venait pourtant de choisir sa salle : on lui montrait un écran de plus, générique,
+  // pour lui demander ce qu'il avait déjà dit.
+  //
+  // Les deux destinations restent atteignables : la connexion est brandée aux couleurs de
+  // la salle (`BrandedLogin`), et elle porte déjà le lien « pas encore de compte →
+  // s'inscrire ». Rien n'est perdu, un écran disparaît.
+  //
+  // ⚠️ LES TROIS SORTIES SONT EXHAUSTIVES ET S'EXCLUENT : session → l'app ; salle connue,
+  // pas de session → la connexion brandée ; pas de salle → la recherche. Aucun état ne
+  // laisse cet écran affiché après le splash, ce qui est la condition pour qu'il n'ait
+  // plus rien à rendre en pied.
   useEffect(() => {
     if (!splashDone) return
     if (session) {
       router.replace('/(tabs)' as never)
+      return
+    }
+    // Salle connue : droit à la connexion, aux couleurs de cette salle.
+    if (hasGym === true) {
+      router.replace('/(auth)/login' as never)
       return
     }
     // Pas de session ET aucune salle mémorisée : il n'y a rien à afficher tant qu'on ne
@@ -114,14 +133,6 @@ export function VinizLaunch() {
         </Animated.View>
       </View>
 
-      {/* Boutons : uniquement quand une salle est déjà connue et qu'aucune session n'est
-          ouverte. Sans salle, l'effet ci-dessus a déjà redirigé vers la recherche. */}
-      {splashDone && !session && hasGym === true && (
-        <View className="gap-3 px-6 pb-12">
-          <Button title={t('welcome.login')} onPress={() => router.push('/(auth)/login')} variant="primary" />
-          <Button title={t('welcome.signup')} onPress={() => router.push('/(auth)/signup')} variant="secondary" />
-        </View>
-      )}
     </View>
   )
 }
