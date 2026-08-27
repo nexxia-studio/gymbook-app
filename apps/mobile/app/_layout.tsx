@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Platform } from 'react-native'
+import { AppState, Platform } from 'react-native'
 import * as Sentry from '@sentry/react-native'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useFonts, BarlowCondensed_900Black } from '@expo-google-fonts/barlow-condensed'
@@ -15,7 +15,8 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug } from '../lib/gymResolver'
-import { reconcileActiveGym } from '../lib/activeGymSession'
+import { reconcileActiveGym, activeGymNeedsRetry } from '../lib/activeGymSession'
+import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import '../lib/i18n'
 import '../global.css'
@@ -228,6 +229,37 @@ function RootLayout() {
       // que de laisser croire qu'il reste quelque chose à faire.
     })
     return () => { alive = false }
+  }, [sessionUserId])
+
+  // ── GYM-298 — 🔴 REJOUER LA RÉCONCILIATION AU RETOUR DE VEILLE, APRÈS UN ÉCHEC ──────
+  //
+  // CE QUE 292b AVAIT LAISSÉ. Une coupure réseau ne détruit plus le choix du membre : la
+  // réconciliation rend `unavailable` et ne touche à rien. Mais elle n'était rejouée qu'à
+  // l'ouverture de session SUIVANTE. Un membre hors ligne au lancement restait donc sans
+  // salle — donc sans données — jusqu'à ce qu'il pense à relancer l'app, alors que son
+  // réseau était peut-être revenu depuis longtemps. On avait remplacé une perte définitive
+  // par une attente indéfinie.
+  //
+  // ⚠️ TROIS CONDITIONS, ET CHACUNE ÉCARTE UN CAS PRÉCIS :
+  //   · `active`                      — un passage en arrière-plan ne réessaie rien ;
+  //   · `activeGymNeedsRetry()`       — seul un `unavailable` arme la reprise. Les autres
+  //     issues sont des DÉCISIONS : rejouer après un `server_wins` relancerait à chaque
+  //     retour de veille un `switch_active_gym` que le serveur vient de refuser ;
+  //   · `!activeGymWriteInFlight()`   — un membre peut revenir de veille PENDANT une
+  //     bascule manuelle. La garde compteur de lib/activeGymWrites.ts existe exactement
+  //     pour ça ; on la consulte plutôt que d'en inventer une seconde.
+  //
+  // 🔴 AUCUNE NOUVELLE SOURCE DE VÉRITÉ, AUCUN NOUVEL ÉCRIT. Ce bloc ne fait que RAPPELER
+  // `reconcileActiveGym`, qui reste le seul chemin ; la télémétrie est la même
+  // (`active_gym_reconciled`, ensemble fermé).
+  useEffect(() => {
+    if (GYM_MODE === 'single' || !sessionUserId) return
+    const sub = AppState.addEventListener('change', (etat) => {
+      if (etat !== 'active') return
+      if (!activeGymNeedsRetry() || activeGymWriteInFlight()) return
+      void reconcileActiveGym()
+    })
+    return () => sub.remove()
   }, [sessionUserId])
 
   const initialize = useAuthStore((s) => s.initialize)

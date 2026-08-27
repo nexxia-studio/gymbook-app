@@ -97,7 +97,41 @@ export type ReconcileOutcome =
  */
 function journalise(outcome: ReconcileOutcome, avaitUnChoix: boolean): ReconcileOutcome {
   captureEvent('active_gym_reconciled', { outcome: outcome.status, had_local_choice: avaitUnChoix })
+  derniereIssue = outcome.status
   return outcome
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// GYM-298 — LA REPRISE, ET CE QU'ELLE N'EST PAS
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 CE N'EST PAS UNE NOUVELLE SOURCE DE VÉRITÉ. `derniereIssue` ne dit rien de la SALLE :
+// elle dit si la dernière tentative de réconciliation a ABOUTI. La salle reste écrite par
+// le seul chemin sanctionné — `setActiveGymConfirmed`, sur confirmation serveur.
+//
+// CE QU'ELLE CORRIGE. Depuis GYM-292b, une coupure réseau ne détruit plus le choix : la
+// réconciliation rend `unavailable` et ne touche à rien. C'est le bon comportement — mais
+// elle n'était rejouée qu'à l'ouverture de session suivante. Un membre hors ligne au
+// lancement restait donc sans salle, donc sans données, JUSQU'À RELANCER L'APP — alors
+// que son réseau était peut-être revenu depuis longtemps. Le correctif de 292b avait
+// remplacé une perte définitive par une attente indéfinie.
+//
+// ⚠️ ARMÉE PAR `unavailable` SEULEMENT. Les quatre autres issues sont des DÉCISIONS, pas
+// des incidents : rejouer après un `server_wins` relancerait un `switch_active_gym` que le
+// serveur vient de refuser, à chaque retour de veille, indéfiniment.
+let derniereIssue: ReconcileOutcome['status'] | null = null
+
+/**
+ * `true` quand la dernière réconciliation a échoué faute de serveur — donc quand il vaut
+ * la peine de réessayer. `false` après toute issue tranchée, et avant la première
+ * tentative : au démarrage c'est l'ouverture de session qui déclenche, pas la reprise.
+ */
+export function activeGymNeedsRetry(): boolean {
+  return derniereIssue === 'unavailable'
+}
+
+/** Remise à zéro — tests uniquement. */
+export function __resetReconcileState(): void {
+  derniereIssue = null
 }
 
 export async function reconcileActiveGym(): Promise<ReconcileOutcome> {

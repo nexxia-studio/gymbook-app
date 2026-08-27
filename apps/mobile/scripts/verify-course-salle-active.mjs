@@ -195,7 +195,8 @@ export const useAuthStore = {
 const R = await import(pathToFileURL(join(L, 'gymResolver.js')).href)
 const SW = await import(pathToFileURL(join(L, 'gymSwitch.js')).href)
 const AU = await import(pathToFileURL(join(S, 'useAuthStore.js')).href)
-reconcile = (await import(pathToFileURL(join(L, 'activeGymSession.js')).href)).reconcileActiveGym
+const SESSION = await import(pathToFileURL(join(L, 'activeGymSession.js')).href)
+reconcile = SESSION.reconcileActiveGym
 
 const GYMS = [
   { gymId: 'g-studio', slug: 'studio-test-staging', name: 'Studio Test', logoUrl: null, isActive: false },
@@ -256,7 +257,48 @@ await cas('INCIDENT RÉSEAU — le choix survit, rien n’est touché', {
   attendu: 'unavailable', salleAttendue: null, slugAttendu: 'studio-test-staging',
 })
 
+// ═════════════════════════════════════════════════════════════════════════════════════
+// GYM-298 — QUELLES ISSUES ARMENT LA REPRISE
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 LA RÈGLE PURE QUE CE LOT AJOUTE, ET LA SEULE. Le déclencheur (AppState → active) n'est
+// pas testable ici — il tient à React Native. Mais la question qu'il pose l'est
+// entièrement : « faut-il réessayer ? » Et elle a une mauvaise réponse évidente, qu'il
+// faut interdire : réessayer après un `server_wins` relancerait à CHAQUE retour de veille
+// un `switch_active_gym` que le serveur vient de refuser — indéfiniment.
+console.log('\nREPRISE : seule une issue INDÉCISE (`unavailable`) l’arme.\n')
+
+async function arme(nom, opts, attendu) {
+  SESSION.__resetReconcileState()
+  R.trace.length = 0
+  R.__setSlug(opts.slug)
+  AU.__setServeur(opts.serveur)
+  SW.__setGyms(GYMS.map((g) => ({ ...g, isActive: g.gymId === opts.serveur })))
+  SW.__setRes(opts.switchRes ?? { status: 'ok' })
+  const res = await reconcile()
+  const obtenu = SESSION.activeGymNeedsRetry()
+  const bon = obtenu === attendu
+  if (!bon) echecs++
+  console.log(`  ${bon ? '✓' : '✗'} ${nom} → ${res.status} : reprise ${obtenu ? 'ARMÉE' : 'au repos'}`)
+  if (!bon) console.log(`      attendu : ${attendu ? 'ARMÉE' : 'au repos'}`)
+}
+
+await arme('bascule réussie', { slug: 'studio-test-staging', serveur: 'g-dopa' }, false)
+await arme('déjà aligné', { slug: 'dopamine-staging', serveur: 'g-dopa' }, false)
+await arme('refus explicite du serveur (PT403)',
+  { slug: 'studio-test-staging', serveur: 'g-dopa', switchRes: { status: 'not_a_member' } }, false)
+await arme('aucun choix local', { slug: null, serveur: 'g-dopa' }, false)
+await arme('🔴 incident réseau',
+  { slug: 'studio-test-staging', serveur: 'g-dopa', switchRes: { status: 'offline' } }, true)
+
+// 🔴 ET ELLE SE DÉSARME QUAND LA REPRISE ABOUTIT. Sans cela, chaque retour de veille
+// relancerait la réconciliation pour toujours, même une fois le réseau revenu.
+SW.__setRes({ status: 'ok' })
+const res2 = await reconcile()
+const desarmee = !SESSION.activeGymNeedsRetry()
+if (!desarmee) echecs++
+console.log(`  ${desarmee ? '✓' : '✗'} la reprise aboutit (${res2.status}) : reprise au repos`)
+
 rmSync(out, { recursive: true, force: true })
 rmSync(out2, { recursive: true, force: true })
-console.log(echecs ? `\n🔴 ${echecs} vérification(s) en échec\n` : '\n✅ Course battue, et le choix pré-connexion l’emporte.\n')
+console.log(echecs ? `\n🔴 ${echecs} vérification(s) en échec\n` : '\n✅ Course battue, choix respecté, reprise armée au bon moment.\n')
 process.exit(echecs ? 1 : 0)
