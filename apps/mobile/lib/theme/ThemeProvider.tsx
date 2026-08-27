@@ -53,6 +53,12 @@ export const DOPAMINE_THEME: ThemeTokens = {
   // emploie depuis toujours pour ses pistes de barre ; c'est elle qui a servi à calibrer
   // `PAS_RAIL` (1,49:1 sur #111111). Les sites qui la portaient en dur s'y rattachent sans
   // bouger d'un pixel.
+  // 🔴 GYM-307 — LE RENDU EST INCHANGÉ, SEULE L'ÉCRITURE CHANGE. Le sous-titre du bouton
+  // « à la séance » était un blanc à 60 % sur #111111 : composé, cela donne EXACTEMENT
+  // #A0A0A0 (0,6 × 255 + 0,4 × 17 = 159,8). Ce jeton porte donc le pixel d'aujourd'hui, et
+  // c'est en MULTI qu'il change quelque chose — là où le même blanc à 60 % tombait à 1,09:1
+  // sur un accent lime.
+  onActionMuted: '#A0A0A0',
   rail: '#333333',
   // 🔴 GYM-290 (A-8) — LA RAMPE DE DOPAMINE, FIGÉE. Ses trois verts d'affluence, recopiés
   // à l'octet depuis les écrans où ils étaient en dur. Chez une salle ils se DÉRIVENT de

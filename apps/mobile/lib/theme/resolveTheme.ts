@@ -139,6 +139,15 @@ export interface ThemeTokens {
    * elle doit se voir sans se faire remarquer. C'est le rôle qu'aucun jeton ne nommait, et
    * faute duquel trois gris étaient restés en dur depuis GYM-286.
    */
+  /**
+   * 🔴 GYM-307 — L'ENCRE SECONDAIRE POSÉE SUR LE FOND D'ACTION.
+   *
+   * Un sous-titre dans un bouton se pose sur `actionBg`, pas sur la page : il lui faut donc
+   * sa propre encre atténuée, validée sur CE fond. Faute de ce jeton, le seul recours était
+   * un blanc à 60 % — qui vaut 7,22:1 sur le sombre de Dopamine et 1,09:1 sur un accent
+   * lime. Le même code, lisible chez l'un, invisible chez l'autre.
+   */
+  onActionMuted: string
   rail: string
   /**
    * 🔴 GYM-290 (A-8) — LA RAMPE D'AFFLUENCE : trois paliers d'intensité croissante.
@@ -192,6 +201,11 @@ function vinizDark(): ThemeTokens {
     accentDim: VINIZ.lime,
     actionBg: VINIZ.lime,
     onAction: bestInkOn(parseHex(VINIZ.lime)!, [VINIZ.light, VINIZ.ink, VINIZ.dark]).ink,
+    onActionMuted: toHex(mutedInkOn(
+      parseHex(VINIZ.lime)!,
+      parseHex(bestInkOn(parseHex(VINIZ.lime)!, [VINIZ.light, VINIZ.ink, VINIZ.dark]).ink)!,
+      SEUIL_TEXTE,
+    )),
     rail: toHex(decalerDe(parseHex(VINIZ.dark)!, parseHex(VINIZ.light)!, PAS_RAIL)!),
     ramp: rampe(parseHex(VINIZ.dark)!, parseHex(VINIZ.lime)!),
     limeAllowed: true,
@@ -477,6 +491,9 @@ export function resolveTheme(
   // que le garde-fou a retenue pour lui — jamais une couleur choisie à la main.
   const actionBg = accent
   const onAction = onAccent
+  const onActionMuted = toHex(
+    mutedInkOn(parseHex(actionBg)!, parseHex(onAction)!, SEUIL_TEXTE),
+  )
   // Le rail se dérive du FOND vers l'encre, du pas mesuré sur Dopamine. Vers l'encre et non
   // vers le blanc : sur une salle claire, éclaircir le fond ne produirait rien de visible.
   const rail = toHex(
@@ -499,6 +516,7 @@ export function resolveTheme(
       accentDim,
       actionBg,
       onAction,
+      onActionMuted,
       rail,
       ramp: rampe(background, parseHex(accent)!),
       // 🔴 Le lime ne touche JAMAIS un fond clair.
