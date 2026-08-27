@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { LEGAL_VERSION } from '../constants/legal/meta'
 import { captureEvent, identifyUser, resetAnalytics, setAnalyticsGym } from '../lib/analytics'
 import { clearSelectedGymSlug, GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
+import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 
 // GYM-289 — 🔴 LA SEULE RÈGLE DE REMPLISSAGE DE `gym_id`. Elle ne vit qu'ici.
 //
@@ -92,6 +93,19 @@ interface AuthState {
   signOut: () => Promise<void>
   initialize: () => Promise<void>
   refreshProfile: () => Promise<void>
+  /**
+   * GYM-292 — 🔴 L'UNIQUE ÉCRITURE DE `gym_id` HORS `refreshProfile`, ET ELLE EXIGE UNE
+   * CONFIRMATION SERVEUR.
+   *
+   * Appelée seulement après un `switch_active_gym` RÉUSSI : à cet instant l'app sait
+   * quelque chose que sa propre lecture de `profiles` ignore encore — le serveur vient
+   * d'écrire. Poser la valeur ici plutôt que d'attendre une relecture supprime la fenêtre
+   * pendant laquelle une lecture partie plus tôt pouvait rétrograder la bascule.
+   *
+   * ⚠️ NE JAMAIS L'APPELER SUR UN CHOIX PUREMENT LOCAL. Une salle posée sans que le
+   * serveur l'ait acceptée, c'est exactement le désaccord que GYM-292 corrige.
+   */
+  setActiveGymConfirmed: (gymId: string) => void
   clearError: () => void
 }
 
@@ -108,6 +122,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   error: null,
   clearError: () => set({ error: null }),
+
+  // GYM-292 — voir la déclaration ci-dessus. En `single` la salle vient du build et ne
+  // bascule jamais : l'appel est sans effet, ce qui évite à l'appelant de tester le mode.
+  setActiveGymConfirmed: (gymId) => {
+    if (GYM_MODE === 'single') return
+    set({ gym_id: gymId })
+  },
 
   signIn: async (email, password) => {
     set({ isLoading: true, error: null })
@@ -213,7 +234,16 @@ export const useAuthStore = create<AuthState>((set) => ({
         // Dopamine se comporte exactement comme avant ; lire ici une valeur qu'elle n'a
         // jamais lue serait déjà un changement, et un profil dont le gym_id aurait dérivé
         // en base ferait basculer l'app sur une autre salle sans que rien ne le dise.
-        ...(GYM_MODE === 'single' ? {} : { gym_id: (data.gym_id as string | null) ?? null }),
+        //
+        // 🔴 GYM-292 — ET PAS DAVANTAGE QUAND UNE ÉCRITURE EST EN VOL. Cette lecture a pu
+        // partir AVANT un `switch_active_gym` et revenir APRÈS lui : elle rapporterait
+        // alors la salle QUITTÉE et ferait revenir la bascule en arrière toute seule, sous
+        // les yeux du membre. Le reste du profil (nom, avatar, badge…) est appliqué
+        // normalement — seule la SALLE est protégée, parce qu'elle seule a un écrivain
+        // concurrent. Règle complète : lib/activeGymWrites.ts.
+        ...(GYM_MODE === 'single' || activeGymWriteInFlight()
+          ? {}
+          : { gym_id: (data.gym_id as string | null) ?? null }),
         profile: {
           id: data.id,
           firstName: data.first_name ?? '',
@@ -241,11 +271,29 @@ export const useAuthStore = create<AuthState>((set) => ({
       // PostHog identify avec l'UUID interne Supabase (jamais l'email — RGPD).
       identifyUser(data.session.user.id)
     }
+    // 🔴 GYM-292 — CET ABONNEMENT ÉCRASAIT LA SALLE ACTIVE À CHAQUE ÉVÉNEMENT.
+    //
+    // Il posait `gym_id: session ? initialSessionGymId() : …`, et `initialSessionGymId()`
+    // rend `null` en mode multi. Or `onAuthStateChange` ne se déclenche pas qu'à la
+    // connexion : `TOKEN_REFRESHED` arrive périodiquement, `USER_UPDATED` après toute
+    // modification du compte. Chacun remettait la salle à `null` — l'app perdait ses
+    // données sans qu'aucun geste du membre ne l'explique, jusqu'au refresh suivant.
+    //
+    // La salle n'est donc réinitialisée que quand elle DOIT l'être :
+    //   · plus de session      → retour à l'état initial (déconnexion) ;
+    //   · un AUTRE utilisateur → la salle du précédent n'a plus aucun sens ;
+    //   · même utilisateur     → on ne touche à rien, la salle résolue reste vraie.
     supabase.auth.onAuthStateChange((_event, session) => {
+      const precedent = useAuthStore.getState().user?.id ?? null
+      const suivant = session?.user?.id ?? null
+      const memeUtilisateur = precedent !== null && precedent === suivant
+
       set({
         user: session?.user ?? null,
         session,
-        gym_id: session ? initialSessionGymId() : (GYM_MODE === 'single' ? FIXED_GYM_ID : null),
+        ...(session && memeUtilisateur
+          ? {}
+          : { gym_id: session ? initialSessionGymId() : (GYM_MODE === 'single' ? FIXED_GYM_ID : null) }),
       })
       if (session?.user) identifyUser(session.user.id)
       else resetAnalytics()

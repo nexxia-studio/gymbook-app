@@ -168,6 +168,9 @@ export default function SubscriptionScreen() {
   const loadSubscription = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
+    // Salle non résolue : on s'abstient. Afficher l'abonnement d'une autre salle sous
+    // cette marque ferait croire à un droit d'accès que le membre n'a pas ici.
+    if (!gymId) { setLoading(false); return }
 
     // 1. Abonnement récurrent (member_subscriptions). On charge aussi 'completed' (GYM-151)
     //    pour afficher l'état « Terminé » — il ne donne PAS accès (cf. hasActiveSub).
@@ -175,6 +178,7 @@ export default function SubscriptionScreen() {
       .from('member_subscriptions')
       .select('id, status, starts_at, ends_at, next_payment_at, plan_name, amount')
       .eq('member_id', user.id)
+      .eq('gym_id', gymId)
       .in('status', DISPLAYABLE_SUBSCRIPTION_STATUSES)
       .order('starts_at', { ascending: false })
       .limit(1)
@@ -200,6 +204,7 @@ export default function SubscriptionScreen() {
       .from('member_credits')
       .select('plan_id, credits_total, credits_used, credits_remaining, expires_at')
       .eq('member_id', user.id)
+      .eq('gym_id', gymId)
       .gt('credits_remaining', 0)
       .order('updated_at', { ascending: false })
 
@@ -217,7 +222,10 @@ export default function SubscriptionScreen() {
     }
 
     setLoading(false)
-  }, [])
+  // 🔴 GYM-292 — FILTRÉ PAR SALLE, ET IL NE L'ÉTAIT PAS. `.eq('member_id', …)` seul rend
+  // les lignes de TOUTES les salles du membre. La colonne `gym_id` existe et est NOT NULL
+  // sur ces tables : c'est le filtre qui manquait, pas la donnée.
+  }, [gymId])
 
   useEffect(() => { loadSubscription() }, [loadSubscription])
 

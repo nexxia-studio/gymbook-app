@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getISOWeek, subWeeks } from 'date-fns'
 import { supabase } from '../lib/supabase'
+import { useActiveGymId } from '../lib/activeGym'
 
 export interface ProfileStats {
   completedSessions: number
@@ -31,10 +32,14 @@ function computeStreak(starts: Date[]): number {
 export function useProfileStats() {
   const [stats, setStats] = useState<ProfileStats>({ completedSessions: 0, activeWeeks: 0 })
   const [isLoading, setIsLoading] = useState(false)
+  const gymId = useActiveGymId()
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    // Salle non résolue : on s'abstient. Requêter sans filtre agrégerait les séances de
+    // toutes les salles du membre — un total juste pour personne.
+    if (!gymId) return
     setIsLoading(true)
     try {
       const nowIso = new Date().toISOString()
@@ -43,6 +48,7 @@ export function useProfileStats() {
         .from('bookings')
         .select('time_slots!inner(starts_at)')
         .eq('member_id', user.id)
+        .eq('gym_id', gymId)
         .eq('status', 'confirmed')
         .lt('time_slots.starts_at', nowIso)
 
@@ -61,7 +67,11 @@ export function useProfileStats() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  // 🔴 GYM-292 — FILTRÉ PAR SALLE, ET IL NE L'ÉTAIT PAS. `.eq('member_id', …)` seul rend
+  // les lignes de TOUTES les salles du membre : un membre de trois salles voyait les
+  // trois, additionnées, sous la marque d'une seule. La colonne `gym_id` existe et est
+  // NOT NULL sur cette table — le filtre manquait, pas la donnée.
+  }, [gymId])
 
   useEffect(() => { load() }, [load])
 

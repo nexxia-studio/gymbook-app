@@ -95,6 +95,11 @@ export default function SessionDetail() {
   const [waitlistConfirmationDeadline, setWaitlistConfirmationDeadline] = useState<string | null>(null)
 
   // Fetch fresh slot data from Supabase when id changes
+  //
+  // ⚠️ GYM-292 — LECTURE PAR IDENTIFIANT DE LIGNE, pas par salle : un créneau appartient à
+  // une seule salle par construction, la clé `slotId` suffit. La RLS de `time_slots` fait
+  // le reste. ⚠️ Rien ne vérifie pour autant que ce créneau appartient à la salle ACTIVE —
+  // un lien profond vers un créneau d'une autre salle l'afficherait. Remonté au cockpit.
   useEffect(() => {
     if (!slotId) return
     setBookingModalVisible(false)

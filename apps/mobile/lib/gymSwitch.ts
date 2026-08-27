@@ -17,6 +17,7 @@ import { __resetGymProfileCache } from './gymProfile'
 import { clearCachedBrand } from './theme/brand'
 import { writeSelectedGymSlug } from './gymResolver'
 import { setAnalyticsGym } from './analytics'
+import { withActiveGymWrite } from './activeGymWrites'
 
 /** Une appartenance, telle que `my_gym_memberships()` la rend. */
 export interface GymMembership {
@@ -91,48 +92,67 @@ export async function listMyGyms(): Promise<MembershipsOutcome> {
  * n'auraient plus aucune raison de se relancer.
  */
 export async function switchGym(gym: GymMembership): Promise<SwitchOutcome> {
-  try {
-    // ── 1. LE SERVEUR TRANCHE D'ABORD. Rien n'est purgé tant qu'on ignore si la bascule
-    //       est seulement permise : vider les caches puis échouer laisserait l'app dans un
-    //       état plus dégradé qu'avant le geste.
-    const { error } = await (supabase as unknown as RpcClient)
-      .rpc('switch_active_gym', { p_gym_id: gym.gymId })
+  // 🔴 GYM-292 — TOUTE LA BASCULE EST SIGNALÉE « EN VOL ». Pendant ce temps, aucune
+  // lecture de profil ne peut abaisser la salle active : une lecture partie avant la RPC
+  // et revenue après elle rapporterait la salle QUITTÉE, et la bascule reviendrait en
+  // arrière toute seule. Voir lib/activeGymWrites.ts pour la règle complète.
+  return withActiveGymWrite(async () => {
+    try {
+      // ── 1. LE SERVEUR TRANCHE D'ABORD. Rien n'est purgé tant qu'on ignore si la bascule
+      //       est seulement permise : vider les caches puis échouer laisserait l'app dans un
+      //       état plus dégradé qu'avant le geste.
+      const { error } = await (supabase as unknown as RpcClient)
+        .rpc('switch_active_gym', { p_gym_id: gym.gymId })
 
-    if (error) {
-      if (error.code === NOT_A_MEMBER) return { status: 'not_a_member' }
-      return { status: isNetwork(error) ? 'offline' : 'error' }
+      if (error) {
+        if (error.code === NOT_A_MEMBER) return { status: 'not_a_member' }
+        return { status: isNetwork(error) ? 'offline' : 'error' }
+      }
+
+      // ── 2. LES CACHES QUI NE DÉPENDENT D'AUCUN RENDU ────────────────────────────────
+      // Ceux-là ne se rechargent JAMAIS tout seuls : aucun composant ne les observe.
+      __resetGymProfileCache()  // nom, adresse, horizon de réservation de la salle
+      await clearCachedBrand()  // logo et couleurs mémorisés (viniz.gym_brand)
+
+      // ── 3. LE SLUG MÉMORISÉ, qui commande la MARQUE affichée ────────────────────────
+      // ⚠️ `writeSelectedGymSlug` NOTIFIE ses abonnés (GYM-288 livrable 1) : c'est ce qui
+      // fait relire la marque à la racine, laquelle n'est jamais démontée et ne la
+      // relirait pas autrement.
+      await writeSelectedGymSlug(gym.slug)
+
+      // ── 4. LES RÉSERVATIONS ET LES FAVORIS ──────────────────────────────────────────
+      // Vidés MAINTENANT et rechargés à l'étape 6, une fois la nouvelle salle connue.
+      useBookingStore.getState().resetForGymSwitch()
+
+      // ── 5. LA SALLE ACTIVE — ce qui déclenche tout le reste ─────────────────────────
+      //
+      // 🔴 GYM-292 — POSÉE DIRECTEMENT, PLUS RELUE. Elle l'était par `refreshProfile`,
+      // c'est-à-dire par un aller-retour supplémentaire dont le résultat était DÉJÀ connu :
+      // le serveur venait de confirmer `gym.gymId`. Cette relecture n'apportait rien et
+      // ouvrait une fenêtre — si elle échouait ou revenait périmée, l'app restait sur
+      // l'ancienne salle alors que la bascule avait réussi en base.
+      //
+      // Tous les écrans qui lisent `useActiveGymId()` voient alors leur dépendance
+      // changer : ils rechargent, ET le canal temps réel se ferme puis se rouvre sur la
+      // nouvelle salle (cf. hooks/useSchedule.ts).
+      useAuthStore.getState().setActiveGymConfirmed(gym.gymId)
+
+      // ── 6. LE RESTE DU PROFIL ───────────────────────────────────────────────────────
+      // Nom, avatar, badge : ils n'ont pas changé, mais cet appel est ce qui garantit que
+      // le store et le serveur ne divergent pas après une bascule.
+      // ⚠️ Il ne réappliquera PAS `gym_id` — l'écriture est encore en vol, et c'est
+      // exactement le cas que la garde protège.
+      await useAuthStore.getState().refreshProfile()
+
+      // ── 7. CE QUI NE DÉPEND D'AUCUN ÉCRAN MONTÉ ─────────────────────────────────────
+      setAnalyticsGym(gym.gymId)
+      const userId = useAuthStore.getState().user?.id
+      if (userId) await useBookingStore.getState().fetchBookings(userId)
+      await useBookingStore.getState().loadFavorites()
+
+      return { status: 'ok' }
+    } catch {
+      return { status: 'offline' }
     }
-
-    // ── 2. LES CACHES QUI NE DÉPENDENT D'AUCUN RENDU ────────────────────────────────
-    // Ceux-là ne se rechargent JAMAIS tout seuls : aucun composant ne les observe.
-    __resetGymProfileCache()  // nom, adresse, horizon de réservation de la salle
-    await clearCachedBrand()  // logo et couleurs mémorisés (viniz.gym_brand)
-
-    // ── 3. LE SLUG MÉMORISÉ, qui commande la MARQUE affichée ────────────────────────
-    // ⚠️ `writeSelectedGymSlug` NOTIFIE ses abonnés (GYM-288 livrable 1) : c'est ce qui
-    // fait relire la marque à la racine, laquelle n'est jamais démontée et ne la
-    // relirait pas autrement.
-    await writeSelectedGymSlug(gym.slug)
-
-    // ── 4. LES RÉSERVATIONS ET LES FAVORIS ──────────────────────────────────────────
-    // Vidés MAINTENANT et rechargés à l'étape 6, une fois la nouvelle salle connue.
-    useBookingStore.getState().resetForGymSwitch()
-
-    // ── 5. LA SALLE ACTIVE — ce qui déclenche tout le reste ─────────────────────────
-    // `refreshProfile` relit `profiles.gym_id` et le pose dans le store. Tous les écrans
-    // qui lisent `useActiveGymId()` (planning, accueil, réservations, séance) voient
-    // alors leur dépendance changer : ils rechargent, ET le canal temps réel se ferme
-    // puis se rouvre sur la nouvelle salle (cf. hooks/useSchedule.ts).
-    await useAuthStore.getState().refreshProfile()
-
-    // ── 6. CE QUI NE DÉPEND D'AUCUN ÉCRAN MONTÉ ─────────────────────────────────────
-    setAnalyticsGym(gym.gymId)
-    const userId = useAuthStore.getState().user?.id
-    if (userId) await useBookingStore.getState().fetchBookings(userId)
-    await useBookingStore.getState().loadFavorites()
-
-    return { status: 'ok' }
-  } catch {
-    return { status: 'offline' }
-  }
+  })
 }

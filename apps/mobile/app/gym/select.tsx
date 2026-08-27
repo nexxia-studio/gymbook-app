@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { MapPin } from 'lucide-react-native'
 import { TextInput } from '../../components/ui/TextInput'
 import { writeSelectedGymSlug } from '../../lib/gymResolver'
+import { fetchBrand } from '../../lib/theme/brand'
 import {
   searchGyms,
   MIN_QUERY_LENGTH,
@@ -36,6 +37,10 @@ export default function GymSelect() {
   const [query, setQuery] = useState('')
   const [outcome, setOutcome] = useState<GymSearchOutcome>({ status: 'too_short' })
   const [searching, setSearching] = useState(false)
+  // GYM-291 — la salle en cours d'ouverture. Le geste doit être ACQUITTÉ : entre le tap et
+  // l'écran de connexion il y a une lecture de marque, courte mais non nulle, et une liste
+  // qui ne réagit pas se fait taper deux fois.
+  const [opening, setOpening] = useState<string | null>(null)
 
   // ⚠️ DEUX GARDES, ET ELLES NE FONT PAS LA MÊME CHOSE :
   //  · `timer` porte l'ANTI-REBOND — il évite de lancer une requête à chaque frappe, donc
@@ -70,20 +75,49 @@ export default function GymSelect() {
     }
   }, [query])
 
+  // ── GYM-291 — 🔴 DE LA RECHERCHE À LA CONNEXION BRANDÉE, SANS ESCALE ────────────────
+  //
+  // CE QUE CE CHEMIN FAISAIT AVANT, ET CE QU'IL EN COÛTAIT. Il repartait par la racine —
+  // « c'est elle qui décide de la suite ». La racine remontait alors l'écran de lancement
+  // Viniz : 3,4 secondes de pulse animé QUE LE MEMBRE VENAIT DE VOIR, puis un écran
+  // générique « Se connecter / Créer un compte », sans marque, avant d'atteindre enfin la
+  // connexion de la salle choisie. Trois écrans pour un geste.
+  //
+  // ⚠️ ET L'ARGUMENT D'ORIGINE NE TIENT PAS ICI. « Router vers un écran précis
+  // dupliquerait la décision de la racine » — sauf qu'à cet écran la décision est DÉJÀ
+  // prise : on n'y arrive que sans session (le lancement n'y redirige que dans ce cas, et
+  // « ce n'est pas ma salle » part d'un écran de connexion). Il n'y a rien à décider.
+  //
+  // ⚠️ LA MARQUE EST CHARGÉE AVANT DE NAVIGUER, ET C'EST CE QUI SUPPRIME LE SECOND
+  // CHARGEMENT. La recherche ne rend que slug, nom, ville et logo — PAS les couleurs
+  // (`search_gyms` est publique et volontairement avare). Sans ce préchargement, l'écran
+  // de connexion s'ouvrirait aux couleurs Viniz par défaut puis basculerait sur celles de
+  // la salle : le clignotement de marque que `lib/theme/brand.ts` existe pour éviter.
+  // `fetchBrand` alimente le cache que le fournisseur de thème lit au montage.
   const handleSelect = useCallback(async (gym: GymSearchResult) => {
+    if (opening) return
+    setOpening(gym.slug)
     await writeSelectedGymSlug(gym.slug)
-    // Le choix mémorisé, on repart par la racine : c'est elle qui décide de la suite
-    // (connexion, accueil…) selon la session. Router ici vers un écran précis
-    // dupliquerait cette décision, et les deux finiraient par diverger.
-    router.replace('/')
-  }, [router])
+    // Best-effort : hors ligne, on navigue quand même. Le fournisseur de thème retombe
+    // alors sur la palette Viniz, ce qui reste mieux que de bloquer sur une liste.
+    await fetchBrand(gym.slug)
+    router.replace('/(auth)/login')
+  }, [router, opening])
 
   const renderItem = useCallback(({ item }: { item: GymSearchResult }) => (
     <TouchableOpacity
       onPress={() => handleSelect(item)}
+      disabled={opening !== null}
       className="mb-3 flex-row items-center gap-4 rounded-2xl border p-4"
-      style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}
+      style={{
+        borderColor: tokens.border,
+        backgroundColor: tokens.surface,
+        // La ligne choisie reste pleine, les autres s'effacent : on montre CE QUI S'OUVRE,
+        // pas seulement que quelque chose se passe.
+        opacity: opening !== null && opening !== item.slug ? 0.4 : 1,
+      }}
       accessibilityRole="button"
+      accessibilityState={{ disabled: opening !== null, busy: opening === item.slug }}
       accessibilityLabel={item.city ? `${item.name}, ${item.city}` : item.name}
     >
       {/* Un logo absent est le cas NOMINAL d'une salle qui vient de s'inscrire : on rend
@@ -111,8 +145,9 @@ export default function GymSelect() {
           </View>
         ) : null}
       </View>
+      {opening === item.slug ? <ActivityIndicator color={tokens.onSurfaceSecondary} /> : null}
     </TouchableOpacity>
-  ), [handleSelect])
+  ), [handleSelect, opening, tokens])
 
   // ── Le message d'état. Chaque cas dit ce qui se passe, aucun ne dit « erreur ». ──────
   const renderState = () => {
