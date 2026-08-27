@@ -96,12 +96,18 @@ export function CrossGymInterstitial({
           disabled={busy}
           onPress={yAller}
           className="mt-6 items-center rounded-2xl py-4"
-          style={{ backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }}
+          /* 🔴 GYM-290 (décision A) — `actionBg`/`onAction`, PAS `accent`/`onAccent`.
+             Chez une salle les deux paires sont identiques, et le rendu ne bouge donc pas
+             aujourd'hui. Mais le Lot charte a créé ce couple précisément pour que le bouton
+             primaire puisse DIFFÉRER de l'accent — c'est ce qui permet à Dopamine de garder
+             son bouton sombre à libellé lime. Employer `accent` ici, c'est écrire un bouton
+             qui cesserait de suivre la charte le jour où les deux se séparent. */
+          style={{ backgroundColor: tokens.actionBg, opacity: busy ? 0.6 : 1 }}
         >
           {busy ? (
-            <ActivityIndicator color={tokens.onAccent} />
+            <ActivityIndicator color={tokens.onAction} />
           ) : (
-            <Text className="font-dmsans-bold text-base" style={{ color: tokens.onAccent }}>
+            <Text className="font-dmsans-bold text-base" style={{ color: tokens.onAction }}>
               {t('cross_gym.go', { gym: nom })}
             </Text>
           )}
