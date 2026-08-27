@@ -194,3 +194,74 @@ symptôme vu ».
 impossible. La validation serveur ne peut donc avoir lieu qu'**à l'ouverture de session**,
 première fois où l'app peut demander « ce choix est-il légitime ? ». C'est là que le
 correctif la place.
+
+---
+
+# GYM-292b — La régression : le choix soumis **après** avoir été abandonné
+
+> Ajouté après recette sur build neuf. Le correctif de #227 posait le bon chemin mais
+> **dans le mauvais ordre** — et le silence de la réconciliation a rendu le diagnostic long.
+
+## Ce qui n'allait pas
+
+La logique de `reconcileActiveGym` était **juste branche par branche** — vérifié en
+compilant le module et en substituant ses trois dépendances : les quatre cas rendaient le
+bon verdict. **Le défaut n'était pas dans le QUOI, il était dans le QUAND.**
+
+| # | défaut | où |
+|---|---|---|
+| 1 | le slug lu **en troisième**, après deux allers-retours réseau | `activeGymSession.ts:17` (version fusionnée) |
+| 2 | la salle du serveur **adoptée avant** qu'on regarde le choix | `:7` `refreshProfile()` vs `:36` `switchGym()` |
+| 3 | la garde « écriture en vol » **ne couvrait pas ce chemin** | `refreshProfile` hors de `withActiveGymWrite` |
+| 4 | 🔴 **toute issue non-`ok` détruisait le choix** — coupure réseau comprise | `:38` « Refusée ou injoignable → le serveur fait foi » |
+| 5 | 🔴 **aucune trace** de la branche prise | six sorties, zéro événement |
+
+**Le n° 4 produit exactement le symptôme.** Rejoué sur le code de `develop` :
+
+```
+switchGym(studio-test-staging) → offline → writeSlug(dopamine-staging)
+obtenu : server_wins / salle g-dopa / slug dopamine-staging
+```
+
+Marque **et** données sur Dopamine, et le choix effacé **définitivement** : le membre ne
+pouvait plus le retrouver qu'en repassant par la recherche.
+
+⚠️ **Ce que je ne peux pas prouver sans l'appareil** : *pourquoi* `switchGym` rendait
+non-`ok`. Deux candidats lisibles — la RPC elle-même, ou son `try/catch` **unique** qui
+englobait aussi `fetchBookings` et `loadFavorites`, exécutés juste après la connexion :
+une erreur de rechargement **postérieure** à une bascule réussie était rapportée comme un
+échec de bascule. Les deux sont corrigés ; et un incident ne détruit plus rien, donc la
+question devient sans conséquence.
+
+## L'ordre, désormais
+
+```
+1. lire le choix local        AVANT tout réseau — c'est ce qu'on est venu défendre
+2. charger le profil          SANS la salle : la garde englobe toute la réconciliation
+3. soumettre le choix         AVANT toute adoption de profiles.gym_id
+4. le serveur ne gagne QUE    sans choix local, ou sur refus EXPLICITE (PT403)
+   incident réseau            → rien n'est touché, la prochaine session réessaie
+```
+
+## Le silence était le cinquième défaut, et le plus coûteux
+
+La réconciliation tranche entre le choix du membre et l'état du serveur **à chaque
+ouverture de session**, et rien ne disait laquelle des six branches avait été prise. Le
+défaut n'a été vu que parce qu'un humain a comparé des couleurs sur trois appareils.
+
+Chaque sortie émet désormais `active_gym_reconciled` : un `outcome` d'un ensemble **fermé**
+(`single` · `aligned` · `switched` · `server_wins` · `unavailable`) et `had_local_choice`.
+**Aucune donnée personnelle** — ni slug, ni identifiant de salle (convention GYM-273).
+
+## La preuve qu'elle aurait été attrapée
+
+```bash
+cd apps/mobile && node scripts/verify-course-salle-active.mjs
+```
+
+13 vérifications, dont les **six branches** de la réconciliation et **l'assertion d'ordre
+elle-même** (« aucune adoption du serveur avant la soumission du choix »).
+
+Rejoué contre le code de `develop`, il **échoue sur cinq cas**. C'est ce qui manquait : la
+fonction n'avait aucun test, et son silence empêchait de voir laquelle des branches
+s'exécutait.
