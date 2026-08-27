@@ -221,7 +221,6 @@ export default function ResetPassword() {
               {t('reset.success_message')}
             </Text>
             {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
-            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={goToLogin} className="rounded-xl bg-move-dark px-6 py-3.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
                 {t('reset.go_login')}
@@ -236,6 +235,7 @@ export default function ResetPassword() {
             <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('reset.invalid_message')}
             </Text>
+            {/* 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON. */}
             <Pressable onPress={goToLogin} className="rounded-xl bg-move-dark px-6 py-3.5">
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
                 {t('reset.go_login')}

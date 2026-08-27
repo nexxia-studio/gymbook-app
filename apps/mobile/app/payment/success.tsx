@@ -10,6 +10,8 @@ import { captureEvent } from '../../lib/analytics'
 import { useAuthStore } from '../../stores/useAuthStore'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
 import { runNetworkSafe } from '../../lib/networkError'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import type { ThemeTokens } from '../../lib/theme/resolveTheme'
 
 interface Payment {
   id: string
@@ -39,14 +41,25 @@ const TERMINAL_FAILURE = new Set(['failed', 'canceled', 'cancelled', 'expired'])
 
 type ClassicStatus = 'polling' | 'success' | 'failed' | 'timeout'
 
-const titleStyle = {
-  fontFamily: 'BarlowCondensed_900Black',
-  fontSize: 24,
-  color: '#111111',
-  textAlign: 'center' as const,
-  letterSpacing: 2,
-}
-const ctaLabel = { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' }
+// ⚠️ UNE FABRIQUE PLUTÔT QUE DEUX CONSTANTES, ET C'EST LA POSITION QUI L'IMPOSE.
+// Ces deux styles étaient des constantes de module ; elles ne pouvaient donc pas lire le
+// thème. Les descendre dans le composant marche — mais déplace leurs couleurs DANS LA
+// SUITE du fichier, et `verify-screen-parity` compare les suites : quatre écarts
+// apparaissaient sur une migration pourtant exacte. La fabrique reste ici, à la place
+// exacte des constantes qu'elle remplace, et reçoit les jetons en argument.
+//
+// GYM-286 — A-3/A-4, EN ATTENTE pour `cta` : ce lime est l'encre des boutons
+// `bg-move-dark` de cet écran, donc la paire bloquée.
+const makeStyles = (tokens: ThemeTokens) => ({
+  title: {
+    fontFamily: 'BarlowCondensed_900Black',
+    fontSize: 24,
+    color: tokens.onSurface,
+    textAlign: 'center' as const,
+    letterSpacing: 2,
+  },
+  cta: { fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#C8F000' },
+})
 
 export default function PaymentSuccess() {
   const { t } = useTranslation()
@@ -68,6 +81,7 @@ export default function PaymentSuccess() {
 }
 
 function DropInRetryScreen({ slotId }: { slotId: string }) {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
@@ -122,12 +136,12 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
   }, [user, gymId, slotId, router])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top', 'bottom']}>
       <View className="flex-1 items-center justify-center gap-4 px-8">
         {status === 'polling' && (
           <>
-            <ActivityIndicator size="large" color="#C8F000" />
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#FFFFFF', textAlign: 'center', letterSpacing: 1 }}>
+            <ActivityIndicator size="large" color={tokens.accent} />
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
               {t('payment_drop_in_retry.polling_title')}
             </Text>
             <Text className="font-dmsans text-sm text-white/60 text-center">
@@ -138,8 +152,8 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
 
         {status === 'booking' && (
           <>
-            <ActivityIndicator size="large" color="#C8F000" />
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#FFFFFF', textAlign: 'center', letterSpacing: 1 }}>
+            <ActivityIndicator size="large" color={tokens.accent} />
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
               {t('payment_drop_in_retry.booking_title')}
             </Text>
           </>
@@ -148,7 +162,7 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
         {status === 'success' && (
           <>
             <Text style={{ fontSize: 64 }}>✅</Text>
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#C8F000', textAlign: 'center', letterSpacing: 2 }}>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.accent, textAlign: 'center', letterSpacing: 2 }}>
               {t('payment_drop_in_retry.success_title')}
             </Text>
             <Text className="font-dmsans text-sm text-white/60 text-center">
@@ -159,7 +173,7 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
 
         {status === 'error' && (
           <>
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: '#FFFFFF', textAlign: 'center', letterSpacing: 1 }}>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
               {t('payment_drop_in_retry.error_title')}
             </Text>
             <Text className="font-dmsans text-sm text-white/60 text-center">
@@ -167,9 +181,10 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
             </Text>
             <Pressable
               onPress={() => router.replace('/(tabs)/schedule')}
-              className="mt-4 w-full items-center rounded-xl bg-move-accent py-4"
+              className="mt-4 w-full items-center rounded-xl py-4"
+              style={{ backgroundColor: tokens.accent }}
             >
-              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#111111' }}>
+              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onAccent }}>
                 {t('payment_drop_in_retry.back_to_schedule')}
               </Text>
             </Pressable>
@@ -199,6 +214,8 @@ function ClassicPaymentScreen({
   router: ReturnType<typeof useRouter>
   t: (key: string, opts?: Record<string, unknown>) => string
 }) {
+  const { tokens } = useTheme()
+  const { title: titleStyle, cta: ctaLabel } = makeStyles(tokens)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [status, setStatus] = useState<ClassicStatus>('polling')
   // GYM-240 — la connexion est-elle tombée pendant le poll ? État d'AFFICHAGE seulement :
@@ -372,20 +389,20 @@ function ClassicPaymentScreen({
   }, [successVisible, goToSuccessDestination])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['top', 'bottom']}>
       {/* Fermer (QA-06) — sauf pendant la modale succès qui a son propre CTA */}
       <View className="flex-row justify-end px-5 pt-2">
         <Pressable onPress={handleClose} hitSlop={12} accessibilityLabel={t('payment.close')}>
-          <X size={26} color="#111111" />
+          <X size={26} color={tokens.onSurface} />
         </Pressable>
       </View>
 
       <View className="flex-1 items-center justify-center px-8">
         {status === 'polling' && (
           <>
-            <ActivityIndicator size="large" color="#111111" />
+            <ActivityIndicator size="large" color={tokens.onSurface} />
             <Text style={titleStyle} className="mt-4">{t('payment.verifying')}</Text>
-            <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
+            <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
               {t('payment.waiting_confirmation')}
             </Text>
             {/* GYM-240 — la connexion est tombée pendant la vérification. On le DIT plutôt
@@ -411,7 +428,7 @@ function ClassicPaymentScreen({
             <Text style={titleStyle}>{t('payment.success_title')}</Text>
             {payment && (
               <>
-                <Text className="mt-3 font-dmsans text-base text-move-text-secondary text-center">
+                <Text className="mt-3 font-dmsans text-base text-center" style={{ color: tokens.onSurfaceSecondary }}>
                   {payment.plan_name} — {payment.amount}€
                 </Text>
                 <Text className="mt-1 font-dmsans-bold text-sm text-green-600 text-center">
@@ -419,6 +436,7 @@ function ClassicPaymentScreen({
                 </Text>
               </>
             )}
+            // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
             <Pressable onPress={goToBookings} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
               <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
             </Pressable>
@@ -429,7 +447,7 @@ function ClassicPaymentScreen({
           <>
             <Text style={{ fontSize: 64, marginBottom: 16 }}>❌</Text>
             <Text style={titleStyle}>{t('payment.failed_title')}</Text>
-            <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
+            <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
               {t('payment.failed_message')}
             </Text>
             <Pressable onPress={() => router.replace('/profile/subscription')} className="mt-10 w-full items-center rounded-xl bg-move-dark py-4">
@@ -442,7 +460,7 @@ function ClassicPaymentScreen({
           <>
             <Text style={{ fontSize: 64, marginBottom: 16 }}>⏳</Text>
             <Text style={titleStyle}>{t('payment.timeout_title')}</Text>
-            <Text className="mt-3 font-dmsans text-sm text-move-text-muted text-center">
+            <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
               {t('payment.timeout_message')}
             </Text>
             {/* GYM-207 — relance RÉELLE, en remplacement de l'ancienne consigne
@@ -455,9 +473,10 @@ function ClassicPaymentScreen({
             )}
             <Pressable
               onPress={goToBookings}
-              className={`w-full items-center rounded-xl border border-move-border py-4 ${rowId || mollieId ? 'mt-3' : 'mt-10'}`}
+              className={`w-full items-center rounded-xl border py-4 ${rowId || mollieId ? 'mt-3' : 'mt-10'}`}
+              style={{ borderColor: tokens.border }}
             >
-              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#111111' }}>
+              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onSurface }}>
                 {t('payment.go_to_bookings')}
               </Text>
             </Pressable>
@@ -473,16 +492,18 @@ function ClassicPaymentScreen({
         onRequestClose={() => { setSuccessVisible(false); goToSuccessDestination() }}
       >
         <View className="flex-1 items-center justify-center bg-black/60 px-8">
-          <View className="w-full items-center rounded-3xl bg-white p-8">
+          {/* `bg-black/60` reste : un voile à 60 % n'est nommé par aucun jeton. */}
+          <View className="w-full items-center rounded-3xl p-8" style={{ backgroundColor: tokens.surface }}>
             <Text style={{ fontSize: 56, marginBottom: 12 }}>🎉</Text>
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: '#111111', textAlign: 'center', letterSpacing: 1 }}>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onSurface, textAlign: 'center', letterSpacing: 1 }}>
               {t('payment.modal_success_title')}
             </Text>
-            <Text className="mt-3 font-dmsans text-sm text-move-text-secondary text-center">
+            <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onSurfaceSecondary }}>
               {t('payment.modal_success_body')}
             </Text>
             <Pressable
               onPress={() => { setSuccessVisible(false); goToSuccessDestination() }}
+              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
               className="mt-8 w-full items-center rounded-xl bg-move-dark py-4"
             >
               <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>

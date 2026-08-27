@@ -221,7 +221,7 @@ export default function DeleteAccountScreen() {
               className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${canDelete ? 'bg-red-600' : 'bg-red-200'}`}
             >
               {deleting ? (
-                // ⚠️ Encre sur un fond de SIGNAL (rouge destructif) : aucun jeton ne la
+                // ⚠️ GYM-286 — encre sur un fond de SIGNAL (rouge destructif) : aucun jeton ne la
                 // nomme, `tokens.onBackground` serait faux chez une salle claire.
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (

@@ -23,8 +23,11 @@ import { supabase } from '../../lib/supabase'
 import { useActiveGymId } from '../../lib/activeGym'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 export default function SessionDetail() {
+  const { tokens } = useTheme()
   // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
   const gymId = useActiveGymId()
 
@@ -373,7 +376,7 @@ export default function SessionDetail() {
   }, [isFav, slotData.activityId, slotData.startsAt, addFavorite, removeFavorite])
 
   return (
-    <View className="flex-1 bg-move-bg">
+    <View className="flex-1" style={{ backgroundColor: tokens.page }}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <SessionHero
@@ -414,19 +417,19 @@ export default function SessionDetail() {
             ⚠️ Jamais legal_address — siège social, factures uniquement (GYM-180). */}
         {gymAddress && (
           <>
-            <View className="bg-move-card px-5 py-4">
-              <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+            <View className="px-5 py-4" style={{ backgroundColor: tokens.surface }}>
+              <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
                 {t('session.location')}
               </Text>
               <View className="flex-row items-center gap-2">
-                <MapPin size={16} color="#6B6861" />
+                <MapPin size={16} color={tokens.onSurfaceSecondary} />
                 <View className="flex-1">
                   {gym?.name && (
-                    <Text className="font-dmsans-bold text-sm text-move-dark">
+                    <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                       {gym.name}
                     </Text>
                   )}
-                  <Text className="font-dmsans text-xs text-move-text-secondary">
+                  <Text className="font-dmsans text-xs" style={{ color: tokens.onSurfaceSecondary }}>
                     {gymAddress}
                   </Text>
                 </View>
@@ -467,8 +470,8 @@ export default function SessionDetail() {
 
       {/* Sticky footer */}
       <View
-        className="absolute bottom-0 left-0 right-0 border-t border-move-border bg-move-card px-5"
-        style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
+        className="absolute bottom-0 left-0 right-0 border-t px-5"
+        style={{ borderColor: tokens.border, backgroundColor: tokens.surface, paddingBottom: insets.bottom + 16, paddingTop: 16 }}
       >
         {isNotified && waitlistConfirmationDeadline && (
           <View className="mb-3">
@@ -486,10 +489,10 @@ export default function SessionDetail() {
 
         <View className="flex-row items-center">
           <View className="flex-1">
-            <Text className="font-dmsans-bold text-sm text-move-dark">
+            <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
               {dayLabel} {time ? `· ${time}` : ''}
             </Text>
-            <Text className="font-dmsans text-xs text-move-text-muted">
+            <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
               {activity} · {t('home.duration_min', { duration })}
             </Text>
           </View>
@@ -498,9 +501,10 @@ export default function SessionDetail() {
             <TouchableOpacity
               onPress={() => setCancelModalVisible(true)}
               activeOpacity={0.8}
-              className="rounded-xl border-2 border-red-500 px-6 py-3.5"
+              className="rounded-xl border-2 px-6 py-3.5"
+              style={{ borderColor: SEMANTIC.danger }}
             >
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#EF4444' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: SEMANTIC.danger }}>
                 {t('session.cancel').toUpperCase()}
               </Text>
             </TouchableOpacity>
@@ -509,6 +513,7 @@ export default function SessionDetail() {
               onPress={handleConfirmWaitlist}
               disabled={loading}
               activeOpacity={0.8}
+              // 🔴 GYM-286 — A-3/A-4, EN ATTENTE : fond `bg-move-dark` sur un BOUTON.
               className="rounded-xl bg-move-dark px-6 py-3.5"
             >
               {loading ? (
@@ -523,9 +528,10 @@ export default function SessionDetail() {
             <TouchableOpacity
               onPress={() => setCancelModalVisible(true)}
               activeOpacity={0.8}
-              className="rounded-xl border-2 border-orange-500 px-6 py-3.5"
+              className="rounded-xl border-2 px-6 py-3.5"
+              style={{ borderColor: SEMANTIC.warning }}
             >
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#F97316' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: SEMANTIC.warning }}>
                 {t('session.quit_waitlist').toUpperCase()}
               </Text>
             </TouchableOpacity>
@@ -534,6 +540,11 @@ export default function SessionDetail() {
               onPress={handleBook}
               disabled={loading}
               activeOpacity={0.8}
+              // 🔴 GYM-286 — A-3/A-4 : la branche `bg-move-dark` est un fond de BOUTON et
+              // reste en classe. La branche `bg-orange-500` est un SIGNAL (liste d'attente)
+              // et pourrait passer à `SEMANTIC.warning` — mais le ternaire porte les deux
+              // dans la même chaîne : les séparer inverserait l'ordre des couleurs du
+              // fichier sans rien gagner tant que l'autre branche ne peut pas bouger.
               className={`rounded-xl px-6 py-3.5 ${isFull ? 'bg-orange-500' : 'bg-move-dark'}`}
             >
               {loading ? (
@@ -553,7 +564,7 @@ export default function SessionDetail() {
             activeOpacity={0.7}
             className="mt-3 self-center"
           >
-            <Text className="font-dmsans-bold text-xs text-move-text-muted underline">
+            <Text className="font-dmsans-bold text-xs underline" style={{ color: tokens.onBackgroundMuted }}>
               {t('session.decline')}
             </Text>
           </TouchableOpacity>
