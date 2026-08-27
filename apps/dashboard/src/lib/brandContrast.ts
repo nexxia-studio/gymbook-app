@@ -29,6 +29,44 @@ const AA_TEXT = 4.5
 /** Seuil WCAG 2.1 § 1.4.11 pour les ÉLÉMENTS D'INTERFACE (bouton, bordure, indicateur). */
 const AA_NON_TEXT = 3
 
+/**
+ * 🔴 GYM-290 (décision B) — LE PAS QUI SÉPARE LA BANDE DE LA PAGE, recopié du mobile.
+ * L'app ne pose plus l'action que sur la bande : la page existe désormais, et une action
+ * invisible dessus est un bouton que personne ne trouve. L'aperçu doit donc juger sur le
+ * PIRE des deux fonds, comme le mobile.
+ */
+const PAS_BANDE = 1.3
+
+/** Mélange `encre` vers `fond` d'un facteur `a`. Recopié de resolveTheme. */
+function melange(encre: Rgb, fond: Rgb, a: number): Rgb {
+  return {
+    r: Math.round(encre.r * a + fond.r * (1 - a)),
+    g: Math.round(encre.g * a + fond.g * (1 - a)),
+    b: Math.round(encre.b * a + fond.b * (1 - a)),
+  }
+}
+
+/** La page, dérivée de la bande du pas fixe. Recopié de resolveTheme (`decalerDe`). */
+function decalerDe(base: Rgb, cible: Rgb, ratio: number): Rgb | null {
+  if (contrastRatio(base, cible) < ratio) return null
+  let bas = 0
+  let haut = 1
+  for (let i = 0; i < 24; i++) {
+    const mid = (bas + haut) / 2
+    if (contrastRatio(melange(cible, base, mid), base) >= ratio) haut = mid
+    else bas = mid
+  }
+  return melange(cible, base, haut)
+}
+
+function pageDe(background: Rgb): Rgb {
+  const sombre = contrastRatio(background, { r: 0, g: 0, b: 0 })
+    <= contrastRatio(background, { r: 255, g: 255, b: 255 })
+  const vers = sombre ? { r: 0, g: 0, b: 0 } : { r: 255, g: 255, b: 255 }
+  const autre = sombre ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 }
+  return decalerDe(background, vers, PAS_BANDE) ?? decalerDe(background, autre, PAS_BANDE) ?? background
+}
+
 interface Rgb { r: number; g: number; b: number }
 
 /** `null` sur tout ce qui n'est pas un hex lisible — on ne devine jamais une couleur. */
@@ -116,7 +154,12 @@ export function forecastBrand(primary: string | null, secondary: string | null):
   // « deux tons identiques » et « deux pastels voisins » — un bouton parfaitement lisible
   // mais invisible sur sa page reste un bouton que personne ne trouve.
   const accentCarriesNoText = p !== null && bestInkRatio(p, [VINIZ_LIGHT, VINIZ_INK, VINIZ_DARK]) < AA_TEXT
-  const accentInvisibleOnBackground = p !== null && contrastRatio(p, effectiveBackground) < AA_NON_TEXT
+  // ⚠️ SUR LES DEUX FONDS (GYM-290, décision B) : la bande ET la page. Ne juger que la
+  // bande laissait passer des actions invisibles sur la page du membre.
+  const accentInvisibleOnBackground = p !== null && Math.min(
+    contrastRatio(p, effectiveBackground),
+    contrastRatio(p, pageDe(effectiveBackground)),
+  ) < AA_NON_TEXT
 
   return {
     backgroundFallsBack,
@@ -177,12 +220,26 @@ export function previewBrand(primary: string | null, secondary: string | null): 
   const bg = parseHex(bgHex)!
   const onBackground = bestInk(bg, [VINIZ_LIGHT, VINIZ_INK])
 
-  // 🔴 LE LIME NE VA QUE SUR FOND SOMBRE — règle de l'écran 09 de la maquette, reprise
-  // telle quelle : sur un fond clair il ne porte aucun texte et ne se distingue d'aucune
-  // surface. L'action retombe alors sur le Violet Ink.
-  const clair = luminanceHsl(bg) > 80
+  // 🔴 LE LIME NE VA QUE SUR FOND SOMBRE — règle de l'écran 09 de la maquette.
+  //
+  // ⚠️ GYM-290 — « SOMBRE » SE DÉCIDE PAR LA LUMINANCE, PLUS PAR LA CLARTÉ HSL. Le mobile a
+  // changé de critère : `hslLightness > 80` classait « sombre » un lime #C8FF3D (62 % de
+  // clarté HSL mais presque aussi lumineux qu'un blanc), et faisait tomber l'encre
+  // secondaire sous le seuil sur plus d'une salle sur deux. Cette copie devait suivre —
+  // `verify-apercu-apparence.mjs` a d'ailleurs refusé de passer tant qu'elle ne suivait pas,
+  // sur 5 378 paires de couleurs. C'est exactement ce pour quoi ce banc existe.
+  //
+  // ⚠️ ET LE REPLI EST REVALIDÉ SUR LE FOND, comme côté mobile : le lime n'est retenu que
+  // s'il se détache de ce fond précis, sinon on prend le Violet Ink, sinon l'encre.
+  const preferSombre = contrastRatio(bg, { r: 0, g: 0, b: 0 })
+    > contrastRatio(bg, { r: 255, g: 255, b: 255 })
+  const clair = preferSombre
   const accentRetenu = p !== null && !f.accentCarriesNoText && !f.accentInvisibleOnBackground
-  const accent = accentRetenu ? (primary as string) : (clair ? VINIZ_INK : VINIZ_PRIMARY_VINIZ)
+  const replis = clair ? [VINIZ_INK, VINIZ_PRIMARY_VINIZ] : [VINIZ_PRIMARY_VINIZ, VINIZ_INK]
+  const pageRgb = pageDe(bg)
+  const repliVisible = replis.find((c) => contrastRatio(parseHex(c)!, bg) >= AA_NON_TEXT
+    && contrastRatio(parseHex(c)!, pageRgb) >= AA_NON_TEXT)
+  const accent = accentRetenu ? (primary as string) : (repliVisible ?? onBackground)
   const onAccent = bestInk(parseHex(accent)!, [VINIZ_LIGHT, VINIZ_INK, VINIZ_DARK])
 
   return { background: toHex(bg), onBackground, accent: toHex(parseHex(accent)!), onAccent }
@@ -191,14 +248,3 @@ export function previewBrand(primary: string | null, secondary: string | null): 
 /** Le lime Viniz — repli de l'action sur fond sombre. Recopié de resolveTheme (VINIZ.lime). */
 const VINIZ_PRIMARY_VINIZ = '#C8FF3D'
 
-/**
- * Clarté perçue en pourcentage, composante L de HSL.
- *
- * ⚠️ VOLONTAIREMENT HSL ET NON LA LUMINANCE — c'est la valeur qu'un gérant lit dans
- * n'importe quel sélecteur de couleur, et la règle « L > 80 % » de la maquette s'y réfère.
- */
-function luminanceHsl({ r, g, b }: Rgb): number {
-  const max = Math.max(r, g, b) / 255
-  const min = Math.min(r, g, b) / 255
-  return ((max + min) / 2) * 100
-}
