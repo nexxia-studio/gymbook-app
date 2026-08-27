@@ -5,6 +5,7 @@ import { LEGAL_VERSION } from '../constants/legal/meta'
 import { captureEvent, identifyUser, resetAnalytics, setAnalyticsGym } from '../lib/analytics'
 import { clearSelectedGymSlug, GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
+import { buildMemberSignupConfirmUrl } from '../lib/gymUrls'
 
 // GYM-289 — 🔴 LA SEULE RÈGLE DE REMPLISSAGE DE `gym_id`. Elle ne vit qu'ici.
 //
@@ -155,6 +156,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       email,
       password,
       options: {
+        // 🔴 GYM-293 — LE LIEN DE CONFIRMATION DOIT REVENIR CHEZ LA SALLE, pas chez le
+        // dashboard gérant. Sans `emailRedirectTo`, Supabase applique son Site URL global —
+        // pointé sur le dashboard — et le membre atterrit sur « Espace réservé aux gérants »,
+        // bloqué hors de l'app. Même défaut que GYM-205 sur le mot de passe, même correctif :
+        // le relais tenant-aware de GYM-287/303, qui porte le slug dans son chemin.
+        emailRedirectTo: await buildMemberSignupConfirmUrl(),
         data: {
           first_name: firstName,
           last_name: lastName,

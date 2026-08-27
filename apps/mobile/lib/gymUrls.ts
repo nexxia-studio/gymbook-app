@@ -12,6 +12,7 @@
 // l'adresse et le slug proviennent désormais de la MÊME requête, pas de deux.
 import { getGymProfile, __resetGymProfileCache } from './gymProfile'
 import { GYM_SLUG } from '../constants/dopamine'
+import { readSelectedGymSlug } from './gymResolver'
 
 /** Domaine des Universal Links membres (GYM-158). Infra produit, pas propre à une salle. */
 const LINKS_BASE = 'https://links.viniz.app'
@@ -48,6 +49,27 @@ export async function getGymSlug(): Promise<string> {
  */
 export async function buildMemberResetPasswordUrl(): Promise<string> {
   return `${LINKS_BASE}/${await getGymSlug()}/reset-password`
+}
+
+/**
+ * 🔴 GYM-293 — CIBLE DE CONFIRMATION D'INSCRIPTION MEMBRE.
+ *
+ * Même forme que la réinitialisation : `links.viniz.app/<slug>/confirm`, le relais
+ * TENANT-AWARE de GYM-287/303. Sans `emailRedirectTo` explicite, Supabase applique son Site
+ * URL global — pointé sur le dashboard GÉRANT — et le membre qui confirme son inscription
+ * atterrit sur « Espace réservé aux gérants », définitivement bloqué hors de l'app. C'est le
+ * défaut exact que GYM-205 a corrigé pour le mot de passe ; il vaut à l'identique ici.
+ *
+ * ⚠️ LE SLUG VIENT DU CHOIX LOCAL, PAS DU PROFIL. Au moment de l'inscription le compte
+ * n'existe pas encore : `getGymProfile()` ne rend rien, et il n'y a rien à lire en base. La
+ * seule salle connue est celle que le membre vient de choisir dans la recherche.
+ *
+ * ⚠️ COCKPIT : cette URL doit figurer dans les Redirect URLs de Supabase Auth (prod ET
+ * staging), sinon le lien est rejeté et le parcours reste inopérant.
+ */
+export async function buildMemberSignupConfirmUrl(): Promise<string> {
+  const slug = await readSelectedGymSlug()
+  return `${LINKS_BASE}/${slug ?? GYM_SLUG}/confirm`
 }
 
 /**

@@ -60,6 +60,8 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { GYM_MODE, readSelectedGymSlug, writeSelectedGymSlug } from './gymResolver'
 import { listMyGyms, switchGym } from './gymSwitch'
 import { readCachedBrand, type GymBrand } from './theme/brand'
+import { takeSignupIntent } from './signupIntent'
+import { joinGym } from './gymJoin'
 import { withActiveGymWrite } from './activeGymWrites'
 import { captureEvent } from './analytics'
 
@@ -132,6 +134,17 @@ export type ReconcileReason =
    * même conséquence obligerait à additionner deux séries pour compter les bascules.
    */
   | 'deep_link_accepted'
+  /**
+   * 🔴 GYM-293 — LE COMPTE VENAIT D'ÊTRE CRÉÉ, ET LE RATTACHEMENT A ABOUTI.
+   *
+   * Distinct de `choice_accepted`, qui décrit un membre DÉJÀ inscrit dont on soumet le choix
+   * au serveur. Ici il n'y avait aucune adhésion : la salle n'a pas été CHOISIE parmi
+   * plusieurs, elle a été REJOINTE. Les confondre rendrait impossible de mesurer combien
+   * d'inscriptions aboutissent — le seul chiffre qui dise si ce parcours fonctionne.
+   */
+  | 'joined_after_signup'
+  /** Le rattachement a échoué : salle pleine, quota, ou refus serveur. */
+  | 'join_failed'
 
 /**
  * Aligne la salle active du serveur et le choix local, une fois la session ouverte.
@@ -256,6 +269,11 @@ export function __resetReconcileState(): void {
 // re-servi à chaque montage d'écran deviendrait un bandeau qui poursuit le membre d'onglet
 // en onglet pour un fait vieux de dix minutes.
 export type ActiveGymNotice =
+  /**
+   * GYM-293 — le rattachement d'après-inscription a échoué. `code` vient du serveur
+   * (GYM_FULL, GYM_RATE_LIMITED, GYM_NOT_FOUND…) : l'écran le traduit, il ne l'invente pas.
+   */
+  | { kind: 'join_failed'; code: string; requestedSlug: string }
   /**
    * Le choix n'a pas été retenu.
    *
@@ -406,6 +424,40 @@ export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
     // slug n'y figure pas, `switch_active_gym` répondrait PT403. On s'épargne l'aller-retour
     // et on applique le même verdict — le serveur garde la main, le slug est corrigé.
     if (!choisie) {
+      // ═════════════════════════════════════════════════════════════════════════════
+      // 🔴 GYM-293 — MÊME ÉTAT APPARENT, DEUX INTENTIONS OPPOSÉES.
+      // ═════════════════════════════════════════════════════════════════════════════
+      // « Un slug choisi, aucune adhésion » se lit de deux façons, et la marque de signup
+      // est la SEULE chose qui les sépare :
+      //
+      //   · choix de CONNEXION → « tu n'es pas membre de cette salle ». Refus de GYM-301,
+      //     et il est juste : le membre s'est trompé de salle.
+      //   · choix de SIGNUP    → « tu viens de créer ton compte ici ». Le rattachement n'a
+      //     pas encore eu lieu, et c'est exactement ce qu'il reste à faire.
+      //
+      // Sans elle, on afficherait « tu n'es pas membre » à quelqu'un qui vient de s'inscrire
+      // chez cette salle-là — le pire message au pire moment.
+      //
+      // ⚠️ LA MARQUE SE CONSOMME ICI, réussite ou échec. La laisser ferait retenter un
+      // rattachement à chaque ouverture de session, longtemps après l'inscription.
+      const vientDuSignup = await takeSignupIntent()
+      if (vientDuSignup) {
+        const join = await joinGym(slugLocal)
+        if (join.status === 'ok') {
+          // Le serveur a rattaché ET posé la salle active si elle était vide : on adopte ce
+          // qu'il vient de confirmer, par le même chemin sanctionné que partout ailleurs.
+          useAuthStore.getState().setActiveGymConfirmed(join.gymId)
+          return journalise(
+            { status: 'switched', reason: 'joined_after_signup', gymId: join.gymId }, true,
+          )
+        }
+        // ⚠️ ÉCHEC = ON NE TOUCHE À RIEN, ET ON LE DIT. Salle pleine, quota, refus : le
+        // compte existe, sans salle. C'est un état INCOMPLET, jamais un état mi-créé — rien
+        // n'a été écrit à moitié. L'écran dédié explique, avec le code que le serveur a rendu.
+        annonce({ kind: 'join_failed', code: join.code, requestedSlug: slugLocal })
+        return journalise({ status: 'unavailable', reason: 'join_failed' }, true)
+      }
+
       if (!active) {
         return journalise({ status: 'unavailable', reason: 'memberships_unavailable' }, true)
       }

@@ -23,6 +23,7 @@ import { useTheme } from '../../lib/theme/ThemeProvider'
 import { clearSelectedGymSlug } from '../../lib/gymResolver'
 import { clearCachedBrand } from '../../lib/theme/brand'
 import { PoweredByViniz } from './PoweredByViniz'
+import { markSignupIntent } from '../../lib/signupIntent'
 
 export function BrandedLogin() {
   const { t } = useTranslation()
@@ -126,26 +127,30 @@ export function BrandedLogin() {
             </TouchableOpacity>
           </View>
 
-          {/* ── 🔴 GYM-293 (MITIGATION) — L'INSCRIPTION EST RETIRÉE EN MODE MULTI ───────
-              Cet écran n'existe qu'en `multi`, donc retirer le lien ici SUFFIT à rendre
-              l'inscription inatteignable de ce côté — et n'affecte pas d'un pixel l'écran
-              de Dopamine, qui est un composant distinct (`DopamineLogin`).
+          {/* ── 🔴 GYM-293 — L'INSCRIPTION REVIENT, RATTACHÉE À LA SALLE ───────────────
+              Le lien avait été retiré (mitigation #230) parce qu'un compte créé en multi
+              naissait SANS salle : l'app s'ouvrait vide, sans rien pour l'expliquer ni le
+              corriger. `join_gym_self_serve` comble ce trou, et la réconciliation appelle la
+              RPC quand le choix vient d'un signup.
 
-              ⚠️ CE QU'ON ÉVITE, ET CE N'EST PAS UNE PRÉCAUTION THÉORIQUE. En `multi`,
-              `signupGymId()` rend `null` (stores/useAuthStore.ts) : le trigger
-              `handle_new_user` crée alors un profil SANS salle. Le compte existe, la
-              session s'ouvre, et l'app est VIDE — aucune requête ne matche, aucun message
-              ne l'explique. Le membre a un compte qu'il ne peut pas utiliser et qu'il ne
-              peut pas non plus rattacher : le parcours d'inscription rattaché à une salle
-              reste à écrire (GYM-293 complet).
-
-              ⚠️ MASQUER PLUTÔT QU'AVERTIR. Un écran d'inscription qui dirait « pas encore
-              disponible » serait un cul-de-sac de plus ; l'absence de lien ne promet rien.
-              Et la route est gardée de son côté (app/(auth)/signup.tsx) — un lien profond
-              ou un retour arrière ne doivent pas rouvrir ce que ce masquage ferme.
-
-              ⚠️ AUCUN AUTRE CHEMIN N'Y MÈNE EN MULTI : cet écran ne porte pas les boutons
-              OAuth (vérifié), qui créeraient un compte de la même façon. */}
+              ⚠️ LE SLUG EST MARQUÉ « CHOIX-SIGNUP » AVANT DE NAVIGUER, et c'est ce qui
+              distingue les deux parcours. Un choix de CONNEXION sans adhésion veut dire
+              « tu n'es pas membre de cette salle » — l'écran de refus de GYM-301. Un choix
+              de SIGNUP sans adhésion veut dire « tu viens de créer ton compte, on te
+              rattache ». Même état apparent, deux intentions opposées : sans cette marque,
+              la réconciliation ne pourrait pas les distinguer. */}
+          <TouchableOpacity
+            className="mt-6"
+            accessibilityRole="button"
+            onPress={async () => {
+              await markSignupIntent()
+              router.push('/(auth)/signup' as never)
+            }}
+          >
+            <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
+              {t('auth.no_account')} <Text style={{ color: tokens.accent }}>{t('auth.signup')}</Text>
+            </Text>
+          </TouchableOpacity>
 
           {/* ── GYM-288 — LA SORTIE. ───────────────────────────────────────────────────
               🔴 SANS ELLE, UNE SALLE CHOISIE PAR ERREUR ENFERMAIT LE MEMBRE : le slug

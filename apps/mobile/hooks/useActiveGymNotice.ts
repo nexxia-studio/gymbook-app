@@ -87,8 +87,11 @@ export function useNotMemberRedirect(): void {
   useEffect(() => {
     if (GYM_MODE === 'single') return
     const ouvrirSiRefus = () => {
-      if (peekActiveGymNotice()?.kind !== 'not_member') return
-      router.replace('/gym/not-member' as never)
+      const kind = peekActiveGymNotice()?.kind
+      // GYM-293 — deux issues, deux écrans, le même mécanisme : l'accueil ouvre la porte,
+      // l'écran consomme l'avis. Ajouter un troisième cas ne demandera pas plus.
+      if (kind === 'not_member') router.replace('/gym/not-member' as never)
+      else if (kind === 'join_failed') router.replace('/gym/join-failed' as never)
     }
     ouvrirSiRefus()
     return subscribeActiveGymNotice(ouvrirSiRefus)

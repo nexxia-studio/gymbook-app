@@ -704,5 +704,17 @@
     "body": "You're a member there, but you're currently viewing another gym. Do you want to go?",
     "go": "Go to {{gym}}",
     "error": "The switch didn't go through. Try again in a moment."
+  },
+  "join_failed": {
+    "title": "We couldn't add you to this gym",
+    "full": "{{gym}} has reached its maximum number of members. Get in touch with the gym — only they can free up a spot.",
+    "rate_limited": "Too many attempts in a short time. Try again in an hour.",
+    "not_found": "This gym no longer exists.",
+    "email": "Your email isn't confirmed yet. Open the link we just sent you.",
+    "unavailable": "The service is temporarily unavailable. Try again in a moment.",
+    "generic": "The gym couldn't be joined.",
+    "account_exists": "Your account was created — no need to sign up again.",
+    "choose_another": "Choose another gym",
+    "sign_out": "Sign out"
   }
 }

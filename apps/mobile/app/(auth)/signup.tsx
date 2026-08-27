@@ -95,29 +95,20 @@ export default function Signup() {
     }
   }, [email, password, firstName, lastName, phone, terms, privacy, marketing, signUp, clearError, router])
 
-  // ── 🔴 GYM-293 (MITIGATION) — LA ROUTE EST FERMÉE EN MODE MULTI ────────────────────
+  // ── 🔴 GYM-293 — LA ROUTE ROUVRE EN MULTI, PARCE QUE LE RATTACHEMENT EXISTE ───────
   //
-  // Le routeur d'Expo enregistre ce fichier dans TOUS les builds. Masquer le lien de
-  // l'écran de connexion brandé ne suffit donc pas : un lien profond, un retour arrière
-  // ou un `router.push` oublié rouvriraient exactement ce que le masquage ferme.
+  // Elle avait été fermée (mitigation #230) pour une raison précise : en `multi`,
+  // `signupGymId()` rend `null`, le trigger crée un profil SANS salle, et le membre repart
+  // avec un compte inutilisable qu'il ne pouvait pas rattacher — le chemin de rattachement
+  // n'existait pas.
   //
-  // ⚠️ POURQUOI FERMER. En `multi`, `signupGymId()` rend `null` : le profil est créé SANS
-  // salle, la session s'ouvre, et l'app est vide — aucune requête ne matche, rien ne
-  // l'explique. Le membre repart avec un compte inutilisable qu'il ne peut pas rattacher.
-  // Mieux vaut ne pas ouvrir la porte que de la refermer après.
+  // Il existe maintenant : `join_gym_self_serve(p_slug)`. La réconciliation d'ouverture de
+  // session l'appelle quand le choix vient d'un SIGNUP et que le compte n'a aucune adhésion
+  // (voir lib/activeGymSession.ts). La porte peut donc se rouvrir : ce qu'elle ouvrait sur
+  // un cul-de-sac ouvre désormais sur un parcours complet.
   //
-  // ⚠️ `Redirect` ET NON UNE NAVIGATION DANS UN EFFET : un effet laisserait le formulaire
-  // se peindre le temps d'une frame, et le membre verrait un écran d'inscription clignoter
-  // avant d'être renvoyé — ce qui ressemble à un défaut, pas à une décision.
-  //
-  // ⚠️ ET APRÈS LES HOOKS, PAS AVANT. `GYM_MODE` est figé à la compilation, donc un retour
-  // anticipé ne ferait jamais varier le nombre de hooks d'un rendu à l'autre — c'est sûr
-  // aujourd'hui, et c'est un piège demain, le jour où quelqu'un rendra la condition
-  // dynamique. C'est aussi le motif déjà posé par app/profile/gym-switch.tsx.
-  //
-  // 🔴 EN `single`, CETTE LIGNE EST INERTE. `GYM_MODE` est figé à la compilation :
-  // l'inscription de Dopamine n'est pas modifiée d'un caractère.
-  if (GYM_MODE === 'multi') return <Redirect href="/(auth)/login" />
+  // ⚠️ RIEN NE CHANGE EN `single`. La mitigation ne visait que le multi, et sa levée non
+  // plus : l'inscription de Dopamine n'a jamais été touchée, dans un sens comme dans l'autre.
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
