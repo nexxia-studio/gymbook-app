@@ -21,7 +21,7 @@
 //
 // USAGE : node scripts/verify-course-salle-active.mjs
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -108,6 +108,155 @@ for (let i = 0; i < 3; i++) {
 }
 verifie('après trois allers-retours, compteur exactement à zéro', activeGymWriteInFlight() === false)
 
+// ═════════════════════════════════════════════════════════════════════════════════════
+// GYM-292b — LA RÉCONCILIATION D'OUVERTURE DE SESSION, AVEC UN CHOIX LOCAL
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 CE QUE CETTE SECONDE MOITIÉ AURAIT ATTRAPÉ. La première version de
+// `reconcileActiveGym` adoptait `profiles.gym_id` AVANT de regarder le choix du membre,
+// et toute issue non-`ok` du switch — coupure réseau comprise — réécrivait le slug avec
+// la salle du serveur. Le choix était perdu, définitivement. Aucun test ne le disait :
+// il n'y en avait aucun sur cette fonction.
+//
+// On l'exerce donc en compilant le VRAI module et en substituant ses trois dépendances.
+// ⚠️ CE SONT DES DOUBLURES, PAS LE SERVEUR : elles prouvent l'ORDRE et les BRANCHES, pas
+// que la RPC répond. Le comportement réel se vérifie à la recette.
+import { writeFileSync, mkdirSync } from 'node:fs'
+
+const out2 = mkdtempSync(join(tmpdir(), 'gym292b-'))
+let reconcile
+try {
+  execFileSync('npx', [
+    'tsc', join(ROOT, 'lib/activeGymSession.ts'),
+    '--outDir', out2, '--module', 'esnext', '--target', 'es2020',
+    '--skipLibCheck', '--moduleResolution', 'bundler',
+  ], { cwd: ROOT, stdio: 'pipe' })
+} catch { /* d'autres fichiers du projet peuvent échouer : seul le nôtre compte */ }
+
+const L = join(out2, 'lib')
+const S = join(out2, 'stores')
+mkdirSync(S, { recursive: true })
+
+// Le module compilé importe sans extension ; Node en ESM les exige.
+const compile = readFileSync(join(L, 'activeGymSession.js'), 'utf8')
+  .replace(/from '(\.\.?\/[A-Za-z/]*)'/g, "from '$1.js'")
+writeFileSync(join(L, 'activeGymSession.js'), compile)
+
+writeFileSync(join(L, 'gymResolver.js'), `
+export const trace = []
+export let __slug = null
+export const GYM_MODE = 'multi'
+export function __setSlug(s) { __slug = s }
+export async function readSelectedGymSlug() { return __slug }
+export async function writeSelectedGymSlug(s) { __slug = s; trace.push('writeSlug(' + s + ')') }
+`)
+// ⚠️ L'analytique est une doublure vide : ce script prouve des DÉCISIONS, pas de la
+// télémétrie. La journaliser vraiment ferait dépendre un test de PostHog.
+writeFileSync(join(L, 'analytics.js'), 'export function captureEvent() {}\n')
+writeFileSync(join(L, 'activeGymWrites.js'), `
+let n = 0
+export async function withActiveGymWrite(fn) { n++; try { return await fn() } finally { n-- } }
+export function activeGymWriteInFlight() { return n > 0 }
+`)
+writeFileSync(join(L, 'gymSwitch.js'), `
+import { trace, writeSelectedGymSlug } from './gymResolver.js'
+import { useAuthStore } from '../stores/useAuthStore.js'
+export let __gyms = []
+export let __res = { status: 'ok' }
+export function __setGyms(g) { __gyms = g }
+export function __setRes(r) { __res = r }
+export async function listMyGyms() { trace.push('listMyGyms'); return { status: 'ok', gyms: __gyms } }
+export async function switchGym(g) {
+  trace.push('switchGym(' + g.slug + ') → ' + __res.status)
+  if (__res.status === 'ok') {
+    await writeSelectedGymSlug(g.slug)
+    useAuthStore.getState().setActiveGymConfirmed(g.gymId)
+  }
+  return __res
+}
+`)
+writeFileSync(join(S, 'useAuthStore.js'), `
+import { trace } from '../lib/gymResolver.js'
+import { activeGymWriteInFlight } from '../lib/activeGymWrites.js'
+let etat = { gym_id: null }
+export let __serveur = null
+export function __setServeur(id) { __serveur = id; etat.gym_id = null }
+export function __gymId() { return etat.gym_id }
+export const useAuthStore = {
+  getState: () => ({
+    refreshProfile: async () => {
+      if (activeGymWriteInFlight()) { trace.push('refreshProfile (profil seul — salle NON adoptée)'); return }
+      trace.push('refreshProfile → ADOPTE ' + __serveur); etat.gym_id = __serveur
+    },
+    setActiveGymConfirmed: (id) => { trace.push('setActiveGymConfirmed(' + id + ')'); etat.gym_id = id },
+  }),
+}
+`)
+
+const R = await import(pathToFileURL(join(L, 'gymResolver.js')).href)
+const SW = await import(pathToFileURL(join(L, 'gymSwitch.js')).href)
+const AU = await import(pathToFileURL(join(S, 'useAuthStore.js')).href)
+reconcile = (await import(pathToFileURL(join(L, 'activeGymSession.js')).href)).reconcileActiveGym
+
+const GYMS = [
+  { gymId: 'g-studio', slug: 'studio-test-staging', name: 'Studio Test', logoUrl: null, isActive: false },
+  { gymId: 'g-yoga', slug: 'studio-yoga-test-1', name: 'Yoga', logoUrl: null, isActive: false },
+  { gymId: 'g-dopa', slug: 'dopamine-staging', name: 'Dopamine', logoUrl: null, isActive: false },
+]
+
+async function cas(nom, { slug, serveur, switchRes = { status: 'ok' }, attendu, salleAttendue, slugAttendu }) {
+  R.trace.length = 0
+  R.__setSlug(slug)
+  AU.__setServeur(serveur)
+  SW.__setGyms(GYMS.map((g) => ({ ...g, isActive: g.gymId === serveur })))
+  SW.__setRes(switchRes)
+  const res = await reconcile()
+  const okStatut = res.status === attendu
+  const okSalle = AU.__gymId() === salleAttendue
+  const okSlug = R.__slug === slugAttendu
+  // 🔴 L'ORDRE EST UNE ASSERTION À PART ENTIÈRE : aucune adoption du serveur ne doit
+  // précéder la soumission du choix. C'est le défaut exact que ce lot corrige.
+  const pasDAdoptionPrecoce = !R.trace.some((t) => t.startsWith('refreshProfile → ADOPTE'))
+  const bon = okStatut && okSalle && okSlug && pasDAdoptionPrecoce
+  if (!bon) echecs++
+  console.log(`  ${bon ? '✓' : '✗'} ${nom}`)
+  console.log(`      ${R.trace.join(' → ')}`)
+  if (!bon) {
+    console.log(`      attendu : ${attendu} / salle ${salleAttendue} / slug ${slugAttendu}`)
+    console.log(`      obtenu  : ${res.status} / salle ${AU.__gymId()} / slug ${R.__slug}`)
+    if (!pasDAdoptionPrecoce) console.log('      🔴 la salle du serveur a été adoptée AVANT la soumission du choix')
+  }
+}
+
+console.log('\nRÉCONCILIATION : le choix pré-connexion l’emporte, sauf refus explicite du serveur.\n')
+
+await cas('choix ACCEPTÉ — membre des 3 salles, serveur sur Dopamine', {
+  slug: 'studio-test-staging', serveur: 'g-dopa',
+  attendu: 'switched', salleAttendue: 'g-studio', slugAttendu: 'studio-test-staging',
+})
+await cas('choix ACCEPTÉ — deuxième salle, même compte', {
+  slug: 'studio-yoga-test-1', serveur: 'g-dopa',
+  attendu: 'switched', salleAttendue: 'g-yoga', slugAttendu: 'studio-yoga-test-1',
+})
+await cas('choix DÉJÀ actif — rien à basculer', {
+  slug: 'dopamine-staging', serveur: 'g-dopa',
+  attendu: 'aligned', salleAttendue: 'g-dopa', slugAttendu: 'dopamine-staging',
+})
+await cas('choix REFUSÉ (PT403) — le serveur garde la main, slug corrigé', {
+  slug: 'studio-test-staging', serveur: 'g-dopa', switchRes: { status: 'not_a_member' },
+  attendu: 'server_wins', salleAttendue: 'g-dopa', slugAttendu: 'dopamine-staging',
+})
+await cas('choix ABSENT — le serveur est la seule réponse', {
+  slug: null, serveur: 'g-dopa',
+  attendu: 'aligned', salleAttendue: 'g-dopa', slugAttendu: 'dopamine-staging',
+})
+// 🔴 LE CAS QUI DÉTRUISAIT LE CHOIX. Avant ce lot, une simple coupure retombait sur
+// « le serveur fait foi » ET réécrivait le slug : le choix était perdu pour de bon.
+await cas('INCIDENT RÉSEAU — le choix survit, rien n’est touché', {
+  slug: 'studio-test-staging', serveur: 'g-dopa', switchRes: { status: 'offline' },
+  attendu: 'unavailable', salleAttendue: null, slugAttendu: 'studio-test-staging',
+})
+
 rmSync(out, { recursive: true, force: true })
-console.log(echecs ? `\n🔴 ${echecs} vérification(s) en échec\n` : '\n✅ La course est battue au timing le pire.\n')
+rmSync(out2, { recursive: true, force: true })
+console.log(echecs ? `\n🔴 ${echecs} vérification(s) en échec\n` : '\n✅ Course battue, et le choix pré-connexion l’emporte.\n')
 process.exit(echecs ? 1 : 0)

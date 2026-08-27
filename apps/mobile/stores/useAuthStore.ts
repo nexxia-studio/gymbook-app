@@ -97,10 +97,14 @@ interface AuthState {
    * GYM-292 — 🔴 L'UNIQUE ÉCRITURE DE `gym_id` HORS `refreshProfile`, ET ELLE EXIGE UNE
    * CONFIRMATION SERVEUR.
    *
-   * Appelée seulement après un `switch_active_gym` RÉUSSI : à cet instant l'app sait
-   * quelque chose que sa propre lecture de `profiles` ignore encore — le serveur vient
-   * d'écrire. Poser la valeur ici plutôt que d'attendre une relecture supprime la fenêtre
-   * pendant laquelle une lecture partie plus tôt pouvait rétrograder la bascule.
+   * Appelée sur une valeur que LE SERVEUR VIENT DE CONFIRMER, et sur rien d'autre. Deux
+   * sources la confirment, et elles seules :
+   *   · un `switch_active_gym` RÉUSSI — le serveur vient d'écrire ;
+   *   · `my_gym_memberships()`, dont `is_active` est lu dans `profiles.gym_id`, la MÊME
+   *     colonne que celle qui décide des données (GYM-292b).
+   *
+   * Poser la valeur ici plutôt que d'attendre une relecture supprime la fenêtre pendant
+   * laquelle une lecture partie plus tôt pouvait rétrograder la bascule.
    *
    * ⚠️ NE JAMAIS L'APPELER SUR UN CHOIX PUREMENT LOCAL. Une salle posée sans que le
    * serveur l'ait acceptée, c'est exactement le désaccord que GYM-292 corrige.

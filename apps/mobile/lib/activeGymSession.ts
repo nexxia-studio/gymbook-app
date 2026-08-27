@@ -39,9 +39,28 @@
 // ⚠️ L'ORDRE INVERSE AURAIT ÉTÉ PLUS SIMPLE ET FAUX. Faire toujours gagner le serveur
 // éviterait un appel réseau — et rendrait la recherche de salle inutile : un membre de
 // trois salles serait ramené à la même à chaque lancement, quoi qu'il choisisse.
+//
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-292b — LA PREMIÈRE VERSION DISAIT CELA, ET FAISAIT L'INVERSE
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Elle appelait `refreshProfile()` EN PREMIER, hors de la garde « écriture en vol » : la
+// salle du serveur était donc adoptée AVANT même qu'on ait lu le choix du membre. La
+// bascule qui suivait était une CORRECTION, pas une décision — visible à l'écran, et
+// perdue dès qu'elle échouait. Pire, toute issue non-`ok` de `switchGym` — y compris une
+// coupure réseau — retombait sur « le serveur fait foi » et RÉÉCRIVAIT le slug : une
+// seconde sans réseau effaçait définitivement le choix.
+//
+// L'ordre est maintenant celui que la règle annonce :
+//   1. lire le choix local  (avant tout réseau — c'est ce qu'on est venu défendre) ;
+//   2. charger le profil    (sans la salle : la garde l'en empêche) ;
+//   3. soumettre le choix   (AVANT toute adoption de `profiles.gym_id`) ;
+//   4. le serveur ne gagne QUE sans choix local, ou sur refus EXPLICITE (PT403).
+// Un incident réseau ne tranche rien et ne détruit rien.
 import { useAuthStore } from '../stores/useAuthStore'
 import { GYM_MODE, readSelectedGymSlug, writeSelectedGymSlug } from './gymResolver'
 import { listMyGyms, switchGym } from './gymSwitch'
+import { withActiveGymWrite } from './activeGymWrites'
+import { captureEvent } from './analytics'
 
 /** Ce que la réconciliation a fait — pour le journal et les tests. */
 export type ReconcileOutcome =
@@ -63,52 +82,105 @@ export type ReconcileOutcome =
  * qu'une fois ; hors ligne, elle ne touche à rien — surtout pas au slug, dont l'effacement
  * ferait perdre au membre la marque de sa salle pour une simple coupure réseau.
  */
+/**
+ * 🔴 GYM-292b — CE QUI MANQUAIT LE PLUS : SAVOIR CE QUI S'EST PASSÉ.
+ *
+ * La réconciliation décide en silence, à l'ouverture de session, entre le choix du membre
+ * et l'état du serveur. Quand elle se trompait, RIEN ne le disait : ni journal, ni
+ * événement, ni écran. Le défaut n'a été vu que parce qu'un humain a comparé des couleurs
+ * sur trois appareils, et il a fallu relire tout le chemin pour deviner laquelle des six
+ * branches avait été prise. C'est ce silence qui a coûté le plus cher, pas le défaut.
+ *
+ * ⚠️ AUCUNE DONNÉE PERSONNELLE : un statut d'un ensemble FERMÉ, et un booléen disant s'il
+ * y avait un choix local. Pas de slug, pas d'identifiant de salle, pas d'email — la
+ * convention de GYM-273, qui interdit déjà le texte libre venu du serveur.
+ */
+function journalise(outcome: ReconcileOutcome, avaitUnChoix: boolean): ReconcileOutcome {
+  captureEvent('active_gym_reconciled', { outcome: outcome.status, had_local_choice: avaitUnChoix })
+  return outcome
+}
+
 export async function reconcileActiveGym(): Promise<ReconcileOutcome> {
   if (GYM_MODE === 'single') return { status: 'single' }
 
-  // ── 1. CE QUE LE SERVEUR TIENT POUR VRAI ────────────────────────────────────────────
-  // `refreshProfile` pose `profiles.gym_id` dans le store. C'est CE seul appel qui manquait
-  // au démarrage : sans lui, `gym_id` restait `null` et l'app n'affichait aucune donnée.
-  await useAuthStore.getState().refreshProfile()
+  // 🔴 TOUTE LA RÉCONCILIATION EST « EN VOL » (GYM-292b). C'était le trou : `refreshProfile`
+  // s'exécutait EN DEHORS de la garde, donc le compteur valait 0 et la salle du serveur
+  // était adoptée sans condition — avant même qu'on ait regardé le choix du membre.
+  // Sous la garde, `refreshProfile` charge le PROFIL (nom, avatar, badge) sans toucher à
+  // la salle : c'est exactement ce qu'on veut ici, et c'est déjà ce que la garde fait.
+  return withActiveGymWrite(async () => {
+    // ── 1. LE CHOIX D'ABORD, AVANT TOUT RÉSEAU ──────────────────────────────────────
+    // ⚠️ IL ÉTAIT LU EN TROISIÈME, APRÈS DEUX ALLERS-RETOURS. Toute la fenêtre entre
+    // l'ouverture de session et cette lecture était une occasion de le perdre — et la
+    // suite l'ÉCRASAIT alors avec la salle du serveur, rendant la perte définitive.
+    // Il se lit maintenant en premier : c'est la donnée qu'on est venu défendre.
+    const slugLocal = await readSelectedGymSlug()
 
-  const memberships = await listMyGyms()
-  if (memberships.status !== 'ok') {
-    // Hors ligne : on garde ce qui est affiché. `refreshProfile` a peut-être déjà posé la
-    // salle depuis le cache de session ; sinon l'app reste en attente, ce qui est honnête.
-    return { status: 'unavailable' }
-  }
+    // ── 2. LE PROFIL, SANS LA SALLE ─────────────────────────────────────────────────
+    // Nom, avatar, badge : nécessaires à l'app. `gym_id` n'est PAS adopté — la garde
+    // ci-dessus l'en empêche, et c'est le point de tout ce correctif.
+    await useAuthStore.getState().refreshProfile()
 
-  const active = memberships.gyms.find((g) => g.isActive)
-  const slugLocal = await readSelectedGymSlug()
+    const memberships = await listMyGyms()
+    if (memberships.status !== 'ok') {
+      // Hors ligne : ON NE TOUCHE À RIEN. Ni la salle, ni le slug. Le choix survit à une
+      // coupure réseau ; la prochaine ouverture de session réessaiera.
+      return journalise({ status: 'unavailable' }, slugLocal !== null)
+    }
+    const active = memberships.gyms.find((g) => g.isActive)
 
-  // ── 2. AUCUN CHOIX LOCAL ────────────────────────────────────────────────────────────
-  // Premier lancement après une connexion directe (lien profond, restauration de session).
-  // Le serveur est la seule réponse, et le slug est posé pour que la marque suive.
-  if (!slugLocal) {
-    if (!active) return { status: 'unavailable' }
-    await writeSelectedGymSlug(active.slug)
-    return { status: 'aligned', gymId: active.gymId }
-  }
+    // ── 3. AUCUN CHOIX LOCAL — LE SERVEUR EST LA SEULE RÉPONSE ──────────────────────
+    // Connexion directe, lien profond, restauration de session : personne n'a rien choisi.
+    if (!slugLocal) {
+      if (!active) return journalise({ status: 'unavailable' }, slugLocal !== null)
+      useAuthStore.getState().setActiveGymConfirmed(active.gymId)
+      await writeSelectedGymSlug(active.slug)
+      return journalise({ status: 'aligned', gymId: active.gymId }, slugLocal !== null)
+    }
 
-  // ── 3. LE CHOIX CONCORDE DÉJÀ ───────────────────────────────────────────────────────
-  if (active && active.slug === slugLocal) {
-    return { status: 'aligned', gymId: active.gymId }
-  }
+    const choisie = memberships.gyms.find((g) => g.slug === slugLocal)
 
-  // ── 4. LE CHOIX DIFFÈRE — ON LE SOUMET AU SERVEUR ───────────────────────────────────
-  const choisie = memberships.gyms.find((g) => g.slug === slugLocal)
-  if (choisie) {
+    // ── 4. LE CHOIX EST DÉJÀ LA SALLE ACTIVE ────────────────────────────────────────
+    // Rien à basculer : on pose la salle confirmée par le serveur et on s'arrête.
+    if (choisie?.isActive) {
+      useAuthStore.getState().setActiveGymConfirmed(choisie.gymId)
+      return journalise({ status: 'aligned', gymId: choisie.gymId }, slugLocal !== null)
+    }
+
+    // ── 5. LE CHOIX DÉSIGNE UNE SALLE OÙ LE MEMBRE N'EST PAS INSCRIT ────────────────
+    // `my_gym_memberships()` lit `member_gyms`, la table de VÉRITÉ du rattachement : si le
+    // slug n'y figure pas, `switch_active_gym` répondrait PT403. On s'épargne l'aller-retour
+    // et on applique le même verdict — le serveur garde la main, le slug est corrigé.
+    if (!choisie) {
+      if (!active) return journalise({ status: 'unavailable' }, slugLocal !== null)
+      useAuthStore.getState().setActiveGymConfirmed(active.gymId)
+      await writeSelectedGymSlug(active.slug)
+      return journalise({ status: 'server_wins', gymId: active.gymId }, slugLocal !== null)
+    }
+
+    // ── 6. LE CHOIX EST LÉGITIME ET DIFFÈRE — ON LE SOUMET ──────────────────────────
+    // 🔴 C'EST ICI, ET AVANT TOUTE ADOPTION DE `profiles.gym_id`. L'ordre inverse — adopter
+    // puis corriger — faisait basculer l'app sur la salle du serveur le temps de deux
+    // allers-retours, et la laissait là dès que la correction échouait pour n'importe
+    // quelle raison.
     const res = await switchGym(choisie)
-    if (res.status === 'ok') return { status: 'switched', gymId: choisie.gymId }
-    // Refusée ou injoignable : on retombe sur la branche « le serveur fait foi » ci-dessous.
-  }
+    if (res.status === 'ok') return journalise({ status: 'switched', gymId: choisie.gymId }, true)
 
-  // ── 5. LE SERVEUR FAIT FOI, ET LE SLUG EST CORRIGÉ ──────────────────────────────────
-  // Le membre a choisi une salle où il n'est pas inscrit — cas nominal : il a cherché une
-  // salle, puis s'est connecté avec un compte qui n'y appartient pas. On ne l'y enferme
-  // pas, et on ne lui montre pas non plus la marque d'une salle dont il ne verra jamais
-  // les données : les deux moitiés disent la même chose, celle du serveur.
-  if (!active) return { status: 'unavailable' }
-  await writeSelectedGymSlug(active.slug)
-  return { status: 'server_wins', gymId: active.gymId }
+    // ── 7. REFUS EXPLICITE DU SERVEUR — ET LUI SEUL FAIT CÉDER LE CHOIX ─────────────
+    // ⚠️ SEUL `not_a_member` (PT403) donne la main au serveur. L'appartenance a pu être
+    // retirée entre la liste et la bascule ; c'est un refus, pas un incident.
+    if (res.status === 'not_a_member') {
+      if (!active) return journalise({ status: 'unavailable' }, slugLocal !== null)
+      useAuthStore.getState().setActiveGymConfirmed(active.gymId)
+      await writeSelectedGymSlug(active.slug)
+      return journalise({ status: 'server_wins', gymId: active.gymId }, slugLocal !== null)
+    }
+
+    // ── 8. INCIDENT RÉSEAU — ON NE DÉTRUIT PAS LE CHOIX ────────────────────────────
+    // 🔴 C'ÉTAIT LE DÉFAUT LE PLUS COÛTEUX : toute issue non-`ok`, y compris une simple
+    // coupure, retombait sur « le serveur fait foi » ET RÉÉCRIVAIT LE SLUG. Une seconde
+    // sans réseau effaçait DÉFINITIVEMENT le choix du membre — il ne pouvait plus le
+    // retrouver qu'en repassant par la recherche. Un incident ne tranche rien.
+    return journalise({ status: 'unavailable' }, slugLocal !== null)
+  })
 }

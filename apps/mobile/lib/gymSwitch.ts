@@ -145,10 +145,24 @@ export async function switchGym(gym: GymMembership): Promise<SwitchOutcome> {
       await useAuthStore.getState().refreshProfile()
 
       // ── 7. CE QUI NE DÉPEND D'AUCUN ÉCRAN MONTÉ ─────────────────────────────────────
-      setAnalyticsGym(gym.gymId)
-      const userId = useAuthStore.getState().user?.id
-      if (userId) await useBookingStore.getState().fetchBookings(userId)
-      await useBookingStore.getState().loadFavorites()
+      //
+      // 🔴 GYM-292b — CES RECHARGEMENTS NE PEUVENT PLUS FAIRE ÉCHOUER LA BASCULE.
+      // Ils étaient sous le MÊME `try` que la RPC : une erreur de `fetchBookings` ou de
+      // `loadFavorites` — postérieure à la bascule, donc sans rapport avec elle — rendait
+      // `offline`. L'appelant en concluait que le switch avait échoué et « corrigeait »
+      // l'état… alors que `profiles.gym_id` avait bel et bien changé en base. L'app se
+      // retrouvait à afficher une salle que le serveur ne tenait plus pour active.
+      //
+      // Le verdict appartient à la RPC, et à elle seule. Ce qui vient après est du confort
+      // de chargement : s'il échoue, les écrans se rechargeront d'eux-mêmes.
+      try {
+        setAnalyticsGym(gym.gymId)
+        const userId = useAuthStore.getState().user?.id
+        if (userId) await useBookingStore.getState().fetchBookings(userId)
+        await useBookingStore.getState().loadFavorites()
+      } catch {
+        /* la bascule a réussi ; le rechargement suivra */
+      }
 
       return { status: 'ok' }
     } catch {
