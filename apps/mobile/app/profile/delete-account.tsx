@@ -221,11 +221,12 @@ export default function DeleteAccountScreen() {
               className={`flex-row items-center justify-center gap-2 rounded-2xl py-4 ${canDelete ? 'bg-red-600' : 'bg-red-200'}`}
             >
               {deleting ? (
-                // ⚠️ GYM-286 — encre sur un fond de SIGNAL (rouge destructif) : aucun jeton ne la
-                // nomme, `tokens.onBackground` serait faux chez une salle claire.
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                // ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : l'encre est posée
+                // sur le rouge destructif, qui ne bouge pas. Chez une salle claire,
+                // `onBackground` vaut une encre SOMBRE, illisible sur ce rouge.
+                <ActivityIndicator color={SEMANTIC.onSignal} size="small" />
               ) : (
-                <Text className="font-dmsans-bold text-base text-white">
+                <Text className="font-dmsans-bold text-base" style={{ color: SEMANTIC.onSignal }}>
                   {t('profile.delete.cta')}
                 </Text>
               )}

@@ -74,7 +74,7 @@ export function InScreenBanner({
   // donnerait du gris foncé sur rouge — 2,3:1 — illisible au moment précis où l'app a
   // quelque chose d'important à dire. Un fond fixe appelle une encre fixe.
   const bg = variant === 'error' ? SEMANTIC.danger : tokens.background
-  const ink = variant === 'error' ? SEMANTIC.onDanger : tokens.onBackground
+  const ink = variant === 'error' ? SEMANTIC.onSignal : tokens.onBackground
 
   return (
     <Animated.View

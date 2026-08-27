@@ -88,12 +88,12 @@ verts de la palette Tailwind), c'est-à-dire la famille qui compte le plus.
 
 | | avant 286a | après 286a | **après 286b** |
 |---|---|---|---|
-| occurrences (5 populations, hors commentaires) | 924 | 900 | **240** |
+| occurrences (5 populations, hors commentaires) | 924 | 900 | **231** |
 | dont **migrables** (un jeton existe, à la valeur exacte) | 762 | 738 | **0** ✅ |
-| dont laissées **sur ordre**, marquées dans le code | 162 | 162 | **240** |
+| dont laissées **sur ordre**, marquées dans le code | 162 | 162 | **231** |
 | fichiers portant encore une couleur | 75 | 73 | **56** |
 
-**Les 240 restantes ne sont pas un reste-à-faire.** Elles sont toutes laissées
+**Les 231 restantes ne sont pas un reste-à-faire.** Elles sont toutes laissées
 délibérément, marquées `GYM-286` à côté de leur raison. `--reste` les ventile.
 
 ---

@@ -45,8 +45,9 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
       </View>
 
       {/* Progress bar */}
-      {/* GYM-286 — A-6, EN ATTENTE : #333333 est un gris hors de la palette de la charte.
-          Le rattacher change des pixels, et c'est le commit dédié qui s'en charge. */}
+      {/* GYM-286 — A-6, EN ATTENTE. #333333 reste : aucun jeton n'en est voisin (34
+          unités du plus proche), et c'est la PISTE d'une barre posée sur le fond sombre —
+          la rattacher au fond l'effacerait. Il manque un gris neutre sur fond sombre. */}
       <View className="mt-3 h-2 overflow-hidden rounded-full bg-[#333333]">
         <Animated.View
           style={[barStyle, { backgroundColor: tokens.accent }]}
@@ -65,7 +66,8 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
                   <Check size={12} color={SEMANTIC.success} />
                 </View>
               ) : (
-                // GYM-286 — A-6, EN ATTENTE : #555555, gris hors palette.
+                // GYM-286 — A-6, EN ATTENTE. #555555 reste : 22 unités du jeton le plus
+                // proche, ce n'est pas un voisin. Même manque de vocabulaire que #333333.
                 <Circle size={20} color="#555555" />
               )}
               {/* `text-white/60` reste : un blanc à 60 % n'est pas `tokens.onBackground`. */}

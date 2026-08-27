@@ -78,8 +78,12 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
           </Text>
         </View>
       </View>
-      {/* GYM-286 — A-6, EN ATTENTE : #333333, #666666, #888888 et #999999 sont quatre
-          gris hors de la palette de la charte. */}
+      {/* GYM-286 — A-6, EN ATTENTE. #333333 et #888888 restent : ils n'ont PAS de voisin.
+          Le jeton le plus proche est à 34 et 18 unités sur le canal le plus éloigné — les
+          rattacher ne serait pas un alignement imperceptible mais un changement visible
+          présenté comme tel. #333333 est de surcroît la PISTE d'une barre de progression
+          posée sur une carte #111111 : la ramener au fond effacerait la piste.
+          Il manque à la charte un gris NEUTRE SUR FOND SOMBRE. Remonté au cockpit. */}
       <View className="mb-2 rounded-full" style={{ height: 8, backgroundColor: '#333333' }}>
         <Animated.View style={barStyle} />
       </View>

@@ -44,7 +44,7 @@ export function CancelModal({ visible, isLate, onConfirm, onClose }: CancelModal
               className="items-center rounded-2xl py-4"
               style={{ backgroundColor: SEMANTIC.danger }}
             >
-              <Text className="font-dmsans-bold text-sm" style={{ color: SEMANTIC.onDanger }}>
+              <Text className="font-dmsans-bold text-sm" style={{ color: SEMANTIC.onSignal }}>
                 {t('session.cancel_confirm')}
               </Text>
             </TouchableOpacity>

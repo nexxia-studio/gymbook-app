@@ -22,14 +22,13 @@ export function SlotListCard({ slot, isFavorite, onToggleFavorite, onPress }: Sl
   // ⚠️ TABLE DESCENDUE DANS LE COMPOSANT : hors de lui elle ne pouvait pas lire le thème.
   // GYM-286 — `bg-gray-400` #9CA3AF reste : gris de la palette Tailwind, hors des huit
   // gris d'A-6, et aucun jeton ne le vaut.
-  // ⚠️ `text-white` RESTE UNE CLASSE dans les trois cas : c'est l'encre posée sur une
-  // pastille de SIGNAL, et aucun jeton ne nomme l'encre d'un signal. `tokens.onBackground`
-  // serait faux — chez une salle claire il vaut une encre SOMBRE, illisible sur le vert
-  // comme sur le rouge. Le manque est remonté au cockpit.
+  // ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : l'encre est posée sur une
+  // pastille de SIGNAL, dont la couleur ne bouge pas. Chez une salle claire,
+  // `onBackground` vaut une encre SOMBRE — illisible sur le vert comme sur le rouge.
   const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-    in_progress: { bg: SEMANTIC.success, text: 'text-white' },
-    completed: { bg: '#9CA3AF', text: 'text-white' },
-    cancelled: { bg: SEMANTIC.danger, text: 'text-white' },
+    in_progress: { bg: SEMANTIC.success, text: SEMANTIC.onSignal },
+    completed: { bg: '#9CA3AF', text: SEMANTIC.onSignal },
+    cancelled: { bg: SEMANTIC.danger, text: SEMANTIC.onSignal },
   }
   // GYM-220 — icône choisie par le gérant (activities.icon), plus déduite du nom.
   const Icon = resolveActivityIcon(slot.icon)
@@ -64,7 +63,7 @@ export function SlotListCard({ slot, isFavorite, onToggleFavorite, onPress }: Sl
           </Text>
           {displayStatus !== 'scheduled' && STATUS_STYLES[displayStatus] && (
             <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: STATUS_STYLES[displayStatus].bg }}>
-              <Text className={`font-dmsans-bold text-[9px] ${STATUS_STYLES[displayStatus].text}`}>
+              <Text className="font-dmsans-bold text-[9px]" style={{ color: STATUS_STYLES[displayStatus].text }}>
                 {t(`planning.status.${displayStatus}`)}
               </Text>
             </View>

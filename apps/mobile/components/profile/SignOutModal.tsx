@@ -34,7 +34,7 @@ export function SignOutModal({ visible, onConfirm, onClose }: SignOutModalProps)
               className="items-center rounded-2xl py-4"
               style={{ backgroundColor: SEMANTIC.danger }}
             >
-              <Text className="font-dmsans-bold text-sm" style={{ color: SEMANTIC.onDanger }}>
+              <Text className="font-dmsans-bold text-sm" style={{ color: SEMANTIC.onSignal }}>
                 {t('profile.logout_confirm')}
               </Text>
             </TouchableOpacity>

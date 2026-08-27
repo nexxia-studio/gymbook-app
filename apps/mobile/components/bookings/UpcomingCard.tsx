@@ -87,14 +87,12 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
                   {booking.time} → {booking.endTime}
                 </Text>
               </View>
-              {/* ⚠️ `text-white` RESTE UNE CLASSE : c'est l'encre posée sur une pastille
-                  de SIGNAL (gris / orange / vert), dont aucun jeton ne nomme l'encre.
-                  `tokens.onBackground` serait faux — chez une salle claire il vaut une
-                  encre SOMBRE, illisible sur l'orange. Un jeton générique « encre sur
-                  signal » manque ; il est remonté au cockpit. */}
+              {/* ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : l'encre est posée
+                  sur une pastille de SIGNAL (gris / orange / vert), dont la couleur ne
+                  bouge pas. Chez une salle claire, `onBackground` vaut une encre SOMBRE,
+                  illisible sur l'orange. */}
               <View className="rounded-lg px-2.5 py-1" style={{ backgroundColor: badgeBg }}>
-                {/* GYM-286 — encre sur SIGNAL, laissée : aucun jeton ne la nomme. */}
-                <Text className="font-dmsans-bold text-[10px] text-white">
+                <Text className="font-dmsans-bold text-[10px]" style={{ color: SEMANTIC.onSignal }}>
                   {t(`bookings.${statusKey}`)}
                 </Text>
               </View>

@@ -62,14 +62,12 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
 
         {/* Status badge — top left */}
         {displayStatus === 'in_progress' && (
-          // ⚠️ `bg-white` et `text-white` RESTENT DES CLASSES : ce sont des encres posées
-          // sur une pastille de SIGNAL (le vert « en cours »), et aucun jeton ne nomme
-          // l'encre d'un signal. `tokens.onBackground` serait faux — chez une salle
-          // claire il vaut une encre SOMBRE, illisible sur ce vert. Remonté au cockpit.
+          // ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : le point et le libellé
+          // sont posés sur la pastille VERTE, dont la couleur ne bouge pas. Chez une salle
+          // claire, `onBackground` vaut une encre SOMBRE, illisible sur ce vert.
           <View className="absolute left-3 top-3 flex-row items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: SEMANTIC.success }}>
-            {/* GYM-286 — encre sur SIGNAL, laissée : aucun jeton ne la nomme. */}
-            <View className="h-1.5 w-1.5 rounded-full bg-white" />
-            <Text className="font-dmsans-bold text-[10px] text-white">{t('planning.status.in_progress')}</Text>
+            <View className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: SEMANTIC.onSignal }} />
+            <Text className="font-dmsans-bold text-[10px]" style={{ color: SEMANTIC.onSignal }}>{t('planning.status.in_progress')}</Text>
           </View>
         )}
 
@@ -123,8 +121,7 @@ export function SessionCard({ slot, isFavorite, isBooked, isWaitlisted, onToggle
           </View>
         ) : isFull ? (
           <View className="rounded-lg px-4 py-2.5" style={{ backgroundColor: SEMANTIC.warning }}>
-            {/* GYM-286 — encre sur SIGNAL (fond `warning`), laissée : aucun jeton. */}
-            <Text className="font-dmsans-bold text-xs text-white">
+            <Text className="font-dmsans-bold text-xs" style={{ color: SEMANTIC.onSignal }}>
               {t('session.waitlist')}
             </Text>
           </View>

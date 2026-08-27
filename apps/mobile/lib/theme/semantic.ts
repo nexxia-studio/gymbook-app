@@ -64,19 +64,30 @@ export const SEMANTIC = {
   /** ÉTAT DÉSACTIVÉ — une icône de règle non encore satisfaite. */
   disabledInk: '#C9C7C0',
   /**
-   * GYM-286b — L'ENCRE POSÉE SUR `danger`.
+   * GYM-286b — L'ENCRE POSÉE SUR UN SIGNAL, QUEL QU'IL SOIT.
    *
    * 🔴 ELLE NE PEUT PAS ÊTRE `tokens.onBackground`, MÊME SI LES DEUX VALENT #FFFFFF CHEZ
-   * DOPAMINE. C'est le piège P-6 du document, sur un cas où il fait de vrais dégâts : une
-   * salle au fond clair reçoit un `onBackground` SOMBRE. La bannière d'erreur, elle,
-   * reste rouge quoi qu'il arrive — poser une encre sombre dessus donnerait du gris
-   * foncé sur rouge, 2,3:1, illisible précisément au moment où l'app a quelque chose
-   * d'important à dire.
+   * DOPAMINE. C'est le piège P-6 sur un cas où il fait de vrais dégâts : une salle au fond
+   * clair reçoit un `onBackground` SOMBRE. Le signal, lui, garde sa couleur quoi qu'il
+   * arrive — poser une encre sombre dessus donnerait du gris foncé sur rouge (2,3:1) ou
+   * sur vert, illisible précisément au moment où l'app a quelque chose d'important à dire.
    *
    * Un fond fixe appelle une encre fixe. C'est la même règle que pour `danger` lui-même,
    * appliquée à ce qu'on écrit dessus.
+   *
+   * ⚠️ UN SEUL JETON POUR LES TROIS SIGNAUX, ET C'EST VOULU. Ce module a d'abord porté un
+   * `onDanger`, créé pour la bannière d'erreur. Le recensement a montré que le même besoin
+   * revient sur le VERT (« en cours »), sur l'ORANGE (« liste d'attente ») et sur un GRIS
+   * de statut : douze emplois, tous #FFFFFF, tous pour la même raison. Trois jetons de
+   * même valeur auraient été trois occasions de choisir le mauvais.
+   *
+   * ⚠️ ET IL NE COUVRE PAS L'ENCRE SUR UNE COULEUR FOURNIE PAR L'APPELANT. Dans
+   * `ProfileListItem`, le badge peut recevoir n'importe quelle couleur via `badgeColor` :
+   * ce n'est pas un signal, aucun jeton ne sait ce qu'on peut écrire dessus, et le blanc
+   * y reste en dur. La frontière est là : `onSignal` vaut pour les fonds que CE module
+   * fixe, pas pour ceux qu'un appelant improvise.
    */
-  onDanger: '#FFFFFF',
+  onSignal: '#FFFFFF',
 } as const
 
 export type SemanticToken = keyof typeof SEMANTIC
