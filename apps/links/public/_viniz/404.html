@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page introuvable — Viniz</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      GYM-287 — LE FILET DE REPLI, EN HABILLAGE VINIZ NEUTRE.
+
+      🔴 CE QUE CETTE PAGE REMPLACE, ET CE QU'ELLE NE REMPLACE PAS.
+      Les liens membres pointent links.viniz.app/<slug>/<page>. Or `apps/links` ne contient
+      que /dopamine/* : pour toute AUTRE salle, ces chemins rendaient un 404 nu de Vercel —
+      mesuré avant ce lot, 79 octets, sans marque ni issue.
+
+      ⚠️ LA PRÉMISSE DU TICKET DISAIT « pages brandées Dopamine » : ce n'est pas ce que
+      cette infra servait. Le 404 y était NU. La marque Dopamine que Antoine a vue vient de
+      la page /reset-password du DASHBOARD, qui est le vrai coupable et que GYM-303 corrige.
+      Les deux défauts sont réels, mais ils ne sont pas au même endroit.
+
+      Cette page ne sert QUE les pages non fonctionnelles (bookings, confirm-waitlist,
+      delete-account, payment-success). /reset-password, elle, DOIT marcher pour tous et
+      n'entre jamais dans ce filet — voir _viniz/reset-password.html.
+    -->
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center;
+        justify-content: center; padding: 24px;
+        /* Violet Ink — le fond de la marque. */
+        background: #2D1B69; color: #F3F0FF;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: center;
+      }
+      .card { max-width: 420px; width: 100%; padding: 40px 28px; }
+      /* ⚠️ MOT-MARQUE EN TEXTE, ET C'EST DÉLIBÉRÉ ICI. Une image sur une page d'erreur est
+         une requête de plus qui peut échouer, sur un écran qui existe précisément parce que
+         quelque chose a déjà échoué. Le lime ne va que sur fond sombre : le Violet Ink en
+         est un (contraste lime/ink 8,01:1, mesuré en GYM-262). */
+      .logo {
+        font-family: "Arial Black", Arial, sans-serif; color: #C8FF3D;
+        font-size: 26px; letter-spacing: 3px; margin-bottom: 28px;
+      }
+      h1 { font-size: 22px; margin: 0 0 12px; color: #F3F0FF; }
+      p { font-size: 15px; line-height: 1.6; color: #C8C2E6; margin: 0 0 24px; }
+      .btn {
+        display: inline-block; background: #C8FF3D; color: #2D1B69; font-weight: 700;
+        text-decoration: none; padding: 14px 28px; border-radius: 12px; font-size: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo">ViNiZ</div>
+      <h1>Cette page n'existe pas</h1>
+      <p>Le lien que tu as suivi ne mène nulle part. Ouvre ton application pour retrouver ta salle.</p>
+      <a class="btn" href="https://viniz.app">Aller sur viniz.app</a>
+    </main>
+  </body>
+</html>
