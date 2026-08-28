@@ -167,26 +167,33 @@ verify_jwt = true
 [functions.generate-invoice]
 verify_jwt = true
 
-# ── 🔴 send-notification — DÉCLARÉE À SA VALEUR ACTUELLE, MAIS À ARBITRER ─────────
-# Posture réelle : `verify_jwt = true`. Cette entrée ne change donc RIEN.
+# ── 🔴 send-notification — LE TUYAU, DÉSORMAIS FERMÉ (GYM-282) ────────────────────
+# `verify_jwt = true` RESTE, et ne suffit toujours pas : il vérifie qu'un JWT existe, pas
+# que son porteur a le droit. La garde réelle est dans le CODE — un `X-Internal-Secret`
+# comparé en temps constant, refusé en 401 avant toute lecture du corps.
 #
-# ⚠️ MAIS C'EST LA SEULE FONCTION DU DÉPÔT SANS AUCUNE GARDE PROPRE : ni `getUser`, ni
-# `X-Internal-Secret`, ni vérification de rôle. Sa seule protection est la passerelle —
-# c'est-à-dire « n'importe quel JWT valide », donc la CLÉ ANON, qui est PUBLIQUE.
-# Vérifié le 26/08/2026 : un appel avec la seule clé anon de staging rend
-# `{"ok":true,"sent":0,"failed":0,"skipped":1}` — la fonction s'exécute.
+# Ce qui était vrai jusqu'à ce lot, et ne l'est plus : « n'importe quel JWT valide, donc la
+# clé anon qui est PUBLIQUE ». Vérifié le 26/08/2026, un appel avec la seule clé anon de
+# staging rendait `{"ok":true,...}` — la fonction s'exécutait.
 #
-# Conséquence : toute personne ayant installé l'app peut faire partir une notification
-# push vers un jeton Expo qu'elle connaîtrait.
+# ⚠️ `gym_id` EST DEVENU OBLIGATOIRE dans le corps. Il était optionnel, et l'omettre
+# DÉSACTIVAIT la garde de plan de GYM-246 — la seule vérification que la fonction avait.
 #
-# ⚠️ RIEN N'EST DURCI ICI, DÉLIBÉRÉMENT — ce lot déclare l'existant, il ne modifie aucun
-# code de fonction. Le correctif (un `X-Internal-Secret`, comme send-reminders, plus un
-# chemin gérant pour l'appel dashboard de useGymAdminActions) demande un arbitrage et un
-# ticket à lui : il touche NEUF appelants.
+# Dix appelants, tous serveur-à-serveur depuis ce lot : send-reminders, notify-waitlist,
+# mark-attendance, cancel-slot, slot-series-op, send-communication, admin-book-member,
+# mollie-webhook, mollie-subscription-webhook, admin-lift-suspension. Le dashboard, qui
+# était le SEUL appelant client, passe désormais par `admin-send-push`.
 #
-# Appelants recensés : send-reminders, notify-waitlist, mark-attendance, cancel-slot,
-# slot-series-op, send-communication, admin-book-member (fetch + service_role) ;
-# mollie-webhook, mollie-subscription-webhook, admin-lift-suspension
-# (functions.invoke + client service_role) ; et le dashboard (JWT du gérant).
+# ⚠️ ORDRE DE DÉPLOIEMENT — la garde ne s'active qu'APRÈS ses appelants, sans quoi les
+# notifications tombent entre les deux déploiements. Checklist dans la PR.
+
+# ── admin-send-push — LE GESTE GÉRANT, AVEC SON AUTORISATION (GYM-282) ───────────
+# `verify_jwt = true` est ICI le bon réglage, et pas un pis-aller : le JWT du GÉRANT est
+# ce qui l'identifie, et la fonction ajoute les trois vérifications qui manquaient — rôle
+# gym_admin, appartenance du membre visé à SA salle, et résolution du jeton push CÔTÉ
+# SERVEUR. Le dashboard n'envoie plus qu'un identifiant de membre, qui se vérifie.
+[functions.admin-send-push]
+verify_jwt = true
+
 [functions.send-notification]
 verify_jwt = true
