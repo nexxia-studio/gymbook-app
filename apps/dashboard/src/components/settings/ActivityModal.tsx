@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { MediaUpload } from '@/components/ui/MediaUpload'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { ActivityIcon, ICON_NAMES, ACTIVITY_COLORS } from './ActivityIcon'
 import type { ActivityItem, ActivityFormData } from '@/types/activity'
 
@@ -11,16 +13,25 @@ interface ActivityModalProps {
   onSubmit: (data: ActivityFormData) => void
   editActivity?: ActivityItem | null
   slugify: (text: string) => string
+  /**
+   * GYM-215 — persiste `image_url` TOUT DE SUITE, hors du formulaire. Absent en création :
+   * le chemin de stockage contient l'identifiant de l'activité, qui n'existe pas encore.
+   */
+  onImageChange?: (id: string, url: string | null) => Promise<{ error?: string }>
 }
 
 const DURATION_PRESETS = [20, 45, 60, 90]
 
 type FormErrors = Partial<Record<keyof ActivityFormData, string>>
 
-export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }: ActivityModalProps) {
+export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify, onImageChange }: ActivityModalProps) {
   const { t } = useTranslation()
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const gymId = useAuthStore((s) => s.gym_id)
   const isEdit = !!editActivity
+  // L'image ne passe PAS par `form` : elle se persiste à l'envoi. Cet état ne sert qu'à
+  // rafraîchir l'aperçu sans attendre le rechargement de la liste.
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
 
   const [form, setForm] = useState<ActivityFormData>({
     name: '',
@@ -45,6 +56,7 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
 
   useEffect(() => {
     if (!open) return
+    setImageUrl(editActivity?.imageUrl ?? null)
     if (editActivity) {
       setForm({
         name: editActivity.name,
@@ -170,6 +182,36 @@ export function ActivityModal({ open, onClose, onSubmit, editActivity, slugify }
               />
               <p className="mt-1 text-right font-body text-[10px] text-muted">{form.description.length}/500</p>
             </div>
+
+            {/* 🔴 GYM-215 — L'IMAGE DU COURS, LE CHAÎNON QUI MANQUAIT.
+                `activities.image_url` existe depuis l'origine et le mobile la consomme
+                depuis GYM-216 — mais AUCUNE interface ne l'écrivait. Mesuré en staging le
+                28/08 : 5 activités, image renseignée sur ZÉRO. Le repli aux initiales était
+                donc ce que voyaient TOUS les membres, sur TOUTES les activités, sans
+                qu'aucun gérant puisse y changer quoi que ce soit. */}
+            {isEdit && editActivity && onImageChange ? (
+              <MediaUpload
+                label={t('activities.image_label')}
+                value={imageUrl ?? ''}
+                onChange={async (url) => {
+                  const res = await onImageChange(editActivity.id, url)
+                  // ⚠️ ON NE MET L'APERÇU À JOUR QUE SI LA BASE A ACCEPTÉ. L'inverse — poser
+                  // l'aperçu puis écrire — montrerait une image que la base ne connaît pas :
+                  // le faux succès que GYM-204 et GYM-219 ont déjà coûté deux fois.
+                  if (!res.error) setImageUrl(url)
+                }}
+                path={`${gymId ?? ''}/activities/${editActivity.id}`}
+                recommendation={t('activities.image_reco')}
+                aspect="aspect-[16/9]"
+                previewClassName="bg-dark/5"
+                disabled={!gymId}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-[#E8E6E0] p-4">
+                <p className="font-body text-sm font-medium text-dark">{t('activities.image_label')}</p>
+                <p className="mt-1 font-body text-xs text-dark/40">{t('activities.image_after_save')}</p>
+              </div>
+            )}
 
             {/* Duration + presets */}
             <div>

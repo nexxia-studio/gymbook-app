@@ -922,8 +922,8 @@
       "color_hint": "Leave empty to keep the Viniz palette.",
       "short_name_label": "Short name shown in the app",
       "short_name_helper": "Shown in the header. Leave empty to use the full name.",
-      "logo_label": "Link to your logo",
-      "logo_helper": "Paste the URL of an image already online.",
+      "logo_label": "Gym logo",
+      "logo_reco": "Wide format recommended — approx. 500 × 100 px, transparent background",
       "submit": "Save",
       "saved": "Appearance saved.",
       "save_error": "Saving failed. Please try again in a moment.",
@@ -1001,7 +1001,10 @@
     "toast_save_failed": "The activity could not be saved. Try again.",
     "max_overbook": "Extra seats allowed",
     "max_overbook_hint": "How many people you can add beyond a slot's capacity when booking someone from the planning. 0 = strict capacity. Members never see this option: for them, a full class stays full.",
-    "max_overbook_active": "You will be able to add up to {{count}} seat(s) beyond capacity, with a mandatory reason."
+    "max_overbook_active": "You will be able to add up to {{count}} seat(s) beyond capacity, with a mandatory reason.",
+    "image_label": "Class image",
+    "image_reco": "Landscape format recommended — approx. 1200 × 675 px",
+    "image_after_save": "Save the class first: the image can then be added from its sheet."
   },
   "coaches": {
     "title": "Coaches",
@@ -1544,5 +1547,14 @@
     "nav_privacy": "Privacy Policy",
     "nav_support": "Support",
     "accept_required": "You must accept the Terms of Use and the Privacy Policy"
+  },
+  "media": {
+    "drop_hint": "Drag an image here, or click to choose one",
+    "replace_hint": "Drag a new image to replace it",
+    "constraints": "{{formats}} · {{max}} maximum",
+    "remove": "Remove image",
+    "error_format": "Format not accepted. Allowed formats: {{formats}}.",
+    "error_size": "Image too large ({{taille}}). Maximum {{max}}.",
+    "error_network": "Upload failed. Please try again in a moment."
   }
 }
