@@ -1,4 +1,12 @@
 {
+  "dopamine": {
+    "reset": {
+      "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
+      "success_message": "Tu peux maintenant te connecter dans l'app Dopamine.",
+      "next_step_text": "Réserve tes cours depuis l'application Dopamine.",
+      "download_app": "Télécharger l'app Dopamine"
+    }
+  },
   "common": {
     "loading": "Chargement...",
     "save": "Enregistrer",
@@ -103,25 +111,21 @@
   "reset": {
     "checking": "Vérification du lien...",
     "title": "Définir ton mot de passe",
-    "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
     "new_password": "Nouveau mot de passe",
     "submit": "Définir mon mot de passe",
     "min_length": "Minimum {{count}} caractères",
     "error_generic": "Une erreur est survenue. Réessaie.",
     "success_title": "Mot de passe défini !",
-    "success_message": "Tu peux maintenant te connecter dans l'app Dopamine.",
     "next_step_title": "Prochaine étape",
-    "next_step_text": "Réserve tes cours depuis l'application Dopamine.",
-    "download_app": "Télécharger l'app Dopamine",
     "invalid_title": "Lien invalide ou expiré",
     "invalid_message": "Ce lien n'est plus valide. Entre ton email pour en recevoir un nouveau.",
     "resend_submit": "Renvoyer le lien",
     "resend_success": "Si un compte existe avec cet email, tu recevras un nouveau lien.",
     "back_to_login": "Revenir à l'écran de connexion",
-    "subtitle_neutral": "Choisis un nouveau mot de passe pour ton compte.",
-    "success_message_neutral": "Tu peux maintenant te connecter dans ton application.",
-    "next_step_text_neutral": "Réserve tes cours depuis ton application.",
-    "download_app_neutral": "Télécharger l'application"
+    "subtitle": "Choisis un nouveau mot de passe pour ton compte.",
+    "success_message": "Tu peux maintenant te connecter dans ton application.",
+    "next_step_text": "Réserve tes cours depuis ton application.",
+    "download_app": "Télécharger l'application"
   },
   "activation": {
     "checking": "Vérification de votre invitation...",
@@ -540,7 +544,7 @@
       }
     },
     "toast_push_sent": "Notification envoyee",
-    "push_default_message": "Message de Dopamine Performance Club",
+    "push_default_message": "Message de {{gym}}",
     "add_member": "Ajouter un membre",
     "add": {
       "title": "Nouveau membre",
@@ -819,7 +823,7 @@
       "subtitle": "Ces informations apparaissent sur les factures envoyées à vos membres.",
       "identity_title": "Identité",
       "commercial_name_label": "Dénomination commerciale",
-      "commercial_name_helper": "L'enseigne affichée sur la facture (ex. « Dopamine by EMS95 »)",
+      "commercial_name_helper": "L'enseigne affichée sur la facture, si elle diffère de la dénomination légale",
       "legal_name_label": "Raison sociale",
       "legal_name_helper": "Le nom légal de la société exploitante (ex. « EMS 95 »)",
       "legal_form_label": "Forme juridique",
@@ -1441,7 +1445,7 @@
     "title": "Crée ta salle",
     "subtitle": "Encore une étape et ton tableau de bord est à toi.",
     "name_label": "Nom de la salle",
-    "name_placeholder": "Ex. Dopamine Performance Club",
+    "name_placeholder": "Le nom de ta salle",
     "name_helper": "Il apparaîtra dans l'app de tes membres. Tu pourras le modifier plus tard.",
     "name_length_error": "Le nom doit faire entre {{min}} et {{max}} caractères.",
     "timezone_label": "Fuseau horaire",

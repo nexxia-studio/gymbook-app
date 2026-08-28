@@ -84,6 +84,11 @@ const JETONS = [
   // le tenait là où il était réellement posé. Le balayage ne pouvait donc rien voir — c'est
   // la recette sur salle claire qui a trouvé, ce qui est exactement l'inverse de l'ordre
   // voulu. Les quatre rôles nommés, ils se mesurent.
+  // GYM-304 — la pastille vide. Comme `border` et `field`, elle n'est pas SANCTIONNÉE : ce
+  // n'est ni du texte ni une frontière, et lui imposer 3:1 en ferait un point dur au milieu
+  // d'une liste. Son chiffre est publié, et le seuil affiché est le pas visé (PAS_RAIL_FORT,
+  // calibré sur le #555555 de Dopamine).
+  { nom: 'railStrong', sur: 'background', seuil: 2.53, quoi: 'pastille vide (état à faire)', informatif: true },
   { nom: 'onField', sur: 'field', seuil: AA_TEXT, quoi: 'saisie dans le champ' },
   { nom: 'onFieldMuted', sur: 'field', seuil: AA_TEXT, quoi: 'placeholder' },
   // ⚠️ LE CONTOUR SE MESURE SUR SES DEUX VOISINS, PAS SUR UN SEUL. WCAG § 1.4.11 demande

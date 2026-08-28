@@ -89,6 +89,11 @@ const MAP = [
 const LITERALS = [
   ['#FFFFFF', 'onBackground', 'texte et icônes sur la bande sombre'],
   ['#111111', 'onAccent',     'encre sur l’action (lime Dopamine)'],
+  // GYM-304 — la pastille vide de la carte de progression. Elle non plus n'a jamais eu de
+  // classe : #555555 vivait en dur dans `GamificationCard`, et A-6 l'avait fondue dans
+  // `rail` (#333333) avec les deux pistes de barre. Elle est vérifiée ici pour que la
+  // confusion ne se refasse pas — les deux valeurs sont désormais deux jetons.
+  ['#555555', 'railStrong',   'pastille vide de la progression'],
 ]
 
 // ── 5. LES SIGNAUX ───────────────────────────────────────────────────────────────────

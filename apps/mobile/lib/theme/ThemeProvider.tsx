@@ -60,6 +60,11 @@ export const DOPAMINE_THEME: ThemeTokens = {
   // sur un accent lime.
   onActionMuted: '#A0A0A0',
   rail: '#333333',
+  // 🔴 GYM-304 — LA PASTILLE VIDE DE DOPAMINE, RENDUE À SA VALEUR. #555555 est ce que
+  // `GamificationCard` employait depuis toujours ; A-6 l'avait fondue dans `rail` (#333333)
+  // avec les deux pistes de barre, ce qui la faisait passer de 2,53:1 à 1,49:1 sur sa
+  // carte. Un écran de production ne change pas de pixel au passage d'un lot de charte.
+  railStrong: '#555555',
   // 🔴 GYM-293b — LES QUATRE JETONS DE FORMULAIRE, FIGÉS SUR LE RENDU D'AUJOURD'HUI.
   // C'est ici, et nulle part ailleurs, que la non-régression de l'inscription de Dopamine
   // se joue : `TextInput` et `Checkbox` cessent d'employer `surface`/`onSurface`/`border`/

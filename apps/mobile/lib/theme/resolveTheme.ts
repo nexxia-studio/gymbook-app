@@ -59,6 +59,29 @@ export const PAS_BANDE = 1.3
 export const PAS_RAIL = 1.49
 
 /**
+ * 🔴 GYM-304 (repris après le Lot charte) — LE PAS DE LA PASTILLE VIDE.
+ *
+ * ⚠️ IL EXISTE PARCE QUE A-6 A FUSIONNÉ DEUX GRIS QUI N'ÉTAIENT PAS LE MÊME. GYM-290
+ * rattachait « les trois gris orphelins » à `rail` : #333333 (deux pistes de barre) et
+ * #555555 (une pastille vide). Les deux premiers valaient bien la même chose ; le
+ * troisième non. Rattacher les trois à un seul jeton a donc CHANGÉ la pastille de
+ * Dopamine — de #555555 à #333333, soit de 2,53:1 à 1,49:1 sur sa carte. Mesuré par
+ * `verify-screen-parity` contre l'état d'avant la charte : un écart, sur un écran que le
+ * cadrage interdit de toucher.
+ *
+ * ⚠️ ET LES DEUX RÔLES SONT VRAIMENT DIFFÉRENTS. Une PISTE de barre est un creux : elle
+ * doit se deviner, pas se voir. Une PASTILLE VIDE est un ÉTAT — « cette étape reste à
+ * faire » : elle porte de l'information, et une information qu'on ne voit pas n'en est
+ * plus une. Le même jeton ne pouvait pas dire les deux.
+ *
+ * ⚠️ 2,53:1 EST MESURÉ SUR DOPAMINE, PAS CHOISI. C'est exactement le rapport de son
+ * #555555 sur son #111111 — la valeur employée dans l'app de production. Même méthode que
+ * `PAS_RAIL`, qui a été calibré sur #333333 : on ne calibre pas un jeton neuf à vue quand
+ * une référence existe.
+ */
+export const PAS_RAIL_FORT = 2.53
+
+/**
  * 🔴 GYM-293b — LE PAS QUI CREUSE UN CHAMP DANS SA CARTE.
  *
  * ⚠️ CE PAS NE PORTE PAS, À LUI SEUL, L'IDENTIFICATION DU CHAMP. C'est `fieldBorder` qui
@@ -164,6 +187,14 @@ export interface ThemeTokens {
   onActionMuted: string
   rail: string
   /**
+   * 🔴 GYM-304 — LA PASTILLE VIDE : un ÉTAT, pas un creux.
+   *
+   * « Cette étape reste à faire » est une information ; `rail` est un décor. Les deux
+   * avaient été fondus dans un seul jeton par A-6, ce qui a fait perdre à la pastille de
+   * Dopamine un cran de contraste. Voir `PAS_RAIL_FORT`.
+   */
+  railStrong: string
+  /**
    * 🔴 GYM-293b — LE CHAMP DE SAISIE, ENFIN DISTINCT DE LA CARTE QUI LE PORTE.
    *
    * `surface` se disait « cartes ET champs » : les deux recevaient donc la MÊME couleur, et
@@ -251,6 +282,7 @@ function vinizDark(): ThemeTokens {
       SEUIL_TEXTE,
     )),
     rail: toHex(decalerDe(parseHex(VINIZ.dark)!, parseHex(VINIZ.light)!, PAS_RAIL)!),
+    railStrong: toHex(decalerDe(parseHex(VINIZ.dark)!, parseHex(VINIZ.light)!, PAS_RAIL_FORT)!),
     ...champ(parseHex(CARTE)!, [VINIZ.light, VINIZ.ink]),
     ramp: rampe(parseHex(VINIZ.dark)!, parseHex(VINIZ.lime)!),
     limeAllowed: true,
@@ -544,6 +576,10 @@ export function resolveTheme(
   const rail = toHex(
     decalerDe(background, parseHex(onBackground)!, PAS_RAIL) ?? parseHex(onBackground)!,
   )
+  // La pastille vide : même axe que le rail, un cran plus haut. Voir `PAS_RAIL_FORT`.
+  const railStrong = toHex(
+    decalerDe(background, parseHex(onBackground)!, PAS_RAIL_FORT) ?? parseHex(onBackground)!,
+  )
 
   // 🔴 GYM-293b — LE CHAMP SE CREUSE DANS LA CARTE, PAS DANS LE FOND. `surfaceRgb` et non
   // `background` : un champ d'inscription est posé sur la carte du formulaire, et c'est de
@@ -569,6 +605,7 @@ export function resolveTheme(
       onAction,
       onActionMuted,
       rail,
+      railStrong,
       ...champs,
       ramp: rampe(background, parseHex(accent)!),
       // 🔴 Le lime ne touche JAMAIS un fond clair.

@@ -45,9 +45,8 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
       </View>
 
       {/* Progress bar */}
-      {/* GYM-286 — A-6, EN ATTENTE. #333333 reste : aucun jeton n'en est voisin (34
-          unités du plus proche), et c'est la PISTE d'une barre posée sur le fond sombre —
-          la rattacher au fond l'effacerait. Il manque un gris neutre sur fond sombre.
+      {/* GYM-290 (A-6) — la piste porte `tokens.rail`, le gris neutre qui manquait alors à
+          la charte. Chez Dopamine il vaut #333333, à l'octet : la piste n'a pas bougé.
 
           ⚠️ GYM-304 A VÉRIFIÉ QU'IL N'ÉTAIT PAS LE DÉFAUT SIGNALÉ, PLUTÔT QUE DE LE
           SUPPOSER. Mesuré : #333333 donne 10,33:1 sur le fond clair constaté (#E9E8E8) —
@@ -73,11 +72,15 @@ export function GamificationCard({ items, percentage }: GamificationCardProps) {
                   <Check size={12} color={SEMANTIC.success} />
                 </View>
               ) : (
-                // GYM-286 — A-6, EN ATTENTE. #555555 reste : 22 unités du jeton le plus
-                // proche, ce n'est pas un voisin. Même manque de vocabulaire que #333333.
-                // ⚠️ GYM-304 : mesuré à 6,10:1 sur le fond clair constaté — lisible. Le
-                // défaut signalé était l'ENCRE de la ligne, pas cette pastille vide.
-                <Circle size={20} color={tokens.rail} />
+                // 🔴 GYM-304 (repris) — `railStrong`, ET PAS `rail`. Les deux étaient le
+                // même jeton depuis A-6, et c'est ce qui a fait perdre un cran de contraste
+                // à cette pastille chez Dopamine : #555555 → #333333, 2,53:1 → 1,49:1 sur sa
+                // carte. `verify-screen-parity` le dit, comparé à l'état d'avant la charte.
+                //
+                // ⚠️ CE N'EST PAS LA MÊME CHOSE QU'UNE PISTE DE BARRE. La piste au-dessus est
+                // un creux — elle doit se deviner. Cette pastille est un ÉTAT : « il reste
+                // ça à faire ». Une information qu'on ne voit pas n'en est plus une.
+                <Circle size={20} color={tokens.railStrong} />
               )}
               {/* 🔴 GYM-304 — LE DÉFAUT SIGNALÉ : les lignes NON validées étaient en
                   BLANC EN DUR sur `tokens.background`. Sur le fond clair constaté

@@ -3,7 +3,7 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { LEGAL_VERSION } from '../constants/legal/meta'
 import { captureEvent, identifyUser, resetAnalytics, setAnalyticsGym } from '../lib/analytics'
-import { clearSelectedGymSlug, GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
+import { GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { buildMemberSignupConfirmUrl } from '../lib/gymUrls'
 
@@ -203,16 +203,33 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       // Continue even if signOut fails
     }
-    // GYM-102 (2/5) — purge du choix de salle mémorisé localement.
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-312b — LE CHOIX DE SALLE SURVIT À LA DÉCONNEXION. LA PURGE EST RETIRÉE.
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CE QUI ÉTAIT ÉCRIT ICI, ET POURQUOI C'ÉTAIT DÉFENDABLE. GYM-102 (2/5) purgeait le
+    // slug « sans quoi le membre SUIVANT sur cet appareil arriverait dans la salle du
+    // précédent ». Le risque est réel, et l'argument était juste — à une époque où rien
+    // d'autre ne le couvrait.
     //
-    // ⚠️ SANS ELLE, LE MEMBRE SUIVANT SUR CET APPAREIL ARRIVERAIT DANS LA SALLE DU
-    // PRÉCÉDENT. Ce n'est pas une fuite (un slug est public), c'est une confusion de
-    // marque : il croirait ouvrir SON app.
+    // CE QUE ÇA COÛTAIT, CONSTATÉ EN RECETTE. La déconnexion redirige vers
+    // `/(auth)/login` (racine, effet de sortie de session). Sans slug, cet écran n'a plus
+    // de marque à porter : le membre qui vient de se déconnecter de SA salle tombe sur un
+    // écran de connexion NOIR ET ANONYME — ni son logo, ni ses couleurs, ni son nom. Il
+    // n'a rien quitté d'autre que sa session, et l'app a oublié chez qui il était.
     //
-    // Sans effet en mode `single` — la fonction s'en assure elle-même — donc rien ne
-    // change pour Dopamine. Et volontairement APRÈS le signOut : la session est ce qui
-    // compte, une purge locale qui échoue ne doit pas empêcher de se déconnecter.
-    await clearSelectedGymSlug()
+    // 🔴 ET LE RISQUE DE GYM-102 EST DÉJÀ COUVERT, PAR UN GESTE VISIBLE. Depuis GYM-288,
+    // la connexion brandée porte « Ce n'est pas ma salle » : elle efface le slug ET la
+    // marque en cache, puis renvoie à la recherche. Le membre suivant voit donc la salle
+    // du précédent — nommée, avec son logo — et une sortie d'un geste, à l'endroit exact
+    // où il se pose la question. C'est mieux qu'une purge silencieuse, qui traitait tout
+    // le monde comme un appareil partagé pour un cas qui l'est rarement.
+    //
+    // ⚠️ AUCUN EFFET EN `single` : `clearSelectedGymSlug` était déjà sans effet chez
+    // Dopamine (la fonction s'en assurait elle-même). Retirer l'appel ne change donc
+    // rien du tout pour elle — ni avant, ni après.
+    //
+    // ⚠️ ET LA SESSION, ELLE, EST BIEN DÉTRUITE. Ce qui survit est un slug PUBLIC, celui
+    // d'une salle de sport : aucune donnée du membre ne reste, rien ne le désigne.
     // ⚠️ `gym_id` retombe sur l'état INITIAL, pas sur `null` : en `single` la salle du
     // build reste vraie une fois déconnecté, exactement comme avant ce lot.
     set({

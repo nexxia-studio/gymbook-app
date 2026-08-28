@@ -9,11 +9,11 @@
 // sont deux gestes différents. Un bouton « rejoindre » posé sur cet écran promettrait
 // quelque chose que le serveur refuse — il mentirait avant même d'être câblé.
 import { useCallback, useEffect, useState } from 'react'
-import { View, Text, ActivityIndicator, TouchableOpacity, Image, FlatList } from 'react-native'
+import { View, Text, ActivityIndicator, TouchableOpacity, Image, FlatList, Pressable } from 'react-native'
 import { Redirect, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Check } from 'lucide-react-native'
+import { Check, ChevronLeft } from 'lucide-react-native'
 import { GYM_MODE } from '../../lib/gymResolver'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { listMyGyms, switchGym, type GymMembership } from '../../lib/gymSwitch'
@@ -118,6 +118,26 @@ export default function GymSwitch() {
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top', 'bottom']}>
       <View className="flex-1 px-6 pt-4">
+        {/* 🔴 GYM-312a — LA SORTIE. Cet écran était le SEUL de `/profile/*` sans retour.
+            Les huit autres portent tous le même geste — un chevron qui ramène au Profil —
+            et celui-ci n'en avait aucun : un membre qui l'ouvrait par curiosité ne pouvait
+            en sortir qu'en changeant de salle, c'est-à-dire en faisant précisément ce qu'il
+            ne voulait pas. Un écran de CHOIX doit pouvoir se quitter sans choisir.
+
+            ⚠️ `replace` ET PAS `back`, comme les huit autres. La pile peut avoir été
+            réécrite entre-temps — une bascule réussie fait `router.replace('/(tabs)')` — et
+            `back()` renverrait alors ailleurs, ou nulle part. La destination est connue :
+            cet écran ne s'ouvre que depuis le Profil (une seule entrée, mesurée). */}
+        <Pressable
+          onPress={() => router.replace('/(tabs)/profile' as never)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          className="mb-3 self-start"
+        >
+          <ChevronLeft size={24} color={tokens.onBackground} />
+        </Pressable>
+
         <Text className="font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('gym_switch.title')}
         </Text>

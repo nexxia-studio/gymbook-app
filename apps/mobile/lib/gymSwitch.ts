@@ -92,6 +92,25 @@ export async function listMyGyms(): Promise<MembershipsOutcome> {
  * n'auraient plus aucune raison de se relancer.
  */
 export async function switchGym(gym: GymMembership): Promise<SwitchOutcome> {
+  // 🔴 GYM-312a — BASCULER VERS LA SALLE OÙ L'ON EST DÉJÀ NE FAIT RIEN, ET C'EST UN SUCCÈS.
+  //
+  // ⚠️ CE N'EST PAS UNE OPTIMISATION. Regarde la liste ci-dessous : la « bascule » vide le
+  // cache de marque, réinitialise les réservations et les favoris, ferme puis rouvre le
+  // canal temps réel. Rejouée sur la salle COURANTE, elle démolit l'état de l'app pour la
+  // reconstruire à l'identique — un clignotement complet, et une fenêtre pendant laquelle
+  // l'écran n'a plus ses données, en échange de rien.
+  //
+  // ⚠️ ET LA GARDE VIT ICI, PAS DANS L'ÉCRAN. `profile/gym-switch.tsx` désactive déjà la
+  // ligne active : le geste est donc impossible AUJOURD'HUI, par cet écran-là. Une garde
+  // portée par la seule interface est une garde qui tient tant que personne n'ajoute un
+  // second appelant — un lien profond, une reprise, un bouton « revenir à ma salle ». La
+  // propriété demandée est « re-choisir sa salle ne déclenche rien » : elle appartient au
+  // module qui déclencherait quelque chose.
+  //
+  // `ok` et non un statut d'erreur : du point de vue de l'appelant, la salle demandée EST
+  // la salle active. C'est exactement ce qu'il voulait obtenir.
+  if (gym.isActive) return { status: 'ok' }
+
   // 🔴 GYM-292 — TOUTE LA BASCULE EST SIGNALÉE « EN VOL ». Pendant ce temps, aucune
   // lecture de profil ne peut abaisser la salle active : une lecture partie avant la RPC
   // et revenue après elle rapporterait la salle QUITTÉE, et la bascule reviendrait en
