@@ -82,7 +82,12 @@ const DOPAMINE_SLUG = 'dopamine'
  */
 function useResetCopy(estDopamine: boolean) {
   const { t } = useTranslation()
-  const cle = (base: string) => (estDopamine ? `reset.${base}` : `reset.${base}_neutral`)
+  // 🔴 GYM-310 — L'ESPACE PORTE LE SENS, PLUS UN SUFFIXE. Les quatre variantes qui nomment
+  // Dopamine vivent dans `dopamine.reset.*` ; les neutres reprennent le nom simple. Le
+  // couple `X` / `X_neutral` disait l'inverse de ce qu'on veut : il faisait de la variante
+  // NOMMÉE le cas par défaut, et du neutre l'exception. C'est le neutre qui est vrai
+  // partout, et Dopamine qui est le cas particulier — le nommage le dit désormais.
+  const cle = (base: string) => (estDopamine ? `dopamine.reset.${base}` : `reset.${base}`)
   return {
     subtitle: t(cle('subtitle')),
     successMessage: t(cle('success_message')),

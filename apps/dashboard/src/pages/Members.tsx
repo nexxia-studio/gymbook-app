@@ -433,7 +433,13 @@ export default function Members() {
 
   async function handleSendPush(member: Member) {
     // GYM-219 — le succès n'est plus affirmé sans preuve : le toast suit le résultat.
-    const res = await sendPush(member.id, gymName, t('members.push_default_message'))
+    // 🔴 GYM-310 — LE MESSAGE PORTE LE NOM DE LA SALLE COURANTE, PLUS CELUI DE DOPAMINE.
+    // La chaîne était « Message de Dopamine Performance Club », en dur dans le fichier de
+    // traduction : un gérant de Studio Yoga envoyait donc une notification signée d'un
+    // autre club, sur le téléphone de SES membres. `gymName` est déjà là deux lignes plus
+    // haut, et c'est LE MÊME canal que l'en-tête du tableau de bord (`Sidebar.tsx`) — pas
+    // une seconde source à tenir d'accord avec la première.
+    const res = await sendPush(member.id, gymName, t('members.push_default_message', { gym: gymName }))
     if (!res.ok) {
       addToast(edgeErrorMessage(res.code, t, { name: member.firstName }), 'error')
       return

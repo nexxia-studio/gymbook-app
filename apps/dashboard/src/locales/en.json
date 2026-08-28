@@ -1,4 +1,12 @@
 {
+  "dopamine": {
+    "reset": {
+      "subtitle": "Choose a new password for your Dopamine account.",
+      "success_message": "You can now log in to the Dopamine app.",
+      "next_step_text": "Book your classes from the Dopamine app.",
+      "download_app": "Download the Dopamine app"
+    }
+  },
   "common": {
     "loading": "Loading...",
     "save": "Save",
@@ -103,25 +111,21 @@
   "reset": {
     "checking": "Verifying link...",
     "title": "Set your password",
-    "subtitle": "Choose a new password for your Dopamine account.",
     "new_password": "New password",
     "submit": "Set my password",
     "min_length": "Minimum {{count}} characters",
     "error_generic": "Something went wrong. Please try again.",
     "success_title": "Password set!",
-    "success_message": "You can now log in to the Dopamine app.",
     "next_step_title": "Next step",
-    "next_step_text": "Book your classes from the Dopamine app.",
-    "download_app": "Download the Dopamine app",
     "invalid_title": "Invalid or expired link",
     "invalid_message": "This link is no longer valid. Enter your email to get a new one.",
     "resend_submit": "Resend link",
     "resend_success": "If an account exists with this email, you will receive a new link.",
     "back_to_login": "Back to the sign-in screen",
-    "subtitle_neutral": "Choose a new password for your account.",
-    "success_message_neutral": "You can now log in to your app.",
-    "next_step_text_neutral": "Book your classes from your app.",
-    "download_app_neutral": "Download the app"
+    "subtitle": "Choose a new password for your account.",
+    "success_message": "You can now log in to your app.",
+    "next_step_text": "Book your classes from your app.",
+    "download_app": "Download the app"
   },
   "activation": {
     "checking": "Checking your invitation...",
@@ -540,7 +544,7 @@
       }
     },
     "toast_push_sent": "Notification sent",
-    "push_default_message": "Message from Dopamine Performance Club",
+    "push_default_message": "Message from {{gym}}",
     "add_member": "Add a member",
     "add": {
       "title": "New member",
@@ -819,7 +823,7 @@
       "subtitle": "This information appears on the invoices sent to your members.",
       "identity_title": "Identity",
       "commercial_name_label": "Trading name",
-      "commercial_name_helper": "The brand shown on the invoice (e.g. “Dopamine by EMS95”)",
+      "commercial_name_helper": "The brand shown on the invoice, if it differs from the legal name",
       "legal_name_label": "Registered company name",
       "legal_name_helper": "The legal name of the operating company (e.g. “EMS 95”)",
       "legal_form_label": "Legal form",
@@ -1441,7 +1445,7 @@
     "title": "Create your gym",
     "subtitle": "One more step and your dashboard is yours.",
     "name_label": "Gym name",
-    "name_placeholder": "e.g. Dopamine Performance Club",
+    "name_placeholder": "Your gym's name",
     "name_helper": "Your members will see it in the app. You can change it later.",
     "name_length_error": "The name must be between {{min}} and {{max}} characters.",
     "timezone_label": "Time zone",

@@ -37,7 +37,7 @@ export function EmptyDayState({ isSunday }: EmptyDayStateProps) {
             laisse la cause à qui la connaît. Les horaires d'ouverture existent en base
             (GYM-228, table dédiée) ; le jour où l'app les lira, elle pourra affirmer
             « fermé » sans le déduire d'une absence. */}
-        {isSunday && GYM_MODE === 'single' ? t('home.empty_closed') : t('home.empty_none')}
+        {isSunday && GYM_MODE === 'single' ? t('dopamine.empty_closed') : t('home.empty_none')}
       </Text>
     </View>
   )
