@@ -94,31 +94,31 @@ const RESEND_TIMEOUT_MS = 3_000
 // `slug` vide est VOULU : aucun Universal Link membre n'a de sens ici, et tous les boutons
 // de ces emails passent par `ctaUrl` (une URL GoTrue absolue), jamais par `ctaPath`.
 //
-// 🔴 GYM-303 — LE MOT-MARQUE RÉEL MANQUE, ET JE N'AI PAS VOULU LE SIMULER.
+// 🔴 GYM-303 — LE MOT-MARQUE RÉEL EST ARRIVÉ, ET C'EST LA LIGNE `logoUrl` QUI CHANGE.
 //
-// Le ticket demande de remplacer le « VINIZ » en texte brut de l'en-tête par le vrai
-// mot-marque. `headerHtml` sait déjà le faire : il rend une `<img>` dès que `logoUrl` est
-// une URL https se terminant par `.png`, et retombe sur le texte sinon.
+// CE QUI BLOQUAIT, ET QUI NE BLOQUE PLUS. Ce hook affichait « VINIZ » en texte brut faute
+// d'asset : le dépôt ne contenait que des icônes CARRÉES 512×512 sans transparence, qui
+// auraient peint un carré sur l'en-tête sombre au lieu d'un logotype. Le SVG existait,
+// mais Gmail et Outlook ne rendent pas les SVG, et le dépôt n'a aucun rastériseur.
 //
-// ⚠️ CE QUI BLOQUE N'EST PAS LE CODE, C'EST L'ASSET. Le dépôt ne contient aucun PNG du
-// mot-marque : `viniz-logo.png` et `icon-512.png` sont des icônes CARRÉES 512×512 en RGB
-// sans transparence — posées sur l'en-tête sombre, elles afficheraient un carré, pas un
-// logotype. Le SVG existe (`viniz-wordmark-transparent.svg`) mais Gmail et Outlook ne
-// rendent pas les SVG, et le dépôt n'a aucun rastériseur (`sharp` absent, cf. le
-// commentaire de `scripts/generate-icons.js`).
+// Les PNG sont maintenant dans `apps/links/public/brand/`, servis par un site statique
+// public : voir le README de ce dossier pour les dimensions et la règle de régénération.
 //
-// ⚠️ ET CE HOOK EST BLOQUANT SANS REPLI : un gabarit cassé casse les inscriptions. Câbler
-// `logoUrl` vers un PNG qui n'existe pas encore afficherait une image brisée dans tous les
-// emails d'authentification — exactement ce que la règle du fichier interdit (« un logo
-// cassé est pire qu'un texte juste »). On laisse donc le texte, qui est correct.
+// ⚠️ LE `@2x` N'EST PAS UN CAPRICE. `headerHtml` rend le logo à `width="160"` EN DUR —
+// Outlook ignore les largeurs relatives. Le 1x mesure 250 px : réduit à 160, il est flou
+// sur tout écran à haute densité. Le `@2x` en fait 499, soit environ trois fois la taille
+// rendue, pour 10 Ko.
 //
-// POUR LE COCKPIT — il n'y a qu'UNE ligne à changer une fois l'asset en place :
-//   1. déposer un PNG du mot-marque, lime sur fond TRANSPARENT, ≥ 320 px de large
-//      (l'en-tête le rend à 160 px, donc ×2 pour les écrans à haute densité) ;
-//   2. le publier sur une URL https finissant par `.png` — `apps/links/public/brand/` est
-//      la place naturelle, le domaine `links.viniz.app` étant déjà public et statique ;
-//   3. remplacer `logoUrl: null` ci-dessous par cette URL. `isUsablePng` fait le reste, et
-//      protège encore : une URL qui ne finit pas par `.png` retombe sur le texte.
+// ⚠️ ET LE GARDE-FOU RESTE LA CEINTURE. `isUsablePng` n'affiche une `<img>` que si l'URL
+// est en `https` ET finit par `.png` ; sinon il retombe sur le nom en texte, qui est
+// correct. Ce hook est BLOQUANT sans repli — un gabarit cassé casse les inscriptions —
+// donc la règle du fichier tient toujours : un logo cassé est pire qu'un texte juste.
+//
+// ⚠️ FOND TRANSPARENT, ET C'EST STRUCTUREL. Le fond de l'en-tête vient de
+// `secondaryColor` (#17102E ici), pas du fichier : un PNG à fond opaque afficherait un
+// rectangle par-dessus. Les deux PNG déposés ont bien un canal alpha.
+const VINIZ_WORDMARK_PNG = 'https://links.viniz.app/brand/viniz-wordmark-lime@2x.png'
+
 const VINIZ_BRANDING: GymBranding = {
   name: 'Viniz',
   slug: '',
@@ -127,7 +127,7 @@ const VINIZ_BRANDING: GymBranding = {
   city: null,
   email: null,
   phone: null,
-  logoUrl: null,
+  logoUrl: VINIZ_WORDMARK_PNG,
   primaryColor: '#C8FF3D',
   secondaryColor: '#17102E',
 }

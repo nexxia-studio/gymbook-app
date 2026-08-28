@@ -10,6 +10,7 @@
 // relit getSession() (l'événement a pu partir avant le montage).
 import { useState, useEffect, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import vinizLogo from '@/assets/brand/viniz-logo-horizontal-lime.svg'
 import { useLocation, Link } from 'react-router-dom'
 import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
@@ -113,6 +114,34 @@ type Status = 'checking' | 'ready' | 'invalid' | 'done'
  * `#111111` de Dopamine et le Violet Ink `#2D1B69` de Viniz sont l'un et l'autre des fonds
  * sombres. C'est la même contrainte que le garde-fou de l'app applique aux salles.
  */
+/**
+ * 🔴 GYM-303 — LE MOT-MARQUE VINIZ EST UN LOGOTYPE, PLUS UNE IMITATION EN ARIAL BLACK.
+ *
+ * « ViNiZ » était composé au clavier : une police d'affichage, un espacement de lettres,
+ * et l'espoir que ça ressemble. Le vrai logotype était déjà dans le dépôt, et déjà employé
+ * par `AuthLayout` (connexion, mot de passe oublié) et par la barre latérale. Cette page
+ * était la dernière à écrire la marque à la main.
+ *
+ * ⚠️ AUCUN ASSET AJOUTÉ, ET C'EST LE POINT. Le fichier déposé pour ce lot s'est révélé être
+ * `viniz-logo-horizontal-lime.svg` À L'OCTET (même md5) : le dépôt l'avait déjà. Ajouter une
+ * copie aurait créé deux vérités sur un logo — celle qu'on met à jour, et l'autre.
+ *
+ * ⚠️ LE RECADRAGE PAR CSS EST L'IDIOME DU DÉPÔT, PAS UNE TROUVAILLE. L'art est posé au
+ * milieu d'une toile CARRÉE de 1500 : `AuthLayout` et `Sidebar` le cadrent depuis toujours
+ * dans une boîte à `overflow-hidden`, image centrée, largeur imposée. Trois boîtes, trois
+ * tailles, un seul ratio — 200×40, 180×36, 140×28, soit 5:1. Ce qui recoupe exactement ce
+ * que mesure le rendu de l'art (encre au ratio 5,12, centrée à 1,5 px près) et ce que
+ * donnent les deux PNG exportés (5,00 et 5,09). On reprend donc la boîte, telle quelle.
+ *
+ * ⚠️ DOPAMINE GARDE SON IDENTITÉ, ET CE N'EST PAS UN OUBLI. Ce n'est pas la même marque :
+ * son mot-marque n'est pas dans le dépôt, et lui poser le logotype Viniz serait exactement
+ * la fuite que #238 et #242 ont passé deux lots à retirer de cette page. Son bloc reste
+ * mot pour mot celui d'avant — même fond #111111, même lime #C8F000.
+ *
+ * ⚠️ LE CADRE VIOLET RESTE. Le logotype est lime : posé sur le blanc de la page il
+ * tomberait à 1,4:1. C'est le #2D1B69 derrière lui qui le rend visible — la même règle qui
+ * veut que le lime n'aille que sur fond sombre partout ailleurs dans le produit.
+ */
 function Wordmark({ dopamine }: { dopamine: boolean }) {
   return (
     <div className="mb-10 flex items-center justify-center">
@@ -121,8 +150,14 @@ function Wordmark({ dopamine }: { dopamine: boolean }) {
           DOPAMINE
         </span>
       ) : (
-        <span className="rounded-xl bg-[#2D1B69] px-4 py-2 font-display text-lg font-black tracking-[0.2em] text-[#C8FF3D]">
-          ViNiZ
+        <span className="rounded-xl bg-[#2D1B69] px-5 py-3">
+          <div className="relative h-6 w-[120px] overflow-hidden">
+            <img
+              src={vinizLogo}
+              alt="Viniz"
+              className="absolute left-1/2 top-1/2 w-[120px] max-w-none -translate-x-1/2 -translate-y-1/2"
+            />
+          </div>
         </span>
       )}
     </div>
