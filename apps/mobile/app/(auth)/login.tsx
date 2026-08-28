@@ -11,7 +11,7 @@ import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useBiometrics } from '../../hooks/useBiometrics'
 import { GYM_MODE } from '../../lib/gymResolver'
-import { BrandedLogin } from '../../components/viniz/BrandedLogin'
+import { MultiLogin } from '../../components/viniz/MultiLogin'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
@@ -20,9 +20,14 @@ import { useTheme } from '../../lib/theme/ThemeProvider'
  * `GYM_MODE` est figé à la compilation : l'ordre des hooks de chaque branche est stable et
  * aucune ne voit l'autre. En `single`, cet écran rend exactement l'arbre d'avant —
  * `DopamineLogin` est le composant existant, déplacé d'une ligne, non modifié.
+ *
+ * 🔴 GYM-312b — LA BRANCHE MULTI PASSE PAR `MultiLogin`, QUI PEUT REFUSER DE RENDRE.
+ * Sans salle mémorisée, `BrandedLogin` n'a ni logo, ni couleurs, ni nom : il rendait un
+ * écran noir anonyme. `MultiLogin` tranche d'abord — attendre, chercher une salle, ou
+ * brander — et n'appelle `BrandedLogin` que lorsqu'il y a une marque à porter.
  */
 export default function Login() {
-  return GYM_MODE === 'multi' ? <BrandedLogin /> : <DopamineLogin />
+  return GYM_MODE === 'multi' ? <MultiLogin /> : <DopamineLogin />
 }
 
 function DopamineLogin() {

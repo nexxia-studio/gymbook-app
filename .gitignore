@@ -39,6 +39,11 @@ build/Release
 
 # Dependency directories
 node_modules/
+
+# Répertoire de compilation des bancs de vérification (verify-*.mjs). Il vit SOUS le
+# projet et pas dans /tmp parce que Node y résout les specifiers nus (zustand) en
+# remontant les node_modules ; chaque banc le supprime en sortant.
+.tmp-verif/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
