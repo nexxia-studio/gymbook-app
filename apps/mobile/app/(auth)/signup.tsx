@@ -41,6 +41,12 @@ interface FormErrors {
 const SIGNUP_MIN_LENGTH = 8
 
 export default function Signup() {
+  // 🔴 GYM-293b — LA SALLE DE CONTEXTE, ET UN REPLI QUI NE NOMME PERSONNE.
+  // `useGymName()` retombait sur « Dopamine Performance Club » : sur cet écran, où le membre
+  // n'est par définition PAS connecté, ce repli n'était pas transitoire — il était l'état
+  // permanent, et un candidat de n'importe quelle salle s'inscrivait sous l'en-tête de
+  // Dopamine. Le hook lit désormais la MARQUE (chargée avant la connexion, c'est sa raison
+  // d'être) et retombe sur la plateforme, jamais sur un client.
   const nomSalle = useGymName()
   const { tokens } = useTheme()
   const { t } = useTranslation()

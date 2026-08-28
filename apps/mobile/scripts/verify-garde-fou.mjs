@@ -78,6 +78,23 @@ const JETONS = [
   { nom: 'onBackground', sur: 'page', seuil: AA_TEXT, quoi: 'texte principal SUR LA PAGE' },
   { nom: 'onBackgroundMuted', sur: 'page', seuil: AA_TEXT, quoi: 'texte secondaire SUR LA PAGE' },
   { nom: 'accent', sur: 'page', seuil: AA_NON_TEXT, quoi: 'action posée sur la page' },
+  // 🔴 GYM-293b — LE FORMULAIRE, QUI N'ÉTAIT MESURÉ PAR RIEN. Les champs empruntaient les
+  // jetons de la CARTE (`surface`, `onSurface`, `border`) et le gris du FOND
+  // (`onBackgroundMuted`) : chacun tenait son seuil sur SON fond de référence, et aucun ne
+  // le tenait là où il était réellement posé. Le balayage ne pouvait donc rien voir — c'est
+  // la recette sur salle claire qui a trouvé, ce qui est exactement l'inverse de l'ordre
+  // voulu. Les quatre rôles nommés, ils se mesurent.
+  { nom: 'onField', sur: 'field', seuil: AA_TEXT, quoi: 'saisie dans le champ' },
+  { nom: 'onFieldMuted', sur: 'field', seuil: AA_TEXT, quoi: 'placeholder' },
+  // ⚠️ LE CONTOUR SE MESURE SUR SES DEUX VOISINS, PAS SUR UN SEUL. WCAG § 1.4.11 demande
+  // 3:1 avec les couleurs ADJACENTES : un trait qui se détache du champ mais se fond dans
+  // la carte ne dessine rien. C'est lui qui porte l'identification du champ — celui-là est
+  // sanctionné, contrairement au `border` décoratif ci-dessus.
+  { nom: 'fieldBorder', sur: 'field', seuil: AA_NON_TEXT, quoi: 'contour du champ' },
+  { nom: 'fieldBorder', sur: 'surface', seuil: AA_NON_TEXT, quoi: 'contour du champ, côté carte' },
+  // Le creux du champ dans sa carte : une NUANCE, pas une frontière — on publie son chiffre
+  // sans échouer dessus, comme pour `border`. Le seuil affiché est le pas visé (PAS_CHAMP).
+  { nom: 'field', sur: 'surface', seuil: 1.2, quoi: 'creux du champ dans la carte', informatif: true },
 ]
 
 // ⚠️ `surface` EST UN VOILE TRANSLUCIDE (GYM-302) : le composer sur le fond est la SEULE

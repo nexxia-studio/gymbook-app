@@ -21,6 +21,8 @@
 import { useGymProfile } from './useGymProfile'
 import { useTheme } from '../lib/theme/ThemeProvider'
 import { CLUB_IDENTITY } from '../constants/club'
+import { PLATFORM_NAME } from '../constants/platform'
+import { GYM_MODE } from '../lib/gymResolver'
 
 /**
  * 🔴 GYM-299 — LE NOM COURT DE LA SALLE ACTIVE, OU `null`.
@@ -55,8 +57,52 @@ function useGymShortName(): string | null {
  * « Dopamine » DÉFINITIVEMENT. Un repli transitoire vaut mieux qu'une erreur permanente.
  */
 export function useGymName(): string {
-  const profile = useGymProfile()
-  return profile?.name ?? CLUB_IDENTITY.name
+  // 🔴 GYM-293b — LE DERNIER REPLI EST LA PLATEFORME, PLUS UN CLIENT.
+  //
+  // ⚠️ EN SINGLE, LA PHRASE CI-DESSUS RESTE VRAIE MOT POUR MOT : `useContextGymName()` y
+  // rend déjà `CLUB_IDENTITY.name` faute de profil, et ne rend jamais `null`. Le `??`
+  // ci-dessous n'y est donc jamais atteint — le chargement de l'app de Dopamine est
+  // inchangé, sans en-tête vide ni bascule de nom.
+  //
+  // 🔴 EN MULTI, IL CORRIGE UN ÉTAT QUE LE COMMENTAIRE PRÉCÉDENT CROYAIT IMPOSSIBLE. « Un
+  // repli transitoire vaut mieux qu'une erreur permanente » supposait qu'une salle finit
+  // toujours par arriver. C'est faux pour un COMPTE SANS SALLE — le filet de sécurité de
+  // GYM-293, quand le rattachement échoue : là, aucune salle n'arrive jamais, et le
+  // « transitoire » devenait définitif. L'app affichait alors « Dopamine Performance Club »
+  // à un membre qui n'a aucun rapport avec ce club, en en-tête de tous ses écrans.
+  return useContextGymName() ?? PLATFORM_NAME
+}
+
+/**
+ * 🔴 GYM-293b — LE NOM DE LA SALLE DE CONTEXTE, OU `null` — ET SURTOUT JAMAIS « DOPAMINE ».
+ *
+ * ⚠️ `useGymName()` NE CONVIENT PAS AVANT LA CONNEXION, et c'est un défaut qu'on ne voit
+ * qu'en multi. Son repli `CLUB_IDENTITY.name` est là pour couvrir le TEMPS D'UNE REQUÊTE
+ * chez Dopamine (voir plus haut) ; mais sur l'écran d'INSCRIPTION, le membre n'est par
+ * définition pas connecté : `useGymProfile()` ne rend jamais rien, et le repli n'était donc
+ * pas transitoire — il était l'état permanent. Un candidat de Studio Yoga créait son compte
+ * sous l'en-tête « DOPAMINE PERFORMANCE CLUB », en multi, à chaque fois.
+ *
+ * La marque, elle, est chargée AVANT la connexion — c'est même sa raison d'être : c'est
+ * `public_gym_branding(slug)` qui habille l'écran de connexion aux couleurs de la salle
+ * choisie. Le nom voyage par ce canal ; il suffit de le lire.
+ *
+ * ⚠️ `null` EST UNE RÉPONSE, PAS UN ÉCHEC. Aucune salle de contexte, c'est l'état d'un
+ * compte sans salle — un filet de sécurité, jamais un état nominal. L'appelant doit alors
+ * dire quelque chose de NEUTRE ; lui rendre un nom de client à la place serait exactement
+ * la faute qu'on corrige.
+ *
+ * ⚠️ EN SINGLE, LE COMPORTEMENT EST INCHANGÉ — repli compris. `brand` y vaut `null` par
+ * construction (le fournisseur ne charge aucune marque), donc cette fonction rend ce que
+ * `useGymName()` rendait déjà, y compris pendant le chargement.
+ */
+export function useContextGymName(): string | null {
+  // Les trois lectures sont inconditionnelles : l'ordre des hooks ne dépend d'aucune donnée.
+  const profil = useGymProfile()
+  const { brand } = useTheme()
+  const nom = profil?.name ?? brand?.name ?? null
+  if (GYM_MODE !== 'multi') return nom ?? CLUB_IDENTITY.name
+  return nom
 }
 
 /**
