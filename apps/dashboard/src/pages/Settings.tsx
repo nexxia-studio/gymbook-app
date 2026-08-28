@@ -53,6 +53,7 @@ export default function Settings() {
   // Activities
   const {
     activities, activeCount: actActiveCount, createActivity, updateActivity,
+    updateActivityImage,
     toggleActivity, getActivityFutureSlots, duplicateActivity, deleteActivity, slugify,
   } = useActivities()
 
@@ -264,7 +265,13 @@ export default function Settings() {
             </div>
 
             <ActivityModal open={actCreateOpen} onClose={() => setActCreateOpen(false)} onSubmit={handleActCreate} slugify={slugify} />
-            <ActivityModal open={!!editActivity} onClose={() => setEditActivity(null)} onSubmit={handleActEdit} editActivity={editActivity} slugify={slugify} />
+            {/* 🔴 GYM-215 — L'IMAGE N'EST OFFERTE QU'À L'ÉDITION, et la modale de création
+                le dit au lieu de le cacher. Le chemin convenu contient l'identifiant de
+                l'activité (`{gym_id}/activities/{activity_id}`) : avant le premier
+                enregistrement, cet identifiant n'existe pas. Passer par un chemin
+                temporaire puis déplacer le fichier recréerait exactement les orphelins que
+                le nommage déterministe supprime. */}
+            <ActivityModal open={!!editActivity} onClose={() => setEditActivity(null)} onSubmit={handleActEdit} editActivity={editActivity} slugify={slugify} onImageChange={updateActivityImage} />
             <ActivityDeleteModal activity={deleteActTarget} futureSlotCount={0} onClose={() => setDeleteActTarget(null)} onConfirm={handleActDelete} />
           </>
         )}

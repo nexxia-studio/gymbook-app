@@ -922,8 +922,8 @@
       "color_hint": "Laisse vide pour garder la palette Viniz.",
       "short_name_label": "Nom court affiché dans l’app",
       "short_name_helper": "Affiché dans l’en-tête. Laisse vide pour utiliser le nom complet.",
-      "logo_label": "Lien vers ton logo",
-      "logo_helper": "Colle l’URL d’une image déjà en ligne.",
+      "logo_label": "Logo de la salle",
+      "logo_reco": "Format large recommandé — env. 500 × 100 px, fond transparent",
       "submit": "Enregistrer",
       "saved": "Apparence enregistrée.",
       "save_error": "L’enregistrement a échoué. Réessaie dans un instant.",
@@ -1001,7 +1001,10 @@
     "toast_save_failed": "L'activité n'a pas pu être enregistrée. Réessaie.",
     "max_overbook": "Places de dépassement autorisées",
     "max_overbook_hint": "Nombre de places que vous pouvez ajouter au-delà de la capacité d'un créneau, quand vous inscrivez quelqu'un depuis le planning. 0 = capacité stricte. Les membres ne voient jamais cette option : pour eux, un cours complet reste complet.",
-    "max_overbook_active": "Vous pourrez ajouter jusqu'à {{count}} place(s) au-delà de la capacité, avec un motif obligatoire."
+    "max_overbook_active": "Vous pourrez ajouter jusqu'à {{count}} place(s) au-delà de la capacité, avec un motif obligatoire.",
+    "image_label": "Image du cours",
+    "image_reco": "Format paysage recommandé — env. 1200 × 675 px",
+    "image_after_save": "Enregistre d'abord le cours : l'image se dépose ensuite, depuis sa fiche."
   },
   "coaches": {
     "title": "Coaches",
@@ -1544,5 +1547,14 @@
     "nav_privacy": "Politique de confidentialité",
     "nav_support": "Support",
     "accept_required": "Vous devez accepter les CGU et la politique de confidentialité"
+  },
+  "media": {
+    "drop_hint": "Glisse une image ici, ou clique pour en choisir une",
+    "replace_hint": "Glisse une nouvelle image pour la remplacer",
+    "constraints": "{{formats}} · {{max}} maximum",
+    "remove": "Retirer l'image",
+    "error_format": "Format non accepté. Formats possibles : {{formats}}.",
+    "error_size": "Image trop lourde ({{taille}}). Maximum {{max}}.",
+    "error_network": "L'envoi n'a pas abouti. Réessaie dans un instant."
   }
 }

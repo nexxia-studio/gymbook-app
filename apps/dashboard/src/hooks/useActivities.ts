@@ -31,6 +31,10 @@ function mapRow(row: Record<string, unknown>): ActivityItem {
     // GYM-231 — repli sur 0 : une activité lue avant la migration reste à capacité DURE.
     // Replier sur autre chose ouvrirait un dépassement que personne n'a paramétré.
     maxOverbook: (row.max_overbook as number) ?? 0,
+    // GYM-215 — `null` reste `null` : le mobile lit cette absence et affiche son repli
+    // aux initiales (`ActivityImage`). Une chaîne vide y passerait pour une URL et
+    // casserait le rendu au lieu de laisser la place au repli.
+    imageUrl: (row.image_url as string | null) ?? null,
     active: (row.active as boolean) ?? true,
   }
 }
@@ -115,6 +119,30 @@ export function useActivities() {
     return {}
   }, [fetchActivities])
 
+  /**
+   * 🔴 GYM-215 — L'IMAGE SE PERSISTE À L'ENVOI, PAS À LA SOUMISSION DU FORMULAIRE.
+   *
+   * ⚠️ POURQUOI PAS UN CHAMP DE `ActivityFormData`. Le fichier part dans
+   * `{gym_id}/activities/{activity_id}.{ext}` — un chemin qui contient l'IDENTIFIANT de
+   * l'activité. À la création, cet identifiant n'existe pas encore : le champ serait donc
+   * mort dans la moitié des ouvertures de la modale. Et à l'édition, le fichier est en
+   * ligne dès l'envoi réussi : laisser la base pointer ailleurs jusqu'au « Enregistrer »
+   * créerait un état où l'image a changé mais où la base ne le dit pas.
+   *
+   * ⚠️ AUCUNE MIGRATION N'EST NÉCESSAIRE — VÉRIFIÉ, PAS SUPPOSÉ. Contrairement à
+   * `nexxia_gyms` (GYM-180, GRANT colonne par colonne), `activities` n'a AUCUNE liste
+   * blanche : `authenticated` détient UPDATE sur toutes ses colonnes, `image_url`
+   * comprise. Le cloisonnement vient de la seule RLS — « Gym admins gèrent les activités »,
+   * `gym_id = get_my_gym_id() AND is_gym_admin()`. C'est le même chemin que les onze
+   * autres champs de cette modale, sans exception ajoutée.
+   */
+  const updateActivityImage = useCallback(async (id: string, url: string | null): Promise<{ error?: string }> => {
+    const { error } = await supabase.from('activities').update({ image_url: url }).eq('id', id)
+    if (error) return { error: error.message }
+    fetchActivities()
+    return {}
+  }, [fetchActivities])
+
   const getActivityFutureSlots = useCallback(async (id: string): Promise<number> => {
     const { count } = await supabase
       .from('time_slots')
@@ -152,6 +180,15 @@ export function useActivities() {
       requires_coach: original.requiresCoach,
       hidden_in_planning: original.hiddenInPlanning,
       max_overbook: original.maxOverbook,
+      // GYM-215 — la copie emporte l'image de l'originale, comme elle emporte sa couleur.
+      //
+      // ⚠️ LES DEUX POINTENT ALORS SUR LE MÊME OBJET, ET C'EST SANS DANGER DANS LE SENS
+      // QUI COMPTE. Remplacer l'image de la copie écrit `{gym}/activities/{id_copie}.{ext}`
+      // — son propre chemin — et l'originale ne bouge pas. Le seul cas gênant est l'inverse :
+      // SUPPRIMER l'image de l'originale laisse la copie citer un objet effacé. Le mobile y
+      // répond déjà par son repli aux initiales (`ActivityImage`, cas 2 : URL morte), donc
+      // au pire une carte digne — jamais une image cassée.
+      image_url: original.imageUrl,
     }).select().single()
     fetchActivities()
     return data ? mapRow(data) : null
@@ -164,7 +201,7 @@ export function useActivities() {
 
   return {
     activities, activeCount, isLoading, error,
-    createActivity, updateActivity, toggleActivity, getActivityFutureSlots,
+    createActivity, updateActivity, updateActivityImage, toggleActivity, getActivityFutureSlots,
     duplicateActivity, deleteActivity, slugify, refetch: fetchActivities,
   }
 }

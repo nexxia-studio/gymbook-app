@@ -31,6 +31,7 @@ import { Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ColorField, VINIZ_PRIMARY, VINIZ_SECONDARY } from '@/components/ui/ColorField'
+import { MediaUpload } from '@/components/ui/MediaUpload'
 import { supabase } from '@/lib/supabase'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
@@ -78,6 +79,33 @@ export function AppearanceCard() {
     return () => { cancelled = true }
   }, [gym?.id])
 
+  /**
+   * 🔴 GYM-305 — LE LOGO S'ENREGISTRE TOUT DE SUITE, PAS AU BOUTON « ENREGISTRER ».
+   *
+   * ⚠️ CE N'EST PAS UNE INCOHÉRENCE AVEC LE RESTE DE LA CARTE, C'EST UNE CONSÉQUENCE DU
+   * CHEMIN DÉTERMINISTE. Le fichier part dans `{gym_id}/logo.{ext}`, TOUJOURS le même
+   * objet : à la seconde où l'envoi réussit, l'ancienne URL en base sert déjà la NOUVELLE
+   * image. Attendre le bouton ne retarderait donc pas le changement — ça laisserait
+   * seulement la base pointer dessus avec un `?v=` périmé, c'est-à-dire un logo remplacé
+   * que le CDN continue de servir en version d'avant.
+   *
+   * Le chemin d'écriture est celui de la carte, sans exception : UPDATE RLS sur
+   * `nexxia_gyms`, `logo_url` fait partie du GRANT colonne de GYM-180.
+   */
+  async function persisterLogo(url: string | null) {
+    if (!gym?.id) return
+    setLogoUrl(url ?? '')
+    const { error } = await supabase
+      .from('nexxia_gyms')
+      .update({ logo_url: url })
+      .eq('id', gym.id)
+    if (error) {
+      addToast(t('settings.appearance.save_error'), 'warning')
+      return
+    }
+    addToast(t('settings.appearance.saved'))
+  }
+
   const forecast = forecastBrand(primary, secondary)
   const preview = previewBrand(primary, secondary)
 
@@ -99,7 +127,10 @@ export function AppearanceCard() {
     const { error } = await supabase
       .from('nexxia_gyms')
       .update({
-        logo_url: logoUrl.trim() || null,
+        // ⚠️ `logo_url` N'EST PLUS DANS CETTE ÉCRITURE. Il se persiste à l'envoi (voir
+        // `persisterLogo`) : le réécrire ici renverrait la valeur que l'écran avait au
+        // chargement et ANNULERAIT un logo posé entre-temps — le défaut classique du
+        // formulaire qui réenregistre ce qu'il n'a pas modifié.
         short_name: shortName.trim() || null,
         // ⚠️ `name` EST NOT NULL et c'est le nom que voient les membres : un champ vidé ne
         // part PAS en `null` comme les autres, il est refusé plus haut. C'est la seule
@@ -231,14 +262,27 @@ export function AppearanceCard() {
             helper={t('settings.appearance.short_name_helper')}
           />
 
-          <Input
+          {/* 🔴 GYM-305 — LE CHAMP D'URL DEVIENT UNE ZONE DE DÉPÔT.
+              Demander une URL, c'est demander au gérant d'héberger son logo lui-même :
+              personne ne l'a fait. Mesuré en staging le 28/08 — 3 salles, `logo_url`
+              renseignée sur ZÉRO. L'app affiche donc partout ses initiales de repli, et le
+              champ qui devait y remédier n'a jamais servi une seule fois.
+
+              ⚠️ UNE URL EXTERNE DÉJÀ POSÉE RESTE AFFICHÉE ET SERVIE. Celle de Dopamine a
+              été écrite à la main, en production : la zone la montre comme aperçu et ne
+              la touche pas. « Retirer » cesse de la citer sans tenter de l'effacer — elle
+              n'est pas dans notre bucket, voir `estDansLeBucket`. */}
+          <MediaUpload
             label={t('settings.appearance.logo_label')}
-            name="logoUrl"
-            type="url"
-            placeholder="https://…"
             value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            helper={t('settings.appearance.logo_helper')}
+            onChange={persisterLogo}
+            path={`${gym?.id ?? ''}/logo`}
+            recommendation={t('settings.appearance.logo_reco')}
+            // Le cadrage 5:1 est celui du mot-marque (#246) : le gérant voit son logo dans
+            // la boîte où l'app le posera, pas dans un carré qui lui mentirait.
+            aspect="aspect-[5/1]"
+            previewClassName="bg-dark"
+            disabled={!gym?.id}
           />
 
           <Button onClick={handleSave} isLoading={saving} disabled={!loaded} className="w-full sm:w-auto">
