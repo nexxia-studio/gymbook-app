@@ -58,6 +58,20 @@ export const PAS_BANDE = 1.3
  */
 export const PAS_RAIL = 1.49
 
+/**
+ * 🔴 GYM-293b — LE PAS QUI CREUSE UN CHAMP DANS SA CARTE.
+ *
+ * ⚠️ CE PAS NE PORTE PAS, À LUI SEUL, L'IDENTIFICATION DU CHAMP. C'est `fieldBorder` qui
+ * s'en charge, au seuil des éléments d'interface (3:1) — la règle WCAG 1.4.11 vise le
+ * CONTOUR, pas le remplissage. Le pas de fond n'a donc qu'un rôle : que le champ se lise
+ * comme un creux avant même qu'on regarde son trait.
+ *
+ * ⚠️ ET IL RESTE VOLONTAIREMENT SOUS `PAS_BANDE`. Une bande d'en-tête sépare deux régions
+ * de l'écran ; un champ est posé DANS une carte, et un pas aussi marqué transformerait un
+ * formulaire de six champs en six blocs gris — l'inverse de la hiérarchie recherchée.
+ */
+export const PAS_CHAMP = 1.2
+
 export const VINIZ = {
   lime: '#C8FF3D',
   /** « Violet Ink » — l'encre de Viniz sur fond clair, et le repli des actions. */
@@ -78,7 +92,7 @@ export interface ThemeTokens {
   mode: ThemeMode
   /** Surface principale de l'app. */
   background: string
-  /** Cartes et champs, posés sur `background`. */
+  /** Cartes, posées sur `background`. Les CHAMPS ont les leurs depuis GYM-293b. */
   surface: string
   /** Texte principal — garanti ≥ 4,5:1 sur `background`. */
   onBackground: string
@@ -150,6 +164,33 @@ export interface ThemeTokens {
   onActionMuted: string
   rail: string
   /**
+   * 🔴 GYM-293b — LE CHAMP DE SAISIE, ENFIN DISTINCT DE LA CARTE QUI LE PORTE.
+   *
+   * `surface` se disait « cartes ET champs » : les deux recevaient donc la MÊME couleur, et
+   * un champ posé sur une carte disparaissait dans son support. Chez Dopamine cela ne se
+   * voyait pas — carte blanche, champ blanc, et un trait #E8E6E0 pour tout indice, ce qui
+   * passe sur du blanc. Chez une salle à la carte colorée, c'était du rose sur du rose :
+   * constaté en recette (Q3/Q5), formulaire d'inscription illisible.
+   *
+   * ⚠️ LES QUATRE JETONS VONT ENSEMBLE, ET C'EST LE POINT. Un fond de champ sans son encre
+   * ni son placeholder revalidés ne fait que déplacer le problème : le gris de placeholder
+   * employé jusqu'ici (`onBackgroundMuted`) était validé sur le FOND de l'app, puis posé
+   * dans un champ sur une CARTE — deux surfaces que rien n'oblige à se ressembler.
+   */
+  field: string
+  /** Encre de saisie, validée sur `field` — jamais sur la carte. */
+  onField: string
+  /** Placeholder : atténué autant que SEUIL_TEXTE l'autorise SUR `field`. */
+  onFieldMuted: string
+  /**
+   * Contour du champ, à SEUIL_SURFACE de son fond.
+   *
+   * ⚠️ C'EST LUI QUI IDENTIFIE LE CHAMP, PAS LE REMPLISSAGE — et c'est pourquoi il ne
+   * réemploie pas `border`, dérivé pour SÉPARER (un trait de liste, un filet de carte) et
+   * validé à ce titre bien en dessous de 3:1.
+   */
+  fieldBorder: string
+  /**
    * 🔴 GYM-290 (A-8) — LA RAMPE D'AFFLUENCE : trois paliers d'intensité croissante.
    *
    * C'est une LECTURE DE DONNÉE, pas un signal : elle peut suivre la marque sans rien
@@ -186,10 +227,13 @@ export interface ThemeDecision {
 
 /** Le thème Viniz complet, en mode sombre : le repli quand rien n'est exploitable. */
 function vinizDark(): ThemeTokens {
+  // La carte du thème Viniz, nommée UNE fois : les jetons de formulaire s'en déduisent, et
+  // recopier le littéral les ferait dériver le jour où cette surface bougerait.
+  const CARTE = '#211C18'
   return {
     mode: 'dark',
     background: VINIZ.dark,
-    surface: '#211C18',
+    surface: CARTE,
     onBackground: VINIZ.light,
     onBackgroundMuted: VINIZ.lavender,
     accent: VINIZ.lime,
@@ -207,6 +251,7 @@ function vinizDark(): ThemeTokens {
       SEUIL_TEXTE,
     )),
     rail: toHex(decalerDe(parseHex(VINIZ.dark)!, parseHex(VINIZ.light)!, PAS_RAIL)!),
+    ...champ(parseHex(CARTE)!, [VINIZ.light, VINIZ.ink]),
     ramp: rampe(parseHex(VINIZ.dark)!, parseHex(VINIZ.lime)!),
     limeAllowed: true,
   }
@@ -500,6 +545,12 @@ export function resolveTheme(
     decalerDe(background, parseHex(onBackground)!, PAS_RAIL) ?? parseHex(onBackground)!,
   )
 
+  // 🔴 GYM-293b — LE CHAMP SE CREUSE DANS LA CARTE, PAS DANS LE FOND. `surfaceRgb` et non
+  // `background` : un champ d'inscription est posé sur la carte du formulaire, et c'est de
+  // ce support-là qu'il doit se détacher. Le prendre depuis le fond donnerait un champ
+  // parfaitement contrasté avec une région de l'écran où il ne se trouve pas.
+  const champs = champ(surfaceRgb, INKS)
+
   return {
     tokens: {
       mode,
@@ -518,6 +569,7 @@ export function resolveTheme(
       onAction,
       onActionMuted,
       rail,
+      ...champs,
       ramp: rampe(background, parseHex(accent)!),
       // 🔴 Le lime ne touche JAMAIS un fond clair.
       limeAllowed: mode === 'dark',
@@ -534,6 +586,78 @@ export function resolveTheme(
       textContrast,
       reasons,
     },
+  }
+}
+
+/**
+ * 🔴 GYM-293b — LE CONTOUR DU CHAMP SE MESURE SUR SES DEUX VOISINS.
+ *
+ * ⚠️ UN `decalerDe(champ, encre, 3)` NE SUFFIT PAS, ET LE BALAYAGE L'A MONTRÉ. Le champ est
+ * creusé À L'OPPOSÉ de son encre ; un trait posé à 3:1 du champ, en allant vers l'encre,
+ * traverse donc la carte et se fond dedans : mesuré, 12 040 salles sur 19 600 avec un
+ * contour sous 3:1 côté carte. Le champ était identifiable depuis l'intérieur et invisible
+ * depuis l'extérieur — c'est-à-dire invisible.
+ *
+ * WCAG § 1.4.11 demande 3:1 avec les couleurs ADJACENTES, au pluriel. On prend donc le PLUS
+ * PETIT trait qui satisfait les deux : on avance du fond du champ vers son encre et on
+ * s'arrête au premier point qui tient le seuil des deux côtés. Le plus petit, parce qu'un
+ * contour plus marqué que nécessaire transforme un formulaire en grille.
+ */
+function contour(champFond: Rgb, carte: Rgb, encre: Rgb): Rgb {
+  const PAS = 100
+  for (let i = 1; i <= PAS; i += 1) {
+    const c = melange(encre, champFond, i / PAS)
+    if (contrastRatio(c, champFond) >= SEUIL_SURFACE && contrastRatio(c, carte) >= SEUIL_SURFACE) return c
+  }
+  // Aucun point ne tient les deux : l'encre du champ est le trait le plus visible dont on
+  // dispose. Jamais un gris choisi à la main — ce serait une couleur que rien ne valide.
+  return encre
+}
+
+/**
+ * 🔴 GYM-293b — LES QUATRE JETONS DE FORMULAIRE, DÉRIVÉS D'UN SEUL ENDROIT.
+ *
+ * Une seule fonction pour les quatre, appelée depuis `resolveTheme` ET depuis `vinizDark` :
+ * le repli Viniz et le thème d'une salle ne peuvent pas diverger sur ce que « un champ »
+ * veut dire. C'est la leçon de `onActionMuted`, recalculé à la main dans les deux endroits
+ * en GYM-307 — deux copies d'une même règle finissent toujours par se répondre autrement.
+ *
+ * L'ORDRE DES DÉRIVATIONS N'EST PAS ARBITRAIRE :
+ *   1. le fond du champ se creuse dans la carte (`PAS_CHAMP`) ;
+ *   2. son encre se choisit SUR CE FOND-LÀ, pas sur la carte ;
+ *   3. le placeholder s'atténue depuis cette encre, autant que SEUIL_TEXTE l'autorise ;
+ *   4. le contour se pose à SEUIL_SURFACE du fond du champ.
+ *
+ * ⚠️ CHAQUE ÉTAPE A SON REPLI, ET AUCUN N'INVENTE DE COULEUR. Un pas impossible (carte déjà
+ * à la couleur de l'encre) rend un champ PLAT plutôt qu'un champ faux : le contour, lui,
+ * tient encore l'identification. Un contour impossible retombe sur l'encre du champ — le
+ * trait le plus visible dont on dispose, jamais un gris choisi à la main.
+ */
+function champ(carte: Rgb, encres: readonly string[]) {
+  // ⚠️ PREMIÈRE VERSION, ÉCARTÉE PAR LA MESURE : creuser le champ VERS SON ENCRE. C'est le
+  // geste naturel — « assombrir un peu le champ dans une carte claire » — et il est faux
+  // pour la raison exacte que GYM-290 avait déjà rencontrée sur le voile des cartes :
+  // rapprocher une surface de son encre, c'est rendre cette encre moins lisible. Balayage
+  // des 19 600 salles : `onField` tombait à 4,00:1 sur 1 960 d'entre elles — une correction
+  // de lisibilité qui cassait la lisibilité, sur une salle sur dix.
+  //
+  // 🔴 ON CREUSE DONC À L'OPPOSÉ DE L'ENCRE, et le champ y GAGNE du contraste. Les deux
+  // directions sont essayées et on garde celle dont la meilleure encre est la plus
+  // contrastée : la même règle, et pour le même motif, que le choix du voile de carte.
+  // Si aucune ne peut atteindre le pas, le champ reste PLAT — son contour, lui, tient
+  // encore l'identification, et un champ plat vaut mieux qu'un champ illisible.
+  const creux = encres
+    .map((dir) => decalerDe(carte, parseHex(dir)!, PAS_CHAMP))
+    .filter((c): c is Rgb => c !== null)
+  const fond = creux.length
+    ? creux.reduce((a, b) => (bestInkOn(b, encres).ratio > bestInkOn(a, encres).ratio ? b : a))
+    : carte
+  const onField = bestInkOn(fond, encres).ink
+  return {
+    field: toHex(fond),
+    onField,
+    onFieldMuted: toHex(mutedInkOn(fond, parseHex(onField)!, SEUIL_TEXTE)),
+    fieldBorder: toHex(contour(fond, carte, parseHex(onField)!)),
   }
 }
 

@@ -72,6 +72,14 @@ const MAP = [
   ['move-accent-dim',     'accentDim',          'action atténuée (text-move-accent-dim)'],
   ['move-text-secondary', 'onSurfaceSecondary', 'texte secondaire'],
   ['move-text-muted',     'onBackgroundMuted',  'texte discret'],
+  // GYM-293b — les quatre rôles de FORMULAIRE. Ils reprennent quatre couples déjà présents
+  // ci-dessus, et c'est précisément ce qu'il faut vérifier : le champ de Dopamine doit
+  // continuer de valoir sa carte, son encre, son trait et son gris discret. Le jour où l'un
+  // des quatre dériverait, ce sont les champs de l'app de production qui changeraient.
+  ['move-card',           'field',              'fond du champ (GYM-293b)'],
+  ['move-dark',           'onField',            'encre de saisie (GYM-293b)'],
+  ['move-text-muted',     'onFieldMuted',       'placeholder (GYM-293b)'],
+  ['move-border',         'fieldBorder',        'contour du champ (GYM-293b)'],
 ]
 
 // ── 4. LES LITTÉRAUX QUI N'ONT PAS DE CLASSE ─────────────────────────────────────────

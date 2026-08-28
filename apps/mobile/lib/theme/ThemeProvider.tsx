@@ -60,6 +60,22 @@ export const DOPAMINE_THEME: ThemeTokens = {
   // sur un accent lime.
   onActionMuted: '#A0A0A0',
   rail: '#333333',
+  // 🔴 GYM-293b — LES QUATRE JETONS DE FORMULAIRE, FIGÉS SUR LE RENDU D'AUJOURD'HUI.
+  // C'est ici, et nulle part ailleurs, que la non-régression de l'inscription de Dopamine
+  // se joue : `TextInput` et `Checkbox` cessent d'employer `surface`/`onSurface`/`border`/
+  // `onBackgroundMuted` pour ces rôles, et ces quatre lignes leur rendent EXACTEMENT les
+  // mêmes octets — #FFFFFF, #111111, #9A9890, #E8E6E0. Un champ de Dopamine ne bouge donc
+  // pas d'un pixel, alors que chez une salle les quatre se DÉRIVENT (voir `champ()`).
+  //
+  // ⚠️ ET C'EST BIEN LE MÊME MANDAT QUE `actionBg` EN GYM-290 : le thème d'une salle dérive
+  // ce que Dopamine fige. Sans cette possibilité, corriger le champ rose-sur-rose d'une
+  // salle obligerait à retoucher les champs de l'app de production.
+  field: '#FFFFFF',        // move-card — le champ VALAIT la carte, et c'est le défaut corrigé
+  onField: '#111111',      // move-dark, dans son emploi d'encre de saisie
+  onFieldMuted: '#9A9890', // move-text-muted — le placeholder d'aujourd'hui, à l'octet
+  fieldBorder: '#E8E6E0',  // move-border — 1,19:1 sur le blanc : sous 3:1, et c'est ASSUMÉ
+                           // ici (l'app de Dopamine ne change pas) ; chez une salle, le
+                           // contour est dérivé À 3:1, ce que ces #E8E6E0 ne garantissent pas.
   // 🔴 GYM-290 (A-8) — LA RAMPE DE DOPAMINE, FIGÉE. Ses trois verts d'affluence, recopiés
   // à l'octet depuis les écrans où ils étaient en dur. Chez une salle ils se DÉRIVENT de
   // son accent (voir `rampe()`) ; ici ils ne bougent pas, comme tout le reste de ce fichier.

@@ -35,6 +35,14 @@ export function PasswordInput({ label, error, style, onChangeText, ...props }: P
     <View className="gap-1.5">
       {label && <Text className="font-dmsans-medium text-sm" style={{ color: tokens.onSurface }}>{label}</Text>}
       <View className="relative">
+        {/* 🔴 GYM-293b — LE CHAMP A SES PROPRES JETONS, ET C'EST LA CORRECTION.
+            Il portait `surface` — la couleur de la CARTE qui le contient. Chez Dopamine,
+            blanc sur blanc, un trait clair suffisait à le situer ; chez une salle à la carte
+            colorée, le champ disparaissait dans son support (recette Q3/Q5 : rose sur rose).
+            Le placeholder, lui, portait `onBackgroundMuted` : un gris validé sur le FOND de
+            l'app, posé dans un champ sur une CARTE — deux surfaces sans rapport garanti.
+            ⚠️ EN SINGLE, RIEN NE BOUGE : les quatre jetons sont figés dans `DOPAMINE_THEME`
+            sur les quatre valeurs employées jusqu'ici, à l'octet. */}
         {/* GYM-290 (addendum, décision C) — `border-red-400` valait #F87171, quatrième rouge ;
             #EF4444. Et `border` reste dans la classe : c'est une largeur (piège P-3). */}
         <TextInput
@@ -42,12 +50,12 @@ export function PasswordInput({ label, error, style, onChangeText, ...props }: P
           // Rogné À CHAQUE FRAPPE : l'appelant ne voit jamais la valeur non rognée, donc
           // aucun écran ne peut en enregistrer une par inadvertance.
           onChangeText={(v) => onChangeText?.(v.trim())}
-          placeholderTextColor={tokens.onBackgroundMuted}
+          placeholderTextColor={tokens.onFieldMuted}
           style={[
             {
-              backgroundColor: tokens.surface,
-              color: tokens.onSurface,
-              borderColor: error ? SEMANTIC.danger : tokens.border,
+              backgroundColor: tokens.field,
+              color: tokens.onField,
+              borderColor: error ? SEMANTIC.danger : tokens.fieldBorder,
             },
             style,
           ]}

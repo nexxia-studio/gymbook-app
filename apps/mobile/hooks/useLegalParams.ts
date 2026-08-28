@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useTheme } from '../lib/theme/ThemeProvider'
 import { DEFAULT_LEGAL_PARAMS, type LegalParams } from '../constants/legal/params'
 
 /**
@@ -21,6 +22,12 @@ import { DEFAULT_LEGAL_PARAMS, type LegalParams } from '../constants/legal/param
  */
 export function useLegalParams() {
   const gymId = useAuthStore((s) => s.gym_id)
+  // 🔴 GYM-293b — LA MARQUE, PARCE QU'ELLE EST LÀ AVANT LA CONNEXION. Les CGV sont ouvertes
+  // depuis l'écran d'INSCRIPTION : `gym_id` y est nul, et la lecture ci-dessous ne part
+  // jamais. Le contrat s'affichait donc avec l'identité de repli — c'est-à-dire, avant ce
+  // lot, celle de Dopamine, chez n'importe quelle salle.
+  const { brand } = useTheme()
+  const slug = brand?.slug ?? null
   const [params, setParams] = useState<LegalParams>(DEFAULT_LEGAL_PARAMS)
 
   const load = useCallback(async () => {
@@ -42,7 +49,13 @@ export function useLegalParams() {
     const gym = gymRes.error ? null : gymRes.data
     const rules = rulesRes.error ? null : rulesRes.data
 
-    setParams({
+    // ⚠️ MISE À JOUR FONCTIONNELLE, ET C'EST NÉCESSAIRE DEPUIS GYM-293b. Deux chargements
+    // indépendants alimentent maintenant le même état — l'opérationnel et l'identité. Un
+    // `setParams({...})` littéral écraserait ce que l'autre vient d'écrire, et le gagnant
+    // dépendrait de l'ordre d'arrivée des réponses : le nom du Club disparaîtrait une fois
+    // sur deux, sans qu'on puisse le reproduire.
+    setParams((prev) => ({
+      ...prev,
       // NULL conservé tel quel : « aucune limite » est une valeur, pas une absence.
       maxActiveBookings: gym
         ? (gym.max_active_bookings as number | null)
@@ -56,10 +69,51 @@ export function useLegalParams() {
       escalatedSuspensionHours:
         rules?.escalated_suspension_hours ?? DEFAULT_LEGAL_PARAMS.escalatedSuspensionHours,
       resetAfterDays: rules?.reset_after_days ?? DEFAULT_LEGAL_PARAMS.resetAfterDays,
-    })
+    }))
   }, [gymId])
 
+  /**
+   * 🔴 GYM-293b — L'IDENTITÉ DU VENDEUR, LUE SUR LA SALLE DE CONTEXTE.
+   *
+   * ⚠️ `public_gym_legal_identity` ET PAS UNE LECTURE DE TABLE. C'est la fonction de
+   * GYM-265, ouverte à `anon` précisément pour ce cas : afficher l'identité légale d'une
+   * salle à quelqu'un qui n'en est pas encore membre. Une lecture directe de `nexxia_gyms`
+   * serait refusée par la RLS sur l'écran d'inscription — là où le besoin existe.
+   *
+   * ⚠️ ET ELLE NE PART PAS EN SINGLE. `brand` y vaut `null` par construction : l'app de
+   * Dopamine n'émet donc AUCUNE requête de plus qu'avant, et son article 1 continue de
+   * venir du repli `CLUB_IDENTITY` — les deux textes rendus sont identiques à l'octet.
+   */
+  const loadIdentity = useCallback(async () => {
+    if (!slug) return
+    try {
+      const { data, error } = await (supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: unknown }>
+      }).rpc('public_gym_legal_identity', { p_slug: slug })
+      if (error) return
+      const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined
+      if (!row) return
+      // ⚠️ LE NOM COMMERCIAL D'ABORD. C'est celui sous lequel la salle se présente à ses
+      // membres ; `name` est le libellé interne. La dénomination LÉGALE, elle, n'a rien à
+      // faire ici : l'article renvoie déjà à l'écran d'informations du Club pour cela.
+      const nom = (row.commercial_name ?? row.name) as string | null
+      const ville = (row.legal_city ?? row.city) as string | null
+      setParams((prev) => ({
+        ...prev,
+        clubName: nom?.trim() || prev.clubName,
+        clubCommune: ville?.trim() || prev.clubCommune,
+      }))
+    } catch {
+      // Un membre doit TOUJOURS pouvoir lire ses CGV : un échec laisse le repli en place,
+      // qui ne nomme personne plutôt que de nommer le mauvais vendeur.
+    }
+  }, [slug])
+
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadIdentity() }, [loadIdentity])
 
   return params
 }

@@ -21,8 +21,27 @@
 // Ce qui doit en revanche rester synchronisé avec un autre runtime : le seuil de bascule
 // heures/jours, partagé avec supabase/functions/mark-attendance/index.ts (cf. formatDuration).
 
+import { GYM_MODE } from '../../lib/gymResolver'
+import { CLUB_IDENTITY } from '../club'
+import { APP_NAME } from '../platform'
+
 /** Valeurs opérationnelles d'une salle. `maxActiveBookings: null` = aucune limite. */
 export interface LegalParams {
+  /**
+   * 🔴 GYM-293b — L'IDENTITÉ DU CLUB DEVIENT UN PARAMÈTRE, COMME LES AUTRES.
+   *
+   * Elle était interpolée dans le gabarit depuis `CLUB_IDENTITY`, donc figée à l'import du
+   * module : chez une autre salle, le membre acceptait les CGV de Dopamine. Ce n'est pas un
+   * détail de présentation — c'est l'article 1 du contrat, celui qui désigne le VENDEUR.
+   *
+   * ⚠️ `null` = « on ne sait pas encore quelle salle ». La phrase se replie alors sur une
+   * désignation NEUTRE (« votre salle »), résolue dans `substitutions()` où la langue est
+   * connue. Jamais sur un nom de client : un contrat qui nomme le mauvais vendeur est pire
+   * qu'un contrat qui ne le nomme pas.
+   */
+  clubName: string | null
+  /** Commune du Club. `null` = absente ; la phrase se referme sans virgule orpheline. */
+  clubCommune: string | null
   maxActiveBookings: number | null
   waitlistConfirmationMinutes: number
   warning1At: number
@@ -39,6 +58,13 @@ export interface LegalParams {
  * TOUJOURS pouvoir lire ses CGU, avec des valeurs plausibles plutôt qu'un écran vide.
  */
 export const DEFAULT_LEGAL_PARAMS: LegalParams = {
+  // 🔴 LE REPLI PENCHE DU CÔTÉ SÛR, ET C'EST LE MODE QUI DÉCIDE. En `single`, l'app EST
+  // celle de Dopamine : le repli la nomme, exactement comme le gabarit le faisait, et le
+  // document rendu est identique à l'octet. En `multi`, le repli ne nomme PERSONNE — un
+  // appelant qui oublierait de charger l'identité afficherait « votre salle », pas le nom
+  // d'un autre client. Une valeur par défaut doit rater dans la direction inoffensive.
+  clubName: GYM_MODE === 'multi' ? null : CLUB_IDENTITY.name,
+  clubCommune: GYM_MODE === 'multi' ? null : CLUB_IDENTITY.commune,
   maxActiveBookings: 3,
   waitlistConfirmationMinutes: 30,
   warning1At: 1,
@@ -153,7 +179,15 @@ function counterResetClause(p: LegalParams, lang: Lang): string {
  */
 function substitutions(p: LegalParams, lang: Lang): Record<string, string> {
   const m = p.waitlistConfirmationMinutes
+  // ⚠️ LA COMMUNE PORTE SA PROPRE VIRGULE. « **Studio Yoga**, Liège » et « **Studio Yoga** »
+  // sont deux phrases correctes ; « **Studio Yoga**,  » n'en est pas une. Le séparateur
+  // appartient donc à la valeur, pas au gabarit — c'est la seule façon qu'une commune
+  // absente ne laisse pas de ponctuation orpheline dans un texte contractuel.
+  const commune = p.clubCommune?.trim()
   return {
+    app_name: APP_NAME,
+    club_name: p.clubName?.trim() || (lang === 'fr' ? 'votre salle' : 'your gym'),
+    club_commune: commune ? `, ${commune}` : '',
     booking_limit_clause: bookingLimitClause(p, lang),
     noshow_scale_clause: noshowScaleClause(p, lang),
     counter_reset_clause: counterResetClause(p, lang),
