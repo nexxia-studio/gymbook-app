@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────
 // 🔴 LES CONTRAINTES SONT CELLES DU BUCKET, RECOPIÉES ICI POUR ÊTRE DITES AVANT L'ENVOI
 // ─────────────────────────────────────────────────────────────────────────────────────
-// Le bucket `gym-media` refuse déjà au-delà de 2 Mio et hors des quatre types. Les rejouer
+// Le bucket `gym-media` refuse déjà au-delà de 2 Mio et hors des trois types. Les rejouer
 // côté client n'est pas une duplication de règle : c'est refuser AVANT un aller-retour, où
 // l'échec reviendrait en erreur Storage brute — « The object exceeded the maximum allowed
 // size » — illisible pour un gérant qui voulait juste poser son logo.
@@ -44,14 +44,35 @@ import { supabase } from '@/lib/supabase'
 export const MEDIA_BUCKET = 'gym-media'
 /** `file_size_limit` du bucket, mesuré. */
 export const MEDIA_MAX_BYTES = 2 * 1024 * 1024
-/** `allowed_mime_types` du bucket, mesurés — et l'extension qu'on écrit pour chacun. */
+/**
+ * `allowed_mime_types` du bucket, mesurés — et l'extension qu'on écrit pour chacun.
+ *
+ * 🔴 GYM-305b — LE SVG EST SORTI, ET LE CLIENT DOIT LE DIRE AVANT L'ENVOI. Le bucket ne
+ * l'accepte plus (décision cockpit, vérifiée le 28/08 : `allowed_mime_types` vaut
+ * exactement ces trois types). Sans ce retrait ici, un gérant déposerait un SVG, la zone
+ * l'accepterait, et le refus reviendrait de Storage en erreur brute — le contraire de ce
+ * que cette liste existe pour éviter.
+ */
 export const MEDIA_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
-  'image/svg+xml': 'svg',
 }
-const EXTENSIONS = Object.values(MEDIA_TYPES)
+
+/** « PNG · JPEG · WEBP », dérivé de la liste ci-dessus plutôt que réécrit à côté d'elle. */
+export const MEDIA_FORMATS_LABEL = Object.values(MEDIA_TYPES)
+  .map((e) => (e === 'jpg' ? 'JPEG' : e.toUpperCase()))
+  .join(' · ')
+
+/**
+ * Les extensions à BALAYER au remplacement — pas les mêmes que celles qu'on écrit.
+ *
+ * 🔴 `svg` Y RESTE, ET C'EST TOUT L'INTÉRÊT DE LES SÉPARER. Un logo déposé en SVG avant la
+ * décision du cockpit existe encore dans le bucket. Si le nettoyage ne connaissait que les
+ * formats ACCEPTÉS, ce `logo.svg` survivrait à tous les remplacements — un orphelin
+ * permanent, exactement ce que le nommage déterministe est censé rendre impossible.
+ */
+const EXTENSIONS_A_BALAYER = [...Object.values(MEDIA_TYPES), 'svg']
 
 interface MediaUploadProps {
   /** L'URL enregistrée aujourd'hui, ou `''`. Peut être EXTERNE (posée à la main). */
@@ -97,7 +118,7 @@ export function MediaUpload({
     setErreur(null)
     // ── Les deux refus qu'on prononce SANS toucher au réseau ──────────────────────
     if (!MEDIA_TYPES[file.type]) {
-      setErreur(t('media.error_format', { formats: 'PNG · JPEG · WEBP · SVG' }))
+      setErreur(t('media.error_format', { formats: MEDIA_FORMATS_LABEL }))
       return
     }
     if (file.size > MEDIA_MAX_BYTES) {
@@ -116,7 +137,7 @@ export function MediaUpload({
 
       // ⚠️ APRÈS l'envoi, jamais avant : voir l'en-tête. Un échec ici laisse un fichier
       // mort, pas un gérant sans logo. On n'en fait donc pas une erreur visible.
-      const freres = EXTENSIONS.filter((e) => e !== ext).map((e) => `${path}.${e}`)
+      const freres = EXTENSIONS_A_BALAYER.filter((e) => e !== ext).map((e) => `${path}.${e}`)
       await supabase.storage.from(MEDIA_BUCKET).remove(freres).catch(() => undefined)
 
       const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(chemin)
@@ -139,7 +160,7 @@ export function MediaUpload({
       // Une URL EXTERNE ne nous appartient pas : on ne tente pas de l'effacer, on cesse
       // seulement de la citer. C'est le cas de Dopamine, dont le logo a été posé à la main.
       if (estDansLeBucket(value)) {
-        await supabase.storage.from(MEDIA_BUCKET).remove(EXTENSIONS.map((e) => `${path}.${e}`))
+        await supabase.storage.from(MEDIA_BUCKET).remove(EXTENSIONS_A_BALAYER.map((e) => `${path}.${e}`))
       }
       await onChange(null)
     } catch {
@@ -202,7 +223,7 @@ export function MediaUpload({
           <p className="font-body text-[11px] text-dark/40">{recommendation}</p>
         )}
         <p className="font-body text-[11px] text-dark/40">
-          {t('media.constraints', { formats: 'PNG · JPEG · WEBP · SVG', max: '2 Mo' })}
+          {t('media.constraints', { formats: MEDIA_FORMATS_LABEL, max: '2 Mo' })}
         </p>
 
         {envoi && (

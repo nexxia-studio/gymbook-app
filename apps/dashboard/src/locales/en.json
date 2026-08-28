@@ -923,7 +923,7 @@
       "short_name_label": "Short name shown in the app",
       "short_name_helper": "Shown in the header. Leave empty to use the full name.",
       "logo_label": "Gym logo",
-      "logo_reco": "Wide format recommended — approx. 500 × 100 px, transparent background",
+      "logo_reco": "Square format recommended — approx. 500 × 500 px, transparent background",
       "submit": "Save",
       "saved": "Appearance saved.",
       "save_error": "Saving failed. Please try again in a moment.",

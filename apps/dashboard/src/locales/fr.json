@@ -923,7 +923,7 @@
       "short_name_label": "Nom court affiché dans l’app",
       "short_name_helper": "Affiché dans l’en-tête. Laisse vide pour utiliser le nom complet.",
       "logo_label": "Logo de la salle",
-      "logo_reco": "Format large recommandé — env. 500 × 100 px, fond transparent",
+      "logo_reco": "Format carré recommandé — env. 500 × 500 px, fond transparent",
       "submit": "Enregistrer",
       "saved": "Apparence enregistrée.",
       "save_error": "L’enregistrement a échoué. Réessaie dans un instant.",

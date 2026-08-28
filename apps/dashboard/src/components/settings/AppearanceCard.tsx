@@ -278,9 +278,24 @@ export function AppearanceCard() {
             onChange={persisterLogo}
             path={`${gym?.id ?? ''}/logo`}
             recommendation={t('settings.appearance.logo_reco')}
-            // Le cadrage 5:1 est celui du mot-marque (#246) : le gérant voit son logo dans
-            // la boîte où l'app le posera, pas dans un carré qui lui mentirait.
-            aspect="aspect-[5/1]"
+            // 🔴 GYM-305b (addendum) — BOÎTE CARRÉE, PARCE QUE C'EST CE QU'ON DEMANDE.
+            //
+            // Elle était en 5:1, cadrage emprunté au mot-marque ViNiZ (#246). Or la consigne
+            // du logo d'une SALLE est passée à 500 × 500 : un gérant y aurait vérifié un
+            // carré dans une boîte large, c'est-à-dire dans une forme qui n'est ni celle
+            // qu'on lui demande ni celle où l'app le posera — les tuiles de recherche du
+            // mobile sont carrées (`h-12 w-12`), et c'est ce qui a motivé la consigne.
+            //
+            // ⚠️ LE MOT-MARQUE VINIZ, LUI, RESTE EN 5:1 — ET CE N'EST PAS UNE INCOHÉRENCE.
+            // C'est un AUTRE asset, horizontal par nature : `AuthLayout`, `Sidebar` et la
+            // page de réinitialisation gardent leurs boîtes 200×40, 180×36, 140×28 et
+            // 120×24. Confondre les deux cadrages ferait rentrer un logotype horizontal
+            // dans un carré, ou l'inverse.
+            //
+            // ⚠️ UNE URL EXTERNE NE SE DÉFORME PAS POUR AUTANT : l'aperçu est en
+            // `object-contain` (voir `MediaUpload`). Le logo posé à la main chez Dopamine
+            // s'affiche dans la même boîte, entier, avec du vide autour plutôt qu'étiré.
+            aspect="aspect-square"
             previewClassName="bg-dark"
             disabled={!gym?.id}
           />
