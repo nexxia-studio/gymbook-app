@@ -546,6 +546,58 @@ Deno.serve(async (req) => {
           if (existingSub?.mollie_subscription_id) {
             console.log('[sub-webhook] subscription already exists — skip Mollie create (idempotent):', existingSub.mollie_subscription_id)
           } else {
+            // ╔═══════════════════════════════════════════════════════════════════════╗
+            // ║  🔴 GYM-314 — profileId, OBLIGATOIRE en OAuth Connect.                ║
+            // ╚═══════════════════════════════════════════════════════════════════════╝
+            // DÉFAUT CORRIGÉ (prod, incident d'inauguration — 2 membres réels bloqués) :
+            // ce payload partait SANS profileId et Mollie refusait l'abonnement en
+            //     422 — "A website profile is required for payments", field: "profileId"
+            // Le 503 qui suivait tombait AVANT l'upsert `paid` : paiement figé en
+            // 'pending', aucune ligne member_subscriptions, membre sans droit de réserver.
+            //
+            // Un jeton OAuth Connect porte l'ORGANISATION, pas le profil : sur les
+            // endpoints de création, Mollie ne peut pas déduire au nom de quel profil
+            // (site marchand) créer. Les paiements le portaient déjà — create-payment et
+            // create-subscription lisent `gym_mollie_connections.mollie_profile_id`, et
+            // c'est pour ça qu'ils passent. Cet appel-ci était le seul créateur à ne pas
+            // le faire. MÊME CHEMIN DE LECTURE, à l'identique, pas un second mécanisme.
+            //
+            // La lecture est ICI, dans la branche qui appelle RÉELLEMENT Mollie, et non à
+            // la construction du payload : un rejeu que l'idempotence court-circuite
+            // (abo déjà créé) ne doit pas pouvoir échouer sur une salle déconnectée
+            // depuis. On ne bloque que ce qu'on s'apprête à envoyer.
+            //
+            // ⚠️ En test mode, la clé API est DÉJÀ liée à un profil : pas de profileId à
+            // joindre. Même condition que create-payment / create-subscription.
+            if (!IS_TEST_MODE) {
+              const { data: connMeta } = await supabase
+                .from('gym_mollie_connections')
+                .select('mollie_profile_id')
+                .eq('gym_id', gymId)
+                .maybeSingle()
+              const profileId = connMeta?.mollie_profile_id ?? null
+
+              if (!profileId) {
+                // On NE tente PAS un appel dont on connaît déjà le refus : le 422 ne dirait
+                // rien de plus et coûterait un aller-retour sur le chemin de l'argent. Stage
+                // DÉDIÉ — 'subscription_create' mélangerait ce défaut de configuration
+                // (la salle doit refaire son OAuth) avec un refus Mollie, qui appelle un
+                // tout autre geste. 503 et non 200 : le rejeu réussira une fois la salle
+                // reconnectée, sans intervention en base.
+                await recordWebhookFailure(supabase, {
+                  functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+                  gymId, stage: 'subscription_profile_missing',
+                  detail: {
+                    reason: 'gym_mollie_connections.mollie_profile_id absent — profileId requis en OAuth Connect',
+                    customerId,
+                  },
+                })
+                return new Response('missing mollie profile', { status: 503 })
+              }
+
+              subPayload.profileId = profileId
+            }
+
             const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
