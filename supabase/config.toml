@@ -197,3 +197,19 @@ verify_jwt = true
 
 [functions.send-notification]
 verify_jwt = true
+
+# ── GYM-315 — REJEU D'UN WEBHOOK MOLLIE (outil d'exploitation ÉDITEUR) ───────────
+# `verify_jwt = true` filtre les non-authentifiés ; il n'autorise rien — la clé anon est
+# publique. LA GARDE RÉELLE EST DANS LE CODE : lecture du profil de l'appelant et
+# exigence de `role = 'super_admin'` (avec `deleted_at IS NULL`, même définition que
+# `public.is_super_admin()` en base).
+#
+# 🔴 SEULE FONCTION DU DÉPÔT QUI REFUSE `gym_admin`. Toutes les autres `admin-*`
+# acceptent `['gym_admin', 'super_admin']` : un gérant agit CHEZ LUI. Celle-ci atteint
+# n'importe quelle salle — le paiement visé désigne lui-même la sienne — et relaie le
+# MOLLIE_WEBHOOK_SECRET du projet. La divergence avec le motif habituel est VOULUE.
+#
+# La cible est prise dans une liste fermée (mollie-webhook, mollie-subscription-webhook)
+# et le paiement doit exister en base : pas de rejeu à l'aveugle.
+[functions.admin-replay-mollie-webhook]
+verify_jwt = true
