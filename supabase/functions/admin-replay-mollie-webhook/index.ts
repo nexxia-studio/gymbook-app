@@ -60,9 +60,46 @@ type ReplayTarget = typeof REPLAYABLE_TARGETS[number]
 const MOLLIE_ID_RE = /^(tr|sub|re|ord)_[a-zA-Z0-9]+$/
 
 /**
- * Déduction de la cible à partir de la ligne `payments`, sur la convention DÉJÀ écrite
- * dans le dépôt (`credits_granted > 0 ⇒ vente à l'unité`, cf. create-payment et
- * l'upsert de mollie-subscription-webhook) :
+ * `payments.plan_id` est de type `text` et `gym_plans.id` de type `uuid` : il n'y a
+ * AUCUNE clé étrangère entre les deux, donc rien qui garantisse la jointure. On teste la
+ * forme avant de comparer — un `plan_id` non-uuid ferait lever la requête (22P02) et
+ * transformerait une déduction en erreur 500.
+ */
+const UUID_RE = /^[0-9a-fA-F-]{36}$/
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ * SOURCE PRIMAIRE (GYM-315 addendum) — `gym_plans.billing_type`
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ * C'est LE critère qui décide réellement du webhook, et il n'est pas déduit : l'app
+ * mobile choisit la fonction d'encaissement avec exactement ce test —
+ *
+ *     apps/mobile/app/profile/subscription.tsx:293
+ *     const result = plan.billingType === 'one_time'
+ *       ? await startOneTimeCheckout(...)      → create-payment      → mollie-webhook
+ *       : await startSubscriptionCheckout(...) → create-subscription → mollie-subscription-webhook
+ *
+ * On relit donc la MÊME colonne que celle qui a produit l'aiguillage d'origine, au lieu
+ * d'inférer depuis une conséquence.
+ *
+ * ⚠️ NE PAS UTILISER `gym_plans.type` POUR ÇA — c'est le piège de cette colonne. Sa
+ * contrainte CHECK la limite à `('unlimited', 'credits')` : elle dit CE QUE LE MEMBRE
+ * OBTIENT, pas comment il paie, et GYM-188 a explicitement DÉCOUPLÉ les deux axes
+ * (`plan-resolver.ts` prend soin de les distinguer). Un plan `unlimited` payé en une
+ * fois existe : mesuré en prod le 31/08/2026, 3 paiements `billing_type = 'one_time'`
+ * portent `type = 'unlimited'`. Router sur `type` les enverrait au webhook d'abonnement.
+ */
+function targetForBillingType(billingType: string): ReplayTarget {
+  return billingType === 'one_time' ? 'mollie-webhook' : 'mollie-subscription-webhook'
+}
+
+/**
+ * REPLI — convention `credits_granted`, conservée telle quelle.
+ *
+ * Ne sert QUE si le plan n'est plus joignable : `plan_id` absent ou non-uuid, ou plan
+ * supprimé de `gym_plans` (aucune FK ne l'en empêche). Mesuré en prod le 31/08/2026 :
+ * 0 cas sur 28 paiements Mollie — mais un plan supprimé demain le produirait, et un
+ * rejeu ne doit pas dépendre de la durée de vie d'une ligne de catalogue.
  *
  *   · `0`    → abonnement. create-subscription pose explicitement 0, et le commentaire
  *              GYM-243 dit pourquoi 0 plutôt que NULL : « évite une bascule NULL → 0 en
@@ -72,11 +109,10 @@ const MOLLIE_ID_RE = /^(tr|sub|re|ord)_[a-zA-Z0-9]+$/
  *              dans create-payment, seul écrivain de NULL sur cette colonne.
  *
  * ⚠️ CETTE CONVENTION A ÉTÉ CONÇUE POUR CLASSER /revenus, PAS POUR ROUTER. Elle est
- * exacte aujourd'hui — les trois écrivains sont connus et vérifiés — mais elle reste une
- * DÉDUCTION. C'est toute la raison d'être du paramètre `target` explicite : l'opérateur
- * garde le dernier mot, et le rejeu ne dépend pas d'une convention pour fonctionner.
+ * exacte aujourd'hui (28/28 d'accord avec `billing_type` en prod), mais elle reste une
+ * inférence sur une conséquence — d'où sa rétrogradation en repli.
  */
-function deduceTarget(creditsGranted: number | null): ReplayTarget {
+function targetForCreditsGranted(creditsGranted: number | null): ReplayTarget {
   return creditsGranted === 0 ? 'mollie-subscription-webhook' : 'mollie-webhook'
 }
 
@@ -198,7 +234,7 @@ Deno.serve(async (req) => {
     // aucun webhook Mollie ne les concerne, il n'y a rien à rejouer.
     const { data: payment } = await admin
       .from('payments')
-      .select('id, gym_id, member_id, status, credits_granted, mollie_payment_id')
+      .select('id, gym_id, member_id, status, credits_granted, plan_id, mollie_payment_id')
       .eq('mollie_payment_id', molliePaymentId)
       .maybeSingle()
 
@@ -213,9 +249,43 @@ Deno.serve(async (req) => {
     // avec la base) mais qu'aucun lecteur ne devrait avoir à vérifier.
     const statusBefore = payment.status as string
 
-    const target: ReplayTarget = (requestedTarget as ReplayTarget | undefined)
-      ?? deduceTarget(payment.credits_granted)
-    const targetSource = requestedTarget ? 'explicit' : 'deduced'
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CIBLE — explicite > billing_type (sémantique) > credits_granted (repli)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // `target_source` voyage dans la réponse ET dans la trace : l'opérateur doit pouvoir
+    // dire SUR QUOI la cible a été choisie sans relire ce fichier. Les trois cas se
+    // distinguent, parce qu'ils n'inspirent pas la même confiance.
+    let target: ReplayTarget
+    let targetSource: 'explicit' | 'billing_type' | 'credits_granted'
+
+    if (requestedTarget) {
+      target = requestedTarget as ReplayTarget
+      targetSource = 'explicit'
+    } else {
+      let billingType: string | null = null
+      // Pas de jointure côté PostgREST : sans FK (text ↔ uuid) l'imbrication est
+      // impossible, c'est donc une seconde lecture. Elle est indexée (clé primaire) et
+      // ne coûte qu'un aller-retour, sur un chemin déclenché à la main.
+      if (payment.plan_id && UUID_RE.test(payment.plan_id)) {
+        const { data: plan } = await admin
+          .from('gym_plans')
+          .select('billing_type')
+          .eq('id', payment.plan_id)
+          .maybeSingle()
+        billingType = plan?.billing_type ?? null
+      }
+
+      if (billingType) {
+        target = targetForBillingType(billingType)
+        targetSource = 'billing_type'
+      } else {
+        // Plan supprimé, plan_id absent ou malformé. On ne renonce pas au rejeu pour
+        // autant : la convention `credits_granted` reste vraie sur toutes les données
+        // mesurées, et `target_source` dit clairement qu'on est descendu d'un cran.
+        target = targetForCreditsGranted(payment.credits_granted)
+        targetSource = 'credits_granted'
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // 4. LE SECRET — lu ici, jamais transmis, jamais journalisé
