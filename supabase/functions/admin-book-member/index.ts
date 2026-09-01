@@ -107,6 +107,13 @@ function embeddedMaxOverbook(rel: unknown): number {
 // Best-effort et jamais bloquant : la réservation est faite, un mail perdu ne l'annule pas.
 async function notifyMember(
   gym: GymBranding,
+  // 🔴 GYM-317 — PARAMÈTRE AJOUTÉ. Le corps de cette fonction lisait `slot.gym_id`, or
+  // `slot` n'a jamais été un paramètre : aucun identifiant de salle n'était en portée ici,
+  // et `GymBranding` n'en porte pas (name, slug, adresse, couleurs — pas d'`id`). Il n'y
+  // avait donc rien à corriger sur place : la valeur doit ENTRER. Elle vient de `gymId`,
+  // lu sur le PROFIL de l'appelant et déjà validé, la même source que `loadGymBranding`
+  // juste au-dessus de l'appel.
+  gymId: string,
   supabaseUrl: string,
   serviceKey: string,
   member: { email: string | null; first_name: string | null; push_token: string | null },
@@ -131,7 +138,8 @@ async function notifyMember(
       body: JSON.stringify({
         tokens: [member.push_token],
         // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-        gym_id: slot.gym_id,
+        // GYM-317 — reçu en paramètre (voir la signature) : `slot` n'existait pas ici.
+        gym_id: gymId,
         title: 'Inscription confirmée',
         body: `${activityName} — ${dateStr} à ${timeStr}. Inscrit par ta salle.`,
         data: { type: 'booking_confirmed' },
@@ -531,7 +539,7 @@ Deno.serve(async (req) => {
     // Identité de la salle lue ici : `gymId` vient du PROFIL de l'appelant, déjà validé.
     const gym = await loadGymBranding(admin, gymId)
     await notifyMember(
-      gym, supabaseUrl, serviceKey,
+      gym, gymId, supabaseUrl, serviceKey,
       {
         email: member.email as string | null,
         first_name: member.first_name as string | null,
