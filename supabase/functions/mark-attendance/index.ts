@@ -134,7 +134,14 @@ async function notifySuspension(
         body: JSON.stringify({
           tokens: [profile.push_token],
           // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-          gym_id: booking.gym_id,
+          // 🔴 GYM-317 — `gymId`, PAS `booking.gym_id` : le `select` de `booking` ne
+          // demande que `member_id, time_slots(...)`, la colonne n'est donc jamais chargée.
+          // Contrairement aux deux autres défauts du lot, celui-ci NE LEVAIT PAS — un accès
+          // à une propriété absente rend `undefined`, `JSON.stringify` retire la clé, et
+          // send-notification répondait 400 GYM_ID_REQUIRED sur un corps silencieusement
+          // amputé. `gymId` vient du profil de l'appelant (déjà validé) et sert huit lignes
+          // plus bas pour le branding : même source pour les deux usages.
+          gym_id: gymId,
           title: `Compte suspendu ${durationLabel} ⚠️`,
           body: `Absence enregistrée — ${activityName}. Suspendu jusqu'au ${untilStr}.`,
           data: { type: 'noshow_penalty', booking_id: bookingId },
