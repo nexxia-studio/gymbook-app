@@ -46,9 +46,29 @@ export async function getGymSlug(): Promise<string> {
  *
  * ⚠️ COCKPIT : cette URL doit figurer dans les Redirect URLs de Supabase Auth (prod ET
  * staging), sinon le lien est rejeté et le correctif reste inopérant.
+ *
+ * 🔴 GYM-318 — LE SLUG VIENT DU CHOIX LOCAL, PAS DU PROFIL. Même raison qu'à la
+ * confirmation d'inscription vingt lignes plus bas, et le fichier la documentait déjà sans
+ * qu'on en tire la conséquence ici : « ces URL se construisent DÉCONNECTÉ, où la policy
+ * membre ne renvoie aucune ligne ».
+ *
+ * Le mécanisme, de bout en bout : « mot de passe oublié » vit dans le groupe `(auth)`,
+ * donc hors session. `getGymSlug()` passe par `getGymProfile()`, qui commence par
+ * `getActiveGymId()` — lequel lit `useAuthStore.getState().gym_id`. Déconnecté, il rend
+ * `null`, `getGymProfile()` sort immédiatement, et le repli GYM_SLUG s'applique.
+ *
+ * Mesuré en recette : un membre de Studio Yoga Test 1 recevait un lien `?gym=dopamine` et
+ * une page de succès qui lui proposait de télécharger l'app Dopamine. La seule salle
+ * connue à cet instant est celle qu'il a choisie dans la recherche — c'est elle qu'on lit.
+ *
+ * ⚠️ MODE SINGLE INCHANGÉ, PAR CONSTRUCTION : `readSelectedGymSlug()` rend `null` sans
+ * condition quand GYM_MODE vaut 'single' (premier test de la fonction, avant tout accès au
+ * stockage). L'expression retombe donc TOUJOURS sur GYM_SLUG chez Dopamine — ce n'est pas
+ * une probabilité, c'est le même caractère qu'avant.
  */
 export async function buildMemberResetPasswordUrl(): Promise<string> {
-  return `${LINKS_BASE}/${await getGymSlug()}/reset-password`
+  const slug = await readSelectedGymSlug()
+  return `${LINKS_BASE}/${slug ?? GYM_SLUG}/reset-password`
 }
 
 /**
@@ -80,6 +100,18 @@ export async function buildMemberSignupConfirmUrl(): Promise<string> {
  * https couvert par l'AASA (paths /{slug}/*) est lui honoré : iOS rouvre l'app
  * directement sur l'écran de vérification, avec le `?id=` ajouté par create-payment.
  * Android / desktop / app absente retombent sur la page statique apps/links.
+ *
+ * ✅ GYM-318 — VÉRIFIÉ, PAS DE DÉFAUT ICI : ne pas aligner cette fonction sur les deux
+ * ci-dessus par symétrie apparente. Ses seuls appelants sont `startOneTimeCheckout` et
+ * `startSubscriptionCheckout` (lib/payments.ts), qui invoquent create-payment /
+ * create-subscription — toutes deux en `verify_jwt = true`, avec le membre résolu depuis
+ * son jeton. Cet appel se fait donc TOUJOURS CONNECTÉ : `getActiveGymId()` rend la salle
+ * active, `getGymProfile()` la lit, et le slug est le vrai. C'est exactement la condition
+ * qui manque à « mot de passe oublié », et c'est pourquoi le défaut n'existe pas ici.
+ *
+ * (Les deux sources CONVERGERAIENT de toute façon : `switchGym` écrit le choix local en
+ * même temps que la salle active — gymSwitch.ts:140 — et activeGymSession le resynchronise.
+ * Ce n'est donc pas un arbitrage de justesse, mais du hors-périmètre : rien à corriger.)
  */
 export async function buildPaymentReturnUrl(source: string): Promise<string> {
   return `${LINKS_BASE}/${await getGymSlug()}/payment-success?source=${encodeURIComponent(source)}`
