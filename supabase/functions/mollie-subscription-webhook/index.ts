@@ -10,6 +10,8 @@ import {
   buildMemberFailureEmail,
   buildOwnerAlertEmail,
 } from '../_shared/failed-renewal-emails.ts'
+// GYM-319 — date du premier renouvellement, isolée pour être vérifiable hors ligne.
+import { firstRenewalDate } from './renewal-date.ts'
 
 const FN = 'mollie-subscription-webhook'
 
@@ -598,6 +600,46 @@ Deno.serve(async (req) => {
               subPayload.profileId = profileId
             }
 
+            // ╔═══════════════════════════════════════════════════════════════════════╗
+            // ║  🔴 GYM-319 — startDate, SANS QUOI MOLLIE PRÉLÈVE LE JOUR MÊME.       ║
+            // ╚═══════════════════════════════════════════════════════════════════════╝
+            // DÉFAUT CORRIGÉ (prod — 5 abonnements créés depuis le 30/08, 5 DOUBLES
+            // PRÉLÈVEMENTS) : ce payload partait sans `startDate`. Doc Mollie : sans lui,
+            // « la date du jour est utilisée » — la première échéance récurrente partait
+            // donc aussitôt, EN PLUS du paiement initial déjà encaissé au checkout. Écart
+            // constaté entre les deux débits : 5 heures pour Robin, puis 1,4 j · 1,4 j ·
+            // 1,5 j · 2,4 j — le délai de mise en file de Mollie, pas une date de départ.
+            //
+            // 🔴 UNE SEULE DATE, CALCULÉE UNE FOIS, POUR LES DEUX SOURCES. La même valeur
+            // part chez Mollie et s'écrit dans `next_payment_at` quelques lignes plus bas.
+            // C'est le second volet de l'incident : la base annonçait au membre le 30/09
+            // pendant que Mollie prélevait le 01/09. Deux dates pour un même fait, donc
+            // deux vérités — et l'app affichait la fausse. Recalculer, ou reprendre
+            // `subscription.nextPaymentDate`, rouvrirait la porte à cette divergence.
+            //
+            // Le fuseau est celui de la salle (`nexxia_gyms.timezone`), jamais UTC brut :
+            // `startDate` est une date NUE, et le raisonnement complet — nuit décalée,
+            // bascule du 25/10, fins de mois — vit dans `renewal-date.ts`, avec son banc.
+            // La lecture est ICI, dans la branche qui appelle réellement Mollie, pour la
+            // même raison que profileId juste au-dessus : un rejeu que l'idempotence
+            // court-circuite ne doit pas dépendre d'un champ qu'on n'enverra pas.
+            const { data: gymTz } = await supabase
+              .from('nexxia_gyms')
+              .select('timezone')
+              .eq('id', gymId)
+              .maybeSingle()
+            // Même repli que slot-series-op : le DEFAULT du schéma, pas une salle en dur.
+            const timeZone = gymTz?.timezone ?? 'Europe/Brussels'
+            // `paidAt` est l'instant du paiement initial tel que Mollie l'a horodaté ; le
+            // repli sur maintenant ne sert que si Mollie l'omet — on est de toute façon
+            // dans la seconde qui suit l'encaissement.
+            const paidAt = molliePayment.paidAt ? new Date(molliePayment.paidAt) : new Date()
+            // Le 1 DOIT rester égal à `interval: '1 month'` du même payload : c'est la
+            // définition d'« un intervalle ». `times` n'est pas touché (durée − 1) — le
+            // nombre total de prélèvements était déjà correct.
+            const nextPaymentDate = firstRenewalDate(paidAt, timeZone, 1)
+            subPayload.startDate = nextPaymentDate
+
             const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -615,7 +657,7 @@ Deno.serve(async (req) => {
               return new Response('subscription create failed', { status: 503 })
             }
 
-            const subscription = await subRes.json() as { id: string; nextPaymentDate?: string }
+            const subscription = await subRes.json() as { id: string }
             const startsAt = new Date()
             const endsAt = new Date(startsAt)
             endsAt.setMonth(endsAt.getMonth() + durationMonths)
@@ -627,7 +669,9 @@ Deno.serve(async (req) => {
               amount: planAmount,
               starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(),
               max_payments: plan.duration_months, payments_count: 1,
-              next_payment_at: subscription.nextPaymentDate ?? null,
+              // GYM-319 — LA DATE QU'ON A ENVOYÉE, pas celle que Mollie renvoie : c'est ce
+              // qui garantit que la base et l'échéancier Mollie disent la même chose.
+              next_payment_at: nextPaymentDate,
             })
 
             if (subInsertError) {
