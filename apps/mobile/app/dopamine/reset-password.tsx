@@ -13,8 +13,16 @@ import { PasswordInput } from '../../components/ui/PasswordInput'
 import { PasswordRules } from '../../components/ui/PasswordRules'
 import { supabase } from '../../lib/supabase'
 import { validatePassword, mapPasswordError } from '../../lib/passwordPolicy'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
+ * 🔴 GYM-310 — SES TEXTES VIVENT DANS L'ESPACE `dopamine.*`, ET C'EST STRUCTUREL.
+ * Cet écran est celui de Dopamine : sa route est `/dopamine/*`, l'AASA ne déclare ce
+ * chemin que pour elle, et il est le SEUL consommateur du bloc de traduction. Deux de ses
+ * phrases nommaient donc Dopamine — légitimement — mais dans un espace générique, où rien
+ * ne distinguait une mention voulue d'une fuite. L'espace le dit maintenant : tout ce qui
+ * nomme un client habite `dopamine.*`, et `verify-aucune-fuite-dopamine` refuse le reste.
+ *
  * Route Universal Link : cible de https://links.viniz.app/dopamine/reset-password#access_token=…
  * (email de reset password — GYM-158, v2 de GYM-157). expo-router mappe par path
  * (/dopamine/* couvert par l'AASA), comme confirm-waitlist (GYM-45).
@@ -52,6 +60,7 @@ function parseAuthParams(rawUrl: string | null): Record<string, string> {
 }
 
 export default function ResetPassword() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const incomingUrl = Linking.useURL()
@@ -119,7 +128,7 @@ export default function ResetPassword() {
       return
     }
     if (password !== confirm) {
-      setError(t('reset.mismatch'))
+      setError(t('dopamine.reset.mismatch'))
       return
     }
     setSaving(true)
@@ -131,7 +140,7 @@ export default function ResetPassword() {
       }
       setStatus('done')
     } catch {
-      setError(t('reset.error_generic'))
+      setError(t('dopamine.reset.error_generic'))
     } finally {
       setSaving(false)
     }
@@ -145,27 +154,29 @@ export default function ResetPassword() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top', 'bottom']}>
       <View className="flex-1 justify-center px-6">
         <View className="items-center mb-8">
-          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: '#C8F000', letterSpacing: 2 }}>
+          <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 28, color: tokens.accent, letterSpacing: 2 }}>
             DOPAMINE
           </Text>
         </View>
 
         {status === 'checking' && (
           <View className="items-center gap-4">
-            <ActivityIndicator size="large" color="#C8F000" />
-            <Text className="font-dmsans text-sm text-move-text-muted">{t('reset.checking')}</Text>
+            <ActivityIndicator size="large" color={tokens.accent} />
+            <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('dopamine.reset.checking')}</Text>
           </View>
         )}
 
         {status === 'ready' && (
-          <View className="rounded-2xl bg-move-card p-6">
-            <Text className="font-dmsans-bold text-lg text-move-dark">{t('reset.title')}</Text>
-            <Text className="mt-1 mb-5 font-dmsans text-sm text-move-text-secondary">{t('reset.subtitle')}</Text>
+          <View className="rounded-2xl p-6" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-lg" style={{ color: tokens.onSurface }}>{t('dopamine.reset.title')}</Text>
+            <Text className="mt-1 mb-5 font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>{t('dopamine.reset.subtitle')}</Text>
 
             {error && (
+              // GYM-286 — A-2, EN ATTENTE : `bg-red-50` #FEF2F2 et `text-red-600` #DC2626
+              // ne valent aucun jeton — ce n'est ni le rouge d'erreur ni son fond.
               <View className="mb-4 rounded-xl bg-red-50 px-4 py-3">
                 <Text className="font-dmsans text-sm text-red-600">{error}</Text>
               </View>
@@ -174,7 +185,7 @@ export default function ResetPassword() {
             <View className="gap-4">
               <View className="gap-2">
                 <PasswordInput
-                  label={t('reset.new_password')}
+                  label={t('dopamine.reset.new_password')}
                   autoCapitalize="none"
                   autoComplete="password-new"
                   textContentType="newPassword"
@@ -184,7 +195,7 @@ export default function ResetPassword() {
                 <PasswordRules password={password} minLength={MIN_PASSWORD} />
               </View>
               <PasswordInput
-                label={t('reset.confirm_password')}
+                label={t('dopamine.reset.confirm_password')}
                 autoCapitalize="none"
                 autoComplete="password-new"
                 textContentType="newPassword"
@@ -196,13 +207,14 @@ export default function ResetPassword() {
             <Pressable
               onPress={handleSubmit}
               disabled={saving}
-              className={`mt-6 flex-row items-center justify-center rounded-xl bg-move-dark py-3.5 ${saving ? 'opacity-60' : ''}`}
+              style={{ backgroundColor: tokens.actionBg }}
+              className={`mt-6 flex-row items-center justify-center rounded-xl py-3.5 ${saving ? 'opacity-60' : ''}`}
             >
               {saving ? (
-                <ActivityIndicator color="#C8F000" />
+                <ActivityIndicator color={tokens.onAction} />
               ) : (
-                <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
-                  {t('reset.submit')}
+                <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
+                  {t('dopamine.reset.submit')}
                 </Text>
               )}
             </Pressable>
@@ -210,28 +222,28 @@ export default function ResetPassword() {
         )}
 
         {status === 'done' && (
-          <View className="items-center rounded-2xl bg-move-card p-8">
-            <Text className="font-dmsans-bold text-lg text-move-dark">{t('reset.success_title')}</Text>
-            <Text className="mt-2 mb-6 text-center font-dmsans text-sm text-move-text-secondary">
-              {t('reset.success_message')}
+          <View className="items-center rounded-2xl p-8" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-lg" style={{ color: tokens.onSurface }}>{t('dopamine.reset.success_title')}</Text>
+            <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
+              {t('dopamine.reset.success_message')}
             </Text>
-            <Pressable onPress={goToLogin} className="rounded-xl bg-move-dark px-6 py-3.5">
-              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
-                {t('reset.go_login')}
+            <Pressable onPress={goToLogin} style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5">
+              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
+                {t('dopamine.reset.go_login')}
               </Text>
             </Pressable>
           </View>
         )}
 
         {status === 'invalid' && (
-          <View className="items-center rounded-2xl bg-move-card p-8">
-            <Text className="font-dmsans-bold text-lg text-move-dark">{t('reset.invalid_title')}</Text>
-            <Text className="mt-2 mb-6 text-center font-dmsans text-sm text-move-text-secondary">
-              {t('reset.invalid_message')}
+          <View className="items-center rounded-2xl p-8" style={{ backgroundColor: tokens.surface }}>
+            <Text className="font-dmsans-bold text-lg" style={{ color: tokens.onSurface }}>{t('dopamine.reset.invalid_title')}</Text>
+            <Text className="mt-2 mb-6 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
+              {t('dopamine.reset.invalid_message')}
             </Text>
-            <Pressable onPress={goToLogin} className="rounded-xl bg-move-dark px-6 py-3.5">
-              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: '#C8F000' }}>
-                {t('reset.go_login')}
+            <Pressable onPress={goToLogin} style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5">
+              <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 14, color: tokens.onAction }}>
+                {t('dopamine.reset.go_login')}
               </Text>
             </Pressable>
           </View>

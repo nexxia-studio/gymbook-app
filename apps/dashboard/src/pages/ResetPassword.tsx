@@ -10,6 +10,8 @@
 // relit getSession() (l'événement a pu partir avant le montage).
 import { useState, useEffect, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import vinizLogo from '@/assets/brand/viniz-logo-horizontal-lime.svg'
+import { useLocation, Link } from 'react-router-dom'
 import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
@@ -31,20 +33,143 @@ const MIN_PASSWORD = 8
 // ouvre cette page depuis un navigateur desktop.
 const APP_DOWNLOAD_URL = 'https://apps.apple.com/be/app/dopamine-performance-club/id6781670485'
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-303 — CETTE PAGE ÉTAIT BRANDÉE DOPAMINE POUR TOUT LE MONDE
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// C'est ELLE que Antoine a vue, et non l'infra de liens : mesuré avant ce lot,
+// links.viniz.app rendait un 404 NU (79 octets) pour les autres salles, sans marque. La
+// marque Dopamine venait d'ici — mot-marque `DOPAMINE` en lime, et lien de téléchargement
+// vers l'app Dopamine sur l'App Store.
+//
+// Or cette page est atteinte par TOUT LE MONDE, et par quatre chemins distincts :
+//   · les membres de Dopamine, relayés depuis links.viniz.app/dopamine/reset-password ;
+//   · les membres de TOUTE AUTRE salle, relayés depuis /<slug>/reset-password (GYM-303) ;
+//   · les GÉRANTS de toute salle (ForgotPassword → `${origin}/reset-password`) ;
+//   · tout membre créé par `admin-create-member`, quelle que soit sa salle.
+// Les trois derniers voyaient donc la marque d'un client qui n'est pas le leur, et se
+// voyaient proposer le téléchargement d'une app où ils n'ont pas de compte.
+//
+// ⚠️ LE CONTEXTE VIENT DE `?gym=<slug>`, ET DE RIEN D'AUTRE. Vérifié dans le dépôt, pas
+// supposé : le lien de reset MEMBRE porte le slug dans son CHEMIN
+// (`apps/mobile/lib/gymUrls.ts` → `${LINKS_BASE}/${slug}/reset-password`), et les pages de
+// relais de `apps/links` le transmettent ici en query. Le lien GÉRANT, lui, ne porte AUCUN
+// contexte (`${window.location.origin}/reset-password`) : il rend donc le neutre, ce qui
+// est exactement ce qu'il doit rendre.
+//
+// ⚠️ ET LE NEUTRE EST LE DÉFAUT, PAS L'EXCEPTION. Sans paramètre, sans slug reconnu, sur un
+// lien ancien : Viniz. Une page qui retomberait sur Dopamine « au cas où » reproduirait le
+// défaut exact qu'on corrige, en le rendant plus difficile à voir.
+const DOPAMINE_SLUG = 'dopamine'
+
+/**
+ * 🔴 GYM-303b — LES QUATRE PHRASES QUI CITAIENT DOPAMINE, ET POURQUOI DEUX JEUX DE CLÉS.
+ *
+ * #238 avait rendu le MOT-MARQUE et le LIEN du bouton dépendants du contexte, mais pas les
+ * TEXTES : quatre chaînes de traduction nommaient Dopamine en dur. Un membre de Studio Yoga
+ * lisait donc « ton compte Dopamine » sur le formulaire, puis « Réserve tes cours depuis
+ * l'application Dopamine » après avoir réussi — sous un mot-marque ViNiZ. L'écran se
+ * contredisait lui-même.
+ *
+ * ⚠️ ET LA FUITE N'ÉTAIT PAS QUE DANS L'ÉTAT DE SUCCÈS. `reset.subtitle` est affichée sur le
+ * FORMULAIRE, à l'entrée — l'état que le ticket croyait couvert. Le balayage demandé l'a
+ * trouvée ; la relecture de #238 ne l'avait pas vue parce qu'elle portait sur le JSX, et que
+ * cette phrase-là vit dans un fichier de traduction.
+ *
+ * ⚠️ DEUX JEUX DE CLÉS PLUTÔT QU'UNE INTERPOLATION `{{app}}`. Insérer un nom de marque dans
+ * une phrase suppose que la phrase reste juste quel que soit ce nom — or « ton compte
+ * Viniz » serait FAUX : le membre a un compte chez SA salle, pas chez Viniz. Le neutre ne
+ * nomme donc personne, et c'est ce qui le rend vrai partout. Les clés d'origine restent
+ * intactes, mot pour mot : Dopamine ne bouge pas d'un caractère.
+ */
+function useResetCopy(estDopamine: boolean) {
+  const { t } = useTranslation()
+  // 🔴 GYM-310 — L'ESPACE PORTE LE SENS, PLUS UN SUFFIXE. Les quatre variantes qui nomment
+  // Dopamine vivent dans `dopamine.reset.*` ; les neutres reprennent le nom simple. Le
+  // couple `X` / `X_neutral` disait l'inverse de ce qu'on veut : il faisait de la variante
+  // NOMMÉE le cas par défaut, et du neutre l'exception. C'est le neutre qui est vrai
+  // partout, et Dopamine qui est le cas particulier — le nommage le dit désormais.
+  const cle = (base: string) => (estDopamine ? `dopamine.reset.${base}` : `reset.${base}`)
+  return {
+    subtitle: t(cle('subtitle')),
+    successMessage: t(cle('success_message')),
+    nextStepText: t(cle('next_step_text')),
+    downloadApp: t(cle('download_app')),
+  }
+}
+const VINIZ_APP_URL = 'https://viniz.app'
+
+/** Le contexte de salle porté par le lien, ou `null` — jamais deviné. */
+function useGymContext(): string | null {
+  const { search } = useLocation()
+  const slug = new URLSearchParams(search).get('gym')?.trim().toLowerCase()
+  return slug ? slug : null
+}
+
 type Status = 'checking' | 'ready' | 'invalid' | 'done'
 
-function DopamineWordmark() {
+/**
+ * Le mot-marque de la page : celui de la salle quand le lien le dit, celui de Viniz sinon.
+ *
+ * ⚠️ LE LIME NE VA QUE SUR FOND SOMBRE, et les deux pastilles respectent la règle : le
+ * `#111111` de Dopamine et le Violet Ink `#2D1B69` de Viniz sont l'un et l'autre des fonds
+ * sombres. C'est la même contrainte que le garde-fou de l'app applique aux salles.
+ */
+/**
+ * 🔴 GYM-303 — LE MOT-MARQUE VINIZ EST UN LOGOTYPE, PLUS UNE IMITATION EN ARIAL BLACK.
+ *
+ * « ViNiZ » était composé au clavier : une police d'affichage, un espacement de lettres,
+ * et l'espoir que ça ressemble. Le vrai logotype était déjà dans le dépôt, et déjà employé
+ * par `AuthLayout` (connexion, mot de passe oublié) et par la barre latérale. Cette page
+ * était la dernière à écrire la marque à la main.
+ *
+ * ⚠️ AUCUN ASSET AJOUTÉ, ET C'EST LE POINT. Le fichier déposé pour ce lot s'est révélé être
+ * `viniz-logo-horizontal-lime.svg` À L'OCTET (même md5) : le dépôt l'avait déjà. Ajouter une
+ * copie aurait créé deux vérités sur un logo — celle qu'on met à jour, et l'autre.
+ *
+ * ⚠️ LE RECADRAGE PAR CSS EST L'IDIOME DU DÉPÔT, PAS UNE TROUVAILLE. L'art est posé au
+ * milieu d'une toile CARRÉE de 1500 : `AuthLayout` et `Sidebar` le cadrent depuis toujours
+ * dans une boîte à `overflow-hidden`, image centrée, largeur imposée. Trois boîtes, trois
+ * tailles, un seul ratio — 200×40, 180×36, 140×28, soit 5:1. Ce qui recoupe exactement ce
+ * que mesure le rendu de l'art (encre au ratio 5,12, centrée à 1,5 px près) et ce que
+ * donnent les deux PNG exportés (5,00 et 5,09). On reprend donc la boîte, telle quelle.
+ *
+ * ⚠️ DOPAMINE GARDE SON IDENTITÉ, ET CE N'EST PAS UN OUBLI. Ce n'est pas la même marque :
+ * son mot-marque n'est pas dans le dépôt, et lui poser le logotype Viniz serait exactement
+ * la fuite que #238 et #242 ont passé deux lots à retirer de cette page. Son bloc reste
+ * mot pour mot celui d'avant — même fond #111111, même lime #C8F000.
+ *
+ * ⚠️ LE CADRE VIOLET RESTE. Le logotype est lime : posé sur le blanc de la page il
+ * tomberait à 1,4:1. C'est le #2D1B69 derrière lui qui le rend visible — la même règle qui
+ * veut que le lime n'aille que sur fond sombre partout ailleurs dans le produit.
+ */
+function Wordmark({ dopamine }: { dopamine: boolean }) {
   return (
     <div className="mb-10 flex items-center justify-center">
-      <span className="rounded-xl bg-[#111111] px-4 py-2 font-display text-lg font-black tracking-[0.2em] text-[#C8F000]">
-        DOPAMINE
-      </span>
+      {dopamine ? (
+        <span className="rounded-xl bg-[#111111] px-4 py-2 font-display text-lg font-black tracking-[0.2em] text-[#C8F000]">
+          DOPAMINE
+        </span>
+      ) : (
+        <span className="rounded-xl bg-[#2D1B69] px-5 py-3">
+          <div className="relative h-6 w-[120px] overflow-hidden">
+            <img
+              src={vinizLogo}
+              alt="Viniz"
+              className="absolute left-1/2 top-1/2 w-[120px] max-w-none -translate-x-1/2 -translate-y-1/2"
+            />
+          </div>
+        </span>
+      )}
     </div>
   )
 }
 
 export default function ResetPassword() {
   const { t } = useTranslation()
+  // 🔴 GYM-303 — trois états : Dopamine si le lien le dit, Viniz neutre sinon.
+  const gym = useGymContext()
+  const estDopamine = gym === DOPAMINE_SLUG
+  const copy = useResetCopy(estDopamine)
   const [status, setStatus] = useState<Status>('checking')
 
   const [password, setPassword] = useState('')
@@ -145,7 +270,7 @@ export default function ResetPassword() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="w-full max-w-[440px]">
-        <DopamineWordmark />
+        <Wordmark dopamine={estDopamine} />
 
         {/* ── Vérification du lien ── */}
         {status === 'checking' && (
@@ -162,7 +287,7 @@ export default function ResetPassword() {
               <h1 className="font-display text-3xl font-black tracking-tight text-dark">
                 {t('reset.title')}
               </h1>
-              <p className="mt-2 font-body text-sm text-dark/50">{t('reset.subtitle')}</p>
+              <p className="mt-2 font-body text-sm text-dark/50">{copy.subtitle}</p>
             </div>
 
             <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
@@ -209,19 +334,34 @@ export default function ResetPassword() {
               {t('reset.success_title')}
             </h1>
             <p className="mt-3 font-body text-sm leading-relaxed text-dark/50">
-              {t('reset.success_message')}
+              {copy.successMessage}
             </p>
 
-            {/* GYM-170 — inviter au téléchargement de l'app (moment clé d'activation). */}
+            {/* GYM-170 — inviter au téléchargement de l'app (moment clé d'activation).
+                🔴 GYM-303 — L'APP DOPAMINE N'EST PROPOSÉE QUE SI LE CONTEXTE EST DOPAMINE.
+                Envoyer un membre de Studio Kama sur la fiche App Store de Dopamine, c'est
+                l'envoyer télécharger une app où il n'a pas de compte — le pire moment pour
+                ça étant précisément celui où il vient de réussir à récupérer le sien. */}
             <div className="mt-8 border-t border-[#E8E6E0] pt-6">
               <p className="font-body text-sm font-bold text-dark">{t('reset.next_step_title')}</p>
-              <p className="mt-1 font-body text-sm text-dark/50">{t('reset.next_step_text')}</p>
+              <p className="mt-1 font-body text-sm text-dark/50">{copy.nextStepText}</p>
               <a
-                href={APP_DOWNLOAD_URL}
-                className="mt-4 inline-block rounded-xl bg-[#111111] px-6 py-3 font-ui text-sm font-bold text-[#C8F000] transition-opacity hover:opacity-90"
+                href={estDopamine ? APP_DOWNLOAD_URL : VINIZ_APP_URL}
+                className={
+                  estDopamine
+                    ? 'mt-4 inline-block rounded-xl bg-[#111111] px-6 py-3 font-ui text-sm font-bold text-[#C8F000] transition-opacity hover:opacity-90'
+                    : 'mt-4 inline-block rounded-xl bg-[#2D1B69] px-6 py-3 font-ui text-sm font-bold text-[#C8FF3D] transition-opacity hover:opacity-90'
+                }
               >
-                {t('reset.download_app')}
+                {copy.downloadApp}
               </a>
+              {/* CTA demandé par l'arbitrage : revenir se connecter, quel que soit le
+                  contexte — c'est la suite naturelle après un mot de passe redéfini. */}
+              <div className="mt-4">
+                <Link to="/login" className="font-body text-sm text-dark/50 underline">
+                  {t('reset.back_to_login')}
+                </Link>
+              </div>
             </div>
           </div>
         )}

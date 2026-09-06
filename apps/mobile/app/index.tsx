@@ -7,6 +7,9 @@ import Animated, {
 } from 'react-native-reanimated'
 import { Button } from '../components/ui/Button'
 import { useAuthStore } from '../stores/useAuthStore'
+import { GYM_MODE } from '../lib/gymResolver'
+import { VinizLaunch } from '../components/viniz/VinizLaunch'
+import { useTheme } from '../lib/theme/ThemeProvider'
 
 const SPLASH_DURATION = 2500
 
@@ -31,8 +34,23 @@ const SPLASH_BG = '#000000'
 /** Largeur maîtrisée + `contain` : un logo étiré serait pire que le texte qu'il remplace. */
 const LOGO_SIZE = 260
 
-export default function Welcome() {
+/**
+ * GYM-102 (2/5) — L'AIGUILLAGE, ET RIEN D'AUTRE.
+ *
+ * ⚠️ `GYM_MODE` EST UNE CONSTANTE DE MODULE, FIGÉE À LA COMPILATION. Elle ne peut pas
+ * changer entre deux rendus : l'ordre des hooks de chaque branche est donc stable, et
+ * aucune des deux ne voit jamais l'autre.
+ *
+ * En mode `single`, cet écran rend exactement l'arbre d'avant — `DopamineWelcome` est le
+ * composant de GYM-241, déplacé d'une ligne et pas modifié d'un caractère.
+ */
+export default function Launch() {
+  return GYM_MODE === 'multi' ? <VinizLaunch /> : <DopamineWelcome />
+}
+
+function DopamineWelcome() {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
   const router = useRouter()
   const session = useAuthStore((s) => s.session)
   const [splashDone, setSplashDone] = useState(false)
@@ -117,7 +135,7 @@ export default function Welcome() {
 
         {/* Accent line */}
         <Animated.View
-          style={[lineStyle, { height: 2, backgroundColor: '#C8F000', borderRadius: 1, marginTop: 24 }]}
+          style={[lineStyle, { height: 2, backgroundColor: tokens.accent, borderRadius: 1, marginTop: 24 }]}
         />
       </Animated.View>
 

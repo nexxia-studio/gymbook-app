@@ -245,6 +245,23 @@ const config = {
       // Active gym id. Override per environment via EXPO_PUBLIC_GYM_ID;
       // defaults to the Dopamine gym so behavior is unchanged without the var.
       gymId: process.env.EXPO_PUBLIC_GYM_ID ?? 'a0000000-0000-0000-0000-000000000001',
+      // ── GYM-102 (5a) — LE MODE, DÉCLARÉ. PAS DÉDUIT. ──────────────────────────────
+      //
+      // 🔴 LE REPLI EST `single`, ET C'EST TOUT LE POINT. Oublier de poser cette variable
+      // doit produire le comportement de Dopamine — jamais un écran de recherche de salle
+      // chez ses membres. C'est le seul sens dans lequel l'oubli est sans danger.
+      //
+      // POURQUOI UNE VARIABLE ET PAS UNE DÉDUCTION. Le mode se lisait jusqu'ici dans la
+      // PRÉSENCE de `gymId`. Deux faits ont fermé cette voie :
+      //  · EAS REFUSE une valeur vide (« is not allowed to be empty ») — la build échoue
+      //    avant de démarrer, donc `EXPO_PUBLIC_GYM_ID: ""` n'est pas exprimable ;
+      //  · une variable ABSENTE traverse le `??` ci-dessus et rend l'uuid de Dopamine.
+      // Entre les deux, le mode `multi` était tout simplement inatteignable par un profil.
+      //
+      // Et le BUNDLE ne peut pas trancher non plus : `app.viniz.staging` sert DÉJÀ les
+      // deux modes — `preview-staging` en single, `preview-viniz` en multi. Un même
+      // identifiant Apple, deux comportements : la déduction n'a rien à quoi se raccrocher.
+      gymMode: process.env.EXPO_PUBLIC_GYM_MODE ?? 'single',
     },
   },
 }

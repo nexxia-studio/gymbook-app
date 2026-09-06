@@ -103,25 +103,30 @@ export function useGymAdminActions() {
     title: string,
     body: string,
   ): Promise<{ ok: boolean; code?: string }> => {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('push_token')
-      .eq('id', memberId)
-      .single()
-
-    // Pas de jeton = application jamais installée ou notifications refusées. Ce n'est pas
-    // une erreur serveur : c'est un code métier dédié, pour un message dédié.
-    if (!profile?.push_token) return { ok: false, code: 'NO_PUSH_TOKEN' }
-
-    const { error } = await invokeEdge('send-notification', {
-      body: {
-        tokens: [profile.push_token],
-        title,
-        body,
-        data: { type: 'admin_message' },
-      },
-    })
+    // ═════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-282 — LE DASHBOARD NE LIT PLUS `profiles.push_token`, ET N'APPELLE PLUS
+    // LE TUYAU.
+    // ═════════════════════════════════════════════════════════════════════════════
+    // Avant : il lisait le jeton Expo du membre, puis le transmettait à
+    // `send-notification` avec la clé anon. Deux problèmes, dont un seul saute aux yeux :
+    //
+    //   · le tuyau poussait un jeton FOURNI PAR LE CLIENT, donc n'importe quel jeton
+    //     qu'un porteur de JWT pouvait connaître — c'est le défaut de GYM-282 ;
+    //   · et le navigateur manipulait une donnée qu'il n'a aucune raison de connaître.
+    //
+    // Il envoie désormais un IDENTIFIANT DE MEMBRE, que le serveur peut VÉRIFIER — un
+    // jeton, lui, ne se vérifie pas. `admin-send-push` contrôle que l'appelant est
+    // gym_admin, que le membre appartient à SA salle, résout le jeton côté serveur, et
+    // appelle le tuyau en SERVICE_ROLE avec le secret interne.
+    //
+    // ⚠️ `NO_PUSH_TOKEN` REMONTE MAINTENANT DU SERVEUR, avec le même code : le message
+    // affiché au gérant ne change pas, seule la place de la décision change.
+    const { data, error } = await invokeEdge<{ ok?: boolean; code?: string }>(
+      'admin-send-push',
+      { body: { member_id: memberId, title, body } },
+    )
     if (error) return { ok: false, code: await extractErrorCode(error) }
+    if (data && data.ok !== true) return { ok: false, code: data.code ?? 'PUSH_FAILED' }
 
     // Journalisé APRÈS le succès seulement : le journal ne doit pas affirmer un envoi
     // qui n'a pas eu lieu.

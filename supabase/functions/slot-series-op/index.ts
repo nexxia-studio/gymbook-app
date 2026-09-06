@@ -566,9 +566,13 @@ async function notifyAffectedMembers(
           : `${activityName} — ${what}.`
         const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
+            // GYM-282 — le tuyau exige désormais le secret interne.
+            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
           body: JSON.stringify({
             tokens,
+            // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
+            gym_id: gymId,
             title: 'Ton cours a été modifié',
             body,
             data: { type: 'slot_series_updated' },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
+import { useActiveGymId } from '../lib/activeGym'
 import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../lib/subscription'
 
 export interface SubscriptionSummary {
@@ -28,12 +29,16 @@ function formatShortDate(iso: string | null): string | null {
  * — juste après un parcours de paiement déjà déroutant, de quoi croire son achat perdu.
  */
 export function useSubscriptionSummary() {
+  const gymId = useActiveGymId()
   const { t } = useTranslation()
   const [summary, setSummary] = useState<SubscriptionSummary>({ isActive: false, detail: null })
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    // Salle non résolue : on s'abstient plutôt que d'additionner les crédits de plusieurs
+    // salles — un solde faux est pire qu'un solde absent, il fait croire à un droit.
+    if (!gymId) return
 
     // GYM-90 — le nom vient de gym_plans.name (plan_id est un UUID depuis GYM-76),
     // pas d'une clé i18n dynamique. Aligné sur la branche récurrente ci-dessous.
@@ -47,12 +52,14 @@ export function useSubscriptionSummary() {
         .from('member_credits')
         .select('plan_id, credits_remaining, plan:gym_plans(name)')
         .eq('member_id', user.id)
+        .eq('gym_id', gymId)
         .gt('credits_remaining', 0)
         .order('updated_at', { ascending: false }),
       supabase
         .from('member_subscriptions')
         .select('id, status, ends_at, plan_name, plan:gym_plans(name)')
         .eq('member_id', user.id)
+        .eq('gym_id', gymId)
         .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
         .order('starts_at', { ascending: false })
         .limit(1)
@@ -88,7 +95,11 @@ export function useSubscriptionSummary() {
       // qui détient des crédits, et brutal pour qui n'a simplement encore rien pris.
       detail: parts.length > 0 ? parts.join(' · ') : null,
     })
-  }, [t])
+  // 🔴 GYM-292 — FILTRÉ PAR SALLE, ET IL NE L'ÉTAIT PAS. `.eq('member_id', …)` seul rend
+  // les lignes de TOUTES les salles du membre : un membre de trois salles voyait les
+  // trois, additionnées, sous la marque d'une seule. La colonne `gym_id` existe et est
+  // NOT NULL sur cette table — le filtre manquait, pas la donnée.
+  }, [t, gymId])
 
   useEffect(() => { load() }, [load])
 

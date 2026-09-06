@@ -5,6 +5,20 @@
       {
         "appID": "2B239M7MJL.be.dopamineclub.app",
         "paths": ["/dopamine/*"]
+      },
+      {
+        "appID": "2B239M7MJL.app.viniz",
+        "components": [
+          {
+            "/": "/dopamine/*",
+            "exclude": true,
+            "comment": "NE PAS DEPLACER NI SUPPRIMER. Cette exclusion doit rester la PREMIERE de la liste : iOS evalue les composants dans l'ordre et s'arrete au premier verdict, positif ou negatif. Sans elle, l'app Viniz revendiquerait /dopamine/* en meme temps que l'app de Dopamine Performance Club, et sur un appareil ou les deux sont installees iOS choisirait de facon imprevisible. Un membre de Dopamine cliquant son lien de reinitialisation de mot de passe pourrait alors ouvrir l'app Viniz, ou il n'a pas de compte. Le fichier ne rend aucune erreur quand cette regle manque : le defaut ne se voit que sur un telephone, chez un client."
+          },
+          {
+            "/": "/*",
+            "comment": "Toutes les autres salles. Le slug est le premier segment (/studio-kama/reset-password) et l'app le lit a l'arrivee pour resoudre la salle. Deliberement generique : les slugs sont crees par les gerants a l'inscription, les enumerer ici imposerait de redeployer ce fichier a chaque nouvelle salle, et une salle oubliee verrait ses liens s'ouvrir dans le navigateur sans que rien ne le signale."
+          }
+        ]
       }
     ]
   }

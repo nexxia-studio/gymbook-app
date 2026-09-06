@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import type { Booking } from '../../stores/useBookingStore'
 import { WaitlistCountdown } from '../shared/WaitlistCountdown'
 import { ActivityImage } from '../shared/ActivityImage'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface UpcomingCardProps {
   booking: Booking
@@ -33,6 +35,7 @@ function isWaitlistExpired(booking: Booking): boolean {
 
 export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistExpire, dayLabel }: UpcomingCardProps) {
   const { t } = useTranslation()
+  const { tokens } = useTheme()
 
   const notified = isWaitlistNotified(booking)
   const expired = isWaitlistExpired(booking)
@@ -40,14 +43,16 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
   // BUG 2 (GYM-96) — délai passé, statut client encore waitlisted : tag « Expirée » neutre
   // (rien à annuler, le cron va retirer la ligne). Prioritaire sur waitlisted/confirmed.
   const statusKey = expired ? 'status_expired' : isWaitlisted ? 'status_waitlisted' : 'status_confirmed'
-  const badgeBg = expired ? 'bg-neutral-500' : isWaitlisted ? 'bg-orange-500' : 'bg-green-500'
+  // GYM-286 — A-2/gris, EN ATTENTE pour `bg-neutral-500` #737373 : aucun jeton ne le vaut.
+  const badgeBg = expired ? '#737373' : isWaitlisted ? SEMANTIC.warning : SEMANTIC.success
 
   return (
     <ActivityImage
       imageUrl={booking.imageUrl}
       activity={booking.activity}
       accentColor={booking.activityColor}
-      className="mb-3 overflow-hidden rounded-2xl bg-move-dark"
+      className="mb-3 overflow-hidden rounded-2xl"
+      style={{ backgroundColor: tokens.background }}
       imageStyle={{ borderRadius: 16, opacity: 0.35 }}
       initialsSize={110}
     >
@@ -58,7 +63,7 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
 
           <View className="ml-3 flex-1">
             {/* Top: activity + coach */}
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: '#FFFFFF' }}>
+            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 20, color: tokens.onBackground }}>
               {booking.activity.toUpperCase()}
             </Text>
             {/* GYM-229 — une activité en accès libre (Open Gym) n'a pas de coach.
@@ -66,8 +71,24 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
           dans la mise en page. Ternaire explicite vers `null` et non `coach && …` :
           en React Native, une chaîne vide rendue hors d'un <Text> déclenche un
           avertissement « text strings must be rendered within a <Text> ». */}
+            {/* 🔴 GYM-304 — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/60` était un BLANC EN
+                  DUR posé sur `tokens.background` : illisible dès que la salle a un fond clair.
+                  Mesuré sur le fond constaté #E9E8E8 — un blanc à 60 % y disparaît.
+                  
+                  ⚠️ `tokens.onBackground`, PAS `onBackgroundMuted` — c'est toute la leçon de la PR
+                  #235. `onBackgroundMuted` est choisi par le MODE (`hslLightness > 80`), un critère
+                  qui classe « sombre » un fond vif : il descend sous 3:1 sur 7 000 salles sur
+                  19 600. `onBackground`, lui, est choisi par `bestInkOn`, c'est-à-dire par le
+                  CONTRASTE RÉEL. Le critère est la luminance, jamais la teinte.
+                  
+                  ⚠️ L'ALPHA EST CONSERVÉ : 0x99 = 153, soit 153/255 = 0,60 pile. Chez Dopamine
+                  `onBackground` vaut #FFFFFF — le rendu est donc le blanc à 60 % d'aujourd'hui, au
+                  pixel. C'est le motif A-10, comme les en-têtes de #232 (3c). */}
             {booking.coach ? (
-              <Text className="mt-0.5 font-dmsans text-[13px] text-white/60">
+              <Text
+                className="mt-0.5 font-dmsans text-[13px]"
+                style={{ color: tokens.onBackground + '99' }}
+              >
                 {booking.coach}
               </Text>
             ) : null}
@@ -75,15 +96,19 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
             {/* Date + time + status */}
             <View className="mt-3 flex-row items-center gap-3">
               <View className="flex-1">
-                <Text className="font-dmsans-bold text-sm text-move-accent">
+                <Text className="font-dmsans-bold text-sm" style={{ color: tokens.accent }}>
                   {dayLabel}
                 </Text>
-                <Text className="font-dmsans text-sm text-white">
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onBackground }}>
                   {booking.time} → {booking.endTime}
                 </Text>
               </View>
-              <View className={`rounded-lg px-2.5 py-1 ${badgeBg}`}>
-                <Text className="font-dmsans-bold text-[10px] text-white">
+              {/* ⚠️ `SEMANTIC.onSignal` ET NON `tokens.onBackground` : l'encre est posée
+                  sur une pastille de SIGNAL (gris / orange / vert), dont la couleur ne
+                  bouge pas. Chez une salle claire, `onBackground` vaut une encre SOMBRE,
+                  illisible sur l'orange. */}
+              <View className="rounded-lg px-2.5 py-1" style={{ backgroundColor: badgeBg }}>
+                <Text className="font-dmsans-bold text-[10px]" style={{ color: SEMANTIC.onSignal }}>
                   {t(`bookings.${statusKey}`)}
                 </Text>
               </View>
@@ -98,9 +123,10 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
                 <TouchableOpacity
                   onPress={onConfirmWaitlist}
                   activeOpacity={0.8}
-                  className="mt-2 self-start rounded-lg bg-move-accent px-4 py-2"
+                  className="mt-2 self-start rounded-lg px-4 py-2"
+                  style={{ backgroundColor: tokens.accent }}
                 >
-                  <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 14, color: '#111111' }}>
+                  <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 14, color: tokens.onAccent }}>
                     {t('bookings.confirm_my_place').toUpperCase()}
                   </Text>
                 </TouchableOpacity>
@@ -110,7 +136,9 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
             {/* ÉTAPE 5 — délai expiré : la place est passée au suivant (pas de bouton Confirmer) */}
             {expired && (
               <View className="mt-3 rounded-lg bg-red-500/15 px-3 py-2.5">
-                <Text className="font-dmsans-bold text-xs text-red-400">
+                {/* 🔴 GYM-290 (addendum, décision C) — `text-red-400` valait #F87171,
+                    quatrième rouge. Il rejoint `SEMANTIC.danger`. */}
+                <Text className="font-dmsans-bold text-xs" style={{ color: SEMANTIC.danger }}>
                   {t('bookings.waitlist_expired_card')}
                 </Text>
               </View>
@@ -121,7 +149,8 @@ export function UpcomingCard({ booking, onCancel, onConfirmWaitlist, onWaitlistE
               <TouchableOpacity
                 onPress={onCancel}
                 activeOpacity={0.7}
-                className="mt-3 self-start rounded-lg border border-red-500 px-3 py-1.5"
+                className="mt-3 self-start rounded-lg border px-3 py-1.5"
+                style={{ borderColor: SEMANTIC.danger }}
               >
                 <Text className="font-dmsans-bold text-xs text-red-400">
                   {notified ? t('bookings.decline') : t('bookings.cancel')}

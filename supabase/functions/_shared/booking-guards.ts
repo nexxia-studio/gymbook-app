@@ -50,13 +50,37 @@ export async function checkMemberQuota(
   // null = illimité
   if (!limits || limits.max_members === null) return { allowed: true, maxActiveBookings }
 
+  // ═══ GYM-102 (2/5) — LE DÉCOMPTE PORTE SUR member_gyms, PLUS SUR profiles.gym_id ═══
+  //
+  // 🔴 CE QUI ÉTAIT ÉCRIT ICI : `.from('profiles').eq('gym_id', gymId)`. Depuis GYM-283,
+  // `profiles.gym_id` n'est plus « la salle du membre » mais sa salle ACTIVE — celle
+  // qu'il regarde en ce moment. Un membre inscrit dans deux salles qui bascule sur la
+  // seconde DISPARAÎT de ce décompte alors qu'il occupe toujours sa place dans la
+  // première : le plafond du plan Free serait devenu contournable à la RÉSERVATION en
+  // faisant simplement tourner les membres.
+  //
+  // ⚠️ MÊME PRÉDICAT QUE handle_new_user, À LA LETTRE — relu sur la base le 26/08 :
+  //     FROM member_gyms mg JOIN profiles p ON p.id = mg.member_id
+  //     WHERE mg.gym_id = <salle> AND p.role = 'member' AND p.deleted_at IS NULL
+  // Les deux gardes doivent compter pareil : si l'inscription et la réservation ne
+  // s'accordaient pas sur le nombre de membres, une salle pourrait être « pleine » pour
+  // l'une et pas pour l'autre, et personne ne saurait laquelle a raison.
+  //
+  // `profiles!inner` fait la jointure INTERNE : sans `!inner`, PostgREST rendrait aussi
+  // les appartenances dont le profil ne satisfait pas les filtres, et le compte serait
+  // gonflé par les comptes supprimés.
   const { count } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
+    .from('member_gyms')
+    .select('member_id, profiles!inner(role, deleted_at)', { count: 'exact', head: true })
     .eq('gym_id', gymId)
-    .eq('role', 'member')
-    .is('deleted_at', null)
+    .eq('profiles.role', 'member')
+    .is('profiles.deleted_at', null)
 
+  // ⚠️ COMPORTEMENT DE REPLI INCHANGÉ, ET C'EST DÉLIBÉRÉ : en cas d'erreur de requête,
+  // `count` vaut null, `(null ?? 0) >= max` est faux, et la réservation PASSE. C'était
+  // déjà le cas avec l'ancienne requête. Basculer en fail-closed refuserait toutes les
+  // réservations d'une salle sur une panne de lecture passagère — un remède pire que le
+  // mal. Ce lot ne change que la SOURCE du décompte, pas sa politique d'erreur.
   if ((count ?? 0) >= limits.max_members) {
     return { allowed: false, reason: 'MEMBER_QUOTA_REACHED', maxActiveBookings }
   }

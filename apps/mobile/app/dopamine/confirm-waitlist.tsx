@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { View, ActivityIndicator } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../lib/supabase'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
 /**
  * Route Universal Link : cible de https://links.viniz.app/dopamine/confirm-waitlist?booking=...
@@ -24,6 +25,7 @@ import { supabase } from '../../lib/supabase'
  *     (deep-link différé / redirect param).
  */
 export default function ConfirmWaitlist() {
+  const { tokens } = useTheme()
   const router = useRouter()
   const { booking } = useLocalSearchParams<{ booking?: string }>()
 
@@ -52,8 +54,8 @@ export default function ConfirmWaitlist() {
   }, [router, booking])
 
   return (
-    <View className="flex-1 items-center justify-center bg-move-bg">
-      <ActivityIndicator size="large" color="#C8F000" />
+    <View className="flex-1 items-center justify-center" style={{ backgroundColor: tokens.page }}>
+      <ActivityIndicator size="large" color={tokens.accent} />
     </View>
   )
 }

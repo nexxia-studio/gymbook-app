@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import * as LocalAuthentication from 'expo-local-authentication'
 import * as SecureStore from 'expo-secure-store'
 import { useTranslation } from 'react-i18next'
+import { useGymName } from './useGymName'
 
 const BIOMETRIC_KEY = 'gymbook_biometric_enabled'
 const SAVED_EMAIL_KEY = 'gymbook_saved_email'
@@ -10,6 +11,7 @@ const SAVED_PASSWORD_KEY = 'gymbook_saved_password'
 export type BiometricKind = 'face_id' | 'touch_id' | 'biometric'
 
 export function useBiometrics() {
+  const nomSalle = useGymName()
   const { t } = useTranslation()
 
   const isBiometricAvailable = useCallback(async (): Promise<boolean> => {
@@ -38,7 +40,10 @@ export function useBiometrics() {
   const enableBiometric = useCallback(async (email: string, password: string): Promise<boolean> => {
     const label = await getBiometricLabel()
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: t('auth.biometric.enable_prompt', { kind: label }),
+      // GYM-297 — le nom de la salle ACTIVE dans l'invite système. Elle disait « pour
+      // Dopamine » à tout le monde, y compris aux membres d'une autre salle — et c'est
+      // l'écran le plus régalien de l'app : celui où l'OS demande une empreinte.
+      promptMessage: t('auth.biometric.enable_prompt', { kind: label, gym: nomSalle }),
       cancelLabel: t('auth.biometric.cancel'),
       fallbackLabel: t('auth.biometric.use_password'),
     })

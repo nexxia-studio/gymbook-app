@@ -18,6 +18,15 @@ export interface ActivityItem {
    * cette activité. 0 = capacité dure (défaut, et comportement historique).
    */
   maxOverbook: number
+  /**
+   * 🔴 GYM-215 — `activities.image_url`. La colonne existe depuis l'origine ; AUCUNE
+   * interface ne l'écrivait. Le mobile la consomme pourtant déjà (GYM-216,
+   * `ActivityImage`), avec un repli aux initiales qui était donc le cas NOMINAL partout.
+   *
+   * ⚠️ ELLE N'EST PAS DANS `ActivityFormData`, ET C'EST VOULU. Voir `useActivities` :
+   * l'image se persiste à l'envoi, pas à la soumission du formulaire.
+   */
+  imageUrl: string | null
   active: boolean
 }
 

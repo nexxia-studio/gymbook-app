@@ -1,11 +1,11 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   Settings, CreditCard, Receipt, Bell, Globe,
-  User, Shield, FileText, Download, Trash2, LogOut, Pencil,
+  User, Shield, FileText, Download, Trash2, LogOut, Pencil, Building2,
 } from 'lucide-react-native'
 import { ProfileHeader } from '../../components/profile/ProfileHeader'
 import { GamificationCard } from '../../components/profile/GamificationCard'
@@ -17,6 +17,10 @@ import { useAuthStore, type MemberProfile } from '../../stores/useAuthStore'
 import { useProfileStats } from '../../hooks/useProfileStats'
 import { useSubscriptionSummary } from '../../hooks/useSubscriptionSummary'
 import { getLevel } from '../../utils/level'
+import { GYM_MODE } from '../../lib/gymResolver'
+import { listMyGyms } from '../../lib/gymSwitch'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
 
 interface GamificationItem {
   key: string
@@ -41,7 +45,40 @@ function buildGamification(p: MemberProfile | null, navigate: (path: string) => 
   return { items, percentage: earned }
 }
 
+/**
+ * GYM-288 — combien de salles ce membre a-t-il ?
+ *
+ * 🔴 « PAS DE BOUTON MORT » : l'entrée « changer de salle » n'a de sens qu'au-delà d'une
+ * salle. Un membre d'une seule salle qui la toucherait n'apprendrait rien d'actionnable —
+ * ce n'est pas une fonctionnalité qui lui manque, c'est simplement sa situation.
+ *
+ * ⚠️ ON PAIE DONC UN APPEL RÉSEAU POUR NE PAS AFFICHER UN LIEN. C'est le prix assumé de la
+ * consigne : le seul moyen de savoir s'il y a lieu de proposer la bascule est de compter
+ * les appartenances, et il n'existe pas de raccourci local qui les connaisse. L'appel est
+ * une RPC unique, sans paramètre, sur un écran qui en fait déjà plusieurs.
+ *
+ * ⚠️ ET EN CAS D'ÉCHEC, ON MASQUE. Hors ligne, la bascule ne pourrait de toute façon pas
+ * aboutir : afficher l'entrée mènerait à un écran d'erreur. Mieux vaut ne rien proposer
+ * que proposer ce qui ne marchera pas.
+ *
+ * Aucun appel en mode `single` : l'effet sort à la première ligne.
+ */
+function useCanSwitchGym(): boolean {
+  const [canSwitch, setCanSwitch] = useState(false)
+  useEffect(() => {
+    if (GYM_MODE === 'single') return
+    let alive = true
+    listMyGyms().then((res) => {
+      if (alive) setCanSwitch(res.status === 'ok' && res.gyms.length > 1)
+    })
+    return () => { alive = false }
+  }, [])
+  return canSwitch
+}
+
 export default function Profile() {
+  const { tokens } = useTheme()
+  const canSwitchGym = useCanSwitchGym()
   const { t } = useTranslation()
   const router = useRouter()
   const signOut = useAuthStore((s) => s.signOut)
@@ -78,23 +115,23 @@ export default function Profile() {
   }, [signOut, router])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-move-dark px-5 pb-6 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <View className="flex-row items-center justify-between px-5 pb-6 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('profile.title').toUpperCase()}
         </Text>
         <View className="flex-row items-center gap-4">
           <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/edit')}>
-            <Pencil size={20} color="#FFFFFF" />
+            <Pencil size={20} color={tokens.onBackground} />
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/profile/preferences')}>
-            <Settings size={22} color="#FFFFFF" />
+            <Settings size={22} color={tokens.onBackground} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView className="flex-1 bg-move-bg" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Profile card */}
         <ProfileHeader
           firstName={firstName}
@@ -126,7 +163,7 @@ export default function Profile() {
             badge={subscriptionSummary.isActive ? t('profile.subscription_active') : undefined}
             onPress={() => router.push('/profile/subscription')}
           />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem
             icon={Receipt}
             label={t('profile.payment_history')}
@@ -142,7 +179,7 @@ export default function Profile() {
             detail={t('profile.notifications_detail')}
             onPress={() => router.push('/profile/preferences')}
           />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem
             icon={Globe}
             label={t('profile.language')}
@@ -153,8 +190,20 @@ export default function Profile() {
 
         {/* Account */}
         <ProfileSection title={t('profile.section_account')}>
+          {/* GYM-288 — affiché seulement si le membre a plus d'une salle (cf.
+              useCanSwitchGym). En mode `single`, jamais. */}
+          {canSwitchGym && (
+            <>
+              <ProfileListItem
+                icon={Building2}
+                label={t('profile.switch_gym')}
+                onPress={() => router.push('/profile/gym-switch' as never)}
+              />
+              <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
+            </>
+          )}
           <ProfileListItem icon={User} label={t('profile.edit_profile')} onPress={() => router.push('/profile/edit')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem
             icon={Shield}
             label={t('profile.security')}
@@ -166,11 +215,11 @@ export default function Profile() {
         {/* Privacy */}
         <ProfileSection title={t('profile.section_privacy')}>
           <ProfileListItem icon={FileText} label={t('profile.privacy_policy')} onPress={() => router.push('/profile/legal/privacy')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem icon={FileText} label={t('profile.terms')} onPress={() => router.push('/profile/legal/cgu')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem icon={Download} label={t('profile.export_data')} onPress={() => router.push('/profile/export-data')} />
-          <View className="mx-5 h-px bg-move-border" />
+          <View className="mx-5 h-px" style={{ backgroundColor: tokens.border }} />
           <ProfileListItem icon={Trash2} label={t('profile.delete_account')} destructive onPress={() => router.push('/profile/delete-account')} />
         </ProfileSection>
 
@@ -180,8 +229,8 @@ export default function Profile() {
           activeOpacity={0.7}
           className="mx-4 mt-6 flex-row items-center justify-center gap-2 py-3"
         >
-          <LogOut size={18} color="#EF4444" />
-          <Text className="font-dmsans-bold text-sm text-red-500">
+          <LogOut size={18} color={SEMANTIC.danger} />
+          <Text className="font-dmsans-bold text-sm" style={{ color: SEMANTIC.danger }}>
             {t('profile.logout')}
           </Text>
         </TouchableOpacity>

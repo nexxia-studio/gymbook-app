@@ -236,28 +236,46 @@ export function LegalBillingCard() {
           </span>
         </label>
 
-        <div className="mt-4">
-          {form.vatExempt ? (
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            🔴 GYM-308 — LE TAUX RESTE VISIBLE QUAND L'EXEMPTION EST COCHÉE.
+            ═══════════════════════════════════════════════════════════════════════════
+            Il DISPARAISSAIT : cocher « exonéré » remplaçait le champ par la mention. Le
+            gérant perdait alors de vue le taux qu'il avait saisi, et ne pouvait plus
+            vérifier ce qui repartirait s'il décochait — au moment précis où il touche à la
+            règle fiscale de ses factures.
+
+            Il est donc DÉSACTIVÉ, pas retiré : la valeur reste lisible, et la mention
+            d'exemption s'affiche EN PLUS. Les deux ensemble disent l'état complet du
+            régime, ce qu'aucun des deux ne dit seul. */}
+        <div className="mt-4 flex flex-col gap-4">
+          <Input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min={0}
+            /* ⚠️ 30 ET NON 100 (GYM-308). Aucun taux de TVA européen n'approche 100 % — la
+               borne large laissait passer une faute de frappe (« 60 » pour « 6,0 ») qui
+               serait partie sur les factures sans que rien ne l'arrête. Vérifié avant de
+               resserrer : aucune salle ne porte un taux supérieur à 30. La contrainte de
+               base (GYM-180) reste plus large, volontairement — c'est l'app qui guide, la
+               base qui garde. */
+            max={30}
+            name="vat_rate"
+            label={t('settings.legal.vat_rate_label')}
+            helper={t('settings.legal.vat_rate_helper')}
+            error={rateError}
+            value={form.vatRate}
+            disabled={form.vatExempt}
+            onChange={(e) => set('vatRate', e.target.value)}
+          />
+
+          {form.vatExempt && (
             <Input
               name="vat_exempt_mention"
               label={t('settings.legal.vat_mention_label')}
               helper={t('settings.legal.vat_mention_helper')}
               value={form.vatExemptMention}
               onChange={(e) => set('vatExemptMention', e.target.value)}
-            />
-          ) : (
-            <Input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min={0}
-              max={100}
-              name="vat_rate"
-              label={t('settings.legal.vat_rate_label')}
-              helper={t('settings.legal.vat_rate_helper')}
-              error={rateError}
-              value={form.vatRate}
-              onChange={(e) => set('vatRate', e.target.value)}
             />
           )}
         </div>

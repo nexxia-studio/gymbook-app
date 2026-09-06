@@ -43,6 +43,8 @@ interface BookingState {
   clearPromotion: () => void
   isBooked: (slotId: string) => boolean
   loadFavorites: () => Promise<void>
+  /** GYM-288 — vide tout ce qui appartenait à la salle quittée. */
+  resetForGymSwitch: () => void
   addFavorite: (slot: FavoriteSlotInput) => Promise<void>
   removeFavorite: (slot: FavoriteSlotInput) => Promise<void>
   removeFavoritePattern: (pattern: FavoritePattern) => Promise<void>
@@ -216,10 +218,20 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   fetchBookings: async (userId: string) => {
     try {
       // Step 1: fetch bookings (no join — avoids RLS issues on time_slots)
+      // GYM-288 — ⚠️ FILTRE PAR SALLE AJOUTÉ. La requête ne portait que sur `member_id` :
+      // un membre inscrit dans deux salles voyait, dans l'onglet Réservations de l'une,
+      // les cours de l'autre. Ce ne sont pas les données d'un autre membre — mais dans une
+      // app aux couleurs d'une salle, montrer les cours d'un concurrent est une confusion
+      // qu'aucun libellé ne rattrape. Sans effet en mode `single`.
+      const { useAuthStore } = await import('./useAuthStore')
+      const gymId = useAuthStore.getState().gym_id
+      if (!gymId) { set({ bookings: [], pastBookings: [] }); return }
+
       const { data: rawBookings } = await supabase
         .from('bookings')
         .select('id, slot_id, status, booked_at, waitlist_position, waitlist_notified_at, waitlist_confirmation_deadline')
         .eq('member_id', userId)
+        .eq('gym_id', gymId)
         .order('booked_at', { ascending: false })
 
       if (!rawBookings || rawBookings.length === 0) {
@@ -296,13 +308,34 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
   isBooked: (slotId) => get().bookings.some((b) => b.slotId === slotId),
 
+  // GYM-288 — 🔴 CE STORE NE SE VIDE PAS TOUT SEUL. Contrairement aux écrans, il n'observe
+  // pas la salle active : ses réservations et ses favoris survivraient à la bascule et
+  // s'afficheraient sous les couleurs de la nouvelle salle. On les remet à l'état initial
+  // AVANT de recharger, pour qu'aucune ligne de l'ancienne salle ne subsiste même une
+  // fraction de seconde à l'écran.
+  //
+  // `justPromoted` en fait partie : c'est une bannière « ta place s'est libérée », et elle
+  // parlerait d'un créneau d'une autre salle.
+  resetForGymSwitch: () => {
+    set({ bookings: [], pastBookings: [], favorites: [], justPromoted: false })
+  },
+
   loadFavorites: async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { set({ favorites: [] }); return }
+    // GYM-288 — ⚠️ FILTRE PAR SALLE AJOUTÉ. `addFavorite` écrit déjà `gym_id` (plus bas) ;
+    // la lecture, elle, ne le demandait pas. Un membre de deux salles voyait donc les
+    // motifs de l'autre — des activités qui n'existent pas ici, sur des horaires qui n'y
+    // veulent rien dire. Sans effet en mode `single` : tous ses favoris sont dans sa
+    // seule salle.
+    const { useAuthStore } = await import('./useAuthStore')
+    const gymId = useAuthStore.getState().gym_id
+    if (!gymId) { set({ favorites: [] }); return }
     const { data, error } = await supabase
       .from('favorites')
       .select('activity_id, day_of_week, local_time')
       .eq('member_id', user.id)
+      .eq('gym_id', gymId)
     if (error) { console.error('Failed to load favorites', error); return }
     set({
       favorites: (data ?? []).map((r: Record<string, unknown>) => ({

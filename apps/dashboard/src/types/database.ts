@@ -1631,6 +1631,7 @@ export type Database = {
           postal_code: string | null
           primary_color: string | null
           secondary_color: string | null
+          short_name: string | null
           slug: string
           status: string | null
           subdomain: string | null
@@ -1680,6 +1681,7 @@ export type Database = {
           postal_code?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          short_name?: string | null
           slug: string
           status?: string | null
           subdomain?: string | null
@@ -1729,6 +1731,7 @@ export type Database = {
           postal_code?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          short_name?: string | null
           slug?: string
           status?: string | null
           subdomain?: string | null

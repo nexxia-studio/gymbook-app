@@ -20,11 +20,20 @@ import { captureEvent } from '../../lib/analytics'
 import { useGymProfile } from '../../hooks/useGymProfile'
 import { formatGymAddress } from '../../lib/gymProfile'
 import { supabase } from '../../lib/supabase'
-import { GYM_ID } from '../../constants/dopamine'
+import { useActiveGymId } from '../../lib/activeGym'
 import { getDisplayStatus } from '../../utils/slotStatus'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
+import { useCrossGymGuard } from '../../hooks/useCrossGymGuard'
+import { CrossGymInterstitial } from '../../components/gym/CrossGymInterstitial'
+import { raiseNotMemberNotice } from '../../lib/activeGymSession'
 
 export default function SessionDetail() {
+  const { tokens } = useTheme()
+  // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
+  const gymId = useActiveGymId()
+
   const { t } = useTranslation()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -47,6 +56,11 @@ export default function SessionDetail() {
   const gymAddress = formatGymAddress(gym)
 
   const slotId = params.id ?? ''
+
+  // GYM-294 — `null` tant que la requête n'a pas répondu : le garde lit « on ne sait pas
+  // encore », jamais « c'est la bonne salle ».
+  const [gymDuCreneau, setGymDuCreneau] = useState<string | null>(null)
+  const garde = useCrossGymGuard(gymDuCreneau)
 
   // Slot data — fetched from Supabase, params used as initial fallback only.
   // activityId/startsAt are resolved from the fetch and needed to derive the
@@ -89,6 +103,15 @@ export default function SessionDetail() {
   const [waitlistConfirmationDeadline, setWaitlistConfirmationDeadline] = useState<string | null>(null)
 
   // Fetch fresh slot data from Supabase when id changes
+  //
+  // ⚠️ GYM-292 — LECTURE PAR IDENTIFIANT DE LIGNE, pas par salle : un créneau appartient à
+  // une seule salle par construction, la clé `slotId` suffit. La RLS de `time_slots` fait
+  // le reste.
+  //
+  // 🔴 GYM-294 — CE COMMENTAIRE ANNONÇAIT LE DÉFAUT, IL DÉCRIT MAINTENANT LE CORRECTIF.
+  // Rien ne vérifiait que le créneau appartenait à la salle ACTIVE : un lien profond vers
+  // un créneau d'une autre salle l'affichait sous la marque de la sienne. La requête ramène
+  // désormais `gym_id`, et `useCrossGymGuard` tranche — interstitiel, refus, ou rien.
   useEffect(() => {
     if (!slotId) return
     setBookingModalVisible(false)
@@ -98,7 +121,7 @@ export default function SessionDetail() {
       const { data } = await supabase
         .from('time_slots')
         .select(`
-          id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
+          id, gym_id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
           activities(name, duration_min, description, image_url, color, icon),
           coaches(name)
         `)
@@ -106,6 +129,10 @@ export default function SessionDetail() {
         .single()
 
       if (data) {
+        // 🔴 GYM-294 — LA SALLE DU CRÉNEAU, mémorisée pour le garde. On ne décide RIEN ici :
+        // l'écran ne sait pas ce qu'il faut faire d'un créneau d'ailleurs, et cette
+        // question a désormais une réponse unique, dans `useCrossGymGuard`.
+        setGymDuCreneau((data as { gym_id?: string }).gym_id ?? null)
         const act = data.activities as unknown as {
           name: string
           duration_min: number
@@ -197,6 +224,8 @@ export default function SessionDetail() {
   useEffect(() => {
     async function fetchOtherSlots() {
       if (!slotId) return
+      // ⚠️ Sans salle résolue, on ne requête pas (cf. lib/activeGym).
+      if (!gymId) return
       const now = new Date()
       const in14Days = new Date(now)
       in14Days.setDate(in14Days.getDate() + 14)
@@ -204,7 +233,7 @@ export default function SessionDetail() {
       const { data } = await supabase
         .from('time_slots')
         .select('id, starts_at, ends_at, capacity, bookings_count, status')
-        .eq('gym_id', GYM_ID)
+        .eq('gym_id', gymId)
         .neq('id', slotId)
         .neq('status', 'cancelled')
         .gte('starts_at', now.toISOString())
@@ -248,7 +277,9 @@ export default function SessionDetail() {
       }))
     }
     fetchOtherSlots()
-  }, [slotId, duration, days, months])
+    // `gymId` en dépendance : la liste des autres créneaux doit se recharger si la
+    // salle change (cf. GYM-289).
+  }, [slotId, duration, days, months, gymId])
 
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
 
@@ -365,8 +396,46 @@ export default function SessionDetail() {
     else addFavorite(input)
   }, [isFav, slotData.activityId, slotData.startsAt, addFavorite, removeFavorite])
 
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // 🔴 GYM-294 — LES TROIS ISSUES D'UN CRÉNEAU QUI N'EST PAS DE LA SALLE ACTIVE
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // Elles précèdent tout rendu : afficher l'écran puis le remplacer ferait apparaître, une
+  // fraction de seconde, le cours d'une autre salle sous la marque de celle-ci — c'est-à-dire
+  // exactement le défaut qu'on corrige, en plus bref et donc en plus difficile à signaler.
+  //
+  // ⚠️ EN SINGLE, `garde.kind` VAUT TOUJOURS 'ok' : le hook sort à sa première ligne, sans
+  // état ni requête. Ces deux branches sont donc inertes chez Dopamine — aucun détour, aucun
+  // aller-retour réseau ajouté.
+
+  // Membre de la salle du créneau : on annonce, il décide. Jamais de bascule silencieuse.
+  if (garde.kind === 'elsewhere') {
+    return (
+      <CrossGymInterstitial
+        gym={garde.gym}
+        onCancel={() => router.back()}
+        // Après bascule, l'écran se recharge avec la nouvelle salle active : le garde
+        // repasse à 'ok' et le créneau s'affiche sous SA marque, qui est désormais la bonne.
+        onSwitched={() => setGymDuCreneau(null)}
+      />
+    )
+  }
+
+  // Pas membre : on réutilise l'écran de refus de GYM-301 plutôt que d'en écrire un second.
+  // ⚠️ L'AVIS EST POSÉ AVANT DE NAVIGUER, sans quoi l'écran s'ouvrirait les mains vides —
+  // c'est la mécanique de GYM-301, et elle est faite pour être alimentée d'ici.
+  if (garde.kind === 'not_member') {
+    // ⚠️ ON NE CONNAÎT QUE L'IDENTIFIANT DE LA SALLE, PAS SON SLUG — et il n'est pas
+    // récupérable : la RLS de `nexxia_gyms` n'expose une salle qu'à ses membres, et c'est
+    // exactement le cas où le membre n'en est pas un. L'avis part donc sans marque ni slug,
+    // et l'écran de GYM-301 rend sa formulation « sans nom » : « Tu n'es pas encore membre
+    // de cette salle ». Inventer un nom serait pire que de ne pas en donner.
+    raiseNotMemberNotice({ requested: null, requestedSlug: '', landed: gym?.name ?? '' })
+    router.replace('/gym/not-member' as never)
+    return null
+  }
+
   return (
-    <View className="flex-1 bg-move-bg">
+    <View className="flex-1" style={{ backgroundColor: tokens.page }}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <SessionHero
@@ -407,19 +476,19 @@ export default function SessionDetail() {
             ⚠️ Jamais legal_address — siège social, factures uniquement (GYM-180). */}
         {gymAddress && (
           <>
-            <View className="bg-move-card px-5 py-4">
-              <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider text-move-text-muted">
+            <View className="px-5 py-4" style={{ backgroundColor: tokens.surface }}>
+              <Text className="mb-2 font-dmsans-bold text-[11px] uppercase tracking-wider" style={{ color: tokens.onBackgroundMuted }}>
                 {t('session.location')}
               </Text>
               <View className="flex-row items-center gap-2">
-                <MapPin size={16} color="#6B6861" />
+                <MapPin size={16} color={tokens.onSurfaceSecondary} />
                 <View className="flex-1">
                   {gym?.name && (
-                    <Text className="font-dmsans-bold text-sm text-move-dark">
+                    <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                       {gym.name}
                     </Text>
                   )}
-                  <Text className="font-dmsans text-xs text-move-text-secondary">
+                  <Text className="font-dmsans text-xs" style={{ color: tokens.onSurfaceSecondary }}>
                     {gymAddress}
                   </Text>
                 </View>
@@ -460,8 +529,8 @@ export default function SessionDetail() {
 
       {/* Sticky footer */}
       <View
-        className="absolute bottom-0 left-0 right-0 border-t border-move-border bg-move-card px-5"
-        style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
+        className="absolute bottom-0 left-0 right-0 border-t px-5"
+        style={{ borderColor: tokens.border, backgroundColor: tokens.surface, paddingBottom: insets.bottom + 16, paddingTop: 16 }}
       >
         {isNotified && waitlistConfirmationDeadline && (
           <View className="mb-3">
@@ -479,10 +548,10 @@ export default function SessionDetail() {
 
         <View className="flex-row items-center">
           <View className="flex-1">
-            <Text className="font-dmsans-bold text-sm text-move-dark">
+            <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
               {dayLabel} {time ? `· ${time}` : ''}
             </Text>
-            <Text className="font-dmsans text-xs text-move-text-muted">
+            <Text className="font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
               {activity} · {t('home.duration_min', { duration })}
             </Text>
           </View>
@@ -491,9 +560,10 @@ export default function SessionDetail() {
             <TouchableOpacity
               onPress={() => setCancelModalVisible(true)}
               activeOpacity={0.8}
-              className="rounded-xl border-2 border-red-500 px-6 py-3.5"
+              className="rounded-xl border-2 px-6 py-3.5"
+              style={{ borderColor: SEMANTIC.danger }}
             >
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#EF4444' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: SEMANTIC.danger }}>
                 {t('session.cancel').toUpperCase()}
               </Text>
             </TouchableOpacity>
@@ -502,12 +572,12 @@ export default function SessionDetail() {
               onPress={handleConfirmWaitlist}
               disabled={loading}
               activeOpacity={0.8}
-              className="rounded-xl bg-move-dark px-6 py-3.5"
+              style={{ backgroundColor: tokens.actionBg }} className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>
                   {t('session.confirm_my_place').toUpperCase()}
                 </Text>
               )}
@@ -516,9 +586,10 @@ export default function SessionDetail() {
             <TouchableOpacity
               onPress={() => setCancelModalVisible(true)}
               activeOpacity={0.8}
-              className="rounded-xl border-2 border-orange-500 px-6 py-3.5"
+              className="rounded-xl border-2 px-6 py-3.5"
+              style={{ borderColor: SEMANTIC.warning }}
             >
-              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#F97316' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: SEMANTIC.warning }}>
                 {t('session.quit_waitlist').toUpperCase()}
               </Text>
             </TouchableOpacity>
@@ -527,12 +598,20 @@ export default function SessionDetail() {
               onPress={handleBook}
               disabled={loading}
               activeOpacity={0.8}
-              className={`rounded-xl px-6 py-3.5 ${isFull ? 'bg-orange-500' : 'bg-move-dark'}`}
+              // reste en classe. La branche `bg-orange-500` est un SIGNAL (liste d'attente)
+              // et pourrait passer à `SEMANTIC.warning` — mais le ternaire porte les deux
+              // dans la même chaîne : les séparer inverserait l'ordre des couleurs du
+              // fichier sans rien gagner tant que l'autre branche ne peut pas bouger.
+              // ⚠️ `bg-orange-500` VAUT EXACTEMENT #F97316, c'est-à-dire `SEMANTIC.warning` — ce
+              // n'est pas une approximation mais la MÊME valeur, donc une migration licite
+              // (règle absolue de 286b : on ne migre que sur une égalité exacte).
+              style={{ backgroundColor: isFull ? SEMANTIC.warning : tokens.actionBg }}
+              className="rounded-xl px-6 py-3.5"
             >
               {loading ? (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: '#C8F000' }}>...</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
-                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : '#C8F000' }}>
+                <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : tokens.onAction }}>
                   {isFull ? t('session.waitlist').toUpperCase() : t('session.enroll').toUpperCase()}
                 </Text>
               )}
@@ -546,7 +625,7 @@ export default function SessionDetail() {
             activeOpacity={0.7}
             className="mt-3 self-center"
           >
-            <Text className="font-dmsans-bold text-xs text-move-text-muted underline">
+            <Text className="font-dmsans-bold text-xs underline" style={{ color: tokens.onBackgroundMuted }}>
               {t('session.decline')}
             </Text>
           </TouchableOpacity>

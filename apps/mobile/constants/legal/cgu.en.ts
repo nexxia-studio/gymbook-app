@@ -1,11 +1,12 @@
 // Terms & Conditions of Sale — v1 PUBLISHABLE.
 // Source of truth: docs/legal/cgv-v1.md (publishable body ONLY; the source's internal
 // appendices are NEVER reproduced here).
-// The Club identity (art. 1) is interpolated from CLUB_IDENTITY, never hardcoded.
+// 🔴 GYM-293b — the Club identity is a placeholder, no longer an interpolation: see the
+// French template for the full reasoning. `${CLUB_IDENTITY.name}` was evaluated at import
+// time, sealing Dopamine's name into the string before any gym was known.
 // Faithful translation of the frozen FR text — same article structure. Each "N.x"
 // sub-clause is blank-line separated (the MarkdownText renderer merges contiguous lines).
 import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
-import { CLUB_IDENTITY } from '../club'
 
 export const cguEn = `# Terms & Conditions
 
@@ -13,7 +14,7 @@ export const cguEn = `# Terms & Conditions
 
 ### 1. Identification and purpose
 
-These terms govern the use of the Dopamine application and the purchase of services from **${CLUB_IDENTITY.name}**, ${CLUB_IDENTITY.commune} ("the Club"), the seller of the services, whose full identity (legal name, company number, registered office) is displayed in the application, on the Club information screen. The application is published by **Nexxia** — Antoine Monie, a Belgian sole trader, BCE BE 1024.997.119, Rue Grande Bruyère 6 B1, 4840 Welkenraedt ("the Publisher"), technical provider and processor for the Club. Payments are processed by **Mollie B.V.** on behalf of the Club.
+These terms govern the use of the {{app_name}} application and the purchase of services from **{{club_name}}**{{club_commune}} ("the Club"), the seller of the services, whose full identity (legal name, company number, registered office) is displayed in the application, on the Club information screen. The application is published by **Nexxia** — Antoine Monie, a Belgian sole trader, BCE BE 1024.997.119, Rue Grande Bruyère 6 B1, 4840 Welkenraedt ("the Publisher"), technical provider and processor for the Club. Payments are processed by **Mollie B.V.** on behalf of the Club.
 
 ### 2. Member account
 

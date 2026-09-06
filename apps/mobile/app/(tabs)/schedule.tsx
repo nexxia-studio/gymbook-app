@@ -14,8 +14,13 @@ import { OpenGymListCard } from '../../components/schedule/OpenGymListCard'
 import { SectionHeader } from '../../components/schedule/SectionHeader'
 import { EmptySchedule } from '../../components/schedule/EmptySchedule'
 import { Skeleton } from '../../components/schedule/Skeleton'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { useGymHeaderName } from '../../hooks/useGymName'
 
 export default function Schedule() {
+  // GYM-299 — en-tête : le nom COURT s'il existe, sinon le complet.
+  const nomSalle = useGymHeaderName()
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const {
@@ -102,18 +107,41 @@ export default function Schedule() {
   )
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="bg-move-dark px-5 pb-4 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('schedule.title').toUpperCase()}
         </Text>
-        <Text className="font-dmsans text-[13px] text-white/40">
-          {t('schedule.subtitle')}
+        {/* GYM-297 — le nom de la salle ACTIVE. Il venait de `schedule.subtitle`,
+            c'est-à-dire d'un fichier de TRADUCTION : l'endroit le plus improbable où
+            chercher le nom d'un client, et celui où personne ne pense à le corriger. */}
+        {/* 🔴 GYM-300 (3c) — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/40` était un
+            BLANC EN DUR : illisible dès que la salle a un fond clair, et l'en-tête de
+            Studio Test le montrait — le nom de la salle disparaissait purement et
+            simplement de sa propre bande.
+
+            ⚠️ ET `onBackgroundMuted` N'AURAIT PAS FAIT L'AFFAIRE. Chez Dopamine il vaut
+            #9A9890, alors qu'un blanc à 40 % sur #111111 rend #707070 : le
+            remplacement direct aurait déplacé un pixel en single, ce que le cadrage
+            interdit. `tokens.onBackground + '66'` rend EXACTEMENT le blanc à 40 % chez
+            Dopamine (0x66 = 102, soit 102/255 = 0,40 pile), et l'encre de la salle
+            ailleurs. C'est le motif A-10 de GYM-286 : on migre la teinte, on ne touche
+            pas à l'alpha.
+
+            ⚠️ ALPHA SUR LA COULEUR, PAS `opacity` SUR L'ÉLÉMENT — les deux rendent
+            pareil ICI, mais `opacity` s'applique à toute la descendance : le jour où ce
+            `Text` accueille une icône ou un second fragment, elle les délaverait aussi.
+            L'alpha dans la couleur ne teinte que ce qu'elle colore. */}
+        <Text
+          className="font-dmsans text-[13px]"
+          style={{ color: tokens.onBackground + '66' }}
+        >
+          {nomSalle}
         </Text>
       </View>
 
-      <View className="flex-1 bg-move-bg">
+      <View className="flex-1" style={{ backgroundColor: tokens.page }}>
         {/* GYM-242 — une seule ligne dans l'écran ; tout le reste vit dans la feuille. */}
         <FilterBar
           activeCount={activeFilterCount}
@@ -138,7 +166,7 @@ export default function Schedule() {
             maxToRenderPerBatch={10}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.accent} />
             }
           />
         )}

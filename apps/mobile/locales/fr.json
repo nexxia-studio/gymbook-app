@@ -1,4 +1,23 @@
 {
+  "dopamine": {
+    "reset": {
+      "checking": "Vérification du lien…",
+      "title": "Définir ton mot de passe",
+      "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
+      "new_password": "Nouveau mot de passe",
+      "confirm_password": "Confirmer le mot de passe",
+      "submit": "Définir mon mot de passe",
+      "min_length": "Minimum {{count}} caractères",
+      "mismatch": "Les mots de passe ne correspondent pas",
+      "error_generic": "Une erreur est survenue. Réessaie.",
+      "success_title": "Mot de passe défini !",
+      "success_message": "Tu peux maintenant te reconnecter à ton compte Dopamine.",
+      "go_login": "Se connecter",
+      "invalid_title": "Lien invalide ou expiré",
+      "invalid_message": "Ce lien n'est plus valide. Refais une demande depuis l'écran de connexion."
+    },
+    "empty_closed": "Dopamine est fermé le dimanche"
+  },
   "common": {
     "loading": "Chargement...",
     "save": "Enregistrer",
@@ -11,6 +30,37 @@
     "retry": "Réessayer",
     "offline_title": "Pas de connexion",
     "offline_message": "Ton téléphone n'est pas connecté à Internet. Vérifie ta connexion et réessaie."
+  },
+  "gym_switch": {
+    "title": "Changer de salle",
+    "subtitle": "Choisis la salle que tu veux voir. Tes réservations dans les autres salles ne bougent pas.",
+    "current": "Salle active",
+    "only_one": "Tu n'es membre que d'une seule salle pour l'instant.",
+    "failed": "La bascule n'a pas abouti. Réessaie dans un instant.",
+    "error": "La liste de tes salles n'a pas pu être chargée. Réessaie dans un instant."
+  },
+  "deep_link": {
+    "switch_title": "Ce lien concerne une autre salle",
+    "switch_message": "Tu es connecté chez {{current}}. Ce lien t'emmène chez {{incoming}}. Si tu continues, {{incoming}} devient ta salle active — tes réservations chez {{current}} ne bougent pas, tu les retrouveras en y revenant.",
+    "switch_confirm": "Continuer vers {{gym}}",
+    "switch_cancel": "Rester où je suis",
+    "unknown_gym": "Ce lien pointe vers une salle qu'on ne trouve pas. Cherche-la par son nom."
+  },
+  "branding": {
+    "powered_by": "propulsé par"
+  },
+  "viniz_launch": {
+    "tagline": "Ta salle, vivante."
+  },
+  "gym_select": {
+    "not_my_gym": "Ce n'est pas ma salle",
+    "title": "Trouve ta salle",
+    "subtitle": "Cherche ta salle par son nom pour accéder à ses créneaux.",
+    "placeholder": "Nom de la salle",
+    "hint_min_length": "Tape au moins {{min}} lettres du nom de ta salle.",
+    "empty": "Aucune salle trouvée. Vérifie l'orthographe, ou demande son nom exact à ta salle.",
+    "rate_limited": "Trop de recherches, réessaie dans un instant.",
+    "error": "La recherche n'a pas abouti. Réessaie dans un instant."
   },
   "welcome": {
     "tagline": "Move More. Feel Better.",
@@ -52,7 +102,7 @@
     "terms_link": "Conditions Générales",
     "privacy_accept": "J'accepte la",
     "privacy_link": "Politique de Confidentialité",
-    "marketing_accept": "Recevoir les actualités Dopamine",
+    "marketing_accept": "Recevoir les actualités {{gym}}",
     "terms_required": "Veuillez accepter les CGU",
     "privacy_required": "Veuillez accepter la Politique de Confidentialité",
     "password_strength": {
@@ -101,7 +151,7 @@
       "kind_face_id": "Face ID",
       "kind_touch_id": "Touch ID",
       "kind_biometric": "Biométrie",
-      "enable_prompt": "Activer {{kind}} pour Dopamine",
+      "enable_prompt": "Activer {{kind}} pour {{gym}}",
       "login_prompt": "Connexion avec {{kind}}",
       "use_password": "Utiliser le mot de passe",
       "cancel": "Annuler",
@@ -110,22 +160,6 @@
       "offer_later": "Plus tard",
       "offer_enable": "Activer"
     }
-  },
-  "reset": {
-    "checking": "Vérification du lien…",
-    "title": "Définir ton mot de passe",
-    "subtitle": "Choisis un nouveau mot de passe pour ton compte Dopamine.",
-    "new_password": "Nouveau mot de passe",
-    "confirm_password": "Confirmer le mot de passe",
-    "submit": "Définir mon mot de passe",
-    "min_length": "Minimum {{count}} caractères",
-    "mismatch": "Les mots de passe ne correspondent pas",
-    "error_generic": "Une erreur est survenue. Réessaie.",
-    "success_title": "Mot de passe défini !",
-    "success_message": "Tu peux maintenant te reconnecter à ton compte Dopamine.",
-    "go_login": "Se connecter",
-    "invalid_title": "Lien invalide ou expiré",
-    "invalid_message": "Ce lien n'est plus valide. Refais une demande depuis l'écran de connexion."
   },
   "tabs": {
     "home": "Accueil",
@@ -148,7 +182,6 @@
     "booked": "✓ Réservé",
     "waitlisted_badge": "⏳ En attente",
     "empty_title": "Aucun cours ce jour",
-    "empty_closed": "Dopamine est fermé le dimanche",
     "empty_none": "Pas de créneaux prévus",
     "duration_min": "{{duration}} min",
     "pull_refresh": "Tirer pour rafraîchir",
@@ -178,7 +211,6 @@
   },
   "schedule": {
     "title": "Planning",
-    "subtitle": "Dopamine Performance Club",
     "all_classes": "Tous les cours",
     "this_week": "Cette semaine",
     "next_week": "Semaine prochaine",
@@ -302,7 +334,6 @@
   },
   "bookings": {
     "title": "Mes cours",
-    "subtitle": "Dopamine Performance Club",
     "tab_upcoming": "A venir",
     "tab_favorites": "Favoris",
     "tab_history": "Historique",
@@ -340,7 +371,6 @@
   "profile": {
     "title": "Mon profil",
     "member_since": "Membre depuis {{date}}",
-    "badge_gym": "Dopamine Performance Club",
     "progression": "Progression",
     "reward": "1 seance offerte debloquee !",
     "gamification": {
@@ -378,6 +408,7 @@
     "notifications_detail": "Push activees",
     "language": "Langue",
     "language_detail": "Francais",
+    "switch_gym": "Changer de salle",
     "section_account": "Compte",
     "edit_profile": "Modifier mon profil",
     "security": "Securite",
@@ -405,7 +436,7 @@
       "delay": "Votre demande est traitée sous 30 jours, conformément au RGPD.",
       "button": "Demander l'export par email",
       "recipient": "Votre demande sera envoyée à {{email}}",
-      "mail_subject": "Demande d'export de mes données — Dopamine",
+      "mail_subject": "Demande d'export de mes données — {{gym}}",
       "mail_body": "Bonjour,\n\nJe souhaite recevoir une copie de mes données personnelles conformément au RGPD.\n\nEmail du compte : {{email}}\n\nMerci de votre retour.",
       "no_mail_title": "Aucune application mail",
       "no_mail_message": "Aucune application mail n'est configurée. Écrivez-nous directement à {{email}}."
@@ -559,10 +590,6 @@
     "per_session": "Soit {{price}}€/séance",
     "select": "Choisir cette formule",
     "current_plan": "✓ Formule actuelle",
-    "contact_title": "{{plan}}",
-    "contact_message": "{{price}}€/{{unit}}\n\nLe paiement en ligne sera disponible prochainement. Contactez Dopamine pour souscrire.",
-    "contact_close": "Fermer",
-    "contact_cta": "Contacter Dopamine",
     "plan_drop_in_name": "Drop-in",
     "plan_drop_in_description": "Séance à l'unité",
     "plan_drop_in_unit": "séance",
@@ -629,7 +656,7 @@
     "category_noshow": "No-show / Suspension",
     "whatsapp_label": "WhatsApp",
     "whatsapp_coming_soon": "Bientôt disponible",
-    "push_info": "Les notifications push nécessitent d'avoir l'app Dopamine installée sur votre appareil.",
+    "push_info": "Les notifications push nécessitent d'avoir l'app {{gym}} installée sur votre appareil.",
     "language_section": "Langue",
     "language_updated": "Langue mise à jour",
     "save_error": "Impossible d'enregistrer. Réessayez."
@@ -658,5 +685,34 @@
     "reconnect_required_message": "Reconnectez-vous avec votre mot de passe pour activer {{kind}}.",
     "passwords_dont_match": "Les mots de passe ne correspondent pas.",
     "password_too_short": "Le mot de passe doit contenir au moins 8 caractères."
+  },
+  "active_gym": {
+    "unreachable": "On n'a pas pu joindre tes salles — on réessaie dès que ça revient"
+  },
+  "not_member": {
+    "title": "Tu n'es pas encore membre de {{gym}}",
+    "title_unnamed": "Tu n'es pas encore membre de cette salle",
+    "body": "Contacte le gérant pour obtenir l'accès.",
+    "back_to_login": "Revenir à la connexion {{gym}}",
+    "back_to_login_unnamed": "Revenir à la connexion",
+    "go_to_mine": "Aller à {{gym}}"
+  },
+  "cross_gym": {
+    "title": "Ce contenu est chez {{gym}}",
+    "body": "Tu es membre de cette salle, mais tu consultes actuellement une autre. Veux-tu y aller ?",
+    "go": "Aller à {{gym}}",
+    "error": "La bascule n'a pas abouti. Réessaie dans un instant."
+  },
+  "join_failed": {
+    "title": "On n'a pas pu te rattacher à cette salle",
+    "full": "{{gym}} a atteint son nombre maximum de membres. Contacte la salle : c'est à elle d'ouvrir une place.",
+    "rate_limited": "Trop de tentatives en peu de temps. Réessaie dans une heure.",
+    "not_found": "Cette salle n'existe plus.",
+    "email": "Ton adresse email n'est pas encore confirmée. Ouvre le lien qu'on vient de t'envoyer.",
+    "unavailable": "Le service est momentanément indisponible. Réessaie dans un instant.",
+    "generic": "Le rattachement n'a pas abouti.",
+    "account_exists": "Ton compte est bien créé — inutile de recommencer l'inscription.",
+    "choose_another": "Choisir une autre salle",
+    "sign_out": "Se déconnecter"
   }
 }

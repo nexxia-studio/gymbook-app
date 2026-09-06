@@ -1,4 +1,12 @@
 {
+  "dopamine": {
+    "reset": {
+      "subtitle": "Choose a new password for your Dopamine account.",
+      "success_message": "You can now log in to the Dopamine app.",
+      "next_step_text": "Book your classes from the Dopamine app.",
+      "download_app": "Download the Dopamine app"
+    }
+  },
   "common": {
     "loading": "Loading...",
     "save": "Save",
@@ -103,20 +111,21 @@
   "reset": {
     "checking": "Verifying link...",
     "title": "Set your password",
-    "subtitle": "Choose a new password for your Dopamine account.",
     "new_password": "New password",
     "submit": "Set my password",
     "min_length": "Minimum {{count}} characters",
     "error_generic": "Something went wrong. Please try again.",
     "success_title": "Password set!",
-    "success_message": "You can now log in to the Dopamine app.",
     "next_step_title": "Next step",
-    "next_step_text": "Book your classes from the Dopamine app.",
-    "download_app": "Download the Dopamine app",
     "invalid_title": "Invalid or expired link",
     "invalid_message": "This link is no longer valid. Enter your email to get a new one.",
     "resend_submit": "Resend link",
-    "resend_success": "If an account exists with this email, you will receive a new link."
+    "resend_success": "If an account exists with this email, you will receive a new link.",
+    "back_to_login": "Back to the sign-in screen",
+    "subtitle": "Choose a new password for your account.",
+    "success_message": "You can now log in to your app.",
+    "next_step_text": "Book your classes from your app.",
+    "download_app": "Download the app"
   },
   "activation": {
     "checking": "Checking your invitation...",
@@ -535,7 +544,7 @@
       }
     },
     "toast_push_sent": "Notification sent",
-    "push_default_message": "Message from Dopamine Performance Club",
+    "push_default_message": "Message from {{gym}}",
     "add_member": "Add a member",
     "add": {
       "title": "New member",
@@ -785,7 +794,8 @@
       "gym": "Gym",
       "payments": "Payments",
       "plans": "Plans",
-      "subscription": "Subscription"
+      "subscription": "Subscription",
+      "appearance": "Appearance"
     },
     "gym": {
       "booking_rules_title": "Booking rules",
@@ -813,7 +823,7 @@
       "subtitle": "This information appears on the invoices sent to your members.",
       "identity_title": "Identity",
       "commercial_name_label": "Trading name",
-      "commercial_name_helper": "The brand shown on the invoice (e.g. “Dopamine by EMS95”)",
+      "commercial_name_helper": "The brand shown on the invoice, if it differs from the legal name",
       "legal_name_label": "Registered company name",
       "legal_name_helper": "The legal name of the operating company (e.g. “EMS 95”)",
       "legal_form_label": "Legal form",
@@ -831,8 +841,8 @@
       "vat_exempt_label": "VAT exempt",
       "vat_exempt_helper": "Only tick this if your activity is genuinely exempt. The legal notice will replace the VAT breakdown on the invoice.",
       "vat_rate_label": "VAT rate (%)",
-      "vat_rate_helper": "The amount paid by the member is VAT-inclusive: VAT is extracted from it for display (0 to 100)",
-      "vat_rate_error": "The rate must be between 0 and 100",
+      "vat_rate_helper": "VAT rate applied to your sales. 6% = access to sports facilities in Belgium — confirm with your accountant.",
+      "vat_rate_error": "The rate must be between 0 and 30",
       "vat_mention_label": "Exemption legal notice",
       "vat_mention_helper": "E.g. “VAT not applicable — Art. 44 of the VAT Code”",
       "save": "Save",
@@ -903,6 +913,34 @@
       "error_range": "Check these days: {{days}}. Closing must be after opening.",
       "error_save": "Opening hours could not be saved. Try again.",
       "saved": "Opening hours saved."
+    },
+    "appearance": {
+      "title": "Appearance in the app",
+      "subtitle": "Your colours, logo and short name, as your members will see them.",
+      "primary_label": "Primary colour",
+      "secondary_label": "Secondary colour",
+      "color_hint": "Leave empty to keep the Viniz palette.",
+      "short_name_label": "Short name shown in the app",
+      "short_name_helper": "Shown in the header. Leave empty to use the full name.",
+      "logo_label": "Gym logo",
+      "logo_reco": "Square format recommended — approx. 500 × 500 px, transparent background",
+      "submit": "Save",
+      "saved": "Appearance saved.",
+      "save_error": "Saving failed. Please try again in a moment.",
+      "warning_title": "The app won’t use everything you picked",
+      "warning_background": "Your secondary colour cannot carry readable text: the app background will stay Viniz.",
+      "warning_accent_text": "No ink reads on your primary colour: buttons will keep the Viniz colour.",
+      "warning_accent_invisible": "Your primary colour does not stand out from the background: buttons will keep the Viniz colour.",
+      "preview_title": "Preview",
+      "preview_note": "What your members will see, fallbacks included.",
+      "preview_body": "Your schedule, your bookings.",
+      "preview_action": "Book",
+      "name_label": "Gym name",
+      "name_helper": "Shown to members — in the app, emails and search.",
+      "name_required": "The gym name cannot be empty.",
+      "legal_name_label": "Trading name (legal)",
+      "legal_name_helper": "Legal name on invoices. Edited in Settings → Gym → Legal information.",
+      "legal_name_empty": "Not set"
     }
   },
   "activities": {
@@ -963,7 +1001,10 @@
     "toast_save_failed": "The activity could not be saved. Try again.",
     "max_overbook": "Extra seats allowed",
     "max_overbook_hint": "How many people you can add beyond a slot's capacity when booking someone from the planning. 0 = strict capacity. Members never see this option: for them, a full class stays full.",
-    "max_overbook_active": "You will be able to add up to {{count}} seat(s) beyond capacity, with a mandatory reason."
+    "max_overbook_active": "You will be able to add up to {{count}} seat(s) beyond capacity, with a mandatory reason.",
+    "image_label": "Class image",
+    "image_reco": "Landscape format recommended — approx. 1200 × 675 px",
+    "image_after_save": "Save the class first: the image can then be added from its sheet."
   },
   "coaches": {
     "title": "Coaches",
@@ -1407,7 +1448,7 @@
     "title": "Create your gym",
     "subtitle": "One more step and your dashboard is yours.",
     "name_label": "Gym name",
-    "name_placeholder": "e.g. Dopamine Performance Club",
+    "name_placeholder": "Your gym's name",
     "name_helper": "Your members will see it in the app. You can change it later.",
     "name_length_error": "The name must be between {{min}} and {{max}} characters.",
     "timezone_label": "Time zone",
@@ -1443,7 +1484,10 @@
       "primary_label": "Primary colour",
       "secondary_label": "Secondary colour",
       "submit": "Save and continue",
-      "saved": "Branding saved."
+      "saved": "Branding saved.",
+      "color_hint": "Leave empty to keep the Viniz palette — you can change it later.",
+      "vat_title": "VAT: 6% applied to your sales",
+      "vat_helper": "6% = access to sports facilities in Belgium — confirm with your accountant. Editable in Settings → Gym → Legal information."
     },
     "step2": {
       "title": "Your first activity",
@@ -1503,5 +1547,14 @@
     "nav_privacy": "Privacy Policy",
     "nav_support": "Support",
     "accept_required": "You must accept the Terms of Use and the Privacy Policy"
+  },
+  "media": {
+    "drop_hint": "Drag an image here, or click to choose one",
+    "replace_hint": "Drag a new image to replace it",
+    "constraints": "{{formats}} · {{max}} maximum",
+    "remove": "Remove image",
+    "error_format": "Format not accepted. Allowed formats: {{formats}}.",
+    "error_size": "Image too large ({{taille}}). Maximum {{max}}.",
+    "error_network": "Upload failed. Please try again in a moment."
   }
 }

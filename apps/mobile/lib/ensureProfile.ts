@@ -1,7 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/react-native'
 import { supabase } from './supabase'
-import { GYM_ID } from '../constants/dopamine'
+import { GYM_MODE, FIXED_GYM_ID } from './gymResolver'
 import { LEGAL_VERSION } from '../constants/legal/meta'
 
 export const ADMIN_ACCOUNT_ERROR = 'ADMIN_ACCOUNT'
@@ -39,7 +39,7 @@ function metaLastName(user: User): string | null {
  * le gym_id de la config runtime EST le bon.
  *
  * Ce heal, appelé quand le profil existe déjà :
- *   - pose gym_id = GYM_ID si absent (correctif du bug) ;
+ *   - pose gym_id = la salle du build si absent, EN MODE `single` SEULEMENT ;
  *   - bonus : complète first_name/last_name depuis les metadata OAuth s'ils sont vides
  *     (le relais Apple/Google les expose de façon variable — tolérant à leur absence).
  * IDEMPOTENT (ne fait rien si tout est déjà posé), SILENCIEUX (pas d'UI), NON BLOQUANT
@@ -56,7 +56,27 @@ export async function healProfile(
   try {
     const patch: { gym_id?: string; first_name?: string; last_name?: string } = {}
 
-    if (!profile.gym_id) patch.gym_id = GYM_ID
+    // GYM-289 — ⚠️ CE HEAL NE VAUT QU'EN MODE `single`, ET IL FAUT LE DIRE.
+    //
+    // Il pose la salle du BUILD sur un profil qui n'en a pas. Sur une app mono-salle,
+    // c'est un correctif : il n'y a qu'une bonne réponse. En white-label, ce serait
+    // l'inverse — il INSCRIRAIT LE MEMBRE D'UN CLIENT DANS LES DONNÉES D'UN AUTRE, et
+    // rien côté app ne pourrait le rattraper ensuite.
+    //
+    // En `multi` on s'abstient donc, et on le journalise : un profil sans salle donne une
+    // app vide, visible et réparable côté cockpit. Le réparer ici demanderait de savoir
+    // quelle salle le membre a rejointe — information que seul le parcours d'inscription
+    // multi-salles, encore à écrire, pourra fournir.
+    if (!profile.gym_id) {
+      if (GYM_MODE === 'single' && FIXED_GYM_ID) {
+        patch.gym_id = FIXED_GYM_ID
+      } else {
+        console.warn(
+          '[ensureProfile] Profil sans gym_id en mode multi : aucune réparation possible ' +
+          'côté app. À traiter côté serveur.',
+        )
+      }
+    }
 
     if (!profile.first_name || profile.first_name.trim() === '') {
       const given = metaFirstName(user)
@@ -108,7 +128,8 @@ export async function ensureProfile(user: User): Promise<void> {
     first_name: firstName || (user.user_metadata?.first_name as string) || '',
     last_name: lastNameParts.join(' ') || (user.user_metadata?.last_name as string) || '',
     role: 'member',
-    gym_id: GYM_ID,
+    // Même raison que le heal ci-dessus : en `multi`, aucune salle plutôt que la mauvaise.
+    gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
     preferred_language: 'fr',
     privacy_policy_accepted_at: new Date().toISOString(),
     privacy_policy_version: LEGAL_VERSION,

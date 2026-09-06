@@ -10,8 +10,28 @@ import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useBiometrics } from '../../hooks/useBiometrics'
+import { GYM_MODE } from '../../lib/gymResolver'
+import { MultiLogin } from '../../components/viniz/MultiLogin'
+import { useTheme } from '../../lib/theme/ThemeProvider'
 
+/**
+ * GYM-102 (3/5) — L'AIGUILLAGE, ET RIEN D'AUTRE.
+ *
+ * `GYM_MODE` est figé à la compilation : l'ordre des hooks de chaque branche est stable et
+ * aucune ne voit l'autre. En `single`, cet écran rend exactement l'arbre d'avant —
+ * `DopamineLogin` est le composant existant, déplacé d'une ligne, non modifié.
+ *
+ * 🔴 GYM-312b — LA BRANCHE MULTI PASSE PAR `MultiLogin`, QUI PEUT REFUSER DE RENDRE.
+ * Sans salle mémorisée, `BrandedLogin` n'a ni logo, ni couleurs, ni nom : il rendait un
+ * écran noir anonyme. `MultiLogin` tranche d'abord — attendre, chercher une salle, ou
+ * brander — et n'appelle `BrandedLogin` que lorsqu'il y a une marque à porter.
+ */
 export default function Login() {
+  return GYM_MODE === 'multi' ? <MultiLogin /> : <DopamineLogin />
+}
+
+function DopamineLogin() {
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { signIn, isLoading, error, clearError } = useAuthStore()
@@ -77,7 +97,7 @@ export default function Login() {
   }, [email, password, signIn, clearError, router, offerBiometricSetup])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
       <InScreenBanner
         message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
@@ -86,9 +106,9 @@ export default function Login() {
       />
 
       {/* Dark header */}
-      <View className="bg-move-dark px-6 pb-16 pt-14">
-        <Text className="font-barlow text-lg text-white">DOPAMINE</Text>
-        <Text className="mt-4 font-barlow text-3xl uppercase text-white">
+      <View className="px-6 pb-16 pt-14" style={{ backgroundColor: tokens.background }}>
+        <Text className="font-barlow text-lg" style={{ color: tokens.onBackground }}>DOPAMINE</Text>
+        <Text className="mt-4 font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('auth.login_title')}
         </Text>
       </View>
@@ -103,7 +123,7 @@ export default function Login() {
           contentContainerClassName="px-6 pb-6"
           keyboardShouldPersistTaps="handled"
         >
-          <View className="rounded-3xl bg-white p-6 shadow-sm">
+          <View className="rounded-3xl p-6 shadow-sm" style={{ backgroundColor: tokens.surface }}>
             <View className="gap-5">
               {/* OAuth en haut (fix rejet App Store Guideline 4 — GYM-149) :
                   Sign in with Apple / Google au-dessus du formulaire email. */}
@@ -134,7 +154,7 @@ export default function Login() {
               />
 
               <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
-                <Text className="text-center font-dmsans text-sm text-move-text-muted">
+                <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>
                   {t('auth.forgot_password')}
                 </Text>
               </TouchableOpacity>
@@ -142,9 +162,9 @@ export default function Login() {
           </View>
 
           <TouchableOpacity onPress={() => router.replace('/(auth)/signup')} className="mt-6">
-            <Text className="text-center font-dmsans text-sm text-move-text-secondary">
+            <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('auth.no_account')}{' '}
-              <Text className="font-dmsans-bold text-move-dark">{t('auth.signup')}</Text>
+              <Text className="font-dmsans-bold" style={{ color: tokens.onSurface }}>{t('auth.signup')}</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>

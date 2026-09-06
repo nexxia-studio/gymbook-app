@@ -64,6 +64,10 @@ import {
   escapeHtml,
   type GymBranding,
 } from '../_shared/gym-branding.ts'
+// GYM-313 — réécriture du `redirect_to` des emails de réinitialisation. Module PUR et
+// isolé : `index.ts` appelle `Deno.serve()` au chargement, donc rien de ce qui vit ici ne
+// peut être mis au banc. Voir `recovery-redirect.ts` et son banc pour le pourquoi.
+import { recoveryRedirectTo, type RecoveryRedirectConfig } from './recovery-redirect.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -76,6 +80,34 @@ const HOOK_SECRET = Deno.env.get('SEND_EMAIL_HOOK_SECRET') ?? ''
 // est remonté comme ré-essayable, plutôt que de laisser GoTrue trancher par un timeout —
 // un timeout côté GoTrue ne dit RIEN dans nos logs, un abandon ici est tracé.
 const RESEND_TIMEOUT_MS = 3_000
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// GYM-313 — OÙ FINIT UNE RÉINITIALISATION
+// ─────────────────────────────────────────────────────────────────────────────────────
+// `DASHBOARD_URL` est la variable que `admin-create-member` emploie DÉJÀ pour la même
+// cible (`${dashboardUrl}/reset-password`) : on reprend la convention plutôt que d'en
+// inventer une seconde. Elle rend aussi le staging correct sans toucher au code — le
+// projet staging pose sa propre valeur.
+//
+// ⚠️ LE REPLI EST LE DOMAINE ACTUEL, PAS CELUI D'admin-create-member. Cette fonction-là
+// retombe encore sur `gymbook-app.vercel.app`, l'ANCIEN domaine (GYM-159 l'a remplacé par
+// `app.viniz.app`, cf. les deux pages de relais de `apps/links`). Recopier ce repli ici
+// aurait propagé un lien mort ; le corriger là-bas est un autre ticket, et ce lot ne
+// touche pas à `admin-create-member`.
+//
+// ⚠️ LES BARRES OBLIQUES DE FIN SONT RETIRÉES. Une valeur posée « https://app.viniz.app/ »
+// au cockpit produirait `//reset-password` : un chemin que la comparaison d'idempotence ne
+// reconnaîtrait pas, et que la liste d'URL autorisées de Supabase rejetterait.
+const DASHBOARD_URL = (Deno.env.get('DASHBOARD_URL') ?? 'https://app.viniz.app').replace(/\/+$/, '')
+
+// L'hôte des Universal Links membres — celui que l'app revendique (`applinks:links.viniz.app`
+// dans `apps/mobile/app.config.ts`), donc le seul dont une URL de reset mérite d'être
+// réécrite. Domaine PRODUIT, identique pour toutes les salles : sa place est une constante,
+// comme `LINKS_BASE` dans `apps/mobile/lib/gymUrls.ts`.
+const RECOVERY_REDIRECT: RecoveryRedirectConfig = {
+  webResetBase: `${DASHBOARD_URL}/reset-password`,
+  relayHost: 'links.viniz.app',
+}
 
 // ─────────────────────────────────────────────────────────────────────────────────────
 // L'IDENTITÉ VINIZ, EN DUR — ET POURQUOI C'EN EST LA BONNE PLACE
@@ -93,6 +125,32 @@ const RESEND_TIMEOUT_MS = 3_000
 //   ctaBg/ctaFg    #4827B4 sur #C8FF3D           → le bouton violet de la marque
 // `slug` vide est VOULU : aucun Universal Link membre n'a de sens ici, et tous les boutons
 // de ces emails passent par `ctaUrl` (une URL GoTrue absolue), jamais par `ctaPath`.
+//
+// 🔴 GYM-303 — LE MOT-MARQUE RÉEL EST ARRIVÉ, ET C'EST LA LIGNE `logoUrl` QUI CHANGE.
+//
+// CE QUI BLOQUAIT, ET QUI NE BLOQUE PLUS. Ce hook affichait « VINIZ » en texte brut faute
+// d'asset : le dépôt ne contenait que des icônes CARRÉES 512×512 sans transparence, qui
+// auraient peint un carré sur l'en-tête sombre au lieu d'un logotype. Le SVG existait,
+// mais Gmail et Outlook ne rendent pas les SVG, et le dépôt n'a aucun rastériseur.
+//
+// Les PNG sont maintenant dans `apps/links/public/brand/`, servis par un site statique
+// public : voir le README de ce dossier pour les dimensions et la règle de régénération.
+//
+// ⚠️ LE `@2x` N'EST PAS UN CAPRICE. `headerHtml` rend le logo à `width="160"` EN DUR —
+// Outlook ignore les largeurs relatives. Le 1x mesure 250 px : réduit à 160, il est flou
+// sur tout écran à haute densité. Le `@2x` en fait 499, soit environ trois fois la taille
+// rendue, pour 10 Ko.
+//
+// ⚠️ ET LE GARDE-FOU RESTE LA CEINTURE. `isUsablePng` n'affiche une `<img>` que si l'URL
+// est en `https` ET finit par `.png` ; sinon il retombe sur le nom en texte, qui est
+// correct. Ce hook est BLOQUANT sans repli — un gabarit cassé casse les inscriptions —
+// donc la règle du fichier tient toujours : un logo cassé est pire qu'un texte juste.
+//
+// ⚠️ FOND TRANSPARENT, ET C'EST STRUCTUREL. Le fond de l'en-tête vient de
+// `secondaryColor` (#17102E ici), pas du fichier : un PNG à fond opaque afficherait un
+// rectangle par-dessus. Les deux PNG déposés ont bien un canal alpha.
+const VINIZ_WORDMARK_PNG = 'https://links.viniz.app/brand/viniz-wordmark-lime@2x.png'
+
 const VINIZ_BRANDING: GymBranding = {
   name: 'Viniz',
   slug: '',
@@ -101,7 +159,7 @@ const VINIZ_BRANDING: GymBranding = {
   city: null,
   email: null,
   phone: null,
-  logoUrl: null,
+  logoUrl: VINIZ_WORDMARK_PNG,
   primaryColor: '#C8FF3D',
   secondaryColor: '#17102E',
 }
@@ -304,12 +362,26 @@ function brandNameOf(a: Audience): string {
  * `redirect_to` vient du payload signé : c'est la valeur que l'appelant a passée
  * (emailRedirectTo / redirectTo, explicite dans les quatre parcours du dépôt) et que
  * GoTrue a DÉJÀ validée contre sa liste d'URL autorisées. Repli sur `site_url` si vide.
+ *
+ * 🔴 GYM-313 — UNE SEULE DESTINATION EST RÉÉCRITE, ET C'EST ICI QUE ÇA SE PASSE.
+ * `recovery` partait vers `links.viniz.app/<slug>/reset-password`, que l'iPhone revendique
+ * (AASA) et ouvre dans l'app SANS le fragment — le membre y voyait « Lien invalide ou
+ * expiré » sur un jeton pourtant consommé. Ce type-là finit désormais sur la page web qui
+ * sait finaliser. `recoveryRedirectTo` ne touche à rien d'autre et ne lève jamais : les
+ * quatre autres types, et toute forme non reconnue, gardent leur valeur d'origine.
  */
 function verifyUrl(data: HookEmailData, tokenHash: string, type: string): string {
+  const rawRedirectTo = data.redirect_to || data.site_url
+  const redirectTo = recoveryRedirectTo(rawRedirectTo, type, RECOVERY_REDIRECT)
+  // Une ligne de journal SEULEMENT quand la valeur change : c'est la preuve que le cockpit
+  // cherchera dans les logs de staging, et elle ne bruite pas les quatre autres types.
+  if (redirectTo !== rawRedirectTo) {
+    console.log(`[auth-email-hook] redirect_to réécrit (recovery): ${rawRedirectTo} → ${redirectTo}`)
+  }
   const params = new URLSearchParams({
     token: tokenHash,
     type,
-    redirect_to: data.redirect_to || data.site_url,
+    redirect_to: redirectTo,
   })
   return `${SUPABASE_URL}/auth/v1/verify?${params.toString()}`
 }

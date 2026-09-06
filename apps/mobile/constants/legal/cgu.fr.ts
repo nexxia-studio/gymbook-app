@@ -1,11 +1,14 @@
 // Conditions générales de vente — v1 PUBLIABLE.
 // Source de vérité : docs/legal/cgv-v1.md (corps publiable UNIQUEMENT ; les annexes
 // internes de la source ne sont JAMAIS reproduites ici).
-// L'identité du Club (art. 1) est interpolée depuis CLUB_IDENTITY, jamais en dur.
+// 🔴 GYM-293b — L'IDENTITÉ DU CLUB EST UN PLACEHOLDER, PLUS UNE INTERPOLATION.
+// `${CLUB_IDENTITY.name}` était évalué À L'IMPORT du module : la valeur de Dopamine était
+// donc SCELLÉE dans la chaîne avant que la moindre salle soit connue. Chez une autre salle,
+// le membre acceptait les CGV de Dopamine — et le nom de l'application était Dopamine
+// aussi. Les trois valeurs passent maintenant par `{{…}}`, résolues AU RENDU.
 // Chaque sous-clause « N.x » est séparée par une ligne vide : le renderer MarkdownText
 // fusionne sinon les lignes contiguës dans un même paragraphe.
 import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
-import { CLUB_IDENTITY } from '../club'
 
 export const cguFr = `# Conditions générales
 
@@ -13,7 +16,7 @@ export const cguFr = `# Conditions générales
 
 ### 1. Identification et objet
 
-Les présentes conditions régissent l'utilisation de l'application Dopamine et l'achat de prestations auprès de **${CLUB_IDENTITY.name}**, ${CLUB_IDENTITY.commune} (« le Club »), vendeur des prestations, dont l'identité complète (dénomination légale, numéro d'entreprise, siège) est affichée dans l'application, écran d'informations du Club. L'application est éditée par **Nexxia** — Antoine Monie, entreprise en personne physique de droit belge, BCE BE 1024.997.119, Rue Grande Bruyère 6 B1, 4840 Welkenraedt (« l'Éditeur »), prestataire technique et sous-traitant du Club. Les paiements sont traités par **Mollie B.V.** pour le compte du Club.
+Les présentes conditions régissent l'utilisation de l'application {{app_name}} et l'achat de prestations auprès de **{{club_name}}**{{club_commune}} (« le Club »), vendeur des prestations, dont l'identité complète (dénomination légale, numéro d'entreprise, siège) est affichée dans l'application, écran d'informations du Club. L'application est éditée par **Nexxia** — Antoine Monie, entreprise en personne physique de droit belge, BCE BE 1024.997.119, Rue Grande Bruyère 6 B1, 4840 Welkenraedt (« l'Éditeur »), prestataire technique et sous-traitant du Club. Les paiements sont traités par **Mollie B.V.** pour le compte du Club.
 
 ### 2. Compte membre
 

@@ -28,6 +28,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+// GYM-285 — le champ couleur et la palette suggérée sont désormais PARTAGÉS avec la page
+// Réglages → Apparence : une seule façon de dire « pas encore choisi ».
+import { ColorField, VINIZ_PRIMARY, VINIZ_SECONDARY } from '@/components/ui/ColorField'
 import { supabase } from '@/lib/supabase'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
@@ -54,8 +57,22 @@ export function OnboardingWizard() {
 
   // Étape 1 — marque de la salle.
   const [logoUrl, setLogoUrl] = useState('')
-  const [primary, setPrimary] = useState('#C8F000')
-  const [secondary, setSecondary] = useState('#111111')
+  // ── GYM-284 — CHAMPS VIDES, SUGGESTION VINIZ AFFICHÉE ───────────────────────────────
+  //
+  // 🔴 `null` VEUT DIRE « PAS ENCORE CHOISI », ET C'EST TOUT L'OBJET DU LOT. Le wizard
+  // pré-remplissait #C8F000 / #111111 — le lime de Dopamine — exactement comme le DEFAULT
+  // de la base, désormais passé à NULL. Corriger l'un sans l'autre n'aurait rien réglé :
+  // le formulaire aurait continué d'ÉCRIRE ce que le schéma a cessé d'imposer.
+  //
+  // ⚠️ ET PRÉ-REMPLIR LA PALETTE VINIZ AURAIT REPRODUIT LE MÊME DÉFAUT D'UN CRAN. Une
+  // valeur pré-remplie est enregistrée comme un CHOIX : la base ne distinguerait plus
+  // « cette salle a choisi le lime Viniz » de « cette salle n'a rien décidé », et le repli
+  // côté client — celui qui sait résoudre le contraste — ne s'appliquerait jamais.
+  //
+  // Un champ vide invite à choisir ; la pastille montre ce qu'on aura si l'on ne choisit
+  // pas. On ne perd donc pas l'aperçu, on perd seulement le faux choix.
+  const [primary, setPrimary] = useState<string | null>(null)
+  const [secondary, setSecondary] = useState<string | null>(null)
   const [brandLoaded, setBrandLoaded] = useState(false)
   const [savingBrand, setSavingBrand] = useState(false)
 
@@ -117,6 +134,7 @@ export function OnboardingWizard() {
       .from('nexxia_gyms')
       .update({
         logo_url: logoUrl.trim() || null,
+        // `null` traverse jusqu'en base : c'est la valeur qui dit « pas encore choisi ».
         primary_color: primary,
         secondary_color: secondary,
       })
@@ -257,6 +275,33 @@ export function OnboardingWizard() {
       {/* ── Étape 1 : la marque. Seule étape qui écrit ici. ── */}
       {step === 1 && (
         <div className="mt-5 flex flex-col gap-4">
+          {/* ═══════════════════════════════════════════════════════════════════════════
+              🔴 GYM-308 — LE TAUX DE TVA EST MONTRÉ, PAS SUBI.
+              ═══════════════════════════════════════════════════════════════════════════
+              La RPC de création pose désormais 6,00 % explicitement (migration
+              20260829100000). Le poser sans le dire reviendrait à choisir le régime fiscal
+              du gérant à sa place : il découvrirait le taux sur sa première facture, ou
+              pire, ne le découvrirait pas.
+
+              ⚠️ AFFICHÉ, NON ÉDITABLE ICI, ET C'EST DÉLIBÉRÉ. L'onboarding sert à démarrer
+              en six étapes ; y glisser un champ fiscal inviterait à trancher vite une
+              question qui demande un comptable. Le bloc dit la valeur, dit qu'elle se
+              corrige, et dit où — Réglages → Informations légales, où le champ existe avec
+              ses bornes et sa validation.
+
+              ⚠️ VALEUR EN DUR DANS LE LIBELLÉ, alignée sur la RPC. C'est une CONSTANTE de
+              marché (le taux belge des installations sportives), pas une donnée de salle :
+              la lire en base ici demanderait une requête de plus pour afficher un nombre
+              que la migration vient d'écrire. Si la RPC change, ce libellé change avec
+              elle — les deux portent le même numéro de ticket. */}
+          <div className="rounded-xl border border-[#E8E6E0] bg-[#F5F4F0] px-4 py-3">
+            <p className="font-body text-sm font-semibold text-dark">
+              {t('onboarding.step1.vat_title')}
+            </p>
+            <p className="mt-1 font-body text-xs text-dark/50">
+              {t('onboarding.step1.vat_helper')}
+            </p>
+          </div>
           <Input
             label={t('onboarding.step1.logo_label')}
             name="logoUrl"
@@ -270,11 +315,15 @@ export function OnboardingWizard() {
             <ColorField
               label={t('onboarding.step1.primary_label')}
               value={primary}
+              suggestion={VINIZ_PRIMARY}
+              hint={t('onboarding.step1.color_hint')}
               onChange={setPrimary}
             />
             <ColorField
               label={t('onboarding.step1.secondary_label')}
               value={secondary}
+              suggestion={VINIZ_SECONDARY}
+              hint={t('onboarding.step1.color_hint')}
               onChange={setSecondary}
             />
           </div>
@@ -376,28 +425,3 @@ function LimitRow({ label, value }: { label: string; value: number | null }) {
   )
 }
 
-function ColorField({ label, value, onChange }: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="font-body text-sm font-semibold text-dark">{label}</label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-11 w-12 shrink-0 cursor-pointer rounded-lg border border-[#E8E6E0] bg-card p-1"
-        />
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-xl border border-[#E8E6E0] bg-card px-3 py-2.5 font-mono text-sm text-dark outline-none transition-colors focus:border-dark"
-        />
-      </div>
-    </div>
-  )
-}

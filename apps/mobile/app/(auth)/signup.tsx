@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { View, Text, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
+import { Redirect, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { TextInput } from '../../components/ui/TextInput'
@@ -12,6 +12,10 @@ import { Checkbox } from '../../components/ui/Checkbox'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { OAuthButtons } from '../../components/auth/OAuthButtons'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { SEMANTIC } from '../../lib/theme/semantic'
+import { useGymName } from '../../hooks/useGymName'
+import { GYM_MODE } from '../../lib/gymResolver'
 
 interface FormErrors {
   firstName?: string
@@ -37,6 +41,14 @@ interface FormErrors {
 const SIGNUP_MIN_LENGTH = 8
 
 export default function Signup() {
+  // 🔴 GYM-293b — LA SALLE DE CONTEXTE, ET UN REPLI QUI NE NOMME PERSONNE.
+  // `useGymName()` retombait sur « Dopamine Performance Club » : sur cet écran, où le membre
+  // n'est par définition PAS connecté, ce repli n'était pas transitoire — il était l'état
+  // permanent, et un candidat de n'importe quelle salle s'inscrivait sous l'en-tête de
+  // Dopamine. Le hook lit désormais la MARQUE (chargée avant la connexion, c'est sa raison
+  // d'être) et retombe sur la plateforme, jamais sur un client.
+  const nomSalle = useGymName()
+  const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
   const { signUp, isLoading, error, clearError } = useAuthStore()
@@ -89,8 +101,23 @@ export default function Signup() {
     }
   }, [email, password, firstName, lastName, phone, terms, privacy, marketing, signUp, clearError, router])
 
+  // ── 🔴 GYM-293 — LA ROUTE ROUVRE EN MULTI, PARCE QUE LE RATTACHEMENT EXISTE ───────
+  //
+  // Elle avait été fermée (mitigation #230) pour une raison précise : en `multi`,
+  // `signupGymId()` rend `null`, le trigger crée un profil SANS salle, et le membre repart
+  // avec un compte inutilisable qu'il ne pouvait pas rattacher — le chemin de rattachement
+  // n'existait pas.
+  //
+  // Il existe maintenant : `join_gym_self_serve(p_slug)`. La réconciliation d'ouverture de
+  // session l'appelle quand le choix vient d'un SIGNUP et que le compte n'a aucune adhésion
+  // (voir lib/activeGymSession.ts). La porte peut donc se rouvrir : ce qu'elle ouvrait sur
+  // un cul-de-sac ouvre désormais sur un parcours complet.
+  //
+  // ⚠️ RIEN NE CHANGE EN `single`. La mitigation ne visait que le multi, et sa levée non
+  // plus : l'inscription de Dopamine n'a jamais été touchée, dans un sens comme dans l'autre.
+
   return (
-    <SafeAreaView className="flex-1 bg-move-bg" edges={['bottom']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.page }} edges={['bottom']}>
       <InScreenBanner
         message={toastVisible && error ? t(error) : null}
         onHide={() => setToastVisible(false)}
@@ -99,9 +126,12 @@ export default function Signup() {
       />
 
       {/* Dark header */}
-      <View className="bg-move-dark px-6 pb-16 pt-14">
-        <Text className="font-barlow text-lg text-white">DOPAMINE</Text>
-        <Text className="mt-4 font-barlow text-3xl uppercase text-white">
+      <View className="px-6 pb-16 pt-14" style={{ backgroundColor: tokens.background }}>
+        {/* GYM-297 — le nom de la salle ACTIVE. Cet écran n'a AUCUN aiguillage de mode :
+            il est le même en single et en multi, et il écrivait « DOPAMINE » en dur — un
+            membre de Studio Yoga créait donc son compte sous l'en-tête d'un autre club. */}
+        <Text className="font-barlow text-lg" style={{ color: tokens.onBackground }}>{nomSalle.toUpperCase()}</Text>
+        <Text className="mt-4 font-barlow text-3xl uppercase" style={{ color: tokens.onBackground }}>
           {t('auth.signup_title')}
         </Text>
       </View>
@@ -109,7 +139,7 @@ export default function Signup() {
       {/* Form */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
         <ScrollView className="-mt-8 flex-1" contentContainerClassName="px-6 pb-8" keyboardShouldPersistTaps="handled">
-          <View className="rounded-3xl bg-white p-6 shadow-sm">
+          <View className="rounded-3xl p-6 shadow-sm" style={{ backgroundColor: tokens.surface }}>
             <View className="gap-4">
               {/* OAuth en haut (fix rejet App Store Guideline 4 — GYM-149) :
                   Sign in with Apple / Google au-dessus du formulaire d'inscription. */}
@@ -180,14 +210,15 @@ export default function Signup() {
               />
 
               {/* Consents */}
-              <View className="gap-3 rounded-2xl border border-move-border p-4">
+              <View className="gap-3 rounded-2xl border p-4" style={{ borderColor: tokens.border }}>
                 <Checkbox checked={terms} onToggle={() => setTerms(!terms)}>
-                  <Text className="font-dmsans text-sm text-move-text-secondary">
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                     {t('auth.terms_accept')}{' '}
                     {/* Lien tapable : le <Text onPress> imbriqué capture le tap et navigue
                         sans déclencher le toggle de la Checkbox parente. */}
                     <Text
-                      className="font-dmsans-bold text-move-dark underline"
+                      className="font-dmsans-bold underline"
+                      style={{ color: tokens.onSurface }}
                       accessibilityRole="link"
                       onPress={() => router.push('/profile/legal/cgu')}
                     >
@@ -195,13 +226,14 @@ export default function Signup() {
                     </Text>
                   </Text>
                 </Checkbox>
-                {errors.terms && <Text className="font-dmsans text-xs text-red-500">{errors.terms}</Text>}
+                {errors.terms && <Text className="font-dmsans text-xs" style={{ color: SEMANTIC.danger }}>{errors.terms}</Text>}
 
                 <Checkbox checked={privacy} onToggle={() => setPrivacy(!privacy)}>
-                  <Text className="font-dmsans text-sm text-move-text-secondary">
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
                     {t('auth.privacy_accept')}{' '}
                     <Text
-                      className="font-dmsans-bold text-move-dark underline"
+                      className="font-dmsans-bold underline"
+                      style={{ color: tokens.onSurface }}
                       accessibilityRole="link"
                       onPress={() => router.push('/profile/legal/privacy')}
                     >
@@ -209,11 +241,11 @@ export default function Signup() {
                     </Text>
                   </Text>
                 </Checkbox>
-                {errors.privacy && <Text className="font-dmsans text-xs text-red-500">{errors.privacy}</Text>}
+                {errors.privacy && <Text className="font-dmsans text-xs" style={{ color: SEMANTIC.danger }}>{errors.privacy}</Text>}
 
                 <Checkbox checked={marketing} onToggle={() => setMarketing(!marketing)}>
-                  <Text className="font-dmsans text-sm text-move-text-secondary">
-                    {t('auth.marketing_accept')}
+                  <Text className="font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
+                    {t('auth.marketing_accept', { gym: nomSalle })}
                   </Text>
                 </Checkbox>
               </View>
@@ -223,9 +255,9 @@ export default function Signup() {
           </View>
 
           <TouchableOpacity onPress={() => router.replace('/(auth)/login')} className="mt-6">
-            <Text className="text-center font-dmsans text-sm text-move-text-secondary">
+            <Text className="text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
               {t('auth.already_account')}{' '}
-              <Text className="font-dmsans-bold text-move-dark">{t('auth.login')}</Text>
+              <Text className="font-dmsans-bold" style={{ color: tokens.onSurface }}>{t('auth.login')}</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>

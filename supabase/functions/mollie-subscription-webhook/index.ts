@@ -10,6 +10,8 @@ import {
   buildMemberFailureEmail,
   buildOwnerAlertEmail,
 } from '../_shared/failed-renewal-emails.ts'
+// GYM-319 — date du premier renouvellement, isolée pour être vérifiable hors ligne.
+import { firstRenewalDate } from './renewal-date.ts'
 
 const FN = 'mollie-subscription-webhook'
 
@@ -546,6 +548,98 @@ Deno.serve(async (req) => {
           if (existingSub?.mollie_subscription_id) {
             console.log('[sub-webhook] subscription already exists — skip Mollie create (idempotent):', existingSub.mollie_subscription_id)
           } else {
+            // ╔═══════════════════════════════════════════════════════════════════════╗
+            // ║  🔴 GYM-314 — profileId, OBLIGATOIRE en OAuth Connect.                ║
+            // ╚═══════════════════════════════════════════════════════════════════════╝
+            // DÉFAUT CORRIGÉ (prod, incident d'inauguration — 2 membres réels bloqués) :
+            // ce payload partait SANS profileId et Mollie refusait l'abonnement en
+            //     422 — "A website profile is required for payments", field: "profileId"
+            // Le 503 qui suivait tombait AVANT l'upsert `paid` : paiement figé en
+            // 'pending', aucune ligne member_subscriptions, membre sans droit de réserver.
+            //
+            // Un jeton OAuth Connect porte l'ORGANISATION, pas le profil : sur les
+            // endpoints de création, Mollie ne peut pas déduire au nom de quel profil
+            // (site marchand) créer. Les paiements le portaient déjà — create-payment et
+            // create-subscription lisent `gym_mollie_connections.mollie_profile_id`, et
+            // c'est pour ça qu'ils passent. Cet appel-ci était le seul créateur à ne pas
+            // le faire. MÊME CHEMIN DE LECTURE, à l'identique, pas un second mécanisme.
+            //
+            // La lecture est ICI, dans la branche qui appelle RÉELLEMENT Mollie, et non à
+            // la construction du payload : un rejeu que l'idempotence court-circuite
+            // (abo déjà créé) ne doit pas pouvoir échouer sur une salle déconnectée
+            // depuis. On ne bloque que ce qu'on s'apprête à envoyer.
+            //
+            // ⚠️ En test mode, la clé API est DÉJÀ liée à un profil : pas de profileId à
+            // joindre. Même condition que create-payment / create-subscription.
+            if (!IS_TEST_MODE) {
+              const { data: connMeta } = await supabase
+                .from('gym_mollie_connections')
+                .select('mollie_profile_id')
+                .eq('gym_id', gymId)
+                .maybeSingle()
+              const profileId = connMeta?.mollie_profile_id ?? null
+
+              if (!profileId) {
+                // On NE tente PAS un appel dont on connaît déjà le refus : le 422 ne dirait
+                // rien de plus et coûterait un aller-retour sur le chemin de l'argent. Stage
+                // DÉDIÉ — 'subscription_create' mélangerait ce défaut de configuration
+                // (la salle doit refaire son OAuth) avec un refus Mollie, qui appelle un
+                // tout autre geste. 503 et non 200 : le rejeu réussira une fois la salle
+                // reconnectée, sans intervention en base.
+                await recordWebhookFailure(supabase, {
+                  functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+                  gymId, stage: 'subscription_profile_missing',
+                  detail: {
+                    reason: 'gym_mollie_connections.mollie_profile_id absent — profileId requis en OAuth Connect',
+                    customerId,
+                  },
+                })
+                return new Response('missing mollie profile', { status: 503 })
+              }
+
+              subPayload.profileId = profileId
+            }
+
+            // ╔═══════════════════════════════════════════════════════════════════════╗
+            // ║  🔴 GYM-319 — startDate, SANS QUOI MOLLIE PRÉLÈVE LE JOUR MÊME.       ║
+            // ╚═══════════════════════════════════════════════════════════════════════╝
+            // DÉFAUT CORRIGÉ (prod — 5 abonnements créés depuis le 30/08, 5 DOUBLES
+            // PRÉLÈVEMENTS) : ce payload partait sans `startDate`. Doc Mollie : sans lui,
+            // « la date du jour est utilisée » — la première échéance récurrente partait
+            // donc aussitôt, EN PLUS du paiement initial déjà encaissé au checkout. Écart
+            // constaté entre les deux débits : 5 heures pour Robin, puis 1,4 j · 1,4 j ·
+            // 1,5 j · 2,4 j — le délai de mise en file de Mollie, pas une date de départ.
+            //
+            // 🔴 UNE SEULE DATE, CALCULÉE UNE FOIS, POUR LES DEUX SOURCES. La même valeur
+            // part chez Mollie et s'écrit dans `next_payment_at` quelques lignes plus bas.
+            // C'est le second volet de l'incident : la base annonçait au membre le 30/09
+            // pendant que Mollie prélevait le 01/09. Deux dates pour un même fait, donc
+            // deux vérités — et l'app affichait la fausse. Recalculer, ou reprendre
+            // `subscription.nextPaymentDate`, rouvrirait la porte à cette divergence.
+            //
+            // Le fuseau est celui de la salle (`nexxia_gyms.timezone`), jamais UTC brut :
+            // `startDate` est une date NUE, et le raisonnement complet — nuit décalée,
+            // bascule du 25/10, fins de mois — vit dans `renewal-date.ts`, avec son banc.
+            // La lecture est ICI, dans la branche qui appelle réellement Mollie, pour la
+            // même raison que profileId juste au-dessus : un rejeu que l'idempotence
+            // court-circuite ne doit pas dépendre d'un champ qu'on n'enverra pas.
+            const { data: gymTz } = await supabase
+              .from('nexxia_gyms')
+              .select('timezone')
+              .eq('id', gymId)
+              .maybeSingle()
+            // Même repli que slot-series-op : le DEFAULT du schéma, pas une salle en dur.
+            const timeZone = gymTz?.timezone ?? 'Europe/Brussels'
+            // `paidAt` est l'instant du paiement initial tel que Mollie l'a horodaté ; le
+            // repli sur maintenant ne sert que si Mollie l'omet — on est de toute façon
+            // dans la seconde qui suit l'encaissement.
+            const paidAt = molliePayment.paidAt ? new Date(molliePayment.paidAt) : new Date()
+            // Le 1 DOIT rester égal à `interval: '1 month'` du même payload : c'est la
+            // définition d'« un intervalle ». `times` n'est pas touché (durée − 1) — le
+            // nombre total de prélèvements était déjà correct.
+            const nextPaymentDate = firstRenewalDate(paidAt, timeZone, 1)
+            subPayload.startDate = nextPaymentDate
+
             const subRes = await fetch(`https://api.mollie.com/v2/customers/${customerId}/subscriptions`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -563,7 +657,7 @@ Deno.serve(async (req) => {
               return new Response('subscription create failed', { status: 503 })
             }
 
-            const subscription = await subRes.json() as { id: string; nextPaymentDate?: string }
+            const subscription = await subRes.json() as { id: string }
             const startsAt = new Date()
             const endsAt = new Date(startsAt)
             endsAt.setMonth(endsAt.getMonth() + durationMonths)
@@ -575,7 +669,9 @@ Deno.serve(async (req) => {
               amount: planAmount,
               starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(),
               max_payments: plan.duration_months, payments_count: 1,
-              next_payment_at: subscription.nextPaymentDate ?? null,
+              // GYM-319 — LA DATE QU'ON A ENVOYÉE, pas celle que Mollie renvoie : c'est ce
+              // qui garantit que la base et l'échéancier Mollie disent la même chose.
+              next_payment_at: nextPaymentDate,
             })
 
             if (subInsertError) {
@@ -669,13 +765,21 @@ Deno.serve(async (req) => {
 
         if (profile?.push_token && plan) {
           try {
-            await supabase.functions.invoke('send-notification', {
-              body: {
+            // GYM-282 — passé en `fetch` pour porter le secret interne.
+            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '',
+              },
+              body: JSON.stringify({
                 tokens: [profile.push_token],
+                gym_id: gymId,
                 title: '✅ Abonnement activé !',
                 body: `${plan.name} — ${(plan.price_cents / 100).toFixed(2)}€/mois`,
                 data: { type: 'subscription_activated' },
-              },
+              }),
             })
           } catch (e) { console.error('[sub-webhook] push error:', e) }
         }

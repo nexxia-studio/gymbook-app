@@ -12,8 +12,10 @@ import { CancelModal } from '../../components/session/CancelModal'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
 import { useBookingStore, type FavoritePattern } from '../../stores/useBookingStore'
 import { supabase } from '../../lib/supabase'
-import { GYM_ID } from '../../constants/dopamine'
+import { useActiveGymId } from '../../lib/activeGym'
 import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
+import { useTheme } from '../../lib/theme/ThemeProvider'
+import { useGymHeaderName } from '../../hooks/useGymName'
 
 function formatDayLabel(dateStr: string, days: string[], months: string[]): string {
   const [y, mo, d] = dateStr.split('-').map(Number)
@@ -47,6 +49,12 @@ interface FavoriteCardData {
 }
 
 export default function Bookings() {
+  // GYM-299 — en-tête : le nom COURT s'il existe, sinon le complet.
+  const nomSalle = useGymHeaderName()
+  const { tokens } = useTheme()
+  // GYM-289 — la salle vient de la source unique (lib/activeGym), plus du build.
+  const gymId = useActiveGymId()
+
   const { t } = useTranslation()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<BookingTab>('upcoming')
@@ -141,6 +149,9 @@ export default function Bookings() {
         setFavoritesData([])
         return
       }
+      // ⚠️ Sans salle résolue, on ne requête pas (cf. lib/activeGym). N'arrive qu'en
+      // mode `multi`, avant l'arrivée du profil.
+      if (!gymId) return
       // Future slots for this gym + activity id → activité (nom, visuel, teinte,
       // durée, capacité) pour les motifs sans occurrence à venir, dont la carte doit
       // rester complète.
@@ -148,14 +159,14 @@ export default function Bookings() {
         supabase
           .from('time_slots')
           .select('id, activity_id, starts_at, activities(name, color, image_url, duration_min, default_capacity), coaches(name)')
-          .eq('gym_id', GYM_ID)
+          .eq('gym_id', gymId)
           .gt('starts_at', new Date().toISOString())
           .neq('status', 'cancelled')
           .order('starts_at'),
         supabase
           .from('activities')
           .select('id, name, color, image_url, duration_min, default_capacity')
-          .eq('gym_id', GYM_ID),
+          .eq('gym_id', gymId),
       ])
       if (cancelled) return
 
@@ -211,26 +222,50 @@ export default function Bookings() {
     }
     loadFavorites()
     return () => { cancelled = true }
-  }, [favorites, t])
+    // `gymId` en dépendance : les motifs favoris se résolvent sur les créneaux de la
+    // salle, ils doivent se recalculer si elle change (cf. GYM-289).
+  }, [favorites, t, gymId])
 
   return (
-    <SafeAreaView className="flex-1 bg-move-dark" edges={['top']}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       {/* Header */}
-      <View className="bg-move-dark px-5 pb-4 pt-3">
-        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: '#FFFFFF' }}>
+      <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
+        <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
           {t('bookings.title').toUpperCase()}
         </Text>
-        <Text className="font-dmsans text-[13px] text-white/40">
-          {t('bookings.subtitle')}
+        {/* GYM-297 — le nom de la salle ACTIVE, plus une clé i18n. Voir schedule.tsx. */}
+        {/* 🔴 GYM-300 (3c) — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/40` était un
+            BLANC EN DUR : illisible dès que la salle a un fond clair, et l'en-tête de
+            Studio Test le montrait — le nom de la salle disparaissait purement et
+            simplement de sa propre bande.
+
+            ⚠️ ET `onBackgroundMuted` N'AURAIT PAS FAIT L'AFFAIRE. Chez Dopamine il vaut
+            #9A9890, alors qu'un blanc à 40 % sur #111111 rend #707070 : le
+            remplacement direct aurait déplacé un pixel en single, ce que le cadrage
+            interdit. `tokens.onBackground + '66'` rend EXACTEMENT le blanc à 40 % chez
+            Dopamine (0x66 = 102, soit 102/255 = 0,40 pile), et l'encre de la salle
+            ailleurs. C'est le motif A-10 de GYM-286 : on migre la teinte, on ne touche
+            pas à l'alpha.
+
+            ⚠️ ALPHA SUR LA COULEUR, PAS `opacity` SUR L'ÉLÉMENT — les deux rendent
+            pareil ICI, mais `opacity` s'applique à toute la descendance : le jour où ce
+            `Text` accueille une icône ou un second fragment, elle les délaverait aussi.
+            L'alpha dans la couleur ne teinte que ce qu'elle colore. */}
+        <Text
+          className="font-dmsans text-[13px]"
+          style={{ color: tokens.onBackground + '66' }}
+        >
+          {nomSalle}
         </Text>
       </View>
 
       {/* Content */}
       <ScrollView
-        className="flex-1 bg-move-bg"
+        className="flex-1"
+        style={{ backgroundColor: tokens.page }}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F000" colors={['#C8F000']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens.accent} colors={[tokens.accent]} />
         }
       >
         {/* Tabs (inside the off-white area) */}
@@ -248,19 +283,19 @@ export default function Bookings() {
 
             {bookings.length === 0 ? (
               <View className="items-center py-20">
-                <CalendarX size={40} color="#9A9890" />
-                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                <CalendarX size={40} color={tokens.onBackgroundMuted} />
+                <Text className="mt-3 font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                   {t('bookings.empty_upcoming')}
                 </Text>
-                <Text className="mt-1 font-dmsans text-xs text-move-text-muted">
+                <Text className="mt-1 font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_upcoming_hint')}
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.navigate('/(tabs)/schedule')}
                   activeOpacity={0.8}
-                  className="mt-4 rounded-xl bg-move-dark px-5 py-2.5"
+                  style={{ backgroundColor: tokens.actionBg }} className="mt-4 rounded-xl px-5 py-2.5"
                 >
-                  <Text className="font-dmsans-bold text-xs text-move-accent">
+                  <Text style={{ color: tokens.onAction }} className="font-dmsans-bold text-xs">
                     {t('bookings.empty_upcoming_cta')}
                   </Text>
                 </TouchableOpacity>
@@ -285,11 +320,11 @@ export default function Bookings() {
           <>
             {favoritesData.length === 0 ? (
               <View className="items-center py-20">
-                <Heart size={40} color="#9A9890" />
-                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                <Heart size={40} color={tokens.onBackgroundMuted} />
+                <Text className="mt-3 font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                   {t('bookings.empty_favorites')}
                 </Text>
-                <Text className="mt-1 text-center font-dmsans text-xs text-move-text-muted">
+                <Text className="mt-1 text-center font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_favorites_hint')}
                 </Text>
               </View>
@@ -336,11 +371,11 @@ export default function Bookings() {
           <>
             {pastBookings.length === 0 ? (
               <View className="items-center py-20">
-                <Clock size={40} color="#9A9890" />
-                <Text className="mt-3 font-dmsans-bold text-sm text-move-dark">
+                <Clock size={40} color={tokens.onBackgroundMuted} />
+                <Text className="mt-3 font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
                   {t('bookings.empty_history')}
                 </Text>
-                <Text className="mt-1 font-dmsans text-xs text-move-text-muted">
+                <Text className="mt-1 font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                   {t('bookings.empty_history_hint')}
                 </Text>
               </View>

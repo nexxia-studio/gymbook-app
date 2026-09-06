@@ -141,13 +141,22 @@ Deno.serve(async (req) => {
         .single()
 
       if (profile?.push_token) {
-        await admin.functions.invoke('send-notification', {
-          body: {
+        // GYM-282 — passé en `fetch` pour porter le secret interne (cf. mollie-webhook).
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '',
+          },
+          body: JSON.stringify({
             tokens: [profile.push_token],
+            // La salle du GÉRANT appelant, déjà vérifiée égale à celle du membre (l. 86).
+            gym_id: adminProfile.gym_id,
             title: 'Suspension levée',
             body: 'Votre suspension a été levée par le gérant.',
             data: { type: 'suspension_lifted' },
-          },
+          }),
         })
       }
     } catch (e) {
