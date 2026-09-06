@@ -82,6 +82,50 @@ const config = {
     // diagnostic — il est publié maintenant parce que l'historique d'usage des premières
     // semaines ne se rattrape pas.
     //
+    // 1.1.0 — PREMIER SAUT MINOR. 🔴 LA 1.0.6 N'A JAMAIS ÉTÉ SOUMISE : elle est restée en
+    // BROUILLON chez Apple, et un brouillon ne ferme pas de train. Son numéro de version
+    // marketing n'est donc PAS consommé — ITMS-90186 / ITMS-90062 ne s'appliquent qu'aux
+    // versions effectivement PUBLIÉES. Rien n'obligeait à passer par 1.0.7 : le numéro
+    // était libre, et c'est la seule raison pour laquelle ce saut ne coûte rien.
+    //
+    // ⚠️ NE PAS LIRE CE BLOC COMME UN PRÉCÉDENT. Sauter des numéros ne se décide que
+    // lorsque le train précédent est resté non publié. Dès que la 1.1.0 sera sur l'App
+    // Store, la règle des blocs 1.0.3 → 1.0.6 reprend telle quelle : incrément strict
+    // au-dessus du train fermé.
+    //
+    // POURQUOI MINOR ET NON PATCH. Le bloc 1.0.6 décrit un train de diagnostic, invisible à
+    // l'écran. Celui-ci est l'exact inverse : c'est le passage de l'app Dopamine à une app
+    // WHITE-LABEL, et un membre voit la différence dès le premier écran.
+    //  · GYM-102 — le socle multi-salles : résolveur de salle, écran « trouver sa salle »,
+    //    plafond membres côté Edge, et le mode DÉCLARÉ plutôt que déduit (cf. le bloc de
+    //    `extra.gymMode` plus bas, qui est né de ce lot).
+    //  · GYM-286 / GYM-290 — le DESIGN SYSTEM PAR SALLE. Les couleurs ne sont plus des
+    //    constantes Dopamine dispersées dans les écrans : elles passent par des jetons
+    //    sémantiques (74 fichiers migrés) alimentés par la salle, et le garde-fou de
+    //    lisibilité tranche sur un contraste MESURÉ, non sur une teinte devinée.
+    //  · GYM-288 / GYM-291 / GYM-292 / GYM-293 / GYM-300 / GYM-301 — le MULTI-SALLES côté
+    //    membre : adhésion à plusieurs salles, écran de choix, changement de salle, sortie
+    //    « ce n'est pas ma salle », et l'inscription multi rouverte parce que le
+    //    rattachement existe enfin.
+    //  · GYM-297 / GYM-302 / GYM-303 — le nom et le logo d'un client cessent d'être des
+    //    constantes ; /reset-password était brandée Dopamine POUR TOUT LE MONDE.
+    //  · GYM-313 / GYM-318 — le PARCOURS DE RESET réparé de bout en bout : le lien finit
+    //    sur la page qui sait le terminer, et le slug vient du choix local et non du repli
+    //    de build.
+    //
+    // ⚠️ DEUX ITEMS DU LOT NE TOUCHENT PAS CE BINAIRE, et autant le savoir avant d'en
+    // chercher la trace ici : GYM-308 (toute salle créée en self-serve naissait à 0 % de
+    // TVA) et GYM-305 / GYM-215 (upload du logo de salle) sont ENTIÈREMENT côté cockpit —
+    // zéro fichier sous apps/mobile. Ils pèsent dans l'ampleur du lot, pas dans cette build.
+    //
+    // 🔴 LE BUILD 23, LUI, EST BEL ET BIEN TÉLÉVERSÉ SUR APP STORE CONNECT. C'est la
+    // distinction que ce saut rend facile à manquer : la VERSION MARKETING était libre, le
+    // NUMÉRO DE BUILD ne l'est pas. Le prochain doit être ≥ 24, sinon Apple refuse le
+    // téléversement. Ce n'est pas une déduction — le compteur a été LU avant ce commit
+    // (`eas build:version:get --platform ios --profile production` → 23), et il concorde
+    // avec le binaire déposé chez Apple. Conformément au bloc 1.0.6 ci-dessus, AUCUN numéro
+    // de build n'est annoncé ici : seul le PLANCHER l'est.
+    //
     // Le buildNumber, lui, n'est PAS déclaré ici : eas.json le gère
     // (appVersionSource "remote" + autoIncrement).
     version: '1.1.0',
