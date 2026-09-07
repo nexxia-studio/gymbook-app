@@ -431,29 +431,46 @@ if (isViniz) {
   //   · aucun bandeau « STAGING » — ce n'est pas un dérivé des assets de la variante.
   e.icon = './assets/viniz/icon-1024.png'
 
-  // 🔴 L'ICÔNE ADAPTATIVE ANDROID N'EST DÉLIBÉRÉMENT PAS POSÉE SUR CE FICHIER.
+  // ── L'ICÔNE ADAPTATIVE ANDROID ────────────────────────────────────────────────────
+  // 🔴 C'EST UN SECOND FICHIER, ET IL LUI EN FALLAIT UN. Android ne garantit d'afficher
+  // que le CERCLE CENTRAL de 66 % de l'avant-plan ; le reste est rogné par le masque du
+  // lanceur. `icon-1024.png` ci-dessus atteint 86,1 % — sa barre de pouls court de x=77 à
+  // x=948 et ses deux extrémités auraient été coupées, le pouls devenant un accent sans
+  // ligne. `adaptive-icon-1024.png` est la MÊME marque remise à l'échelle, mesurée à
+  // 58,5 %. Exactement le geste, et la raison, de GYM-241 pour Dopamine.
   //
-  // Android ne garantit d'afficher que le CERCLE CENTRAL de 66 % de l'avant-plan ; le
-  // reste est rogné par le masque du lanceur. Mesuré sur ce fichier : le motif atteint
-  // 85,2 % du demi-côté — la barre horizontale du pouls court de x=77 à x=948. Ses deux
-  // extrémités seraient COUPÉES, et le pouls deviendrait un accent sans ligne.
+  // ⚠️ LA MESURE EST RADIALE, PAS AXIALE, et la nuance n'est pas cosmétique : la zone sûre
+  // est un CERCLE, donc ce qui compte est la distance au centre du pixel le plus éloigné —
+  // pas son écart en x ou en y, qui la sous-estime. Recalé sur les chiffres que GYM-241 a
+  // consignés : `adaptive-icon-dopamine.png` 65,8 % (le lot disait 64,1 %) et
+  // `icon-dopamine.png` 78,4 % (75 %). Les deux concordent ; c'est bien cette méthode-là.
   //
-  // Le point de comparaison est dans ce fichier même, quelques lignes plus haut :
-  // `adaptive-icon-dopamine.png` a été généré pour GYM-241 précisément pour cela, et
-  // mesure 48,2 %. `icon-dopamine.png`, ÉCARTÉ pour cet usage par ce lot-là, mesure 57,4 %
-  // — moins que celui-ci. Poser ce fichier en avant-plan referait, en pire, l'erreur que
-  // GYM-241 a corrigée.
+  // ⚠️ ET ELLE PASSE PAR LES DEUX MESURES : 57,9 % en axial, 58,5 % en radial. Les deux
+  // convergent ici parce que le motif est une barre LARGE ET BASSE — son point extrême est
+  // presque sur l'axe horizontal. Sur le « D » de Dopamine, plus carré, elles s'écartent
+  // de dix-sept points (48,1 % contre 65,8 %) : c'est pourquoi il ne faut pas se fier à
+  // l'axiale.
   //
-  // ⚠️ CONSÉQUENCE ASSUMÉE ET NON MASQUÉE : sur Android, l'app Viniz porte encore l'icône
-  // adaptative de Dopamine (héritée du bloc principal). C'est visible et corrigeable ; une
-  // barre tronquée, elle, aurait l'air d'un choix graphique. Le geste qui manque est le
-  // même qu'en GYM-241 : remettre la marque à l'échelle sur un fond #4827B4 de 1024, sous
-  // 66 % — `scripts/generate-viniz-staging-assets.js` porte déjà ce `safeRatio`.
+  // backgroundColor #4827B4, accordé au fond du fichier : l'avant-plan est opaque, mais
+  // une couleur discordante apparaîtrait en anneau si un lanceur applique un masque plus
+  // petit que l'image.
+  e.android.adaptiveIcon.foregroundImage = './assets/viniz/adaptive-icon-1024.png'
+  e.android.adaptiveIcon.backgroundColor = '#4827B4'
+
+  // ── L'ÉCRAN DE DÉMARRAGE ──────────────────────────────────────────────────────────
+  // ⚠️ PAR LA CLÉ `splash`, PAS PAR LE PLUGIN `expo-splash-screen` — vérifié avant d'écrire.
+  // Le paquet est bien en dépendance (~31.0.13) mais n'est PAS déclaré dans `plugins` : le
+  // bloc Dopamine passe par la clé de haut niveau, et la variante staging l'altère en place
+  // de la même façon. On reprend ce motif plutôt que d'introduire un second mécanisme dans
+  // le seul bloc qui n'existe encore chez personne.
   //
-  // ⚠️ L'ÉCRAN DE DÉMARRAGE reste lui aussi celui de Dopamine : `splash-dopamine.png` est
-  // un 1080×1080 sur fond noir, et le dépôt n'a pas son équivalent Viniz de production
-  // (`splash-staging.png` porte le bandeau). Hors du périmètre de ce lot, qui livre
-  // l'icône ; à traiter avant la première soumission.
+  // `resizeMode` reste 'contain', hérité du bloc Dopamine : l'image est carrée (1284²) et
+  // doit être centrée sans recadrage, jamais étirée à l'écran.
+  e.splash.image = './assets/viniz/splash-1284.png'
+  e.splash.backgroundColor = '#4827B4'
+  // ⚠️ LE FOND ACCOMPAGNE L'IMAGE, ET C'EST LA LEÇON DE GYM-241. Le noir de Dopamine sous
+  // une image à fond violet produirait un cadre noir autour du carré, puis un flash au
+  // passage vers l'écran animé. Les deux valeurs se posent ensemble ou pas du tout.
 }
 
 export default config
