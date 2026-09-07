@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Compte confirmé — Viniz</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      GYM-320 — LE RELAIS DE CONFIRMATION D'INSCRIPTION.
+
+      🔴 CETTE PAGE EST FONCTIONNELLE : elle n'entre JAMAIS dans le filet 404 de GYM-287,
+      exactement comme _viniz/reset-password.html (GYM-303) dont elle reprend le motif.
+
+      CE QU'ELLE REMPLACE. `apps/mobile/lib/gymUrls.ts` construit depuis GYM-293
+      `${LINKS_BASE}/${slug}/confirm` et le passe en `emailRedirectTo` au signUp. Cette
+      page n'a JAMAIS été écrite : mesuré en production le 07/09, /dopamine/confirm,
+      /studio-inconnu/confirm, /confirm et /_viniz/confirm rendaient TOUS un 404 nu de
+      Vercel — 79 octets, sans marque, sans issue. On avait cru qu'elle apparaîtrait avec
+      le passage en main ; rien ne la produisait.
+
+      ⚠️ LE COMPTE EST DÉJÀ CONFIRMÉ QUAND CETTE PAGE S'AFFICHE. GoTrue consomme le jeton
+      sur SON domaine (/auth/v1/verify) puis redirige ici. Cette page ne confirme rien, ne
+      valide rien et n'appelle aucune Edge Function : elle ANNONCE un fait déjà acquis et
+      donne la suite. C'est aussi pourquoi son échec éventuel ne bloque personne — le
+      compte est utilisable même si cette page ne se charge pas.
+
+      🔴 QUAND CETTE PAGE EST-ELLE RÉELLEMENT VUE ? PAS TOUJOURS, ET IL FAUT LE SAVOIR.
+      GYM-313 l'a MESURÉ sur le chemin jumeau /reset-password : après le 302 de GoTrue,
+      l'iPhone HONORE l'Universal Link et ouvre l'app — la page web n'est alors pas rendue.
+      Ne pas croire l'intuition inverse (« un 302 n'ouvre pas un Universal Link ») : elle
+      est fausse, et c'est précisément ce qui avait coûté une journée sur GYM-313.
+
+      Donc, concrètement :
+       · Android, desktop, ou aucune app installée → CETTE PAGE. C'est le cas que le
+         ticket décrit, et celui que ce lot répare.
+       · iPhone AVEC l'app installée → l'app s'ouvre à la place.
+
+      ⚠️ ET DANS CE SECOND CAS, L'APP N'A RIEN POUR ACCUEILLIR `confirm` — constaté, pas
+      supposé : `apps/mobile/app/[gymSlug]/[screen].tsx` porte une LISTE BLANCHE
+      (`DESTINATIONS`) qui contient reset-password, payment-success, confirm-waitlist,
+      bookings et delete-account — mais PAS `confirm`. Un lien de confirmation ouvert sur
+      un iPhone équipé tombe donc sur l'écran « inconnu » (mode multi) ou sur
+      `/+not-found` (mode single, le garde de GYM-102).
+      Cette page ne peut rien y faire : le correctif est une entrée dans `DESTINATIONS`,
+      côté mobile, et il demande de DÉCIDER vers quel écran `confirm` doit mener. C'est
+      hors du périmètre de ce lot — remonté en PR, à traiter avant le Lot 5b.
+
+      🔴 LE FRAGMENT N'EST NI LU, NI RELAYÉ, NI JOURNALISÉ. GoTrue place les jetons de
+      session dans `#access_token=…&refresh_token=…`. Cette page n'en a AUCUN besoin : elle
+      n'ouvre pas de session. Les transmettre à un CTA ou à une redirection les exposerait
+      dans un historique de navigation ou un Referer, sans rien apporter.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+        /* Palette Viniz — reprise à l'identique de _viniz/reset-password.html et
+           _viniz/404.html. C'est le REPLI, et il est peint AVANT tout appel réseau. */
+        --ink: #2d1b69;
+        --text: #f3f0ff;
+        --muted: #c8c2e6;
+        --accent: #c8ff3d;
+        --on-accent: #2d1b69;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center;
+        justify-content: center; padding: 24px;
+        background: var(--ink); color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: center;
+      }
+      .card { max-width: 420px; width: 100%; padding: 40px 28px; }
+      /* Mot-marque cadré en 5:1, même technique qu'en GYM-303 : l'art est posé au centre
+         d'une toile carrée de 1500 et flotterait sans ce recadrage. */
+      .logo { position: relative; width: 150px; height: 30px; overflow: hidden; margin: 0 auto 24px; }
+      .logo img { position: absolute; left: 50%; top: 50%; width: 150px; max-width: none; transform: translate(-50%, -50%); }
+      /* ⚠️ PAS DE LOGO DE SALLE ICI — hors périmètre, c'est GYM-322 (avec GYM-201). La
+         marque de la salle passe par son NOM, qui ne peut ni manquer au chargement ni
+         casser la mise en page. */
+      .gym {
+        font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+        color: var(--muted); margin: 0 0 18px; min-height: 15px;
+      }
+      .check {
+        width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 20px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--accent); color: var(--on-accent); font-size: 30px; font-weight: 700;
+        line-height: 1;
+      }
+      h1 { font-size: 22px; margin: 0 0 12px; color: var(--text); }
+      p { font-size: 15px; line-height: 1.6; color: var(--muted); margin: 0 0 24px; }
+      .btn {
+        display: inline-block; background: var(--accent); color: var(--on-accent);
+        font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 12px;
+        font-size: 15px;
+      }
+      .secondary { display: block; margin-top: 18px; font-size: 13px; color: var(--muted); }
+      .secondary a { color: var(--text); }
+      .hint { margin-top: 20px; font-size: 12px; color: var(--muted); opacity: 0.75; }
+    </style>
+  </head>
+  <body>
+    <!--
+      🔴 LE REPLI EST DANS LE HTML, PAS DANS LE SCRIPT. La consigne du ticket est explicite :
+      « affiche le repli D'ABORD, remplace ensuite — jamais d'en-tête vide pendant le
+      chargement ». Tout ce qui suit est donc du contenu Viniz complet et lisible, servi en
+      statique. Le script ne fait que SUBSTITUER le nom de la salle et, éventuellement, la
+      langue. Si le réseau tombe, si Supabase est en panne ou si le JS est désactivé, le
+      membre lit quand même une page juste.
+    -->
+    <main class="card">
+      <div class="logo"><img src="/brand/viniz-wordmark-lime.svg" alt="Viniz" /></div>
+      <p class="gym" id="gym-name"></p>
+      <div class="check" id="icon" aria-hidden="true">✓</div>
+      <h1 id="title">Ton compte est confirmé</h1>
+      <p id="message">Ton adresse email est validée. Ouvre l'application et connecte-toi pour accéder à ta salle.</p>
+      <a class="btn" id="cta" href="https://viniz.app">Ouvrir l'application</a>
+      <span class="secondary" id="secondary" hidden></span>
+      <p class="hint" id="hint">Tu peux fermer cette page.</p>
+    </main>
+
+    <script>
+      ;(function () {
+        'use strict'
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 1. CONSTANTES — site STATIQUE pur, aucun build (`package.json` : "nothing to
+        //    build"). Rien n'est injecté : les valeurs sont écrites ici, comme
+        //    `WEB_RESET_BASE` l'est dans _viniz/reset-password.html.
+        // ═══════════════════════════════════════════════════════════════════════════════
+
+        // Projet PROD `fcjupgvmjkqztxtwymdb` (gymbook-prod). La clé anon est PUBLIABLE par
+        // construction — elle est déjà versionnée pour staging dans `apps/mobile/eas.json`
+        // et voyage dans chaque bundle mobile. Elle n'ouvre que ce que les policies
+        // autorisent à `anon`.
+        var SUPABASE_URL = 'https://fcjupgvmjkqztxtwymdb.supabase.co'
+        var SUPABASE_ANON =
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjanVwZ3ZtamtxenR4dHd5bWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDMxNjcsImV4cCI6MjA5NDA3OTE2N30.DsIySLVptw2xr97euAtMAUqCugowAuW775DEl1-sx7A'
+
+        // Repli produit, déjà utilisé par _viniz/404.html.
+        var VINIZ_WEB = 'https://viniz.app'
+
+        // ── LES APPS, ET UNIQUEMENT CE QUI EST VÉRIFIÉ ────────────────────────────────
+        // 🔴 CE TABLEAU NE CONTIENT QUE DES VALEURS CONSTATÉES, JAMAIS DÉDUITES. Une URL
+        // de store inventée envoie un membre sur une page d'erreur du store — pire que
+        // l'absence de bouton, parce qu'elle a l'air de marcher.
+        //
+        // Vérifié le 07/09 :
+        //  · App Store Dopamine → 200 (l'URL vient de `apps/dashboard/src/pages/ResetPassword.tsx`)
+        //  · scheme `dopamine://` → employé par 4 pages de ce même site
+        //  · https://viniz.app → 200
+        //
+        // ⚠️ DÉLIBÉRÉMENT ABSENTS, PARCE QU'ILS N'EXISTENT PAS ENCORE :
+        //  · Le Play Store de Dopamine. `https://play.google.com/store/apps/details?id=be.dopamineclub.app`
+        //    a été ESSAYÉ et rend 404. Le package est pourtant le bon (app.config.ts) : la
+        //    fiche n'est pas publiquement résolvable. On ne pose donc pas le lien.
+        //  · L'app white-label Viniz : ni scheme, ni fiche de store. Son bundle
+        //    `app.viniz` est lui-même marqué « À CONFIRMER AVANT DÉPLOIEMENT » dans
+        //    apps/links/README.md. Toute salle autre que Dopamine tombe donc sur
+        //    VINIZ_WEB — le seul repli réel. Voir la remontée en PR.
+        var APPS = {
+          dopamine: {
+            scheme: 'dopamine://',
+            store: 'https://apps.apple.com/be/app/dopamine-performance-club/id6781670485',
+          },
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 2. i18n fr/en
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // ⚠️ IL N'Y AVAIT AUCUNE MÉCANIQUE À REPRENDRE. Les sept pages de `apps/links` sont
+        // en français dur (`<html lang="fr">`, textes en clair) et l'email de confirmation
+        // ne porte aucune langue : `supabase/functions/auth-email-hook` n'a ni `lang` ni
+        // `locale`. Ce dictionnaire est donc la PREMIÈRE i18n du site, posée dans la seule
+        // forme compatible avec un site sans build. `packages/i18n` est inatteignable ici :
+        // il faudrait un bundler, que cette app n'a pas et n'aura pas.
+        //
+        // ORDRE DE DÉCISION : `?lang=` (testable, et permet au cockpit de vérifier les deux
+        // langues sans changer les réglages du téléphone) → `navigator.language` → fr.
+        var STRINGS = {
+          fr: {
+            docTitle: 'Compte confirmé — Viniz',
+            title: 'Ton compte est confirmé',
+            message:
+              "Ton adresse email est validée. Ouvre l'application et connecte-toi pour accéder à ta salle.",
+            ctaApp: "Ouvrir l'application",
+            ctaAppNamed: function (n) { return 'Ouvrir ' + n },
+            ctaWeb: 'Aller sur viniz.app',
+            install: 'Pas encore installée ?',
+            installLink: "Télécharger l'app",
+            hint: 'Tu peux fermer cette page.',
+            errDocTitle: 'Lien expiré — Viniz',
+            errTitle: 'Ce lien a expiré',
+            errMessage:
+              "Le lien de confirmation n'est plus valable, ou il a déjà servi. Ouvre l'application et connecte-toi : si ton compte est déjà confirmé, tout fonctionne. Sinon, demande un nouvel email.",
+            errHint: "Besoin d'aide ? Contacte ta salle.",
+          },
+          en: {
+            docTitle: 'Account confirmed — Viniz',
+            title: 'Your account is confirmed',
+            message:
+              'Your email address is verified. Open the app and sign in to access your gym.',
+            ctaApp: 'Open the app',
+            ctaAppNamed: function (n) { return 'Open ' + n },
+            ctaWeb: 'Go to viniz.app',
+            install: 'Not installed yet?',
+            installLink: 'Download the app',
+            hint: 'You can close this page.',
+            errDocTitle: 'Link expired — Viniz',
+            errTitle: 'This link has expired',
+            errMessage:
+              'This confirmation link is no longer valid, or it has already been used. Open the app and sign in: if your account is already confirmed, everything works. Otherwise, request a new email.',
+            errHint: 'Need help? Contact your gym.',
+          },
+        }
+
+        function pickLang() {
+          var forced = new URLSearchParams(window.location.search).get('lang')
+          var raw = forced || navigator.language || 'fr'
+          return String(raw).toLowerCase().indexOf('en') === 0 ? 'en' : 'fr'
+        }
+
+        var lang = pickLang()
+        var t = STRINGS[lang]
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 3. CONTEXTE — le slug vient du CHEMIN, comme partout ailleurs sur ce site
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // /studio-kama/confirm → « studio-kama ». Même lecture qu'en GYM-303, et même
+        // prudence : si le chemin n'a pas la forme attendue, on ne devine pas de slug. Un
+        // slug inventé afficherait la marque d'une salle au membre d'une autre.
+        var segments = window.location.pathname.split('/').filter(Boolean)
+        var slug = segments.length >= 2 ? segments[0].toLowerCase() : ''
+
+        // ── L'ÉTAT D'ERREUR ───────────────────────────────────────────────────────────
+        // 🔴 NE PAS AFFIRMER « CONFIRMÉ » QUAND ÇA NE L'EST PAS. GoTrue redirige ici avec
+        // `error=…` (jeton expiré, jeton déjà consommé) — tantôt en query, tantôt dans le
+        // fragment. Annoncer une confirmation dans ce cas serait un mensonge affiché, et
+        // le membre attendrait indéfiniment un compte qui ne s'ouvre pas.
+        //
+        // ⚠️ SEULE LA PRÉSENCE DE `error` EST LUE. Le fragment n'est pas conservé, pas
+        // relayé, pas journalisé — il porte les jetons de session (voir l'en-tête).
+        var hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''))
+        var queryParams = new URLSearchParams(window.location.search)
+        var hasError = Boolean(queryParams.get('error') || hashParams.get('error'))
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 4. RENDU — le repli d'abord, la salle ensuite
+        // ═══════════════════════════════════════════════════════════════════════════════
+        var el = {
+          gym: document.getElementById('gym-name'),
+          icon: document.getElementById('icon'),
+          title: document.getElementById('title'),
+          message: document.getElementById('message'),
+          cta: document.getElementById('cta'),
+          secondary: document.getElementById('secondary'),
+          hint: document.getElementById('hint'),
+        }
+
+        var app = Object.prototype.hasOwnProperty.call(APPS, slug) ? APPS[slug] : null
+
+        function renderStatic() {
+          document.documentElement.lang = lang
+
+          if (hasError) {
+            // ⚠️ LE TITRE D'ONGLET SUIT L'ÉTAT. Laisser « Compte confirmé » sur une page qui
+            // annonce un lien expiré, c'est la contradiction relevée en GYM-303b : l'onglet
+            // affirmait une chose, l'écran une autre. Un membre qui retrouve cette page dans
+            // son historique lirait « Compte confirmé » et croirait le parcours terminé.
+            document.title = t.errDocTitle
+            el.icon.textContent = '!'
+            el.title.textContent = t.errTitle
+            el.message.textContent = t.errMessage
+            el.hint.textContent = t.errHint
+          } else {
+            document.title = t.docTitle
+            el.title.textContent = t.title
+            el.message.textContent = t.message
+            el.hint.textContent = t.hint
+          }
+
+          // CTA — l'app dédiée UNIQUEMENT là où elle est vérifiée ; sinon le web Viniz.
+          if (app) {
+            el.cta.setAttribute('href', app.scheme)
+            el.cta.textContent = t.ctaApp
+            if (app.store) {
+              el.secondary.textContent = t.install + ' '
+              var a = document.createElement('a')
+              a.setAttribute('href', app.store)
+              a.textContent = t.installLink
+              el.secondary.appendChild(a)
+              el.secondary.hidden = false
+            }
+          } else {
+            el.cta.setAttribute('href', VINIZ_WEB)
+            el.cta.textContent = t.ctaWeb
+          }
+        }
+
+        renderStatic()
+
+        // ── LA MARQUE DE LA SALLE, EN SECOND TEMPS ────────────────────────────────────
+        // `public_gym_branding(p_slug)` est ouverte à `anon` (GYM-102) et rend
+        // slug/name/logo_url/primary_color/secondary_color. Vérifié en prod le 07/09 :
+        // 'dopamine' → « Dopamine Performance Club », slug inconnu → `[]`, et le préflight
+        // CORS depuis links.viniz.app rend `access-control-allow-origin: *`.
+        //
+        // ⚠️ TOUT ÉCHEC EST SILENCIEUX ET SANS CONSÉQUENCE : la page reste celle que le
+        // membre lit déjà. Rien n'est vidé avant d'avoir de quoi le remplacer.
+        if (!slug) return
+
+        // Un fetch qui traîne ne doit pas laisser la page à moitié habillée indéfiniment.
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+        if (controller) setTimeout(function () { controller.abort() }, 4000)
+
+        fetch(SUPABASE_URL + '/rest/v1/rpc/public_gym_branding', {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_ANON,
+            Authorization: 'Bearer ' + SUPABASE_ANON,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ p_slug: slug }),
+          signal: controller ? controller.signal : undefined,
+        })
+          .then(function (r) { return r.ok ? r.json() : null })
+          .then(function (rows) {
+            var row = Array.isArray(rows) && rows.length ? rows[0] : null
+            if (!row) return // slug inconnu → le repli Viniz reste en place, tel quel.
+
+            // ⚠️ `?? null` ET PAS `String(...)` : leçon de `apps/mobile/lib/theme/brand.ts`
+            // — `String(null)` rendrait la chaîne « null », affichée telle quelle.
+            var name = row.name ? String(row.name) : ''
+            if (name) {
+              el.gym.textContent = name
+              if (app) el.cta.textContent = t.ctaAppNamed(name)
+            }
+
+            applyAccent(row.primary_color)
+          })
+          .catch(function () { /* réseau, CORS, abandon : le repli tient. */ })
+
+        // ── LA COULEUR DE LA SALLE, MESURÉE AVANT D'ÊTRE APPLIQUÉE ────────────────────
+        // 🔴 C'EST LA LEÇON DE GYM-290, ET ELLE VAUT ICI AUSSI. Le garde-fou de lisibilité
+        // du mobile décidait autrefois sur une TEINTE ; il décide désormais sur un
+        // CONTRASTE MESURÉ. Cette page est hors du design system — elle n'a ni jetons ni
+        // fournisseur de thème — donc elle refait la mesure, en petit, plutôt que de
+        // faire confiance à une couleur saisie par un gérant dans le cockpit.
+        //
+        // Concrètement : la couleur ne devient le fond du bouton QUE si un texte noir ou
+        // blanc y atteint 4,5:1 (AA, texte normal). Sinon on garde le lime Viniz, dont le
+        // contraste est déjà mesuré (8,01:1 sur Violet Ink, GYM-262). Une salle en violet
+        // sombre ne produira donc jamais un bouton illisible.
+        function applyAccent(hex) {
+          var rgb = parseHex(hex)
+          if (!rgb) return
+          var onDark = contrast(rgb, [255, 255, 255])
+          var onLight = contrast(rgb, [45, 27, 105]) // --ink
+          var ink = onLight >= onDark ? '#2d1b69' : '#ffffff'
+          if (Math.max(onDark, onLight) < 4.5) return // illisible : on garde le lime.
+          document.documentElement.style.setProperty('--accent', normalizeHex(hex))
+          document.documentElement.style.setProperty('--on-accent', ink)
+        }
+
+        function normalizeHex(hex) {
+          var h = String(hex).trim()
+          return h.charAt(0) === '#' ? h : '#' + h
+        }
+
+        function parseHex(hex) {
+          if (!hex) return null
+          var h = normalizeHex(hex).slice(1)
+          if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+          if (!/^[0-9a-fA-F]{6}$/.test(h)) return null
+          return [
+            parseInt(h.slice(0, 2), 16),
+            parseInt(h.slice(2, 4), 16),
+            parseInt(h.slice(4, 6), 16),
+          ]
+        }
+
+        // Luminance relative WCAG 2.1 puis rapport de contraste — la même formule que le
+        // garde-fou du mobile, réduite à ce dont cette page a besoin.
+        function luminance(rgb) {
+          var c = rgb.map(function (v) {
+            var s = v / 255
+            return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+          })
+          return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+        }
+
+        function contrast(a, b) {
+          var la = luminance(a)
+          var lb = luminance(b)
+          return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+        }
+      })()
+    </script>
+  </body>
+</html>
