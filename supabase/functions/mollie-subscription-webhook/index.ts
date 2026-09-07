@@ -3,6 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { loadGymBranding, emailSender } from '../_shared/gym-branding.ts'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
+// GYM-273 — télémétrie de paiement, émise là où l'on SAIT que l'euro est encaissé.
+import { captureServerEvent } from '../_shared/posthog.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
 // GYM-252 — gabarits partagés avec le balayage quotidien (process-failed-renewals).
@@ -746,6 +748,29 @@ Deno.serve(async (req) => {
           return new Response('payment write failed', { status: 503 })
         }
 
+        // 🔴 GYM-273 — `payment_completed`, PREMIER PAIEMENT D'ABONNEMENT.
+        // Placé après le court-circuit d'idempotence de la branche (l. 485) et après
+        // l'écriture qui marque le paiement `paid` : on n'émet que sur un encaissement
+        // réellement enregistré. Non bloquant et borné à 3 s — cf. _shared/posthog.ts.
+        await captureServerEvent({
+          event: 'payment_completed',
+          distinctId: memberId as string,
+          timestamp: (molliePayment.paidAt ?? new Date().toISOString()) as string,
+          dedupeSeed: `payment_completed:${molliePaymentId}`,
+          properties: {
+            gym_id: (gymId as string) ?? null,
+            amount_cents: molliePayment.amount ? Math.round(parseFloat(molliePayment.amount.value) * 100) : 0,
+            currency: molliePayment.amount?.currency ?? 'EUR',
+            delivered: 'subscription',
+            credits_granted: 0,
+            // Premier prélèvement de la série, jamais un renouvellement.
+            is_renewal: false,
+            billing_type: plan?.billing_type ?? null,
+            duration_months: plan?.duration_months ?? null,
+            payment_method: molliePayment.method ?? null,
+          },
+        })
+
         const { data: profile } = await supabase
           .from('profiles').select('email, first_name, push_token').eq('id', memberId).single()
 
@@ -840,6 +865,33 @@ Deno.serve(async (req) => {
           })
           return new Response('renewal payment write failed', { status: 503 })
         }
+
+        // 🔴 GYM-273 — `payment_completed`, RENOUVELLEMENT.
+        // C'est le cas que l'app ne pouvait PAS couvrir : un renouvellement n'a aucun
+        // écran, personne n'ouvre rien. Les 5 renouvellements des 45 derniers jours
+        // n'avaient donc produit aucun événement, et ne pouvaient pas en produire.
+        // Placé après le court-circuit `existingPayment?.status === 'paid'` (l. 816) et
+        // après l'écriture de la ligne de paiement.
+        await captureServerEvent({
+          event: 'payment_completed',
+          distinctId: memberId as string,
+          timestamp: (molliePayment.paidAt ?? new Date().toISOString()) as string,
+          dedupeSeed: `payment_completed:${molliePaymentId}`,
+          properties: {
+            gym_id: (gymId as string) ?? null,
+            amount_cents: molliePayment.amount ? Math.round(parseFloat(molliePayment.amount.value) * 100) : 0,
+            currency: molliePayment.amount?.currency ?? 'EUR',
+            delivered: 'subscription',
+            credits_granted: 0,
+            // 🔴 LA PROPRIÉTÉ QUI REND LA MÉTRIQUE JUSTE. Sans elle, un renouvellement se
+            // compterait comme une conversion — et le taux de conversion, qui est le but
+            // de tout ce lot, serait gonflé par des membres déjà acquis.
+            is_renewal: true,
+            billing_type: renewalPlan?.billing_type ?? null,
+            duration_months: renewalPlan?.duration_months ?? null,
+            payment_method: molliePayment.method ?? null,
+          },
+        })
 
         // Compteur d'échéances : increment NON idempotent en lui-même → mis à jour APRÈS le
         // paiement et journalisé sans 503 en cas d'erreur (un 503 ici rejouerait l'increment
