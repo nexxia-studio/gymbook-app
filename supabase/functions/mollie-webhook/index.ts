@@ -3,6 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { loadGymBranding, emailSender, emailShell } from '../_shared/gym-branding.ts'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
+// GYM-273 — télémétrie de paiement, émise là où l'on SAIT que l'euro est encaissé.
+import { captureServerEvent } from '../_shared/posthog.ts'
 
 const FN = 'mollie-webhook'
 
@@ -271,6 +273,42 @@ Deno.serve(async (req) => {
       console.log('[mollie-webhook] payment already applied — idempotent skip:', molliePaymentId)
       return new Response('OK', { status: 200 })
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-273 — `payment_completed`, ÉMIS ICI ET NULLE PART AILLEURS.
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // L'app l'émettait depuis l'écran de retour Mollie : 3 événements pour 44 paiements
+    // encaissés en 45 jours. Ce point-ci est le seul qui SAIT — et il est atteint que le
+    // membre ait rouvert l'app ou non.
+    //
+    // ⚠️ PLACÉ APRÈS LE COURT-CIRCUIT `already_applied` : un rejeu Mollie sort plus haut
+    // et ne peut donc pas ré-émettre. C'est la première des deux garanties d'idempotence,
+    // et la seule qui soit structurelle (la seconde est la clé de déduplication PostHog).
+    //
+    // ⚠️ `await` ASSUMÉ, ET BORNÉ À 3 s. Ne pas attendre laisserait l'isolat se terminer
+    // avant la fin de la requête — Deno Deploy interrompt le travail en vol dès que le
+    // handler a rendu sa réponse, et l'événement partirait une fois sur deux. Le module
+    // ne lève jamais et abandonne au délai : le webhook ne peut pas s'en trouver retardé
+    // au-delà de trois secondes, ni échouer.
+    await captureServerEvent({
+      event: 'payment_completed',
+      distinctId: payment.member_id as string,
+      // Horodatage MÉTIER et stable d'un rejeu à l'autre — condition de la déduplication.
+      timestamp: (molliePayment.paidAt ?? new Date().toISOString()) as string,
+      dedupeSeed: `payment_completed:${molliePaymentId}`,
+      properties: {
+        gym_id: (payment.gym_id as string) ?? null,
+        amount_cents: Math.round(Number(payment.amount) * 100) || 0,
+        currency: (payment.currency as string) ?? 'EUR',
+        // Ce que le membre a REÇU (GYM-189) : des crédits, ou l'ouverture d'un abonnement.
+        delivered: apply.delivered ?? 'credits',
+        credits_granted: (payment.credits_granted as number) ?? 0,
+        // Ce chemin est celui du paiement UNIQUE : jamais un renouvellement.
+        is_renewal: false,
+        billing_type: 'one_time',
+        payment_method: (molliePayment.method as string) ?? null,
+      },
+    })
 
     // applyResult === 'applied' → contrepartie délivrée, on notifie (email + push).
     {

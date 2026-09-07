@@ -327,12 +327,25 @@ function ClassicPaymentScreen({
       // `credits_granted === 0` = abonnement : c'est la convention déjà employée côté
       // serveur (mollie-subscription-webhook, /revenus) — on ne l'invente pas ici.
       const isSubscription = (row.credits_granted ?? 0) === 0
-      captureEvent('payment_completed', {
-        amount_cents: Number.isFinite(amountCents) ? amountCents : null,
-        currency: row.currency ?? 'EUR',
-        kind: isSubscription ? 'subscription' : 'credits',
-        credits_granted: row.credits_granted ?? 0,
-      })
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // 🔴 GYM-273 — `payment_completed` N'EST PLUS ÉMIS ICI. IL PART DU SERVEUR.
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // Deux sources pour un même événement fausseraient autant que zéro : c'est la
+      // raison pour laquelle celle-ci est RETIRÉE plutôt que gardée en doublon.
+      //
+      // Ce qu'elle valait, mesuré le 07/09 sur 45 jours : 3 événements pour 44 paiements
+      // encaissés. Ce bloc ne s'exécute que si le membre rouvre l'app APRÈS Mollie, qu'il
+      // atterrit bien ici, et que le poll voit `paid` avant d'abandonner. Un
+      // RENOUVELLEMENT, lui, n'a aucun écran : il ne pouvait rien émettre, jamais.
+      //
+      // L'émission vit désormais dans `mollie-webhook` et `mollie-subscription-webhook`
+      // (via `_shared/posthog.ts`), avec le MÊME `distinct_id` — l'UUID Supabase que
+      // `identifyUser()` pose ici — pour que l'entonnoir se referme sur la même personne.
+      //
+      // ⚠️ LES BUILDS ANTÉRIEURES CONTINUERONT D'ÉMETTRE un temps : on ne contrôle pas la
+      // date de mise à jour des téléphones. Le recouvrement est borné par le débit
+      // historique de ce bloc (3 en 45 jours) et se distingue dans PostHog par la
+      // propriété `source`, absente côté client et valant 'server' côté webhook.
       // ⚠️ ÉMIS ICI ET PAS À L'INITIATION DU CHECKOUT : `payment_initiated` dit qu'un
       // membre a cliqué, `subscription_started` dit qu'un abonnement EXISTE. Les confondre
       // gonflerait le nombre d'abonnés de tous les paniers abandonnés.
