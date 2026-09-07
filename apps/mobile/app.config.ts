@@ -12,6 +12,17 @@
 // `npx expo config --json` sans variante rend un diff vide (prouvé en PR).
 const variant = process.env.EXPO_PUBLIC_APP_VARIANT
 const isStaging = variant === 'staging'
+// 🔴 LA VARIANTE RÉPOND À UNE SEULE QUESTION : QUELLE APP BÂTIT-ON ?
+//   (absente) → Dopamine Performance Club  · be.dopamineclub.app
+//   'staging' → Viniz Staging              · app.viniz.staging
+//   'viniz'   → Viniz                      · app.viniz
+//
+// ⚠️ ELLE NE DIT PAS L'ENVIRONNEMENT, et c'est pourquoi cette valeur ne s'appelle PAS
+// « production ». La build de production de Dopamine ne pose AUCUNE variante : lire
+// `EXPO_PUBLIC_APP_VARIANT=production` dans eas.json ferait naturellement penser qu'elle
+// la décrit, alors qu'elle décrirait une AUTRE app. L'environnement est déjà porté par le
+// nom du profil et par `distribution` — le doubler ici n'ajouterait que l'ambiguïté.
+const isViniz = variant === 'viniz'
 
 const config = {
   expo: {
@@ -128,6 +139,11 @@ const config = {
     //
     // Le buildNumber, lui, n'est PAS déclaré ici : eas.json le gère
     // (appVersionSource "remote" + autoIncrement).
+    //
+    // 🔴 CETTE VERSION EST CELLE DE DOPAMINE, ET D'ELLE SEULE. Depuis la variante `viniz`,
+    // ce champ n'est plus la version « de l'app » : c'est la version d'UNE des trois. Viniz
+    // pose la sienne dans son bloc, en bas de fichier — elle repart de 1.0.0, parce qu'une
+    // app neuve sur l'App Store n'hérite pas de l'historique d'une autre.
     version: '1.1.0',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
@@ -346,6 +362,73 @@ if (isStaging) {
   // testeur. Hors de la liste du lot, mais sans effet possible sur la production.
   e.ios.infoPlist.NSFaceIDUsageDescription =
     'Viniz Staging utilise Face ID pour sécuriser ta connexion.'
+}
+
+// ── Variante « Viniz » (PRODUCTION) ───────────────────────────────────────────────
+// Tout ce qui suit ne s'exécute QUE si EXPO_PUBLIC_APP_VARIANT vaut 'viniz'. La build de
+// Dopamine ne traverse ni ce bloc ni le précédent.
+//
+// 🔴 SANS CE BLOC, LE PROFIL `production-viniz` AURAIT BÂTI DOPAMINE. C'est le piège de ce
+// lot, et il est silencieux : `isStaging` est faux pour toute valeur autre que 'staging',
+// donc une variante inconnue retombe sur la configuration Dopamine ÉCRITE PLUS HAUT —
+// bundle be.dopamineclub.app, nom « Dopamine », icône Dopamine. Le build aurait réussi, et
+// serait parti sur la fiche App Store de Nico.
+if (isViniz) {
+  const e = config.expo
+
+  e.name = 'Viniz'
+  // ⚠️ `slug` et `extra.eas.projectId` NE CHANGENT PAS — même raison qu'en staging : ils
+  // identifient le PROJET EAS, pas l'application. Les trois apps vivent dans le même
+  // projet et se distinguent par leur profil de build.
+
+  // 🔴 LA VERSION REPART DE 1.0.0, ET CE N'EST PAS UN OUBLI.
+  // `app.viniz` est une app NEUVE sur l'App Store : sa fiche (ascAppId 6809463633) n'a
+  // jamais rien reçu. Les contraintes ITMS-90186 / ITMS-90062 portent sur l'historique
+  // d'UNE fiche — celui de Dopamine ne la concerne pas. Reprendre 1.1.0 annoncerait à ses
+  // premiers utilisateurs une app déjà passée par onze trains qui n'existent pas pour elle.
+  e.version = '1.0.0'
+
+  e.ios.bundleIdentifier = 'app.viniz'
+  e.android.package = 'app.viniz'
+
+  // ⚠️ SCHEME 'viniz' — CHOIX DE CE LOT, à connaître. Le laisser à 'dopamine' ferait se
+  // disputer deux apps le même `dopamine://` sur un appareil qui a les deux, et iOS
+  // trancherait de façon imprévisible. 'viniz-staging' est déjà pris par l'autre variante.
+  e.scheme = 'viniz'
+
+  // 🔴 `associatedDomains` EST CONSERVÉ, ET C'EST LA DIFFÉRENCE AVEC LE BLOC STAGING.
+  // L'AASA servie par apps/links déclare `2B239M7MJL.app.viniz` avec le composant `/*`
+  // (toutes les salles, sauf /dopamine/* explicitement exclu) : CETTE app est celle que ce
+  // composant désigne. Sans `applinks:links.viniz.app` dans le binaire, la moitié app de
+  // l'appariement manquerait — les Universal Links de toutes les salles s'ouvriraient dans
+  // le navigateur, sans qu'aucune erreur ne le signale.
+  //
+  // Le bloc staging, lui, SUPPRIME ce domaine, et pour la raison inverse : `app.viniz.staging`
+  // n'est déclaré nulle part dans l'AASA, et le revendiquer ferait concurrence à celle-ci.
+  //
+  // ⚠️ apps/links/README.md marque `2B239M7MJL.app.viniz` « appID À CONFIRMER AVANT
+  // DÉPLOIEMENT ». Ce lot est ce qui le confirme : le bundle existe désormais, avec
+  // l'équipe 2B239M7MJL (cf. le profil submit d'eas.json). La note du README pourra tomber
+  // quand la première build sera passée — elle n'est pas retirée ici, aucune build n'ayant
+  // encore prouvé l'appariement sur un téléphone.
+
+  // La chaîne de permission est affichée par iOS dans une alerte système : y laisser
+  // « Dopamine » sur une app nommée « Viniz » désigne la mauvaise application au membre.
+  e.ios.infoPlist.NSFaceIDUsageDescription =
+    'Viniz utilise Face ID pour sécuriser ta connexion.'
+
+  // ⚠️ ICÔNE, ÉCRAN DE DÉMARRAGE ET ICÔNE ADAPTATIVE NE SONT PAS POSÉS ICI — ET C'EST UN
+  // MANQUE CONNU, PAS UN CHOIX. Le dépôt n'a aucun asset Viniz de PRODUCTION : les seuls
+  // 1024×1024 disponibles (`assets/viniz/icon-staging.png`, `adaptive-icon-staging.png`)
+  // portent le bandeau « STAGING », et la seule source propre, `assets/viniz/icon-512.png`,
+  // est en 512 — la moitié de ce qu'exige l'App Store. L'agrandir donnerait une icône
+  // floue : c'est exactement le motif pour lequel `dopamine-logo-d.png` avait été écarté
+  // en GYM-241.
+  //
+  // 🔴 EN L'ÉTAT, UNE BUILD `production-viniz` PORTERAIT DONC L'ICÔNE DE DOPAMINE. C'est
+  // bloquant pour une soumission, pas pour le profil : aucune build n'est lancée par ce
+  // lot. `assets/viniz/viniz-icon.svg` est vectoriel et permet de produire un 1024 net —
+  // c'est le geste à faire, dans son propre lot, avant la première soumission.
 }
 
 export default config

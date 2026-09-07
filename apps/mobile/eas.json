@@ -23,6 +23,16 @@
         "EXPO_PUBLIC_GYM_MODE": "single"
       }
     },
+    "production-viniz": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "ios": { "resourceClass": "m-medium" },
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true",
+        "EXPO_PUBLIC_APP_VARIANT": "viniz",
+        "EXPO_PUBLIC_GYM_MODE": "multi"
+      }
+    },
     "preview-staging": {
       "distribution": "internal",
       "ios": { "resourceClass": "m-medium" },
@@ -57,6 +67,13 @@
       "ios": {
         "appleId": "nexxia.studio@gmail.com",
         "appleTeamId": "2B239M7MJL"
+      }
+    },
+    "production-viniz": {
+      "ios": {
+        "appleId": "nexxia.studio@gmail.com",
+        "appleTeamId": "2B239M7MJL",
+        "ascAppId": "6809463633"
       }
     }
   }
