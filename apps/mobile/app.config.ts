@@ -417,18 +417,43 @@ if (isViniz) {
   e.ios.infoPlist.NSFaceIDUsageDescription =
     'Viniz utilise Face ID pour sécuriser ta connexion.'
 
-  // ⚠️ ICÔNE, ÉCRAN DE DÉMARRAGE ET ICÔNE ADAPTATIVE NE SONT PAS POSÉS ICI — ET C'EST UN
-  // MANQUE CONNU, PAS UN CHOIX. Le dépôt n'a aucun asset Viniz de PRODUCTION : les seuls
-  // 1024×1024 disponibles (`assets/viniz/icon-staging.png`, `adaptive-icon-staging.png`)
-  // portent le bandeau « STAGING », et la seule source propre, `assets/viniz/icon-512.png`,
-  // est en 512 — la moitié de ce qu'exige l'App Store. L'agrandir donnerait une icône
-  // floue : c'est exactement le motif pour lequel `dopamine-logo-d.png` avait été écarté
-  // en GYM-241.
+  // ── L'ICÔNE DE PRODUCTION ─────────────────────────────────────────────────────────
+  // Rastérisée depuis `assets/viniz/viniz-icon.svg` — c'est-à-dire depuis le VECTEUR, et
+  // non par agrandissement de `icon-512.png` : un 512 poussé à 1024 aurait été flou, le
+  // motif exact pour lequel `dopamine-logo-d.png` avait été écarté en GYM-241.
   //
-  // 🔴 EN L'ÉTAT, UNE BUILD `production-viniz` PORTERAIT DONC L'ICÔNE DE DOPAMINE. C'est
-  // bloquant pour une soumission, pas pour le profil : aucune build n'est lancée par ce
-  // lot. `assets/viniz/viniz-icon.svg` est vectoriel et permet de produire un 1024 net —
-  // c'est le geste à faire, dans son propre lot, avant la première soumission.
+  // Vérifié sur le fichier lui-même, pas sur sa description :
+  //   · 1024×1024, PNG type 2 (truecolor RGB), 8 bits, non entrelacé ;
+  //   · AUCUN canal alpha et AUCUN chunk `tRNS`. C'est une exigence de l'App Store, pas
+  //     une préférence : une icône transparente est refusée en ITMS-90717, à la
+  //     soumission — donc après la build, quand le train est déjà lancé ;
+  //   · fond #4827B4 plein jusqu'aux quatre coins, marque en #C8FF3D (le lime Viniz) ;
+  //   · aucun bandeau « STAGING » — ce n'est pas un dérivé des assets de la variante.
+  e.icon = './assets/viniz/icon-1024.png'
+
+  // 🔴 L'ICÔNE ADAPTATIVE ANDROID N'EST DÉLIBÉRÉMENT PAS POSÉE SUR CE FICHIER.
+  //
+  // Android ne garantit d'afficher que le CERCLE CENTRAL de 66 % de l'avant-plan ; le
+  // reste est rogné par le masque du lanceur. Mesuré sur ce fichier : le motif atteint
+  // 85,2 % du demi-côté — la barre horizontale du pouls court de x=77 à x=948. Ses deux
+  // extrémités seraient COUPÉES, et le pouls deviendrait un accent sans ligne.
+  //
+  // Le point de comparaison est dans ce fichier même, quelques lignes plus haut :
+  // `adaptive-icon-dopamine.png` a été généré pour GYM-241 précisément pour cela, et
+  // mesure 48,2 %. `icon-dopamine.png`, ÉCARTÉ pour cet usage par ce lot-là, mesure 57,4 %
+  // — moins que celui-ci. Poser ce fichier en avant-plan referait, en pire, l'erreur que
+  // GYM-241 a corrigée.
+  //
+  // ⚠️ CONSÉQUENCE ASSUMÉE ET NON MASQUÉE : sur Android, l'app Viniz porte encore l'icône
+  // adaptative de Dopamine (héritée du bloc principal). C'est visible et corrigeable ; une
+  // barre tronquée, elle, aurait l'air d'un choix graphique. Le geste qui manque est le
+  // même qu'en GYM-241 : remettre la marque à l'échelle sur un fond #4827B4 de 1024, sous
+  // 66 % — `scripts/generate-viniz-staging-assets.js` porte déjà ce `safeRatio`.
+  //
+  // ⚠️ L'ÉCRAN DE DÉMARRAGE reste lui aussi celui de Dopamine : `splash-dopamine.png` est
+  // un 1080×1080 sur fond noir, et le dépôt n'a pas son équivalent Viniz de production
+  // (`splash-staging.png` porte le bandeau). Hors du périmètre de ce lot, qui livre
+  // l'icône ; à traiter avant la première soumission.
 }
 
 export default config
