@@ -417,18 +417,60 @@ if (isViniz) {
   e.ios.infoPlist.NSFaceIDUsageDescription =
     'Viniz utilise Face ID pour sécuriser ta connexion.'
 
-  // ⚠️ ICÔNE, ÉCRAN DE DÉMARRAGE ET ICÔNE ADAPTATIVE NE SONT PAS POSÉS ICI — ET C'EST UN
-  // MANQUE CONNU, PAS UN CHOIX. Le dépôt n'a aucun asset Viniz de PRODUCTION : les seuls
-  // 1024×1024 disponibles (`assets/viniz/icon-staging.png`, `adaptive-icon-staging.png`)
-  // portent le bandeau « STAGING », et la seule source propre, `assets/viniz/icon-512.png`,
-  // est en 512 — la moitié de ce qu'exige l'App Store. L'agrandir donnerait une icône
-  // floue : c'est exactement le motif pour lequel `dopamine-logo-d.png` avait été écarté
-  // en GYM-241.
+  // ── L'ICÔNE DE PRODUCTION ─────────────────────────────────────────────────────────
+  // Rastérisée depuis `assets/viniz/viniz-icon.svg` — c'est-à-dire depuis le VECTEUR, et
+  // non par agrandissement de `icon-512.png` : un 512 poussé à 1024 aurait été flou, le
+  // motif exact pour lequel `dopamine-logo-d.png` avait été écarté en GYM-241.
   //
-  // 🔴 EN L'ÉTAT, UNE BUILD `production-viniz` PORTERAIT DONC L'ICÔNE DE DOPAMINE. C'est
-  // bloquant pour une soumission, pas pour le profil : aucune build n'est lancée par ce
-  // lot. `assets/viniz/viniz-icon.svg` est vectoriel et permet de produire un 1024 net —
-  // c'est le geste à faire, dans son propre lot, avant la première soumission.
+  // Vérifié sur le fichier lui-même, pas sur sa description :
+  //   · 1024×1024, PNG type 2 (truecolor RGB), 8 bits, non entrelacé ;
+  //   · AUCUN canal alpha et AUCUN chunk `tRNS`. C'est une exigence de l'App Store, pas
+  //     une préférence : une icône transparente est refusée en ITMS-90717, à la
+  //     soumission — donc après la build, quand le train est déjà lancé ;
+  //   · fond #4827B4 plein jusqu'aux quatre coins, marque en #C8FF3D (le lime Viniz) ;
+  //   · aucun bandeau « STAGING » — ce n'est pas un dérivé des assets de la variante.
+  e.icon = './assets/viniz/icon-1024.png'
+
+  // ── L'ICÔNE ADAPTATIVE ANDROID ────────────────────────────────────────────────────
+  // 🔴 C'EST UN SECOND FICHIER, ET IL LUI EN FALLAIT UN. Android ne garantit d'afficher
+  // que le CERCLE CENTRAL de 66 % de l'avant-plan ; le reste est rogné par le masque du
+  // lanceur. `icon-1024.png` ci-dessus atteint 86,1 % — sa barre de pouls court de x=77 à
+  // x=948 et ses deux extrémités auraient été coupées, le pouls devenant un accent sans
+  // ligne. `adaptive-icon-1024.png` est la MÊME marque remise à l'échelle, mesurée à
+  // 58,5 %. Exactement le geste, et la raison, de GYM-241 pour Dopamine.
+  //
+  // ⚠️ LA MESURE EST RADIALE, PAS AXIALE, et la nuance n'est pas cosmétique : la zone sûre
+  // est un CERCLE, donc ce qui compte est la distance au centre du pixel le plus éloigné —
+  // pas son écart en x ou en y, qui la sous-estime. Recalé sur les chiffres que GYM-241 a
+  // consignés : `adaptive-icon-dopamine.png` 65,8 % (le lot disait 64,1 %) et
+  // `icon-dopamine.png` 78,4 % (75 %). Les deux concordent ; c'est bien cette méthode-là.
+  //
+  // ⚠️ ET ELLE PASSE PAR LES DEUX MESURES : 57,9 % en axial, 58,5 % en radial. Les deux
+  // convergent ici parce que le motif est une barre LARGE ET BASSE — son point extrême est
+  // presque sur l'axe horizontal. Sur le « D » de Dopamine, plus carré, elles s'écartent
+  // de dix-sept points (48,1 % contre 65,8 %) : c'est pourquoi il ne faut pas se fier à
+  // l'axiale.
+  //
+  // backgroundColor #4827B4, accordé au fond du fichier : l'avant-plan est opaque, mais
+  // une couleur discordante apparaîtrait en anneau si un lanceur applique un masque plus
+  // petit que l'image.
+  e.android.adaptiveIcon.foregroundImage = './assets/viniz/adaptive-icon-1024.png'
+  e.android.adaptiveIcon.backgroundColor = '#4827B4'
+
+  // ── L'ÉCRAN DE DÉMARRAGE ──────────────────────────────────────────────────────────
+  // ⚠️ PAR LA CLÉ `splash`, PAS PAR LE PLUGIN `expo-splash-screen` — vérifié avant d'écrire.
+  // Le paquet est bien en dépendance (~31.0.13) mais n'est PAS déclaré dans `plugins` : le
+  // bloc Dopamine passe par la clé de haut niveau, et la variante staging l'altère en place
+  // de la même façon. On reprend ce motif plutôt que d'introduire un second mécanisme dans
+  // le seul bloc qui n'existe encore chez personne.
+  //
+  // `resizeMode` reste 'contain', hérité du bloc Dopamine : l'image est carrée (1284²) et
+  // doit être centrée sans recadrage, jamais étirée à l'écran.
+  e.splash.image = './assets/viniz/splash-1284.png'
+  e.splash.backgroundColor = '#4827B4'
+  // ⚠️ LE FOND ACCOMPAGNE L'IMAGE, ET C'EST LA LEÇON DE GYM-241. Le noir de Dopamine sous
+  // une image à fond violet produirait un cadre noir autour du carré, puis un flash au
+  // passage vers l'écran animé. Les deux valeurs se posent ensemble ou pas du tout.
 }
 
 export default config
