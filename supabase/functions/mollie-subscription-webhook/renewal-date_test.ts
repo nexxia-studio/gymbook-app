@@ -10,7 +10,7 @@
 // ⚠️ CE BANC NE COUVRE QUE LA DATE. Le reste du chemin (payload, idempotence, insert)
 // vit dans `index.ts`, qui appelle `Deno.serve()` au chargement et n'est donc pas
 // importable ici. C'est précisément ce qui a justifié de sortir la date dans son module.
-import { firstRenewalDate } from './renewal-date.ts'
+import { firstRenewalDate, hasRemainingTerm } from './renewal-date.ts'
 
 function assertEquals(actual: string, expected: string, message: string): void {
   if (actual !== expected) {
@@ -148,4 +148,99 @@ Deno.test('aucune date rendue ne tombe le jour du paiement (c\'était l\'inciden
       throw new Error(`échéance non postérieure au paiement\n  payé le : ${local}\n  échéance : ${next}`)
     }
   }
+})
+
+// ═════════════════════════════════════════════════════════════════════════════════════
+// GYM-321 — LE TERME RESTANT. C'est lui qui décide désormais du passage en `completed`.
+// ═════════════════════════════════════════════════════════════════════════════════════
+
+function assertBool(actual: boolean, expected: boolean, message: string): void {
+  if (actual !== expected) {
+    throw new Error(`${message}\n  attendu : ${expected}\n  obtenu  : ${actual}`)
+  }
+}
+
+Deno.test('terme FUTUR → il reste des droits, la ligne reste active', () => {
+  // Le cas nominal de l'audit : dernière échéance à M+11, terme à M+12.
+  assertBool(
+    hasRemainingTerm('2026-12-05T10:00:00Z', new Date('2026-11-05T10:00:00Z')),
+    true,
+    'un mois avant le terme, des droits sont encore dus',
+  )
+})
+
+Deno.test('terme ATTEINT à la seconde près → plus de droits, `completed`', () => {
+  assertBool(
+    hasRemainingTerm('2026-12-05T10:00:00Z', new Date('2026-12-05T10:00:00Z')),
+    false,
+    'à l\'instant exact du terme, il ne reste plus rien',
+  )
+})
+
+Deno.test('terme DÉPASSÉ → plus de droits, `completed`', () => {
+  assertBool(
+    hasRemainingTerm('2026-12-05T10:00:00Z', new Date('2026-12-05T10:00:01Z')),
+    false,
+    'une seconde après le terme, il ne reste plus rien',
+  )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// 🔴 LE CAS 23h30 LOCALE — celui que le cadrage voulait voir couvert.
+// ─────────────────────────────────────────────────────────────────────────────────────
+// C'est le cas qui piège `firstRenewalDate` (cf. plus haut) : à 23h30 à Bruxelles, la
+// DATE UTC n'est déjà plus la même que la date locale. La question est de vérifier que
+// cette divergence de calendrier ne change RIEN ici — parce qu'on compare deux instants
+// et non deux dates.
+Deno.test('23h30 locale, veille du terme : la date UTC diffère déjà, le verdict non', () => {
+  // 2026-12-04 23:30 à Bruxelles (CET, UTC+1) = 2026-12-04T22:30Z — même jour en UTC.
+  // 2026-07-04 23:30 à Bruxelles (CEST, UTC+2) = 2026-07-04T21:30Z.
+  // On prend l'heure d'HIVER, où 23h30 locale = 22h30Z, et un terme fixé à 23h00 locale.
+  const terme = '2026-12-04T22:00:00Z' // 23h00 à Bruxelles
+  assertBool(
+    hasRemainingTerm(terme, new Date('2026-12-04T21:30:00Z')), // 22h30 locale
+    true,
+    'une demi-heure AVANT le terme, les droits courent encore',
+  )
+  assertBool(
+    hasRemainingTerm(terme, new Date('2026-12-04T22:30:00Z')), // 23h30 locale
+    false,
+    'une demi-heure APRÈS le terme, ils sont clos',
+  )
+})
+
+Deno.test('bascule DST du 25/10 : le verdict ne dépend pas de l\'offset', () => {
+  // Le terme est fixé AVANT la bascule (CEST, UTC+2), la lecture se fait APRÈS (CET,
+  // UTC+1). Une méthode qui figerait un offset ou compterait des jours de 86 400 000 ms
+  // dériverait d'une heure ici ; la comparaison d'instants, elle, ne bouge pas.
+  const termeAvantBascule = '2026-10-25T00:30:00Z' // 02h30 locale, juste avant le recul
+  assertBool(
+    hasRemainingTerm(termeAvantBascule, new Date('2026-10-25T00:00:00Z')),
+    true,
+    'avant le terme malgré la bascule',
+  )
+  assertBool(
+    hasRemainingTerm(termeAvantBascule, new Date('2026-10-25T01:00:00Z')),
+    false,
+    'après le terme malgré la bascule',
+  )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// LES REPLIS — ils décident du sens CONSERVATEUR.
+// ─────────────────────────────────────────────────────────────────────────────────────
+Deno.test('terme ABSENT ou ILLISIBLE → repli sur l\'ancien comportement (`completed`)', () => {
+  const at = new Date('2026-12-05T10:00:00Z')
+  assertBool(hasRemainingTerm(null, at), false, 'null : aucun droit affirmable')
+  assertBool(hasRemainingTerm(undefined, at), false, 'undefined : aucun droit affirmable')
+  assertBool(hasRemainingTerm('', at), false, 'chaîne vide : aucun droit affirmable')
+  assertBool(hasRemainingTerm('pas-une-date', at), false, 'illisible : aucun droit affirmable')
+})
+
+Deno.test('un objet Date est accepté autant qu\'une chaîne', () => {
+  assertBool(
+    hasRemainingTerm(new Date('2026-12-05T10:00:00Z'), new Date('2026-11-05T10:00:00Z')),
+    true,
+    'la colonne peut arriver déjà désérialisée',
+  )
 })
