@@ -697,6 +697,12 @@
     "back_to_login_unnamed": "Back to sign-in",
     "go_to_mine": "Go to {{gym}}"
   },
+  "signup_confirmed": {
+    "title": "Your account is confirmed",
+    "body": "Your email address is verified. Sign in to join {{gym}}.",
+    "body_unnamed": "Your email address is verified. Sign in to access your gym.",
+    "cta": "Sign in"
+  },
   "cross_gym": {
     "title": "This content belongs to {{gym}}",
     "body": "You're a member there, but you're currently viewing another gym. Do you want to go?",

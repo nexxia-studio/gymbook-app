@@ -697,6 +697,12 @@
     "back_to_login_unnamed": "Revenir à la connexion",
     "go_to_mine": "Aller à {{gym}}"
   },
+  "signup_confirmed": {
+    "title": "Ton compte est confirmé",
+    "body": "Ton adresse email est validée. Connecte-toi pour rejoindre {{gym}}.",
+    "body_unnamed": "Ton adresse email est validée. Connecte-toi pour accéder à ta salle.",
+    "cta": "Se connecter"
+  },
   "cross_gym": {
     "title": "Ce contenu est chez {{gym}}",
     "body": "Tu es membre de cette salle, mais tu consultes actuellement une autre. Veux-tu y aller ?",
