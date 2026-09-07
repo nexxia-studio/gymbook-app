@@ -42,6 +42,21 @@ import { supabase } from '../../lib/supabase'
  */
 const DESTINATIONS: Record<string, string> = {
   'reset-password': '/dopamine/reset-password',
+  // 🔴 GYM-320b — L'ENTRÉE QUI MANQUAIT, ET LE SEUL CHANGEMENT DE CE FICHIER.
+  //
+  // `gymUrls.buildMemberSignupConfirmUrl()` fabrique `links.viniz.app/<slug>/confirm`
+  // depuis GYM-293. Sur un iPhone équipé, l'Universal Link est honoré après le 302 de
+  // GoTrue (mesuré en GYM-313) : le lien arrivait ICI, ne trouvait aucune destination, et
+  // le membre repartait à la recherche de salle avec `reason: unknown_gym` — c'est-à-dire
+  // qu'on lui disait que SA salle était introuvable, au moment précis où il venait d'y
+  // créer son compte.
+  //
+  // ⚠️ TOUT LE RESTE ÉTAIT DÉJÀ EN PLACE, et c'est pourquoi ce lot n'ajoute rien d'autre
+  // ici : `writeSelectedGymSlug(slug)` est appelé quelques lignes plus bas AVANT la
+  // navigation (donc l'écran d'arrivée est brandé et la connexion reconnaîtra le
+  // contexte), un slug inconnu tombe déjà sur `/gym/select`, et le garde de mode sort déjà
+  // sur `/+not-found` en `single`. Il manquait la destination, pas la mécanique.
+  'confirm': '/gym/confirmed',
   'payment-success': '/payment/success',
   'confirm-waitlist': '/(tabs)/bookings',
   'bookings': '/(tabs)/bookings',
