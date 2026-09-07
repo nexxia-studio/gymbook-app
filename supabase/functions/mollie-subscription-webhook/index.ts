@@ -11,7 +11,7 @@ import {
   buildOwnerAlertEmail,
 } from '../_shared/failed-renewal-emails.ts'
 // GYM-319 — date du premier renouvellement, isolée pour être vérifiable hors ligne.
-import { firstRenewalDate } from './renewal-date.ts'
+import { firstRenewalDate, hasRemainingTerm } from './renewal-date.ts'
 
 const FN = 'mollie-subscription-webhook'
 
@@ -849,12 +849,37 @@ Deno.serve(async (req) => {
         // reste néanmoins la bonne défense pour un échec PARTIEL de ce même passage.
         if (mollieSubscriptionId) {
           const { data: sub } = await supabase
-            .from('member_subscriptions').select('id, payments_count, max_payments')
+            // GYM-321 — `ends_at` est ajouté à la sélection : c'est LUI qui décide
+            // désormais du passage en `completed`, pas le seul compteur.
+            .from('member_subscriptions').select('id, payments_count, max_payments, ends_at')
             .eq('mollie_subscription_id', mollieSubscriptionId).maybeSingle()
 
           if (sub) {
             const nextCount = (sub.payments_count ?? 0) + 1
             const isFinal = sub.max_payments != null && nextCount >= sub.max_payments
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // 🔴 GYM-321 — LE COMPTEUR MOLLIE NE FERME PLUS LES DROITS. `ends_at` SEUL.
+            // ═══════════════════════════════════════════════════════════════════════
+            // `isFinal` dit que Mollie a fini de prélever. Il ne dit RIEN du terme, et
+            // l'audit a montré que les deux ne coïncident jamais : `max_payments` vaut
+            // `duration_months`, `payments_count` démarre à 1 (le checkout) et `times`
+            // vaut durée − 1 — la dernière échéance tombe donc à M+11 quand `ends_at`
+            // est à M+12. Écrire `completed` là privait CHAQUE membre de son dernier
+            // mois, `completed` ne figurant dans aucun prédicat d'accès
+            // (`ACCESS_SUBSCRIPTION_STATUSES`, `promote_waitlist_atomic`).
+            //
+            // ⚠️ CE N'EST PAS UN CORRECTIF D'INCIDENT. GYM-317 (calendrier avancé d'un
+            // mois pour six abonnements) a DOUBLÉ la perte pour ces six-là ; le défaut,
+            // lui, était structurel et touchait tout le monde.
+            //
+            // La ligne reste donc `active` tant qu'il reste du terme, et c'est
+            // `expire_subscriptions()` — cron horaire à :05, seul juge de `ends_at` —
+            // qui la passera `expired` le moment venu. Aucun droit n'est ouvert au
+            // passage : `notExpiredFilter()` refuse déjà tout accès au-delà de
+            // `ends_at`, quel que soit le statut.
+            const termeRestant = hasRemainingTerm(sub.ends_at)
+            const closesNow = isFinal && !termeRestant
             // GYM-252 — RÉACTIVATION AUTOMATIQUE. C'est ici, et nulle part ailleurs, que
             // se referme le cycle d'impayé : un prélèvement qui aboutit reprend le membre
             // là où il en était, sans geste du gérant ni du membre.
@@ -869,7 +894,21 @@ Deno.serve(async (req) => {
             // zéro explicite des quatre colonnes de suivi.
             const { error: subUpdError } = await supabase.from('member_subscriptions').update({
               payments_count: nextCount,
-              status: isFinal ? 'completed' : 'active',
+              status: closesNow ? 'completed' : 'active',
+              // ⚠️ PLUS D'ÉCHÉANCE À VENIR DÈS QUE MOLLIE A FINI — que la ligne se ferme
+              // maintenant ou attende son terme. Sans cela, le gérant lirait dans la fiche
+              // du membre une date de prélèvement qui ne viendra jamais : c'est le seul
+              // reproche fait à cette option, et il se règle ici.
+              //
+              // `isFinal` et NON `closesNow` : la question posée est « Mollie
+              // prélèvera-t-il encore ? », qui est bien celle du compteur — et sa réponse
+              // est non dans les deux cas, terme atteint ou pas.
+              //
+              // ⚠️ CLÉ AJOUTÉE PAR ÉTALEMENT, ET NON `next_payment_at: undefined`. Les deux
+              // marchent — `JSON.stringify` laisse tomber les `undefined` — mais la seconde
+              // forme fait dépendre le comportement d'un détail de sérialisation invisible
+              // à la lecture. Hors du cas final, la colonne n'est pas touchée du tout.
+              ...(isFinal ? { next_payment_at: null } : {}),
               payment_failed_at: null,
               payment_failed_count: 0,
               payment_suspended_at: null,
