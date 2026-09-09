@@ -114,5 +114,5 @@ Toute modification des présentes conditions est portée à la connaissance des 
 
 ### 15. Droit applicable et litiges
 
-Les présentes conditions sont régies par le droit belge. En cas de litige, le membre peut recourir au Service de Médiation pour le Consommateur (mediationconsommateur.be) ou à la plateforme européenne de règlement en ligne des litiges (ec.europa.eu/odr). À défaut de résolution amiable, les tribunaux de l'arrondissement de **Liège** sont compétents, sans préjudice des règles impératives de compétence.
+Les présentes conditions sont régies par le droit belge. En cas de litige, le membre peut recourir au Service de Médiation pour le Consommateur (mediationconsommateur.be). À défaut de résolution amiable, les juridictions compétentes sont celles désignées par les règles légales de compétence, y compris les règles protectrices du consommateur qui lui permettent notamment de saisir le tribunal de son propre domicile.
 `

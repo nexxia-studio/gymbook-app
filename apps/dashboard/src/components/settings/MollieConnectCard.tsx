@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CreditCard, Check, AlertCircle, AlertTriangle, Loader2, Unlink, RefreshCw } from 'lucide-react'
+import { CreditCard, Check, AlertCircle, AlertTriangle, Loader2, Unlink, RefreshCw, FileWarning } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { invokeEdge } from '@/lib/edgeInvoke'
+import { useGymLegal } from '@/hooks/useGymLegal'
+import { missingLegalFields } from '@/lib/gymLegalIdentity'
 
 interface Connection {
   connected: boolean
@@ -25,12 +28,31 @@ interface Connection {
 // appel ; le laisser faire est ce qui rend le rejeu effectif. `x-action` reste, lui : il
 // porte la sémantique de l'appel, pas l'identité de l'appelant.
 //
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-121 — LE NOM DES CHAMPS, EN FRANÇAIS.
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// La règle rend des noms de COLONNES (`legal_postal_code`) : c'est ce qu'il faut pour un
+// journal ou une charge utile, ce n'est pas ce qu'on montre à un gérant. Sans cette table,
+// l'écran le plus important du parcours d'encaissement lui parlerait en schéma de base.
+const LEGAL_FIELD_LABELS: Record<string, string> = {
+  legalName: 'Raison sociale',
+  vatNumber: "Numéro d'entreprise / TVA",
+  legalAddress: 'Adresse du siège',
+  legalPostalCode: 'Code postal du siège',
+  legalCity: 'Commune du siège',
+  email: 'Email de contact',
+}
+
 // GYM-85 : mapping des codes d'erreur backend → message FR visible.
 const ERROR_MESSAGES: Record<string, string> = {
+  GYM_LEGAL_IDENTITY_INCOMPLETE:
+    'Complétez vos informations légales (Réglages → Informations légales) avant de connecter Mollie.',
   CONFIG_MISSING: 'Configuration Mollie manquante côté serveur, contacte le support.',
   NO_GYM: 'Aucune salle rattachée à ce compte.',
   UNAUTHORIZED: 'Session expirée, reconnecte-toi.',
 }
+// GYM-121 — si le refus arrive malgré tout par l'API (course entre deux onglets, règle
+// durcie côté serveur), il doit rester lisible plutôt que de retomber sur le générique.
 const FALLBACK_ERROR = 'Une erreur est survenue, réessaie.'
 
 // Extrait le code d'erreur, que le body soit dans `data` (rare) ou dans
@@ -55,6 +77,15 @@ async function resolveErrorMessage(error: unknown, data: unknown): Promise<strin
 }
 
 export function MollieConnectCard() {
+  // 🔴 GYM-121 — MÊME RÈGLE QUE LE SERVEUR, LUE ICI POUR LE DIRE PLUS TÔT.
+  // `missingLegalFields` est la liste de GYM-265, celle-là même que la fonction SQL
+  // `gym_legal_identity_missing` porte côté serveur. L'interface ne DÉCIDE rien — la
+  // frontière reste create-payment / create-subscription — elle évite seulement au gérant
+  // de découvrir le refus par un membre qui n'arrive pas à payer.
+  const { legal } = useGymLegal()
+  const legalMissing = legal ? missingLegalFields(legal) : []
+  const legalIncomplete = legal !== null && legalMissing.length > 0
+
   const [connection, setConnection] = useState<Connection | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -78,6 +109,12 @@ export function MollieConnectCard() {
   useEffect(() => { checkStatus() }, [checkStatus])
 
   const handleConnect = async () => {
+    // ⚠️ GARDE EN TÊTE, PAS SEULEMENT UN BOUTON GRISÉ. Le bouton désarmé couvre le geste
+    // normal ; ceci couvre le rechargement à chaud, un clic clavier sur un bouton dont
+    // l'état vient d'être recalculé, et tout appel programmatique. Deux protections pour
+    // le même invariant, parce qu'une seule serait contournable par accident.
+    if (legalIncomplete) return
+
     setIsConnecting(true)
     setError(null)
     try {
@@ -177,6 +214,45 @@ export function MollieConnectCard() {
               Déconnecter
             </button>
           </div>
+        </div>
+      ) : legalIncomplete ? (
+        /* ═══════════════════════════════════════════════════════════════════════════
+           🔴 GYM-121 — ON BLOQUE ICI, PARCE QUE C'EST LE MOMENT LE PLUS CLAIR.
+           ═══════════════════════════════════════════════════════════════════════════
+           Le serveur refusera de toute façon (create-payment / create-subscription).
+           Mais laisser le gérant connecter Mollie, publier ses formules, puis découvrir
+           le problème par un MEMBRE qui n'arrive pas à payer, c'est lui faire porter la
+           panne au pire endroit. Ici, il n'a encore rien promis à personne.
+
+           ⚠️ LA LISTE, PAS UN MESSAGE GÉNÉRIQUE. « Complétez vos informations légales »
+           l'enverrait chercher lesquelles dans un formulaire de quinze champs. C'est la
+           leçon de GYM-259 appliquée à l'interface : un refus doit dire quoi faire. */
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <FileWarning size={16} className="text-orange-500" />
+            <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">
+              Informations légales incomplètes
+            </span>
+          </div>
+          <p className="mb-3 font-body text-xs text-muted">
+            Pour encaisser des paiements, votre salle doit pouvoir émettre des factures
+            conformes. Il manque&nbsp;:
+          </p>
+          <ul className="mb-4 list-disc pl-5 font-body text-xs text-dark">
+            {legalMissing.map((f) => (
+              <li key={f}>{LEGAL_FIELD_LABELS[f] ?? f}</li>
+            ))}
+          </ul>
+          {/* ⚠️ `/settings` NU, SANS ANCRE DE SECTION — vérifié : `Settings.tsx` n'a aucun
+              mécanisme `?section=`, et en inventer un pour ce lien aurait ajouté un
+              routage à une carte de réglages. La carte « Informations légales » est sur
+              cette page ; le gérant la trouve. */}
+          <Link
+            to="/settings"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-dark px-6 py-3 font-body font-bold text-white"
+          >
+            Compléter mes informations légales
+          </Link>
         </div>
       ) : needsReconnect ? (
         <div>

@@ -3,6 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { loadGymBranding, emailSender } from '../_shared/gym-branding.ts'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
+// GYM-273 — télémétrie de paiement, émise là où l'on SAIT que l'euro est encaissé.
+import { captureServerEvent } from '../_shared/posthog.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
 // GYM-252 — gabarits partagés avec le balayage quotidien (process-failed-renewals).
@@ -11,7 +13,7 @@ import {
   buildOwnerAlertEmail,
 } from '../_shared/failed-renewal-emails.ts'
 // GYM-319 — date du premier renouvellement, isolée pour être vérifiable hors ligne.
-import { firstRenewalDate } from './renewal-date.ts'
+import { firstRenewalDate, hasRemainingTerm } from './renewal-date.ts'
 
 const FN = 'mollie-subscription-webhook'
 
@@ -746,6 +748,29 @@ Deno.serve(async (req) => {
           return new Response('payment write failed', { status: 503 })
         }
 
+        // 🔴 GYM-273 — `payment_completed`, PREMIER PAIEMENT D'ABONNEMENT.
+        // Placé après le court-circuit d'idempotence de la branche (l. 485) et après
+        // l'écriture qui marque le paiement `paid` : on n'émet que sur un encaissement
+        // réellement enregistré. Non bloquant et borné à 3 s — cf. _shared/posthog.ts.
+        await captureServerEvent({
+          event: 'payment_completed',
+          distinctId: memberId as string,
+          timestamp: (molliePayment.paidAt ?? new Date().toISOString()) as string,
+          dedupeSeed: `payment_completed:${molliePaymentId}`,
+          properties: {
+            gym_id: (gymId as string) ?? null,
+            amount_cents: molliePayment.amount ? Math.round(parseFloat(molliePayment.amount.value) * 100) : 0,
+            currency: molliePayment.amount?.currency ?? 'EUR',
+            delivered: 'subscription',
+            credits_granted: 0,
+            // Premier prélèvement de la série, jamais un renouvellement.
+            is_renewal: false,
+            billing_type: plan?.billing_type ?? null,
+            duration_months: plan?.duration_months ?? null,
+            payment_method: molliePayment.method ?? null,
+          },
+        })
+
         const { data: profile } = await supabase
           .from('profiles').select('email, first_name, push_token').eq('id', memberId).single()
 
@@ -841,6 +866,33 @@ Deno.serve(async (req) => {
           return new Response('renewal payment write failed', { status: 503 })
         }
 
+        // 🔴 GYM-273 — `payment_completed`, RENOUVELLEMENT.
+        // C'est le cas que l'app ne pouvait PAS couvrir : un renouvellement n'a aucun
+        // écran, personne n'ouvre rien. Les 5 renouvellements des 45 derniers jours
+        // n'avaient donc produit aucun événement, et ne pouvaient pas en produire.
+        // Placé après le court-circuit `existingPayment?.status === 'paid'` (l. 816) et
+        // après l'écriture de la ligne de paiement.
+        await captureServerEvent({
+          event: 'payment_completed',
+          distinctId: memberId as string,
+          timestamp: (molliePayment.paidAt ?? new Date().toISOString()) as string,
+          dedupeSeed: `payment_completed:${molliePaymentId}`,
+          properties: {
+            gym_id: (gymId as string) ?? null,
+            amount_cents: molliePayment.amount ? Math.round(parseFloat(molliePayment.amount.value) * 100) : 0,
+            currency: molliePayment.amount?.currency ?? 'EUR',
+            delivered: 'subscription',
+            credits_granted: 0,
+            // 🔴 LA PROPRIÉTÉ QUI REND LA MÉTRIQUE JUSTE. Sans elle, un renouvellement se
+            // compterait comme une conversion — et le taux de conversion, qui est le but
+            // de tout ce lot, serait gonflé par des membres déjà acquis.
+            is_renewal: true,
+            billing_type: renewalPlan?.billing_type ?? null,
+            duration_months: renewalPlan?.duration_months ?? null,
+            payment_method: molliePayment.method ?? null,
+          },
+        })
+
         // Compteur d'échéances : increment NON idempotent en lui-même → mis à jour APRÈS le
         // paiement et journalisé sans 503 en cas d'erreur (un 503 ici rejouerait l'increment
         // au retry = double comptage).
@@ -849,12 +901,69 @@ Deno.serve(async (req) => {
         // reste néanmoins la bonne défense pour un échec PARTIEL de ce même passage.
         if (mollieSubscriptionId) {
           const { data: sub } = await supabase
-            .from('member_subscriptions').select('id, payments_count, max_payments')
+            // GYM-321 — `ends_at` est ajouté à la sélection : c'est LUI qui décide
+            // désormais du passage en `completed`, pas le seul compteur.
+            .from('member_subscriptions').select('id, payments_count, max_payments, ends_at')
             .eq('mollie_subscription_id', mollieSubscriptionId).maybeSingle()
 
           if (sub) {
             const nextCount = (sub.payments_count ?? 0) + 1
             const isFinal = sub.max_payments != null && nextCount >= sub.max_payments
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // 🔴 GYM-321 — LE COMPTEUR MOLLIE NE FERME PLUS LES DROITS. `ends_at` SEUL.
+            // ═══════════════════════════════════════════════════════════════════════
+            // `isFinal` dit que Mollie a fini de prélever. Il ne dit RIEN du terme, et
+            // l'audit a montré que les deux ne coïncident jamais : `max_payments` vaut
+            // `duration_months`, `payments_count` démarre à 1 (le checkout) et `times`
+            // vaut durée − 1 — la dernière échéance tombe donc à M+11 quand `ends_at`
+            // est à M+12. Écrire `completed` là privait CHAQUE membre de son dernier
+            // mois, `completed` ne figurant dans aucun prédicat d'accès
+            // (`ACCESS_SUBSCRIPTION_STATUSES`, `promote_waitlist_atomic`).
+            //
+            // ⚠️ CE N'EST PAS UN CORRECTIF D'INCIDENT. GYM-317 (calendrier avancé d'un
+            // mois pour six abonnements) a DOUBLÉ la perte pour ces six-là ; le défaut,
+            // lui, était structurel et touchait tout le monde.
+            //
+            // La ligne reste donc `active` tant qu'il reste du terme, et c'est
+            // `expire_subscriptions()` — cron horaire à :05, seul juge de `ends_at` —
+            // qui la passera `expired` le moment venu. Aucun droit n'est ouvert au
+            // passage : `notExpiredFilter()` refuse déjà tout accès au-delà de
+            // `ends_at`, quel que soit le statut.
+            const termeRestant = hasRemainingTerm(sub.ends_at)
+            const closesNow = isFinal && !termeRestant
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // 🔴 GYM-334 — LA PROCHAINE ÉCHÉANCE AVANCE ENFIN. ELLE NE L'A JAMAIS FAIT.
+            // ═══════════════════════════════════════════════════════════════════════
+            // `next_payment_at` n'était écrit qu'à la CRÉATION de l'abonnement, et mis à
+            // NULL au dernier prélèvement (GYM-321). Entre les deux, cette branche mettait
+            // à jour le compteur, le statut et les colonnes d'impayé — mais jamais la date
+            // de prochaine échéance, qui restait figée sur celle du PREMIER renouvellement.
+            //
+            // Le défaut existait sans conséquence visible : personne ne lisait cette
+            // colonne pour décider quoi que ce soit. Il devient bloquant aujourd'hui —
+            // la pré-notification SEPA se déclenche dessus. Sans cet avancement, UNE SEULE
+            // notification partirait par abonnement, et les échéances suivantes seraient
+            // prélevées sans aucun avis.
+            //
+            // ⚠️ MÊME MODULE QUE LA CRÉATION, ET C'EST LA CONDITION POUR QUE LES DEUX
+            // DATES CONCORDENT. `firstRenewalDate` compte les mois sur le CALENDRIER de la
+            // salle : la date écrite ici suit donc exactement la même règle que celle
+            // envoyée à Mollie en `startDate`, fins de mois et bascule d'heure comprises.
+            // Une seconde arithmétique aurait dérivé de la première au premier 31 du mois.
+            //
+            // ⚠️ LE FUSEAU EST RELU ICI. Une lecture de plus sur le chemin d'un
+            // renouvellement, pour une date qui commande un débit bancaire — le prix est
+            // dérisoire au regard d'une échéance annoncée au mauvais jour.
+            let prochaineEcheance: string | null = null
+            if (!isFinal) {
+              const { data: gymTzRenew } = await supabase
+                .from('nexxia_gyms').select('timezone').eq('id', gymId).maybeSingle()
+              const tzRenew = gymTzRenew?.timezone ?? 'Europe/Brussels'
+              const paidAtRenew = molliePayment.paidAt ? new Date(molliePayment.paidAt) : new Date()
+              prochaineEcheance = firstRenewalDate(paidAtRenew, tzRenew, 1)
+            }
             // GYM-252 — RÉACTIVATION AUTOMATIQUE. C'est ici, et nulle part ailleurs, que
             // se referme le cycle d'impayé : un prélèvement qui aboutit reprend le membre
             // là où il en était, sans geste du gérant ni du membre.
@@ -869,7 +978,35 @@ Deno.serve(async (req) => {
             // zéro explicite des quatre colonnes de suivi.
             const { error: subUpdError } = await supabase.from('member_subscriptions').update({
               payments_count: nextCount,
-              status: isFinal ? 'completed' : 'active',
+              status: closesNow ? 'completed' : 'active',
+              // ⚠️ PLUS D'ÉCHÉANCE À VENIR DÈS QUE MOLLIE A FINI — que la ligne se ferme
+              // maintenant ou attende son terme. Sans cela, le gérant lirait dans la fiche
+              // du membre une date de prélèvement qui ne viendra jamais : c'est le seul
+              // reproche fait à cette option, et il se règle ici.
+              //
+              // `isFinal` et NON `closesNow` : la question posée est « Mollie
+              // prélèvera-t-il encore ? », qui est bien celle du compteur — et sa réponse
+              // est non dans les deux cas, terme atteint ou pas.
+              //
+              // GYM-321 — plus d'échéance annoncée dès que Mollie a fini de prélever.
+              // GYM-334 — sinon, elle AVANCE (bloc de calcul ci-dessus).
+              //
+              // ⚠️ LA COLONNE EST DÉSORMAIS ÉCRITE À CHAQUE RENOUVELLEMENT, dans les deux
+              // branches. GYM-321 l'ajoutait par étalement pour ne pas la toucher hors du
+              // cas final — ce n'est plus le bon comportement : ne pas la toucher, c'est
+              // précisément ce qui la laissait figée sur la première échéance.
+              next_payment_at: isFinal ? null : prochaineEcheance,
+              // 🔴 GYM-334 — LA REMISE À NULL, DANS LA MÊME ÉCRITURE QUE L'AVANCEMENT.
+              // Les deux colonnes forment un couple : la pré-notification vaut pour UNE
+              // échéance, celle que `next_payment_at` désigne. Les séparer — deux UPDATE,
+              // ou une remise à zéro ailleurs — laisserait une fenêtre où la nouvelle
+              // échéance serait déjà posée et l'ancienne notification encore marquée
+              // comme envoyée : l'échéance suivante ne serait jamais annoncée.
+              //
+              // ⚠️ REMISE À NULL MÊME QUAND `isFinal`. Il n'y a alors plus d'échéance à
+              // notifier, et laisser une date d'envoi sur une ligne sans échéance ne
+              // décrirait plus rien.
+              prenotification_sent_at: null,
               payment_failed_at: null,
               payment_failed_count: 0,
               payment_suspended_at: null,

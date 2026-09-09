@@ -96,3 +96,71 @@ export function firstRenewalDate(paidAt: Date, timeZone: string, intervalMonths:
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${targetYear}-${pad(targetMonth)}-${pad(targetDay)}`
 }
+
+// ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+// ║  🔴 GYM-321 — LE TERME FAIT FOI, PAS LE COMPTEUR MOLLIE.                              ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+//
+// L'AUDIT GYM-321 a établi que `completed` tombe SYSTÉMATIQUEMENT un mois avant `ends_at` :
+// `max_payments` vaut `duration_months`, `payments_count` démarre à 1 (le checkout), et
+// `times` vaut durée − 1 — la dernière échéance est donc à M+11 quand `ends_at` est à M+12.
+// Comme `completed` n'est dans AUCUN prédicat d'accès, chaque abonnement perdait son
+// dernier mois de droits. GYM-317 n'a pas créé ce défaut, il l'a doublé pour six membres.
+//
+// Cette fonction est la seule chose que le correctif ajoute : `index.ts` ne pose plus
+// `completed` tant qu'il reste du terme.
+//
+// ⚠️ ELLE VIT ICI POUR ÊTRE ÉPROUVÉE, exactement comme `firstRenewalDate` : `index.ts`
+// appelle `Deno.serve()` au chargement, donc rien de ce qu'il contient n'est atteignable
+// par un banc. Voir `renewal-date_test.ts`.
+//
+// ─────────────────────────────────────────────────────────────────────────────────────
+// 🔴 POURQUOI CETTE COMPARAISON N'A PAS BESOIN DU FUSEAU DE LA SALLE
+// ─────────────────────────────────────────────────────────────────────────────────────
+// Le cadrage demandait de comparer « en heure locale de la salle, comme renewal-date.ts,
+// à cause du piège DST du 25/10 ». Le piège est réel, mais il ne porte pas ici, et la
+// distinction mérite d'être écrite parce qu'elle n'est pas évidente :
+//
+//   · `firstRenewalDate` FABRIQUE une date de calendrier (YYYY-MM-DD) en AJOUTANT des
+//     mois. C'est de l'arithmétique sur des composantes — année, mois, jour — et c'est
+//     là que le fuseau et la bascule d'heure décident du résultat.
+//
+//   · Ici, on ne fabrique rien et on n'ajoute rien : on COMPARE DEUX INSTANTS déjà
+//     déterminés, `ends_at` (timestamptz, lu en base) et l'instant courant. L'ordre de
+//     deux instants sur l'axe du temps est le MÊME dans tous les fuseaux. Aucune
+//     composante n'est lue, donc ni l'heure d'été ni l'écart UTC n'ont de prise.
+//
+// ⚠️ « PAS EN UTC BRUT » EST RESPECTÉ AU SENS OÙ LE MODULE L'ENTEND : ce qui est proscrit
+// plus haut, c'est de lire les COMPOSANTES UTC d'un instant (`getUTCMonth()` & co). On n'en
+// lit aucune.
+//
+// 🔴 ET C'EST LA MÊME COMPARAISON QUE PARTOUT AILLEURS, ce qui est l'argument décisif :
+// `expire_subscriptions()` teste `ends_at < now()` et `notExpiredFilter()` teste
+// `ends_at.gt.<instant>` — deux comparaisons d'instants. Employer ici une règle de
+// CALENDRIER aurait fait de ce site le seul à décider autrement du même terme, et aurait
+// pu écarter jusqu'à 24 h dans le sens qui COUPE LES DROITS TROP TÔT — c'est-à-dire
+// reproduire en miniature le défaut que ce lot corrige. Le fuseau aurait par ailleurs
+// coûté une lecture de `nexxia_gyms` sur le chemin de chaque renouvellement.
+
+/**
+ * Reste-t-il du terme après `at` ? `true` ⇒ des droits sont encore dus.
+ *
+ * ⚠️ LE REPLI EST `false`, DONC L'ANCIEN COMPORTEMENT. Sans terme lisible — colonne à
+ * `null`, ou date illisible — on ne peut pas affirmer qu'il reste des droits, et l'appelant
+ * écrit alors `completed` comme avant ce lot. C'est le sens conservateur : `ends_at` est
+ * la source de vérité, et une source muette ne fabrique pas de droits.
+ *
+ * ⚠️ ET C'EST AUSSI LE SEUL SENS SÛR pour `ends_at IS NULL`. `expire_subscriptions()` exige
+ * `ends_at IS NOT NULL` : une ligne sans terme laissée `active` ne serait JAMAIS clôturée
+ * par personne, et ouvrirait des droits perpétuels. Aucune ligne n'est dans ce cas en
+ * production (vérifié : 0 sur 7), mais la colonne est nullable et rien ne l'interdit.
+ */
+export function hasRemainingTerm(
+  endsAt: string | Date | null | undefined,
+  at: Date = new Date(),
+): boolean {
+  if (endsAt === null || endsAt === undefined || endsAt === '') return false
+  const t = endsAt instanceof Date ? endsAt.getTime() : Date.parse(endsAt)
+  if (Number.isNaN(t)) return false
+  return t > at.getTime()
+}
