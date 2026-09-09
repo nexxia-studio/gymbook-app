@@ -41,6 +41,12 @@ verify_jwt = false
 [functions.send-subscription-reminders]
 verify_jwt = false
 
+# GYM-334 — pré-notification SEPA, appelée par pg_cron (net.http_post avec
+# X-Internal-Secret, sans JWT) → JWT désactivé, comme les autres crons. L'authentification
+# réelle est la comparaison X-Internal-Secret faite en tête de la fonction.
+[functions.send-sepa-prenotifications]
+verify_jwt = false
+
 [functions.send-noshow-notification]
 verify_jwt = false
 

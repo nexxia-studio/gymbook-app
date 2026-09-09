@@ -932,6 +932,38 @@ Deno.serve(async (req) => {
             // `ends_at`, quel que soit le statut.
             const termeRestant = hasRemainingTerm(sub.ends_at)
             const closesNow = isFinal && !termeRestant
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // 🔴 GYM-334 — LA PROCHAINE ÉCHÉANCE AVANCE ENFIN. ELLE NE L'A JAMAIS FAIT.
+            // ═══════════════════════════════════════════════════════════════════════
+            // `next_payment_at` n'était écrit qu'à la CRÉATION de l'abonnement, et mis à
+            // NULL au dernier prélèvement (GYM-321). Entre les deux, cette branche mettait
+            // à jour le compteur, le statut et les colonnes d'impayé — mais jamais la date
+            // de prochaine échéance, qui restait figée sur celle du PREMIER renouvellement.
+            //
+            // Le défaut existait sans conséquence visible : personne ne lisait cette
+            // colonne pour décider quoi que ce soit. Il devient bloquant aujourd'hui —
+            // la pré-notification SEPA se déclenche dessus. Sans cet avancement, UNE SEULE
+            // notification partirait par abonnement, et les échéances suivantes seraient
+            // prélevées sans aucun avis.
+            //
+            // ⚠️ MÊME MODULE QUE LA CRÉATION, ET C'EST LA CONDITION POUR QUE LES DEUX
+            // DATES CONCORDENT. `firstRenewalDate` compte les mois sur le CALENDRIER de la
+            // salle : la date écrite ici suit donc exactement la même règle que celle
+            // envoyée à Mollie en `startDate`, fins de mois et bascule d'heure comprises.
+            // Une seconde arithmétique aurait dérivé de la première au premier 31 du mois.
+            //
+            // ⚠️ LE FUSEAU EST RELU ICI. Une lecture de plus sur le chemin d'un
+            // renouvellement, pour une date qui commande un débit bancaire — le prix est
+            // dérisoire au regard d'une échéance annoncée au mauvais jour.
+            let prochaineEcheance: string | null = null
+            if (!isFinal) {
+              const { data: gymTzRenew } = await supabase
+                .from('nexxia_gyms').select('timezone').eq('id', gymId).maybeSingle()
+              const tzRenew = gymTzRenew?.timezone ?? 'Europe/Brussels'
+              const paidAtRenew = molliePayment.paidAt ? new Date(molliePayment.paidAt) : new Date()
+              prochaineEcheance = firstRenewalDate(paidAtRenew, tzRenew, 1)
+            }
             // GYM-252 — RÉACTIVATION AUTOMATIQUE. C'est ici, et nulle part ailleurs, que
             // se referme le cycle d'impayé : un prélèvement qui aboutit reprend le membre
             // là où il en était, sans geste du gérant ni du membre.
@@ -956,11 +988,25 @@ Deno.serve(async (req) => {
               // prélèvera-t-il encore ? », qui est bien celle du compteur — et sa réponse
               // est non dans les deux cas, terme atteint ou pas.
               //
-              // ⚠️ CLÉ AJOUTÉE PAR ÉTALEMENT, ET NON `next_payment_at: undefined`. Les deux
-              // marchent — `JSON.stringify` laisse tomber les `undefined` — mais la seconde
-              // forme fait dépendre le comportement d'un détail de sérialisation invisible
-              // à la lecture. Hors du cas final, la colonne n'est pas touchée du tout.
-              ...(isFinal ? { next_payment_at: null } : {}),
+              // GYM-321 — plus d'échéance annoncée dès que Mollie a fini de prélever.
+              // GYM-334 — sinon, elle AVANCE (bloc de calcul ci-dessus).
+              //
+              // ⚠️ LA COLONNE EST DÉSORMAIS ÉCRITE À CHAQUE RENOUVELLEMENT, dans les deux
+              // branches. GYM-321 l'ajoutait par étalement pour ne pas la toucher hors du
+              // cas final — ce n'est plus le bon comportement : ne pas la toucher, c'est
+              // précisément ce qui la laissait figée sur la première échéance.
+              next_payment_at: isFinal ? null : prochaineEcheance,
+              // 🔴 GYM-334 — LA REMISE À NULL, DANS LA MÊME ÉCRITURE QUE L'AVANCEMENT.
+              // Les deux colonnes forment un couple : la pré-notification vaut pour UNE
+              // échéance, celle que `next_payment_at` désigne. Les séparer — deux UPDATE,
+              // ou une remise à zéro ailleurs — laisserait une fenêtre où la nouvelle
+              // échéance serait déjà posée et l'ancienne notification encore marquée
+              // comme envoyée : l'échéance suivante ne serait jamais annoncée.
+              //
+              // ⚠️ REMISE À NULL MÊME QUAND `isFinal`. Il n'y a alors plus d'échéance à
+              // notifier, et laisser une date d'envoi sur une ligne sans échéance ne
+              // décrirait plus rien.
+              prenotification_sent_at: null,
               payment_failed_at: null,
               payment_failed_count: 0,
               payment_suspended_at: null,
