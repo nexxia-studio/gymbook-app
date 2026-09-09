@@ -97,6 +97,37 @@ Deno.serve(async (req) => {
       return errorResponse(403, 'Paiements en ligne non disponibles sur votre plan Viniz', 'PLAN_PAYMENTS_DISABLED')
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-121 — LA SALLE PEUT-ELLE ENCAISSER LÉGALEMENT ?
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Règle et raisonnement complets dans `create-payment` et dans la migration GYM-121.
+    // Elle est ici aussi parce qu'un ABONNEMENT engage plus loin qu'un paiement unique :
+    // un mandat SEPA signé au profit d'une salle sans identité légale prélèvera tous les
+    // mois au nom de personne.
+    //
+    // ⚠️ MÊME RPC, MÊME CODE, MÊME STATUT que create-payment. Deux refus rédigés
+    // séparément pour la même cause donneraient deux messages au membre selon l'écran par
+    // lequel il passe — c'est exactement ce que `SUBSCRIPTION_PAST_DUE_MESSAGE` a dû
+    // centraliser en GYM-252.
+    const { data: champsManquants, error: legalErr } = await supabaseAdmin
+      .rpc('gym_legal_identity_missing', { p_gym_id: gymId })
+
+    if (legalErr) {
+      console.error('[create-subscription] gym_legal_identity_missing failed:', legalErr.message)
+      return errorResponse(503, 'Vérification impossible — réessayez dans un instant', 'LEGAL_IDENTITY_CHECK_FAILED')
+    }
+
+    const manquants = (champsManquants ?? []) as string[]
+    if (manquants.length > 0) {
+      console.warn('[create-subscription] vente refusée — identité légale incomplète, gym', gymId, manquants)
+      return jsonResponse({
+        error: true,
+        code: 'GYM_LEGAL_IDENTITY_INCOMPLETE',
+        message: "Cette salle ne peut pas encore encaisser de paiement : ses informations légales de facturation sont incomplètes. Contacte ta salle.",
+        missing_fields: manquants,
+      }, 409)
+    }
+
     // Résolution autoritative du plan (gym_plans = source de vérité).
     const plan = await resolvePlan(supabaseAdmin, gymId, planId)
     if (!plan) return errorResponse(404, 'Formule introuvable', 'PLAN_NOT_FOUND')

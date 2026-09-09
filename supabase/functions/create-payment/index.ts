@@ -94,6 +94,55 @@ Deno.serve(async (req) => {
       return errorResponse(403, 'Paiements en ligne non disponibles sur votre plan Viniz', 'PLAN_PAYMENTS_DISABLED')
     }
 
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 🔴 GYM-121 — LA SALLE PEUT-ELLE ENCAISSER LÉGALEMENT ?
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Une salle née du wizard self-serve a ses colonnes légales à NULL — mesuré sur Pace,
+    // qui n'a AUCUN des six champs. Sans cette garde, elle vend avec des CGV au nom de
+    // personne et émet des factures sans mention de TVA.
+    //
+    // La règle vit dans `gym_legal_identity_missing()` (migration GYM-121), qui porte la
+    // MÊME liste que `REQUIRED_LEGAL_FIELDS` du dashboard (GYM-265) plus la mention de
+    // franchise. Un second prédicat écrit ici aurait divergé du premier au premier ajout.
+    //
+    // ⚠️ CODE DÉDIÉ ET LISTE DES CHAMPS — C'EST LA LEÇON DE GYM-259. Deux semaines perdues
+    // parce qu'« échec côté prestataire » masquait une absence de connexion Mollie. Un
+    // refus qui ne dit pas quoi faire coûte plus cher que pas de refus du tout.
+    //
+    // ⚠️ 409 ET NON 403. Ce n'est pas un droit qui manque au membre — c'est un ÉTAT de la
+    // salle qui empêche la vente. 403 se lirait comme « tu n'as pas le droit », et le
+    // membre chercherait de son côté un problème qui n'est pas le sien.
+    //
+    // ⚠️ PLACÉ AVANT TOUT APPEL MOLLIE, comme la garde de plan juste au-dessus : aucun
+    // paiement n'est créé chez le prestataire pour une vente qu'on va refuser.
+    //
+    // ⚠️ null / erreur = PANNE, JAMAIS « incomplet ». Une base indisponible ne doit pas se
+    // lire comme une salle non conforme : on refuse en 503 retryable, comme le fait déjà
+    // la résolution de plan. Bloquer une salle conforme sur une panne serait pire que le
+    // trou qu'on bouche.
+    const { data: champsManquants, error: legalErr } = await supabaseAdmin
+      .rpc('gym_legal_identity_missing', { p_gym_id: gymId })
+
+    if (legalErr) {
+      console.error('[create-payment] gym_legal_identity_missing failed:', legalErr.message)
+      return errorResponse(503, 'Vérification impossible — réessayez dans un instant', 'LEGAL_IDENTITY_CHECK_FAILED')
+    }
+
+    const manquants = (champsManquants ?? []) as string[]
+    if (manquants.length > 0) {
+      console.warn('[create-payment] vente refusée — identité légale incomplète, gym', gymId, manquants)
+      // Le message s'adresse au MEMBRE, qui est l'appelant : il doit comprendre que le
+      // blocage ne vient pas de lui, et savoir vers qui se tourner. Le détail actionnable
+      // (`missing_fields`) part dans la charge utile pour le gérant, le support et Sentry.
+      return jsonResponse({
+        error: true,
+        code: 'GYM_LEGAL_IDENTITY_INCOMPLETE',
+        message: "Cette salle ne peut pas encore encaisser de paiement : ses informations légales de facturation sont incomplètes. Contacte ta salle.",
+        missing_fields: manquants,
+      }, 409)
+    }
+
     // Résolution autoritative du plan (gym_plans = source de vérité).
     const plan = await resolvePlan(supabaseAdmin, gymId, planId)
     if (!plan) return errorResponse(404, 'Formule introuvable', 'PLAN_NOT_FOUND')
