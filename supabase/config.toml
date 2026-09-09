@@ -34,6 +34,13 @@ verify_jwt = false
 [functions.send-reminders]
 verify_jwt = false
 
+# GYM-116 — rappels d'échéance d'abonnement, appelés par pg_cron (net.http_post avec
+# X-Internal-Secret, sans JWT) → JWT désactivé, comme send-reminders juste au-dessus.
+# L'authentification réelle est la comparaison X-Internal-Secret faite en tête de la
+# fonction.
+[functions.send-subscription-reminders]
+verify_jwt = false
+
 [functions.send-noshow-notification]
 verify_jwt = false
 
