@@ -38,7 +38,16 @@ export const EDITEUR: LegalEditor = {
   exploitant: 'Antoine Monie',
   statut: 'personne physique (indépendant)',
   bce: 'BE 1024.997.119',
-  // ⚠️ ADRESSE À CHANGER LE 01/09/2026 → « Rue Moraifosse 12, 4802 Heusy ».
+  // ⚠️ ADRESSE À CHANGER QUAND LA DOMICILIATION BCE PASSE À HEUSY — mi-octobre 2026
+  // → « Rue Moraifosse 12, 4802 Heusy ».
+  //
+  // 🔴 LA VALEUR CI-DESSOUS EST CORRECTE ET NE DOIT PAS ÊTRE CHANGÉE AVANT CETTE DATE.
+  // Le commentaire annonçait « le 01/09/2026 » : cette date est PASSÉE et était fausse.
+  // Une date fausse dans un commentaire finit par être appliquée — quelqu'un aurait
+  // corrigé l'adresse en pensant rattraper un oubli, et les documents légaux auraient
+  // porté une domiciliation que la BCE ne connaissait pas encore. Le déclencheur est le
+  // changement effectif à la BCE, pas une date écrite ici (audit juridique du 09/09).
+  //
   // C'est UNE seule valeur à modifier, ICI, et les trois documents légaux (CGU, CGV,
   // politique de confidentialité), en français comme en anglais, suivent automatiquement.
   // Ne PAS la recopier dans un texte : toute occurrence en dur est un futur mensonge.

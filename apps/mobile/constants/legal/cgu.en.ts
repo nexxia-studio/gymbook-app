@@ -112,5 +112,5 @@ Any change to these terms is brought to the members' attention via the applicati
 
 ### 15. Governing law and disputes
 
-These terms are governed by Belgian law. In the event of a dispute, the member may use the Consumer Mediation Service (mediationconsommateur.be) or the European online dispute resolution platform (ec.europa.eu/odr). Failing an amicable resolution, the courts of the district of **Liège** have jurisdiction, without prejudice to the mandatory rules of jurisdiction.
+These terms are governed by Belgian law. In the event of a dispute, the member may use the Consumer Mediation Service (mediationconsommateur.be). Failing an amicable resolution, jurisdiction is determined by the applicable statutory rules, including the consumer-protection rules which allow the member to bring proceedings before the court of their own domicile.
 `

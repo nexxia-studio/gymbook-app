@@ -48,7 +48,8 @@ Les informations médicales sont une **catégorie particulière de données** (R
 
 - **Compte actif** : tant que votre compte existe.
 - **Suppression de compte** (disponible dans l'app, Profil → Supprimer mon compte) : vos données personnelles sont **anonymisées immédiatement** (nom, email, téléphone, adresse, photo remplacés), vos données de santé **effacées**, et votre connexion définitivement désactivée. Votre adresse email redevient utilisable pour un nouveau compte.
-- **Données comptables** (paiements, factures) : conservées **7 ans** sous forme dissociée de votre identité, conformément aux obligations comptables et fiscales belges.
+- **Données comptables et fiscales** (paiements, factures) : conservées **10 ans** à compter du 1er janvier de l'année qui suit l'exercice concerné, conformément aux délais applicables en matière de TVA et d'impôt sur les revenus (loi du 20 novembre 2022, en vigueur depuis le 1er janvier 2023). Les livres et journaux comptables relèvent quant à eux d'un délai de **7 ans** au titre du droit comptable.
+- **Ces pièces conservent votre identité**, et nous ne pouvons pas l'en retirer : une facture doit désigner son client pour avoir une valeur probante. Elles ne sont utilisées à aucune autre fin que le respect de ces obligations légales et leur accès est restreint.
 - **Historique de réservations** : conservé sous forme anonymisée à des fins statistiques pour la salle (taux de remplissage), sans lien avec votre identité.
 
 ## 6. Qui a accès à vos données ?
@@ -57,16 +58,23 @@ Les informations médicales sont une **catégorie particulière de données** (R
 
 **Nos sous-traitants techniques**, chacun limité à sa fonction :
 
-- **Supabase** — Hébergement de la base de données et de l'infrastructure · Union européenne (Paris, France).
-- **Mollie B.V.** — Traitement des paiements (Pays-Bas, agréé DNB) · UE.
-- **Resend** — Envoi des emails transactionnels · Union européenne (Irlande).
-- **Expo / Apple** — Acheminement des notifications push · UE/États-Unis (clauses contractuelles types).
+- **Supabase** — Hébergement de la base de données et de l'infrastructure · Traite l'ensemble des données de compte, d'utilisation, de paiement et de santé · Union européenne (Paris, France).
+- **Mollie B.V.** — Traitement des paiements · Traite l'identité de facturation et les données de transaction ; seul destinataire de vos données bancaires (Pays-Bas, agréé DNB) · UE.
+- **Resend** — Envoi des emails transactionnels · Traite votre adresse email, votre prénom et le contenu du message · Union européenne (Irlande).
+- **Vercel Inc.** — Hébergement du tableau de bord destiné à votre salle · Traite, à l'affichage, les données de compte, de réservation et de paiement des membres de la salle · États-Unis (clauses contractuelles types).
+- **PostHog Inc.** — Mesure d'usage de l'application, à des fins d'amélioration du produit · Traite un identifiant technique de compte et des événements d'usage (écrans consultés, actions) ; **aucune donnée de santé, aucun contenu de message** · Hébergement dans l'Union européenne (Allemagne) ; éditeur établi aux États-Unis (clauses contractuelles types).
+- **Functional Software Inc. (Sentry)** — Journalisation des erreurs techniques, pour diagnostiquer les pannes · Traite un identifiant technique de compte et le contexte technique de l'erreur · Ingestion dans l'Union européenne (Allemagne) ; éditeur établi aux États-Unis (clauses contractuelles types).
+- **Expo / Apple** — Acheminement des notifications push · Traite un jeton d'appareil et le contenu de la notification · UE/États-Unis (clauses contractuelles types).
+
+**Connexion via Google ou Apple** (facultative) : si vous choisissez ce mode de connexion, Google Ireland Ltd ou Apple Inc. nous transmet votre adresse email et votre nom. Ces sociétés agissent alors comme **responsables de traitement autonomes** pour l'authentification — elles ne sont pas nos sous-traitantes — et leurs propres politiques de confidentialité s'appliquent à cette étape.
 
 Nous ne **vendons ni ne louons** vos données à personne. Aucune donnée n'est transmise à des tiers à des fins publicitaires.
 
 ## 7. Transferts hors Union européenne
 
-Vos données sont hébergées et traitées dans l'Union européenne (base de données à Paris, emails en Irlande). Seul l'acheminement des notifications push transite par les infrastructures d'Expo et d'Apple, susceptibles de traiter des identifiants techniques aux États-Unis ; ces transferts sont encadrés par les mécanismes prévus au chapitre V du RGPD (clauses contractuelles types, EU-US Data Privacy Framework le cas échéant).
+Vos données sont hébergées et traitées dans l'Union européenne : base de données à Paris, emails en Irlande, mesure d'usage et journalisation des erreurs en Allemagne.
+
+Certains prestataires sont toutefois établis aux **États-Unis** et sont susceptibles d'y accéder dans le cadre de leur exploitation : **Vercel** (hébergement du tableau de bord), **PostHog** et **Sentry** (dont l'hébergement reste européen), ainsi qu'**Expo** et **Apple** pour l'acheminement des notifications push. Ces transferts sont encadrés par les mécanismes prévus au chapitre V du RGPD (clauses contractuelles types, EU-US Data Privacy Framework le cas échéant).
 
 ## 8. Vos droits
 
