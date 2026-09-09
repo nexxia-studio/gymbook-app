@@ -2,14 +2,17 @@
 // ║  GYM-116 (VOLET 2) — RAPPELS D'ÉCHÉANCE D'ABONNEMENT                                  ║
 // ╚═══════════════════════════════════════════════════════════════════════════════════════╝
 //
-// Appelée par pg_cron toutes les heures via X-Internal-Secret, exactement comme
-// `send-reminders` (GYM-32) dont cette fonction est le décalque : même garde en tête,
-// même RPC de balayage, mêmes caches locaux, même marquage après envoi, mêmes erreurs
-// isolées par élément.
+// Appelée par pg_cron toutes les heures via X-Internal-Secret, sur le motif de
+// `send-reminders` (GYM-32) : même garde de secret en tête, même RPC de balayage, mêmes
+// caches locaux, même marquage après envoi, mêmes erreurs isolées par élément.
 //
-// 🔴 CE QUI DIFFÈRE, ET C'EST TOUT : le sujet du rappel. Un cours a lieu dans 24 h ; un
+// 🔴 CE QUI DIFFÈRE — LE SUJET, ET UNE CONSÉQUENCE. Un cours a lieu dans 24 h ; un
 // abonnement se TERMINE, et il ne se reconduit pas tout seul — l'audit GYM-321 l'a établi.
 // Sans ce courrier, un membre perd son accès sans avoir jamais été prévenu.
+//
+// La conséquence est que LA GARDE DE PLAN NE COUVRE PAS LES DEUX CANAUX ICI, contrairement
+// à `send-reminders` : l'email part toujours, le push reste gardé. Le raisonnement complet
+// est à l'endroit où la règle s'applique, dans la boucle d'envoi.
 //
 // ⚠️ L'HEURE D'ENVOI N'EST PAS DÉCIDÉE ICI. Le cron passe toutes les heures et
 // `get_pending_subscription_reminders()` ne rend des lignes qu'à 10 h LOCALE de la salle
@@ -236,31 +239,48 @@ Deno.serve(async (req) => {
     let envoyes = 0
     for (const r of (rappels ?? []) as PendingSubscriptionReminder[]) {
       try {
-        // ── GYM-246 — garde serveur : notifications, par salle ──────────────────────
-        // Reprise mot pour mot de `send-reminders`. Un cron ne 403 pas, il passe son
-        // tour, et le rappel n'est PAS marqué envoyé : rien n'est parti, et si la salle
-        // repasse sur un plan qui les autorise avant la fin de la fenêtre, il partira.
-        const autorise = await notificationsAllowed(supabase, r.gym_id)
-        if (autorise === null) {
-          // Panne de résolution : ne JAMAIS laisser passer, ne JAMAIS lire comme un refus.
-          console.error('[send-subscription-reminders] plan resolution failed, gym', r.gym_id, '— rappel reporté')
-          continue
-        }
-        if (!autorise) {
-          console.log('[plan-gate] notifications off, gym', r.gym_id)
-          continue
-        }
-
         const langue = langueDe(r.preferred_language)
 
-        // Email D'ABORD : c'est le canal qui atteint un membre sans l'app — le cas que ce
-        // lot doit couvrir. Le push complète, il ne remplace pas.
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔴 L'EMAIL PART TOUJOURS. LE PUSH EST GARDÉ. LES DEUX CANAUX DIVERGENT ICI.
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Un rappel d'échéance n'est PAS du confort : c'est un acte de gestion du
+        // contrat, et en droit belge une obligation d'information avant reconduction
+        // (art. VI.91 CDE). Une salle en plan Free doit le recevoir — le gating
+        // commercial ne peut pas décider si un membre est informé de la fin de son
+        // engagement.
+        //
+        // ⚠️ C'EST UNE DIVERGENCE DÉLIBÉRÉE D'AVEC `send-reminders`, dont ce fichier est
+        // par ailleurs le décalque. Là-bas, la garde couvre les DEUX canaux, et c'est
+        // cohérent : un rappel de cours est un service de confort. Ici le sujet est le
+        // contrat, pas le cours — la même garde n'a pas le même sens.
+        //
+        // Le push, lui, reste du confort : le gating par plan y garde tout son sens.
         await envoyerEmail(supabase, r, langue)
-        await envoyerPush(supabaseUrl, serviceKey, r, langue)
+
+        // ── GYM-246 — garde serveur : le PUSH seulement, par salle ─────────────────
+        // `null` = résolution du plan ÉCHOUÉE. On ne pousse pas — on ne peut pas
+        // affirmer que c'est permis — mais on ne reporte plus le rappel pour autant :
+        // reporter reporterait l'EMAIL, qui doit partir. Le push est alors perdu pour ce
+        // jalon, et c'est le moindre mal : l'information est passée par l'email.
+        const autorise = await notificationsAllowed(supabase, r.gym_id)
+        if (autorise === null) {
+          console.error('[send-subscription-reminders] plan resolution failed, gym', r.gym_id, '— push omis, email envoyé')
+        } else if (!autorise) {
+          console.log('[plan-gate] push off, gym', r.gym_id, '— email envoyé')
+        } else {
+          await envoyerPush(supabaseUrl, serviceKey, r, langue)
+        }
 
         // ⚠️ MARQUÉ APRÈS L'ENVOI, ET SEULEMENT ICI. C'est ce qui garantit qu'un rappel ne
         // part jamais deux fois — la fenêtre du jalon dure plusieurs jours et le cron
         // repasse toutes les heures.
+        //
+        // ⚠️ LE JALON EST MARQUÉ SUR L'EMAIL, PAS SUR LE PUSH. C'est lui le canal qui
+        // porte l'obligation d'information, et lui qui ne doit jamais partir deux fois.
+        // Un push manqué (plan restreint, résolution en panne, pas de jeton) ne rejoue
+        // donc pas le rappel : il enverrait un second courrier identique pour rattraper
+        // une notification de confort.
         await supabase.rpc('mark_subscription_reminder_sent', {
           p_subscription_id: r.subscription_id,
           p_reminder_type: r.reminder_type,
