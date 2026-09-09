@@ -48,7 +48,8 @@ Medical information is a **special category of data** (GDPR art. 9). Our safegua
 
 - **Active account**: for as long as your account exists.
 - **Account deletion** (available in the app, Profile → Delete my account): your personal data is **anonymised immediately** (name, email, phone, address, photo replaced), your health data **erased**, and your login permanently disabled. Your email address becomes usable again for a new account.
-- **Accounting data** (payments, invoices): kept for **7 years** in a form dissociated from your identity, in accordance with Belgian accounting and tax obligations.
+- **Accounting and tax data** (payments, invoices): kept for **10 years** from 1 January of the year following the financial year concerned, in accordance with the retention periods applicable to VAT and income tax (Belgian Act of 20 November 2022, in force since 1 January 2023). Accounting books and journals are subject to a **7-year** period under accounting law.
+- **These records keep your identity, and we cannot strip it from them**: an invoice must identify its customer to have evidential value. They are used for no purpose other than compliance with these legal obligations, and access to them is restricted.
 - **Booking history**: kept in anonymised form for statistical purposes for the gym (occupancy rates), with no link to your identity.
 
 ## 6. Who has access to your data?
@@ -57,16 +58,23 @@ Medical information is a **special category of data** (GDPR art. 9). Our safegua
 
 **Our technical sub-processors**, each limited to its function:
 
-- **Supabase** — Database and infrastructure hosting · European Union (Paris, France).
-- **Mollie B.V.** — Payment processing (Netherlands, DNB-licensed) · EU.
-- **Resend** — Sending of transactional emails · European Union (Ireland).
-- **Expo / Apple** — Delivery of push notifications · EU/United States (standard contractual clauses).
+- **Supabase** — Database and infrastructure hosting · Processes all account, usage, payment and health data · European Union (Paris, France).
+- **Mollie B.V.** — Payment processing · Processes billing identity and transaction data; sole recipient of your banking details (Netherlands, DNB-licensed) · EU.
+- **Resend** — Sending of transactional emails · Processes your email address, first name and the message content · European Union (Ireland).
+- **Vercel Inc.** — Hosting of the dashboard used by your gym · Processes, on display, the account, booking and payment data of that gym's members · United States (standard contractual clauses).
+- **PostHog Inc.** — Product usage measurement, for improvement purposes · Processes a technical account identifier and usage events (screens viewed, actions); **no health data, no message content** · Hosted in the European Union (Germany); provider established in the United States (standard contractual clauses).
+- **Functional Software Inc. (Sentry)** — Technical error logging, to diagnose failures · Processes a technical account identifier and the technical context of the error · Ingested in the European Union (Germany); provider established in the United States (standard contractual clauses).
+- **Expo / Apple** — Delivery of push notifications · Processes a device token and the notification content · EU/United States (standard contractual clauses).
+
+**Sign in with Google or Apple** (optional): if you choose this sign-in method, Google Ireland Ltd or Apple Inc. passes us your email address and name. Those companies then act as **independent controllers** for the authentication step — they are not our sub-processors — and their own privacy policies apply to it.
 
 We do **not sell or rent** your data to anyone. No data is shared with third parties for advertising purposes.
 
 ## 7. Transfers outside the European Union
 
-Your data is hosted and processed in the European Union (database in Paris, emails in Ireland). Only the delivery of push notifications transits through the infrastructures of Expo and Apple, which may process technical identifiers in the United States; these transfers are governed by the mechanisms provided in Chapter V of the GDPR (standard contractual clauses, EU-US Data Privacy Framework where applicable).
+Your data is hosted and processed in the European Union: database in Paris, emails in Ireland, usage measurement and error logging in Germany.
+
+Some providers are, however, established in the **United States** and may access the data as part of operating their service: **Vercel** (dashboard hosting), **PostHog** and **Sentry** (whose hosting remains European), as well as **Expo** and **Apple** for push notification delivery. These transfers are governed by the mechanisms provided in Chapter V of the GDPR (standard contractual clauses, EU-US Data Privacy Framework where applicable).
 
 ## 8. Your rights
 
