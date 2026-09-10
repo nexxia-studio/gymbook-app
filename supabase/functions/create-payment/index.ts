@@ -4,6 +4,8 @@ import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
+// GYM-336 — lecture SERVEUR de la demande d'exécution anticipée (art. VI.53, 1° CDE).
+import { readEarlyPerformanceConsent } from '../_shared/early-performance.ts'
 import {
   findPurchaseBlockingSubscription,
   isPaymentIssue,
@@ -21,6 +23,11 @@ interface PaymentRequest {
   gym_id: string
   plan_id: string
   redirect_url: string
+  // GYM-336 — OPTIONNELS À DESSEIN : les binaires mobiles déjà en circulation ne les
+  // envoient pas, et un achat sans demande expresse reste parfaitement valable (il laisse
+  // au membre son droit de rétractation entier). Voir _shared/early-performance.ts.
+  early_performance_consent?: boolean
+  early_performance_consent_version?: string
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -63,6 +70,12 @@ Deno.serve(async (req) => {
     // amount / payment_type éventuellement présents sont totalement ignorés.
     const body = await req.json() as PaymentRequest
     const { gym_id: gymId, plan_id: planId, redirect_url: redirectUrl } = body
+
+    // GYM-336 — La preuve est calculée ICI, à partir du body, et posée dans le MÊME INSERT
+    // que la commande (plus bas). L'app n'envoie qu'une intention ; l'horodatage vient de
+    // l'horloge du serveur. Aucun chemin ne permet au client d'écrire cette valeur
+    // lui-même : la RLS de `payments` ne lui accorde qu'un SELECT.
+    const earlyPerformance = readEarlyPerformanceConsent(body as unknown as Record<string, unknown>)
 
     if (!gymId || typeof gymId !== 'string') return errorResponse(400, 'gym_id requis', 'MISSING_GYM_ID')
     if (!planId || typeof planId !== 'string') return errorResponse(400, 'plan_id requis', 'MISSING_PLAN_ID')
@@ -369,6 +382,9 @@ Deno.serve(async (req) => {
         credits_granted: creditsGranted,
         status: 'pending',
         nexxia_fee: feeValue > 0 ? feeValue : null,
+        // GYM-336 — la demande d'exécution anticipée naît avec l'achat ou pas du tout :
+        // même INSERT, donc aucune fenêtre où la commande existerait sans sa preuve.
+        ...earlyPerformance,
       })
 
     if (insertError) {
