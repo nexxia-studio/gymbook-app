@@ -23,6 +23,14 @@
 // migration to timestamp the proof). Art. B4 therefore does NOT presume it — that was the
 // defect. It rests on the VI.53, 12° exclusion, which requires no declaration from the
 // member, and states plainly that absent an express request the refund is IN FULL.
+//
+// 🔴 C1.4 is an OBLIGATION OF RESULT, not the description of a mechanism — same lesson as
+// point 3. A first draft announced subscriptions "suspended, no instalment collected". That
+// mechanism DOES NOT EXIST: `paused` is merely a value allowed by the member_subscriptions
+// CHECK, nothing ever writes it (the freeze is GYM-190, never shipped), and no code path
+// halts SEPA debits. The article therefore states the RESULT owed to the member — they do
+// not pay for a period in which they cannot attend — and leaves the Club the choice of
+// means. Implementation may be manual. Exit threshold: 30 consecutive days, not two months.
 import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
 
 export const cguEn = `# Terms & Conditions
@@ -192,9 +200,11 @@ C1.1. Neither party answers for the non-performance of its obligations where tha
 
 C1.2. The party prevented informs the other as soon as possible and does what is reasonably within its power to limit the effects.
 
-C1.3. **Effects on purchased services.** If classes cannot be held for this reason, debited sessions are **re-credited** and ongoing subscriptions are **suspended** for the duration of the impediment, their term being postponed accordingly; no instalment is collected during the suspension. If the impediment lasts more than **two months**, either party may bring the subscription to an end, sums paid in advance for the subsequent period being refunded pro rata within **14 days**.
+C1.3. **Purchased sessions.** If classes cannot be held for this reason, debited sessions are **re-credited**.
 
-C1.4. Force majeure does not excuse payment of any sum already due before it arose.
+C1.4. **Subscriptions.** The member **does not bear the cost of a period during which the impediment deprives them of access**. The Club accounts for this, at its choice, either by **extending the subscription at no extra charge** for an equivalent duration or by **refunding** the corresponding portion, and informs the member of the option chosen. If the impediment lasts more than **30 consecutive days**, either party may bring the subscription to an end; sums paid in advance for the subsequent period are then refunded within **14 days**.
+
+C1.5. Force majeure does not excuse payment of any sum already due before it arose, without prejudice to Article C1.4.
 
 ### C2. Changes to these terms
 

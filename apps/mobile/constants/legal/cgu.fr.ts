@@ -42,6 +42,22 @@
 // défaut relevé. Il s'appuie sur l'exclusion VI.53, 12°, qui ne demande aucune déclaration
 // du membre, et dit explicitement que sans demande expresse le remboursement est INTÉGRAL.
 // Quand la case sera livrée, c'est B4.4 qui accueillera la clause de renonciation.
+//
+// 🔴 C1.4 EST UN ENGAGEMENT DE RÉSULTAT, PAS LA DESCRIPTION D'UN MÉCANISME — et c'est la
+// même leçon que le point 3. Une première rédaction annonçait des abonnements « suspendus,
+// aucune mensualité prélevée pendant la suspension ». CE MÉCANISME N'EXISTE PAS : le statut
+// `paused` n'est qu'une valeur autorisée par le CHECK de member_subscriptions, RIEN NE
+// L'ÉCRIT nulle part (le gel est GYM-190, jamais livré — la migration GYM-191 le dit
+// elle-même), et aucun chemin de code n'interrompt les prélèvements SEPA. C'était refaire
+// mot pour mot l'erreur des données de santé : promettre un dispositif que le code ne tient
+// pas. L'article dit donc le RÉSULTAT dû au membre — il ne paie pas une période où il ne
+// peut pas venir — et laisse au Club le choix du moyen (prolongation ou remboursement).
+// La mise en œuvre peut être manuelle ; le texte est vrai aujourd'hui, et le jour où
+// GYM-190 existera il n'y aura rien à réécrire.
+//
+// SEUIL DE SORTIE À 30 JOURS CONSÉCUTIFS, et non deux mois : sur un abonnement de 3 mois,
+// deux mois de fermeture, c'est les deux tiers de la période perdus avant de pouvoir
+// sortir. Trente jours est protecteur et reste cohérent avec toutes les durées de plan.
 import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
 
 export const cguFr = `# Conditions générales
@@ -211,9 +227,11 @@ C1.1. Aucune des parties ne répond de l'inexécution de ses obligations lorsqu'
 
 C1.2. La partie empêchée en informe l'autre dans les meilleurs délais et met en œuvre ce qui est raisonnablement en son pouvoir pour en limiter les effets.
 
-C1.3. **Effets sur les prestations achetées.** Si des cours ne peuvent être dispensés pour cette raison, les séances décomptées sont **re-créditées** et les abonnements en cours sont **suspendus** pour la durée de l'empêchement, leur terme étant reporté d'autant ; aucune mensualité n'est prélevée pendant la suspension. Si l'empêchement se prolonge au-delà de **deux mois**, chacune des parties peut mettre fin à l'abonnement, les sommes payées d'avance au titre de la période postérieure étant remboursées au prorata dans les **14 jours**.
+C1.3. **Séances achetées.** Si des cours ne peuvent être dispensés pour cette raison, les séances décomptées sont **re-créditées**.
 
-C1.4. La force majeure ne dispense du paiement d'aucune somme déjà exigible avant sa survenance.
+C1.4. **Abonnements.** Le membre **ne supporte pas le coût d'une période pendant laquelle l'empêchement le prive de l'accès**. Le Club en tient compte, à son choix, par une **prolongation sans supplément** de l'abonnement pour une durée équivalente ou par le **remboursement** de la part correspondante, et informe le membre de l'option retenue. Si l'empêchement se prolonge au-delà de **30 jours consécutifs**, chacune des parties peut mettre fin à l'abonnement ; les sommes payées d'avance au titre de la période postérieure sont alors remboursées dans les **14 jours**.
+
+C1.5. La force majeure ne dispense du paiement d'aucune somme déjà exigible avant sa survenance, sans préjudice de l'article C1.4.
 
 ### C2. Modifications des présentes conditions
 
