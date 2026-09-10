@@ -3,6 +3,12 @@
 // the source's internal appendices are NEVER reproduced here).
 // Faithful translation of the frozen FR text — same article structure. Source tables
 // (art. 3, art. 6) rendered as lists (the MarkdownText renderer has no table support).
+//
+// 🔴 GYM-333b (point 3) — art. 4 is in the conditional: see the French file for the full
+// reasoning. The medical_notes table and activities.requires_medical_check exist, nothing
+// writes them, and no encryption routine exists — the processing is PROVIDED FOR, NEVER
+// ACTIVATED. Only the erasure-on-account-deletion guarantee stays in the indicative: it is
+// the one the deployed code keeps (delete-account/index.ts:192).
 import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
 
 export const privacyEn = `# Privacy Policy
@@ -26,7 +32,7 @@ For any question about your data: **support@viniz.app** or directly with your gy
 
 **Payment data**: amount, plan purchased, date, status and transaction reference. **Your banking details (card, IBAN) never pass through our systems**: they are handled exclusively by our payment provider Mollie (see art. 6).
 
-**Health data (optional)**: if you or your gym record medical information (conditions, activity restrictions, medical certificate), it is **encrypted** in our databases and accessible only to your gym's authorised staff. See art. 4.
+**Health data**: the application provides for your gym to be able to record medical information (conditions, activity restrictions, medical certificate). **This feature is not active today and no health data is collected.** Were your gym to activate it, the regime described in art. 4 would apply.
 
 **Technical data**: your device's push notification identifier, last-connection timestamp. The application collects **no geolocation data** and includes **no advertising trackers**.
 
@@ -37,12 +43,18 @@ For any question about your data: **support@viniz.app** or directly with your gy
 - **Service-related notifications (spot freed up, class reminders, confirmations)** — Performance of the contract.
 - **Enforcement of gym rules (no-show, penalties, suspension)** — Legitimate interest of the gym.
 - **Marketing communications** — Consent (dedicated opt-in, withdrawable at any time).
-- **Health data** — Explicit consent (GDPR art. 9.2.a).
+- **Health data**, if your gym activates this feature (art. 4) — Explicit consent (GDPR art. 9.2.a).
 - **Platform security (technical logs)** — Legitimate interest of the publisher.
 
 ## 4. Health data — enhanced protection
 
-Medical information is a **special category of data** (GDPR art. 9). Our safeguards: it is **optional**, **encrypted** in the database (notes and conditions are never stored in clear text), accessible only to your gym's authorised staff, never used for any purpose other than your safety during classes, and **permanently erased** when your account is deleted (it is not kept in anonymised form). If your gym requires a medical certificate for certain activities, it is kept with its expiry date and subject to the same protections.
+**This feature is not active.** The application provides for a gym to be able to record medical information — conditions, activity restrictions, medical certificate. To date, no gym has activated it, no health data is stored, and no activity requires a medical check. This article describes the regime that would apply **if your gym activated this feature**.
+
+Medical information is a **special category of data** (GDPR art. 9). It would be **optional** and subject to your **explicit consent**; it would be **encrypted** in the database (notes and conditions never stored in clear text), accessible only to your gym's authorised staff, and used for no purpose other than your safety during classes. A medical certificate would be kept with its expiry date and subject to the same protections.
+
+You would be informed in the application before any activation, and the retention period would be specified to you at that time.
+
+**One guarantee applies today**, without waiting for that activation: deleting your account permanently erases any health data that may have been recorded, with no retention in anonymised form (art. 5).
 
 ## 5. How long do we keep your data?
 
@@ -58,7 +70,7 @@ Medical information is a **special category of data** (GDPR art. 9). Our safegua
 
 **Our technical sub-processors**, each limited to its function:
 
-- **Supabase** — Database and infrastructure hosting · Processes all account, usage, payment and health data · European Union (Paris, France).
+- **Supabase** — Database and infrastructure hosting · Processes all account, usage and payment data, as well as health data were the art. 4 feature activated · European Union (Paris, France).
 - **Mollie B.V.** — Payment processing · Processes billing identity and transaction data; sole recipient of your banking details (Netherlands, DNB-licensed) · EU.
 - **Resend** — Sending of transactional emails · Processes your email address, first name and the message content · European Union (Ireland).
 - **Vercel Inc.** — Hosting of the dashboard used by your gym · Processes, on display, the account, booking and payment data of that gym's members · United States (standard contractual clauses).
@@ -91,7 +103,7 @@ We respond to any request within a maximum of one month.
 
 ## 9. Security
 
-Measures in place: encryption of communications (HTTPS/TLS), specific encryption of health data, per-gym data isolation at the database level (database access rules), secrets and payment tokens stored in an encrypted vault, passwords subject to a strength policy, access logging. As no system is infallible, we undertake to notify the DPA and the persons concerned in the event of a data breach under the conditions set out in Articles 33-34 of the GDPR.
+Measures in place: encryption of communications (HTTPS/TLS), per-gym data isolation at the database level (database access rules), secrets and payment tokens stored in an encrypted vault, passwords subject to a strength policy, access logging. The specific encryption of health data falls under article 4, whose feature is not active today. As no system is infallible, we undertake to notify the DPA and the persons concerned in the event of a data breach under the conditions set out in Articles 33-34 of the GDPR.
 
 ## 10. Minors
 

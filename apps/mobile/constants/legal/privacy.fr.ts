@@ -3,6 +3,26 @@
 // les annexes internes de la source ne sont JAMAIS reproduites ici).
 // Tableaux de la source (art. 3, art. 6) convertis en listes : le renderer MarkdownText ne
 // gère pas les tableaux.
+//
+// 🔴 GYM-333b (point 3) — L'ART. 4 EST AU CONDITIONNEL, ET CE N'EST PAS UNE PRÉCAUTION
+// DE STYLE. La table `medical_notes` existe (notes_encrypted, conditions_encrypted,
+// certificate_url, certificate_expires_at) et `activities.requires_medical_check` aussi,
+// mais RIEN NE LES ÉCRIT : aucune ligne en prod, aucun écran d'app ou de dashboard, aucune
+// routine de chiffrement. Le traitement est PRÉVU, JAMAIS ACTIVÉ. Le texte décrivait
+// pourtant un dispositif « en place » — donc six promesses invérifiables sur un traitement
+// inexistant. L'article est CONSERVÉ (la capacité existe, le membre doit la connaître) mais
+// il annonce désormais ce qui s'appliquerait « si votre salle active cette fonction ».
+//
+// ⚠️ UNE SEULE PROMESSE EST RESTÉE À L'INDICATIF, parce qu'elle est la seule que le code
+// tienne : l'effacement à la suppression du compte. delete-account/index.ts:192 supprime
+// medical_notes par member_id, sans condition. Elle est isolée en fin d'article, désignée
+// comme telle — mêler une garantie effective à des engagements futurs les aurait tous
+// affaiblis.
+//
+// ⚠️ AVANT TOUTE ACTIVATION, LA RLS DOIT ÊTRE REPRISE. Les policies de medical_notes
+// n'ouvrent l'accès qu'au membre lui-même et à `is_super_admin()` — c'est-à-dire NEXXIA.
+// Le personnel de la salle, à qui l'article promet l'accès exclusif, n'en a AUCUN. En
+// l'état, activer la fonction ferait mentir l'engagement dans les deux sens à la fois.
 import { LEGAL_VERSION, LEGAL_UPDATED_AT } from './meta'
 
 export const privacyFr = `# Politique de confidentialité
@@ -26,7 +46,7 @@ Pour toute question relative à vos données : **support@viniz.app** ou directem
 
 **Données de paiement** : montant, formule achetée, date, statut et référence de transaction. **Vos données bancaires (carte, IBAN) ne transitent jamais par nos systèmes** : elles sont traitées exclusivement par notre prestataire de paiement Mollie (voir art. 6).
 
-**Données de santé (facultatives)** : si vous ou votre salle renseignez des informations médicales (conditions, restrictions d'activité, certificat médical), celles-ci sont **chiffrées** dans nos bases et accessibles uniquement au personnel autorisé de votre salle. Voir art. 4.
+**Données de santé** : l'application prévoit que votre salle puisse recueillir des informations médicales (conditions, restrictions d'activité, certificat médical). **Cette fonction n'est pas active à ce jour et aucune donnée de santé n'est collectée.** Si votre salle l'activait, le régime décrit à l'art. 4 s'appliquerait.
 
 **Données techniques** : identifiant de notification push de votre appareil, horodatage de dernière connexion. L'application ne collecte **aucune donnée de géolocalisation** et n'intègre **aucun traceur publicitaire**.
 
@@ -37,12 +57,18 @@ Pour toute question relative à vos données : **support@viniz.app** ou directem
 - **Notifications liées au service (place libérée, rappels de cours, confirmations)** — Exécution du contrat.
 - **Application des règles de la salle (no-show, pénalités, suspension)** — Intérêt légitime de la salle.
 - **Communications marketing** — Consentement (case dédiée, retirable à tout moment).
-- **Données de santé** — Consentement explicite (RGPD art. 9.2.a).
+- **Données de santé**, si votre salle active cette fonction (art. 4) — Consentement explicite (RGPD art. 9.2.a).
 - **Sécurité de la plateforme (journaux techniques)** — Intérêt légitime de l'éditeur.
 
 ## 4. Données de santé — protection renforcée
 
-Les informations médicales sont une **catégorie particulière de données** (RGPD art. 9). Notre dispositif : elles sont **facultatives**, **chiffrées** dans la base de données (les notes et conditions ne sont jamais stockées en clair), accessibles uniquement au personnel habilité de votre salle, jamais utilisées à d'autres fins que votre sécurité pendant les cours, et **définitivement effacées** lors de la suppression de votre compte (elles ne sont pas conservées sous forme anonymisée). Si votre salle requiert un certificat médical pour certaines activités, celui-ci est conservé avec sa date d'expiration et soumis aux mêmes protections.
+**Cette fonction n'est pas active.** L'application prévoit la possibilité, pour une salle, de recueillir des informations médicales — conditions, restrictions d'activité, certificat médical. À ce jour, aucune salle ne l'a activée, aucune donnée de santé n'est enregistrée et aucune activité n'exige de contrôle médical. Le présent article décrit le régime qui s'appliquerait **si votre salle activait cette fonction**.
+
+Les informations médicales sont une **catégorie particulière de données** (RGPD art. 9). Elles seraient **facultatives** et soumises à votre **consentement explicite** ; elles seraient **chiffrées** dans la base de données (notes et conditions jamais stockées en clair), accessibles au seul personnel habilité de votre salle, et ne seraient utilisées à aucune autre fin que votre sécurité pendant les cours. Un certificat médical serait conservé avec sa date d'expiration et soumis aux mêmes protections.
+
+Vous seriez informé dans l'application avant toute activation, et la durée de conservation vous serait précisée à ce moment.
+
+**Une garantie s'applique dès aujourd'hui**, sans attendre cette activation : la suppression de votre compte efface définitivement toute donnée de santé qui aurait été enregistrée, sans conservation sous forme anonymisée (art. 5).
 
 ## 5. Combien de temps conservons-nous vos données ?
 
@@ -58,7 +84,7 @@ Les informations médicales sont une **catégorie particulière de données** (R
 
 **Nos sous-traitants techniques**, chacun limité à sa fonction :
 
-- **Supabase** — Hébergement de la base de données et de l'infrastructure · Traite l'ensemble des données de compte, d'utilisation, de paiement et de santé · Union européenne (Paris, France).
+- **Supabase** — Hébergement de la base de données et de l'infrastructure · Traite l'ensemble des données de compte, d'utilisation et de paiement, ainsi que les données de santé si la fonction de l'art. 4 était activée · Union européenne (Paris, France).
 - **Mollie B.V.** — Traitement des paiements · Traite l'identité de facturation et les données de transaction ; seul destinataire de vos données bancaires (Pays-Bas, agréé DNB) · UE.
 - **Resend** — Envoi des emails transactionnels · Traite votre adresse email, votre prénom et le contenu du message · Union européenne (Irlande).
 - **Vercel Inc.** — Hébergement du tableau de bord destiné à votre salle · Traite, à l'affichage, les données de compte, de réservation et de paiement des membres de la salle · États-Unis (clauses contractuelles types).
@@ -91,7 +117,7 @@ Nous répondons à toute demande dans un délai maximum d'un mois.
 
 ## 9. Sécurité
 
-Mesures en place : chiffrement des communications (HTTPS/TLS), chiffrement spécifique des données de santé, cloisonnement des données par salle au niveau de la base (règles d'accès en base de données), secrets et jetons de paiement stockés dans un coffre-fort chiffré, mots de passe soumis à une politique de robustesse, journalisation des accès. Aucun système n'étant infaillible, nous nous engageons à notifier l'APD et les personnes concernées en cas de violation de données dans les conditions prévues aux articles 33-34 du RGPD.
+Mesures en place : chiffrement des communications (HTTPS/TLS), cloisonnement des données par salle au niveau de la base (règles d'accès en base de données), secrets et jetons de paiement stockés dans un coffre-fort chiffré, mots de passe soumis à une politique de robustesse, journalisation des accès. Le chiffrement spécifique des données de santé relève de l'article 4, dont la fonction n'est pas active à ce jour. Aucun système n'étant infaillible, nous nous engageons à notifier l'APD et les personnes concernées en cas de violation de données dans les conditions prévues aux articles 33-34 du RGPD.
 
 ## 10. Mineurs
 
