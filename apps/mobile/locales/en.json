@@ -567,6 +567,15 @@
       "SUBSCRIPTION_PAST_DUE": "Your membership has a payment awaiting settlement: a new one cannot be taken out for now."
     }
   },
+  "early_performance": {
+    "title": "Before you pay",
+    "summary_one_time": "{{plan}} — {{price}}, paid immediately.",
+    "summary_recurring": "{{plan}} — {{price}} per instalment, by SEPA direct debit.",
+    "consent_label": "I request that the service begin immediately, before the end of the 14-day withdrawal period. I acknowledge that I lose my right of withdrawal once it has been fully performed and that, if I withdraw while it is being performed, I must pay for the part already provided.",
+    "legal_hint": "This request is recorded with your purchase. See article B4 of the",
+    "legal_link": "terms and conditions",
+    "confirm": "Confirm and pay"
+  },
   "subscription": {
     "title": "My subscription",
     "active_badge": "✓ Active",

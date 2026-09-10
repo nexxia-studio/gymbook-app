@@ -567,6 +567,15 @@
       "SUBSCRIPTION_PAST_DUE": "Ton abonnement a un paiement en attente de régularisation : impossible d'en souscrire un nouveau pour l'instant."
     }
   },
+  "early_performance": {
+    "title": "Avant de payer",
+    "summary_one_time": "{{plan}} — {{price}}, paiement immédiat.",
+    "summary_recurring": "{{plan}} — {{price}} par mensualité, par domiciliation SEPA.",
+    "consent_label": "Je demande que la prestation commence immédiatement, avant la fin du délai de rétractation de 14 jours. Je reconnais perdre mon droit de rétractation lorsqu'elle aura été pleinement exécutée et, si je me rétracte en cours d'exécution, devoir payer la part déjà fournie.",
+    "legal_hint": "Cette demande est enregistrée avec votre achat. Voir l'article B4 des",
+    "legal_link": "conditions générales",
+    "confirm": "Confirmer et payer"
+  },
   "subscription": {
     "title": "Mon abonnement",
     "active_badge": "✓ Actif",

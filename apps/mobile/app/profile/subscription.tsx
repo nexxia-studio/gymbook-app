@@ -21,6 +21,7 @@ import {
   isSubscriptionActive,
   isSubscriptionCompleted,
 } from '../../lib/subscription'
+import { PurchaseConsentSheet } from '../../components/payments/PurchaseConsentSheet'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 
@@ -164,6 +165,10 @@ export default function SubscriptionScreen() {
   const [activeCredits, setActiveCredits] = useState<ActiveCredits | null>(null)
   const [loading, setLoading] = useState(true)
   const [payingId, setPayingId] = useState<string | null>(null)
+  // GYM-336 — la formule choisie, en attente de la demande d'exécution anticipée. `null`
+  // = aucune feuille ouverte. Elle porte le plan ENTIER et non son id : la feuille affiche
+  // le nom et le prix de ce que le membre est en train d'accepter.
+  const [pendingPlan, setPendingPlan] = useState<GymPlan | null>(null)
 
   const loadSubscription = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -282,18 +287,30 @@ export default function SubscriptionScreen() {
     )
   }, [activeSub, loadSubscription, t])
 
-  const handleSelectPlan = useCallback(async (plan: GymPlan) => {
+  // GYM-336 — TAPER UNE FORMULE N'ACHÈTE PLUS. Le geste ouvre la feuille de consentement ;
+  // c'est elle, et elle seule, qui déclenche le checkout. Le contrôle du gym_id reste ICI :
+  // ouvrir une feuille de consentement pour un achat qui échouerait de toute façon ferait
+  // cocher au membre une case sans objet.
+  const handleSelectPlan = useCallback((plan: GymPlan) => {
     if (payingId) return // anti double-tap global
     if (!gymId) {
       Alert.alert(t('payments.error_title'), t('payments.errors.MISSING_FIELDS'))
       return
     }
+    setPendingPlan(plan)
+  }, [payingId, gymId, t])
+
+  // GYM-336 — appelé UNIQUEMENT par la feuille, donc uniquement case cochée : le CTA y est
+  // verrouillé tant qu'elle ne l'est pas. `earlyPerformanceConsent: true` n'est pas une
+  // valeur de commodité — c'est la transcription de ce que le membre vient de faire.
+  const runCheckout = useCallback(async (plan: GymPlan) => {
+    if (!gymId) return
     setPayingId(plan.id)
     try {
       const result = plan.billingType === 'one_time'
-        ? await startOneTimeCheckout(plan.id, { gymId })
+        ? await startOneTimeCheckout(plan.id, { gymId, earlyPerformanceConsent: true })
         : userId
-          ? await startSubscriptionCheckout(plan.id, { gymId, memberId: userId })
+          ? await startSubscriptionCheckout(plan.id, { gymId, memberId: userId, earlyPerformanceConsent: true })
           : ({ ok: false, code: 'UNAUTHORIZED' } as const)
 
       if (result.ok) {
@@ -303,22 +320,30 @@ export default function SubscriptionScreen() {
         // app). Le deep link n'est plus qu'un raccourci. On passe le payment_id Mollie (connu
         // ici) ; l'écran poll `payments` par mollie_payment_id à défaut du row id du deep link.
         // Récurrent : pas de ligne `payments` à poller → on garde le comportement existant.
+        // ⚠️ LA FEUILLE SE FERME AVANT LA NAVIGATION ET AVANT LE NAVIGATEUR. La laisser
+        // ouverte superposerait une modale à l'écran de vérification, et le membre
+        // reviendrait du checkout Mollie sur une case à cocher déjà honorée.
+        setPendingPlan(null)
         if (plan.billingType === 'one_time' && result.paymentId) {
           router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }
         await openCheckout(result.checkoutUrl)
         return
       }
+      // Échec : la feuille se ferme aussi — le message d'erreur porte sur l'achat, pas sur
+      // le consentement, et le membre doit pouvoir relire les formules derrière l'alerte.
+      setPendingPlan(null)
       const info = mapPaymentError(result.code)
       if (info.refetch) refetch()
       Alert.alert(t('payments.error_title'), t(info.messageKey))
     } catch (err) {
       console.error('[Payment] threw:', err)
+      setPendingPlan(null)
       Alert.alert(t('payments.error_title'), t('payments.errors.FALLBACK'))
     } finally {
       setPayingId(null)
     }
-  }, [payingId, gymId, userId, refetch, t, router])
+  }, [gymId, userId, refetch, t, router])
 
   // GYM-94 — règles d'achat :
   //  - one_time (cumul LIBRE) : toujours achetable, SAUF abonnement actif (accès illimité).
@@ -543,6 +568,24 @@ export default function SubscriptionScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* GYM-336 — la feuille de consentement. Montée hors du ScrollView (c'est une modale)
+          et rendue conditionnellement : `pendingPlan` non nul est la seule façon de
+          l'ouvrir, et `runCheckout` la seule chose qu'elle puisse déclencher. */}
+      {pendingPlan && (
+        <PurchaseConsentSheet
+          visible
+          plan={{
+            name: pendingPlan.name,
+            priceCents: pendingPlan.priceCents,
+            currency: pendingPlan.currency,
+            billingType: pendingPlan.billingType,
+          }}
+          busy={payingId === pendingPlan.id}
+          onCancel={() => setPendingPlan(null)}
+          onConfirm={() => runCheckout(pendingPlan)}
+        />
+      )}
     </SafeAreaView>
   )
 }

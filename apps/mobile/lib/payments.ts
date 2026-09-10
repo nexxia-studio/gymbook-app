@@ -2,10 +2,16 @@
 // Contrats backend v24 (déployés) :
 //  - create-payment      : body { gym_id, plan_id (UUID), redirect_url } → { success, payment_id, checkout_url }
 //  - create-subscription : body { gym_id, member_id, plan_id (UUID), redirect_url } → { success, payment_id, customer_id, checkout_url }
+//
+// GYM-336 — les deux bodies portent en plus `early_performance_consent` (booléen) et
+// `early_performance_consent_version`. LE CLIENT N'ENVOIE QU'UNE INTENTION : c'est le
+// serveur qui date la demande et l'écrit dans `payments`. Voir
+// supabase/functions/_shared/early-performance.ts.
 import * as WebBrowser from 'expo-web-browser'
 import i18n from './i18n'
 import { captureEvent } from './analytics'
 import { tryEdgeInvoke } from './edgeInvoke'
+import { EARLY_PERFORMANCE_CONSENT_VERSION } from '../constants/earlyPerformance'
 
 // GYM-89 — Les paiements MEMBRES (one-time + abonnement) reviennent sur la page membre
 // dédiée, et NON sur /mollie/callback (réservé au flux OAuth gérant).
@@ -109,6 +115,28 @@ export function mapPaymentError(code?: string): PaymentErrorInfo {
   }
 }
 
+/**
+ * GYM-336 — Traduit la décision du membre en paramètres de body.
+ *
+ * ⚠️ LE FLAG EST TOUJOURS ENVOYÉ, `false` COMPRIS. Un `false` explicite dit « cette app
+ * sait poser la question, et le membre n'a pas demandé » ; l'ABSENCE du champ dit « cette
+ * app ne sait pas encore poser la question ». Le serveur enregistre NULL dans les deux cas
+ * — la situation juridique est identique — mais la distinction reste lisible dans les
+ * journaux et dans l'événement `payment_initiated`, ce qui permet de suivre l'extinction
+ * des binaires anciens sans rien ajouter au schéma.
+ *
+ * ⚠️ LA VERSION N'ACCOMPAGNE QUE LE `true`. Certifier un libellé que le membre n'a pas
+ * accepté n'aurait aucun sens.
+ */
+function consentBody(requested: boolean): Record<string, unknown> {
+  return requested
+    ? {
+        early_performance_consent: true,
+        early_performance_consent_version: EARLY_PERFORMANCE_CONSENT_VERSION,
+      }
+    : { early_performance_consent: false }
+}
+
 export type CheckoutResult =
   | { ok: true; checkoutUrl: string; paymentId?: string }
   | { ok: false; code?: string }
@@ -128,7 +156,13 @@ async function invokeCheckout(fn: string, body: Record<string, unknown>): Promis
   if (res.ok && res.data?.success && res.data?.checkout_url) {
     // payment_initiated — chokepoint unique des 2 flux (create-payment / create-subscription),
     // émis à l'obtention du checkout Mollie (achat effectivement lancé).
-    captureEvent('payment_initiated', { kind: fn })
+    // GYM-336 — le flag rejoint l'événement : il n'y a AUCUNE colonne à interroger pour
+    // savoir combien d'achats partent encore sans demande expresse, et cette question se
+    // posera tant que des binaires anciens circuleront.
+    captureEvent('payment_initiated', {
+      kind: fn,
+      early_performance: body.early_performance_consent === true,
+    })
     return { ok: true, checkoutUrl: res.data.checkout_url, paymentId: res.data.payment_id }
   }
 
@@ -141,25 +175,27 @@ async function invokeCheckout(fn: string, body: Record<string, unknown>): Promis
 /** Achat à l'unité (one-time) → create-payment v24. */
 export async function startOneTimeCheckout(
   planId: string,
-  opts: { gymId: string; redirectUrl?: string },
+  opts: { gymId: string; redirectUrl?: string; earlyPerformanceConsent: boolean },
 ): Promise<CheckoutResult> {
   return invokeCheckout('create-payment', {
     gym_id: opts.gymId,
     plan_id: planId,
     redirect_url: opts.redirectUrl ?? await buildPaymentReturnUrl('one_time'),
+    ...consentBody(opts.earlyPerformanceConsent),
   })
 }
 
 /** Abonnement récurrent → create-subscription v24 (member_id = utilisateur courant). */
 export async function startSubscriptionCheckout(
   planId: string,
-  opts: { gymId: string; memberId: string; redirectUrl?: string },
+  opts: { gymId: string; memberId: string; redirectUrl?: string; earlyPerformanceConsent: boolean },
 ): Promise<CheckoutResult> {
   return invokeCheckout('create-subscription', {
     gym_id: opts.gymId,
     member_id: opts.memberId,
     plan_id: planId,
     redirect_url: opts.redirectUrl ?? await buildPaymentReturnUrl('subscription'),
+    ...consentBody(opts.earlyPerformanceConsent),
   })
 }
 

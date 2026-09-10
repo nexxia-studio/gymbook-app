@@ -13,6 +13,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useBookingStore } from '../../stores/useBookingStore'
 import { useGymPlans } from '../../hooks/useGymPlans'
+import { PurchaseConsentBody } from '../payments/PurchaseConsentSheet'
 import {
   formatPrice,
   mapPaymentError,
@@ -41,6 +42,15 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // GYM-336 — la feuille a désormais DEUX ÉTAPES. Le drop-in est un achat à distance : il
+  // doit recueillir la demande d'exécution anticipée comme n'importe quel autre.
+  //
+  // ⚠️ UNE ÉTAPE, PAS UNE SECONDE MODALE. Ce composant EST déjà un `Modal` ; en empiler un
+  // second n'est pratiqué nulle part dans l'app et ses défauts de dismiss sur iOS ne se
+  // voient qu'à l'exécution — or l'app est gelée pour la QA. Le CONSENTEMENT, lui, reste
+  // partagé : `PurchaseConsentBody` est le même composant que celui de la feuille montée
+  // par profile/subscription.tsx, donc la même phrase, le même verrou, la même version.
+  const [step, setStep] = useState<'options' | 'consent'>('options')
 
   // Plans dérivés de gym_plans (fini les prix en dur)
   const dropInPlan = creditPlans
@@ -64,13 +74,26 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     }
   }, [])
 
+  // ⚠️ RETOUR À L'ÉTAPE DES OPTIONS À CHAQUE OUVERTURE. Sans cela, un membre qui ferme la
+  // feuille sur l'étape de consentement la rouvrirait dessus, sans avoir rechoisi son
+  // achat. (La case elle-même se remet à zéro dans PurchaseConsentBody, qui est démonté
+  // avec l'étape — les deux garanties sont indépendantes, et c'est voulu.)
+  useEffect(() => {
+    if (visible) {
+      setStep('options')
+      setDropInError(null)
+    }
+  }, [visible])
+
   // GYM-94 QA — les CTA abonnement/carnet ouvrent la page des FORMULES, pas l'historique.
   const goToSubscription = () => {
     onClose()
     router.push('/profile/subscription')
   }
 
-  const handleDropIn = async () => {
+  // GYM-336 — les gardes restent AVANT la case : faire cocher un consentement pour un
+  // achat qui échouerait de toute façon serait lui faire signer dans le vide.
+  const handleDropIn = () => {
     if (!gymId || !slotId || !memberId) {
       Alert.alert(t('common.error'), t('payment_required.errors.no_gym'))
       return
@@ -79,18 +102,31 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       Alert.alert(t('common.error'), t('payment_required.errors.no_plan'))
       return
     }
+    setDropInError(null)
+    setStep('consent')
+  }
+
+  // Appelé UNIQUEMENT depuis PurchaseConsentBody, dont le CTA est verrouillé tant que la
+  // case est vide : `earlyPerformanceConsent: true` transcrit un geste réel du membre.
+  const runDropIn = async () => {
+    if (!gymId || !slotId || !memberId || !dropInPlan) return
     setIsLoadingDropIn(true)
     setDropInError(null)
     try {
       const result = await startOneTimeCheckout(dropInPlan.id, {
         gymId,
         redirectUrl: await buildRedirectUrl('drop_in'),
+        earlyPerformanceConsent: true,
       })
 
       if (!result.ok) {
         const info = mapPaymentError(result.code)
         if (info.refetch) refetch()
         setIsLoadingDropIn(false)
+        // Retour aux options : l'échec porte sur l'achat, pas sur le consentement, et
+        // laisser le membre sur une case déjà cochée lui ferait croire qu'il doit la
+        // recocher pour réessayer.
+        setStep('options')
         Alert.alert(t('common.error'), t(info.messageKey))
         return
       }
@@ -125,6 +161,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       openCheckout(result.checkoutUrl)
     } catch (e) {
       console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
+      setStep('options')
       Alert.alert(t('common.error'), t('payments.errors.FALLBACK'))
       setIsLoadingDropIn(false)
     }
@@ -135,6 +172,20 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       <View className="flex-1 justify-end bg-black/50">
         {/* `bg-black/50` reste : un voile à 50 % n'est nommé par aucun jeton. */}
         <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
+          {step === 'consent' && dropInPlan ? (
+            <PurchaseConsentBody
+              plan={{
+                name: dropInPlan.name,
+                priceCents: dropInPlan.priceCents,
+                currency: dropInPlan.currency,
+                billingType: dropInPlan.billingType,
+              }}
+              busy={isLoadingDropIn}
+              onCancel={() => setStep('options')}
+              onConfirm={runDropIn}
+            />
+          ) : (
+          <>
           <View className="items-center">
             <View className="h-12 w-12 items-center justify-center rounded-2xl bg-move-accent/10">
               {/* 🔴 GYM-290 (A-1) — TRANCHÉ : un moyen de paiement n'est pas un succès,
@@ -231,6 +282,8 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
           <TouchableOpacity onPress={onClose} activeOpacity={0.7} className="mt-4 items-center py-3">
             <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('common.close')}</Text>
           </TouchableOpacity>
+          </>
+          )}
         </View>
       </View>
     </Modal>
