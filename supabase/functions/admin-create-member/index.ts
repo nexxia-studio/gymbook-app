@@ -292,6 +292,21 @@ Deno.serve(async (req) => {
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       email_confirm: true,
+      // 🔴 GYM-330 — AUCUN CONSENTEMENT ICI, ET C'EST DÉLIBÉRÉ. NE PAS « COMPLÉTER ».
+      //
+      // Il manque `terms_accepted`, `privacy_policy_accepted` et `legal_version` — les
+      // trois clés que `handle_new_user` transforme en terms_version /
+      // privacy_policy_version. C'est ce qui a produit les 50 profils sans consentement
+      // relevés en prod le 11/09. La tentation évidente est de les ajouter ici : ce serait
+      // un FAUX CONSENTEMENT.
+      //
+      // UN GÉRANT NE PEUT PAS CONSENTIR À LA PLACE DE SON MEMBRE. Il ne peut pas non plus
+      // attester qu'il lui a montré un texte. Le compte naît donc SANS consentement, et
+      // `LegalAcceptanceGate` (apps/mobile) le recueille à la première connexion — là où
+      // la personne concernée a le texte sous les yeux et coche elle-même.
+      //
+      // Le membre existe et peut être géré par la salle entre-temps ; il ne peut
+      // simplement rien FAIRE dans l'app avant d'avoir accepté.
       user_metadata: {
         first_name: firstName,
         last_name: lastName,

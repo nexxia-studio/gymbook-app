@@ -580,6 +580,17 @@
     "channel_default_name": "Réservations et rappels",
     "channel_default_description": "Places libérées, rappels de cours, confirmations et avertissements d'absence."
   },
+  "legal_gate": {
+    "title_first": "Conditions générales",
+    "title_update": "Conditions mises à jour",
+    "intro_first": "Avant de continuer, merci de prendre connaissance des conditions générales et de la politique de confidentialité de votre salle. Elles sont reproduites ci-dessous en intégralité.",
+    "intro_update": "Nos conditions générales et notre politique de confidentialité ont été mises à jour. Merci d'en prendre connaissance avant de continuer — le texte complet est reproduit ci-dessous.",
+    "checkbox": "J'ai lu et j'accepte les conditions générales et la politique de confidentialité.",
+    "accept": "Accepter et continuer",
+    "decline": "Refuser et se déconnecter",
+    "unavailable_title": "Vérification impossible",
+    "unavailable_body": "Nous n'avons pas pu vérifier votre acceptation des conditions. Vérifiez votre connexion et réessayez."
+  },
   "subscription": {
     "title": "Mon abonnement",
     "active_badge": "✓ Actif",

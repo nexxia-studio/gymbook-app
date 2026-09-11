@@ -18,6 +18,7 @@ import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug } from '../lib/
 import { reconcileActiveGym, activeGymNeedsRetry } from '../lib/activeGymSession'
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
+import { LegalAcceptanceGate } from '../components/legal/LegalAcceptanceGate'
 import '../lib/i18n'
 import '../global.css'
 
@@ -316,8 +317,18 @@ function RootLayout() {
         <StatusBar style="light" />
         {/* GYM-102 (3/5) — en mode `single` ce fournisseur rend la constante Dopamine au
             premier rendu, sans effet, sans requête et sans re-rendu : il est inerte. */}
+        {/* 🔴 GYM-330 — LA PORTE EST ICI, ET NULLE PART AILLEURS.
+            Tant que le consentement manque, `<Slot />` n'est PAS monté : il n'existe aucune
+            route à atteindre — ni onglets, ni planning, ni paiement, ni /session/<id>. Un
+            deep link, un tap sur notification ou une reprise de session ne contournent donc
+            rien, non parce qu'on les a énumérés, mais parce qu'il n'y a rien à ouvrir.
+            Une redirection dans un effet, elle, aurait laissé passer une frame de l'écran
+            visé — c'est-à-dire exactement les chemins par lesquels on contourne un écran.
+            Placée SOUS BrandThemeProvider : l'écran est brandé par la salle comme le reste. */}
         <BrandThemeProvider slug={brandSlug}>
-          <Slot />
+          <LegalAcceptanceGate>
+            <Slot />
+          </LegalAcceptanceGate>
         </BrandThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

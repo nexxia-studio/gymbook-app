@@ -367,6 +367,16 @@ Deno.serve(async (req) => {
       type: 'invite',
       email,
       options: {
+        // 🔴 GYM-330 — AUCUN CONSENTEMENT ICI NON PLUS, MÊME RAISON QU'EN
+        // admin-create-member : personne ne consent à la place de l'invité. 3 des 50
+        // profils sans consentement relevés en prod le 11/09 sont des gym_admin créés par
+        // ce chemin.
+        //
+        // ⚠️ MAIS LE RATTRAPAGE N'EST PAS LE MÊME, ET C'EST UN MANQUE CONNU : un compte
+        // d'équipe travaille sur le DASHBOARD, où aucun écran d'acceptation n'existe. La
+        // porte de GYM-330 est mobile. Ces trois comptes resteront donc sans consentement
+        // jusqu'à ce qu'un écran équivalent soit posé côté dashboard — signalé en PR, hors
+        // de ce lot.
         data: {
           first_name: firstName,
           last_name: lastName,

@@ -2,7 +2,6 @@ import type { User } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/react-native'
 import { supabase } from './supabase'
 import { GYM_MODE, FIXED_GYM_ID } from './gymResolver'
-import { LEGAL_VERSION } from '../constants/legal/meta'
 
 export const ADMIN_ACCOUNT_ERROR = 'ADMIN_ACCOUNT'
 
@@ -157,10 +156,16 @@ export async function ensureProfile(user: User): Promise<void> {
     role: 'member',
     gym_id: null,
     preferred_language: 'fr',
-    privacy_policy_accepted_at: new Date().toISOString(),
-    privacy_policy_version: LEGAL_VERSION,
-    terms_accepted_at: new Date().toISOString(),
-    terms_version: LEGAL_VERSION,
+    // 🔴 GYM-330 — LES QUATRE COLONNES DE CONSENTEMENT SONT RETIRÉES DE CET INSERT.
+    // Elles posaient `terms_version` / `privacy_policy_version` à la version courante et
+    // deux horodatages à l'heure du téléphone — sur un profil que PERSONNE n'a fait
+    // consentir. Ce chemin est atteint au LOGIN d'un compte sans profil, notamment par
+    // Apple/Google, où aucune case n'est jamais montrée : c'était un FAUX CONSENTEMENT,
+    // écrit par le client, qui faisait de surcroît sauter l'écran d'acceptation.
+    //
+    // Le profil naît donc SANS consentement, et `LegalAcceptanceGate` le recueille à la
+    // première connexion — même règle que pour les comptes créés par `admin-create-member`
+    // et `invite-team-member` : personne ne consent à la place du membre.
   })
   if (insertErr) {
     console.error('[ensureProfile] fallback insert failed', insertErr)
