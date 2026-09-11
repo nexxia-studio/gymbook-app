@@ -576,6 +576,10 @@
     "legal_link": "conditions générales",
     "confirm": "Confirmer et payer"
   },
+  "notifications": {
+    "channel_default_name": "Réservations et rappels",
+    "channel_default_description": "Places libérées, rappels de cours, confirmations et avertissements d'absence."
+  },
   "subscription": {
     "title": "Mon abonnement",
     "active_badge": "✓ Actif",

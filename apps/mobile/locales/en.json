@@ -576,6 +576,10 @@
     "legal_link": "terms and conditions",
     "confirm": "Confirm and pay"
   },
+  "notifications": {
+    "channel_default_name": "Bookings and reminders",
+    "channel_default_description": "Freed-up spots, class reminders, confirmations and absence warnings."
+  },
   "subscription": {
     "title": "My subscription",
     "active_badge": "✓ Active",
