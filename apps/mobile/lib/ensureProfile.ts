@@ -54,7 +54,10 @@ export async function healProfile(
   profile: { gym_id: string | null; first_name: string | null; last_name: string | null },
 ): Promise<void> {
   try {
-    const patch: { gym_id?: string; first_name?: string; last_name?: string } = {}
+    // ⚠️ PLUS DE `gym_id` DANS CE TYPE, ET C'EST VOLONTAIRE (GYM-338) : le rattachement
+    // passe par claim_app_gym. L'y remettre ferait recompiler un PATCH que le trigger
+    // refuse désormais — autant que le type l'interdise avant le serveur.
+    const patch: { first_name?: string; last_name?: string } = {}
 
     // GYM-289 — ⚠️ CE HEAL NE VAUT QU'EN MODE `single`, ET IL FAUT LE DIRE.
     //
@@ -67,9 +70,26 @@ export async function healProfile(
     // app vide, visible et réparable côté cockpit. Le réparer ici demanderait de savoir
     // quelle salle le membre a rejointe — information que seul le parcours d'inscription
     // multi-salles, encore à écrire, pourra fournir.
+    // 🔴 GYM-338 — LE RATTACHEMENT NE PASSE PLUS PAR CE PATCH. Il posait `gym_id` sans
+    // créer l'adhésion `member_gyms` — que le client ne peut PAS écrire (REVOKE + aucune
+    // policy) — et c'est le chemin des inscriptions Apple/Google, qui arrivent sans
+    // metadata : `handle_new_user` pose alors gym_id à NULL et ne crée rien non plus.
+    // C'était la source la plus volumineuse de la divergence.
+    //
+    // `claim_app_gym` fait les DEUX écritures dans une transaction, côté serveur, et
+    // refuse toute salle non marquée `dedicated_app_gym`. Le trigger `trg_gym_id_immutable`
+    // durci par le même lot refuse désormais ce PATCH : cette RPC n'est pas une
+    // amélioration de style, c'est la seule route restante.
     if (!profile.gym_id) {
       if (GYM_MODE === 'single' && FIXED_GYM_ID) {
-        patch.gym_id = FIXED_GYM_ID
+        const { error: claimErr } = await supabase.rpc('claim_app_gym', { p_gym_id: FIXED_GYM_ID })
+        if (claimErr) {
+          // Non bloquant, comme tout le heal — mais VISIBLE. Un échec ici (drapeau
+          // `dedicated_app_gym` non posé sur la salle du build, par exemple) laisse l'app
+          // vide : il doit remonter, pas disparaître dans un console.warn.
+          console.error('[heal] claim_app_gym failed (non-blocking)', claimErr)
+          Sentry.captureException(claimErr, { tags: { area: 'gym338_claim_app_gym' } })
+        }
       } else {
         console.warn(
           '[ensureProfile] Profil sans gym_id en mode multi : aucune réparation possible ' +
@@ -87,7 +107,8 @@ export async function healProfile(
       if (family) patch.last_name = family
     }
 
-    // Idempotence : rien à corriger.
+    // Idempotence : rien à corriger. ⚠️ `patch` ne porte plus que les NOMS depuis GYM-338 —
+    // le rattachement est parti par la RPC juste au-dessus, il n'a rien à faire ici.
     if (Object.keys(patch).length === 0) return
 
     const { error } = await supabase.from('profiles').update(patch).eq('id', user.id)
@@ -122,20 +143,39 @@ export async function ensureProfile(user: User): Promise<void> {
   const fullName = (user.user_metadata?.full_name as string) ?? ''
   const [firstName, ...lastNameParts] = fullName.split(' ')
 
-  await supabase.from('profiles').insert({
+  // 🔴 GYM-338 — LE PROFIL NAÎT SANS SALLE, ET LA SALLE ARRIVE PAR LA RPC.
+  // Cet INSERT posait `gym_id` directement : un profil rattaché sans adhésion, dès sa
+  // création. Le trigger `trg_gym_id_immutable` ne mord que sur UPDATE, donc rien ne
+  // l'arrêtait. On crée désormais le profil NU, puis `claim_app_gym` pose l'adhésion ET la
+  // salle en une transaction — le même chemin que le heal, pour que le chemin de secours
+  // ne soit pas le seul à savoir faire autrement.
+  const { error: insertErr } = await supabase.from('profiles').insert({
     id: user.id,
     email: user.email,
     first_name: firstName || (user.user_metadata?.first_name as string) || '',
     last_name: lastNameParts.join(' ') || (user.user_metadata?.last_name as string) || '',
     role: 'member',
-    // Même raison que le heal ci-dessus : en `multi`, aucune salle plutôt que la mauvaise.
-    gym_id: GYM_MODE === 'single' ? FIXED_GYM_ID : null,
+    gym_id: null,
     preferred_language: 'fr',
     privacy_policy_accepted_at: new Date().toISOString(),
     privacy_policy_version: LEGAL_VERSION,
     terms_accepted_at: new Date().toISOString(),
     terms_version: LEGAL_VERSION,
   })
+  if (insertErr) {
+    console.error('[ensureProfile] fallback insert failed', insertErr)
+    Sentry.captureException(insertErr, { tags: { area: 'gym338_fallback_insert' } })
+    return
+  }
+
+  // En `multi`, aucune salle plutôt que la mauvaise — inchangé.
+  if (GYM_MODE === 'single' && FIXED_GYM_ID) {
+    const { error: claimErr } = await supabase.rpc('claim_app_gym', { p_gym_id: FIXED_GYM_ID })
+    if (claimErr) {
+      console.error('[ensureProfile] claim_app_gym failed', claimErr)
+      Sentry.captureException(claimErr, { tags: { area: 'gym338_claim_app_gym' } })
+    }
+  }
 }
 
 /**
