@@ -414,10 +414,25 @@ Deno.serve(async (req) => {
     //    ⚠️ BLOQUANT, pas best-effort : un compte au rôle non scellé est un compte MAL
     //    FORMÉ. Mieux vaut échouer avant l'email que d'inviter quelqu'un à activer un
     //    accès qu'il n'aura pas.
-    const { error: sealErr } = await admin
-      .from('profiles')
-      .update({ role: requestedRole, gym_id: gymId })
-      .eq('id', invitedId)
+    //
+    //    🔴 GYM-338 — CET UPDATE EST DEVENU UN APPEL RPC, ET C'EST LA CORRECTION MÊME.
+    //    Il posait `gym_id` SANS créer la ligne `member_gyms` correspondante — et le
+    //    commentaire ci-dessus dit pourquoi c'était systématique : il s'exécute justement
+    //    dans le cas où le trigger d'inscription a REFUSÉ le rattachement au plafond
+    //    membre, c'est-à-dire là où `handle_new_user` n'a créé AUCUNE adhésion.
+    //    `attach_profile_to_gym` fait les deux écritures dans UNE transaction ; deux
+    //    appels PostgREST successifs ne le pourraient pas, et un échec entre les deux
+    //    laisserait exactement la divergence qu'on corrige.
+    //
+    //    ⚠️ COMPORTEMENT IDENTIQUE ICI : la RPC ne pose `gym_id` que s'il est NULL, mais
+    //    `invitedId` désigne toujours un compte NEUF (l. 388) — le cas « compte existant
+    //    dans une autre salle » est refusé bien plus haut, en 409 EMAIL_EXISTS (l. 267).
+    //    Le rôle, lui, est posé dans les deux cas.
+    const { error: sealErr } = await admin.rpc('attach_profile_to_gym', {
+      p_member_id: invitedId,
+      p_gym_id: gymId,
+      p_role: requestedRole,
+    })
 
     if (sealErr) {
       console.error('[invite-team-member] seal role/gym_id failed:', sealErr)
