@@ -199,6 +199,30 @@ const config = {
       },
       package: 'be.dopamineclub.app',
       edgeToEdgeEnabled: true,
+      // ── GYM-337 — FIREBASE / FCM. Sans cette ligne, AUCUN membre Android ne reçoit de
+      // notification : le fichier était déposé dans le dépôt mais référencé NULLE PART, et
+      // le plugin Gradle de Google n'a rien à lire au moment du build.
+      //
+      // 🔴 POSÉ UNE SEULE FOIS, DANS LE BLOC COMMUN — ET NON TROIS FOIS DANS LES VARIANTES.
+      // Le cockpit a enregistré les TROIS applications (be.dopamineclub.app, app.viniz,
+      // app.viniz.staging) dans UN SEUL projet Firebase (viniz-54637) : ce fichier porte
+      // donc les trois clients, et c'est le plugin Gradle qui choisit celui dont le
+      // `package_name` correspond à l'`applicationId` de la build. Le chemin ne DIFFÈRE pas
+      // d'une variante à l'autre — il n'a donc rien à faire dans un bloc de variante.
+      //
+      // C'est aussi la règle de ce fichier, posée en GYM-258 : la configuration Dopamine
+      // s'écrit d'un seul tenant, et les variantes n'ALTÈRENT que ce qui change. Trois
+      // copies seraient trois endroits où l'oublier — et ce fichier sait déjà ce que ça
+      // coûte : le bloc `isViniz` porte en toutes lettres une icône « pas posée ici ».
+      //
+      // ⚠️ CE FICHIER N'EST PAS UN SECRET et doit rester VERSIONNÉ : il ne contient que des
+      // identifiants publics, embarqués en clair dans chaque APK. Vérifié — aucun
+      // `.gitignore` du dépôt ne l'exclut (`git check-ignore` ne le matche pas) ; il n'était
+      // simplement jamais passé par `git add`.
+      //
+      // ⚠️ RIEN CÔTÉ iOS, ET C'EST NORMAL : les notifications y passent par APNs via Expo,
+      // sans Firebase. Aucun `GoogleService-Info.plist` n'existe, et il n'en faut pas.
+      googleServicesFile: './google-services.json',
     },
     web: {
       favicon: './assets/favicon.png',
