@@ -580,6 +580,17 @@
     "channel_default_name": "Bookings and reminders",
     "channel_default_description": "Freed-up spots, class reminders, confirmations and absence warnings."
   },
+  "legal_gate": {
+    "title_first": "Terms and conditions",
+    "title_update": "Updated terms",
+    "intro_first": "Before you continue, please read your gym's terms and conditions and privacy policy. They are reproduced in full below.",
+    "intro_update": "Our terms and conditions and privacy policy have been updated. Please read them before continuing — the full text is reproduced below.",
+    "checkbox": "I have read and accept the terms and conditions and the privacy policy.",
+    "accept": "Accept and continue",
+    "decline": "Decline and sign out",
+    "unavailable_title": "Cannot verify",
+    "unavailable_body": "We could not verify your acceptance of the terms. Check your connection and try again."
+  },
   "subscription": {
     "title": "My subscription",
     "active_badge": "✓ Active",
