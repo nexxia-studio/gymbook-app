@@ -588,6 +588,8 @@
     "checkbox": "J'ai lu et j'accepte les conditions générales et la politique de confidentialité.",
     "accept": "Accepter et continuer",
     "decline": "Refuser et se déconnecter",
+    "accept_failed_network": "Impossible d'enregistrer votre acceptation : vérifiez votre connexion et réessayez.",
+    "accept_failed": "Impossible d'enregistrer votre acceptation pour le moment. Réessayez dans un instant.",
     "unavailable_title": "Vérification impossible",
     "unavailable_body": "Nous n'avons pas pu vérifier votre acceptation des conditions. Vérifiez votre connexion et réessayez."
   },

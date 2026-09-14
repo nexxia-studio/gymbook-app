@@ -44,6 +44,12 @@ interface Props {
   /** true = réacceptation après changement de version ; false = premier recueil. */
   isUpdate: boolean
   submitting: boolean
+  /**
+   * GYM-346 — CLÉ i18n, PAS UN MESSAGE. L'écran affichait la chaîne brute renvoyée par
+   * supabase-js : en mode avion, « TypeError: Network request failed », montré à un membre
+   * au moment où on lui demande d'accepter un contrat. Même convention que
+   * `mapPaymentError` pour les achats — la porte décide de la cause, l'écran la traduit.
+   */
   error: string | null
   onAccept: () => void
   onSignOut: () => void
@@ -101,7 +107,9 @@ export function LegalAcceptanceScreen({ isUpdate, submitting, error, onAccept, o
         </Checkbox>
 
         {error && (
-          <Text className="mt-3 font-dmsans text-sm" style={{ color: SEMANTIC.danger }}>{error}</Text>
+          <Text className="mt-3 font-dmsans text-sm leading-relaxed" style={{ color: SEMANTIC.danger }}>
+            {t(error)}
+          </Text>
         )}
 
         <Pressable
