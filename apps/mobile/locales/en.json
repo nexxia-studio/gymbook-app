@@ -588,6 +588,8 @@
     "checkbox": "I have read and accept the terms and conditions and the privacy policy.",
     "accept": "Accept and continue",
     "decline": "Decline and sign out",
+    "accept_failed_network": "We couldn't record your acceptance: check your connection and try again.",
+    "accept_failed": "We couldn't record your acceptance right now. Please try again in a moment.",
     "unavailable_title": "Cannot verify",
     "unavailable_body": "We could not verify your acceptance of the terms. Check your connection and try again."
   },
