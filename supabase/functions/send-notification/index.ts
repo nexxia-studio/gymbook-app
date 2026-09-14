@@ -16,6 +16,8 @@ interface PushMessage {
   data: Record<string, unknown>
   sound: 'default' | null
   priority: 'default' | 'normal' | 'high'
+  // GYM-337 — canal de notification Android. Ignoré par APNs.
+  channelId: string
 }
 
 Deno.serve(async (req) => {
@@ -109,6 +111,23 @@ Deno.serve(async (req) => {
       data: data ?? {},
       sound: 'default',
       priority: priority ?? 'high',
+      // 🔴 GYM-337 — SANS CE CHAMP, LE CANAL ANDROID DE L'APP NE SERT À RIEN.
+      // Vérifié dans le code natif de la version installée (expo-notifications 0.32.17,
+      // BaseNotificationBuilder.kt:59-77) : un message SANS `channelId` part dans un canal
+      // de repli qu'expo-notifications crée lui-même — « Miscellaneous » / « Divers »,
+      // que le membre ne peut ni identifier ni régler. Déclarer le canal côté app était
+      // donc nécessaire mais PAS suffisant : c'est ce champ qui l'utilise.
+      //
+      // ⚠️ VALEUR À TENIR ÉGALE À `ANDROID_CHANNEL_ID` dans
+      // apps/mobile/hooks/usePushNotifications.ts.
+      //
+      // ⚠️ RÉTROCOMPATIBLE, VÉRIFIÉ SUR LE MÊME FICHIER (l. 64-75) : si le canal demandé
+      // n'existe pas — tout binaire antérieur à ce lot — expo-notifications journalise et
+      // retombe sur son canal de repli. Aucune notification n'est perdue en attendant que
+      // le parc se mette à jour.
+      //
+      // Sans effet sur iOS : APNs ignore ce champ.
+      channelId: 'default',
     }))
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {

@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "943854396306",
+    "project_id": "viniz-54637",
+    "storage_bucket": "viniz-54637.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:943854396306:android:2ae30757aae464ff2c574b",
+        "android_client_info": {
+          "package_name": "app.viniz"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPW66ymm8wTua1qcTevx5RGRkehBfimbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:943854396306:android:3ca326c833628c7c2c574b",
+        "android_client_info": {
+          "package_name": "app.viniz.staging"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPW66ymm8wTua1qcTevx5RGRkehBfimbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:943854396306:android:4dc2b65eb6da01472c574b",
+        "android_client_info": {
+          "package_name": "be.dopamineclub.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPW66ymm8wTua1qcTevx5RGRkehBfimbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

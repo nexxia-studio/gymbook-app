@@ -567,6 +567,30 @@
       "SUBSCRIPTION_PAST_DUE": "Ton abonnement a un paiement en attente de régularisation : impossible d'en souscrire un nouveau pour l'instant."
     }
   },
+  "early_performance": {
+    "title": "Avant de payer",
+    "summary_one_time": "{{plan}} — {{price}}, paiement immédiat.",
+    "summary_recurring": "{{plan}} — {{price}} par mensualité, par domiciliation SEPA.",
+    "consent_label": "Je demande que la prestation commence immédiatement, avant la fin du délai de rétractation de 14 jours. Je reconnais perdre mon droit de rétractation lorsqu'elle aura été pleinement exécutée et, si je me rétracte en cours d'exécution, devoir payer la part déjà fournie.",
+    "legal_hint": "Cette demande est enregistrée avec votre achat. Voir l'article B4 des",
+    "legal_link": "conditions générales",
+    "confirm": "Confirmer et payer"
+  },
+  "notifications": {
+    "channel_default_name": "Réservations et rappels",
+    "channel_default_description": "Places libérées, rappels de cours, confirmations et avertissements d'absence."
+  },
+  "legal_gate": {
+    "title_first": "Conditions générales",
+    "title_update": "Conditions mises à jour",
+    "intro_first": "Avant de continuer, merci de prendre connaissance des conditions générales et de la politique de confidentialité de votre salle. Elles sont reproduites ci-dessous en intégralité.",
+    "intro_update": "Nos conditions générales et notre politique de confidentialité ont été mises à jour. Merci d'en prendre connaissance avant de continuer — le texte complet est reproduit ci-dessous.",
+    "checkbox": "J'ai lu et j'accepte les conditions générales et la politique de confidentialité.",
+    "accept": "Accepter et continuer",
+    "decline": "Refuser et se déconnecter",
+    "unavailable_title": "Vérification impossible",
+    "unavailable_body": "Nous n'avons pas pu vérifier votre acceptation des conditions. Vérifiez votre connexion et réessayez."
+  },
   "subscription": {
     "title": "Mon abonnement",
     "active_badge": "✓ Actif",

@@ -567,6 +567,30 @@
       "SUBSCRIPTION_PAST_DUE": "Your membership has a payment awaiting settlement: a new one cannot be taken out for now."
     }
   },
+  "early_performance": {
+    "title": "Before you pay",
+    "summary_one_time": "{{plan}} — {{price}}, paid immediately.",
+    "summary_recurring": "{{plan}} — {{price}} per instalment, by SEPA direct debit.",
+    "consent_label": "I request that the service begin immediately, before the end of the 14-day withdrawal period. I acknowledge that I lose my right of withdrawal once it has been fully performed and that, if I withdraw while it is being performed, I must pay for the part already provided.",
+    "legal_hint": "This request is recorded with your purchase. See article B4 of the",
+    "legal_link": "terms and conditions",
+    "confirm": "Confirm and pay"
+  },
+  "notifications": {
+    "channel_default_name": "Bookings and reminders",
+    "channel_default_description": "Freed-up spots, class reminders, confirmations and absence warnings."
+  },
+  "legal_gate": {
+    "title_first": "Terms and conditions",
+    "title_update": "Updated terms",
+    "intro_first": "Before you continue, please read your gym's terms and conditions and privacy policy. They are reproduced in full below.",
+    "intro_update": "Our terms and conditions and privacy policy have been updated. Please read them before continuing — the full text is reproduced below.",
+    "checkbox": "I have read and accept the terms and conditions and the privacy policy.",
+    "accept": "Accept and continue",
+    "decline": "Decline and sign out",
+    "unavailable_title": "Cannot verify",
+    "unavailable_body": "We could not verify your acceptance of the terms. Check your connection and try again."
+  },
   "subscription": {
     "title": "My subscription",
     "active_badge": "✓ Active",

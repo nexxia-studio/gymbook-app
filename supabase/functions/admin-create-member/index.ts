@@ -224,12 +224,29 @@ Deno.serve(async (req) => {
     if (maxMembers !== null) {
       // Périmètre du compte : les MEMBRES actifs de cette salle. Les gérants et coachs
       // relèvent de max_admins, les comptes supprimés ne consomment pas de place.
+      //
+      // 🔴 GYM-338 — LE DÉCOMPTE PORTAIT SUR `profiles.gym_id`, ET IL DÉCIDE D'UN REFUS.
+      // Depuis GYM-283, `profiles.gym_id` n'est plus « la salle du membre » mais sa salle
+      // ACTIVE : un membre inscrit dans deux salles qui bascule sur la seconde
+      // DISPARAISSAIT de ce compte alors qu'il occupe toujours sa place dans la première.
+      // `handle_new_user` (GYM-102) et `booking-guards` (GYM-283) avaient été corrigés ;
+      // CE CHEMIN-CI, le plus utilisé, était resté en arrière. L'inscription et la
+      // création par le gérant pouvaient donc répondre DEUX CHIFFRES DIFFÉRENTS à « la
+      // salle est-elle pleine ».
+      //
+      // ⚠️ MÊME PRÉDICAT QUE LES DEUX AUTRES GARDES, À LA LETTRE :
+      //     FROM member_gyms mg JOIN profiles p ON p.id = mg.member_id
+      //     WHERE mg.gym_id = <salle> AND p.role = 'member' AND p.deleted_at IS NULL
+      // `profiles!inner` fait la jointure INTERNE : sans lui, PostgREST rendrait aussi les
+      // appartenances dont le profil ne satisfait pas les filtres, et le compte serait
+      // gonflé par les comptes supprimés — qui conservent leur adhésion (elle n'est
+      // jamais retirée, pas plus que leur gym_id).
       const { count, error: countErr } = await supabaseAdmin
-        .from('profiles')
-        .select('id', { count: 'exact', head: true })
+        .from('member_gyms')
+        .select('member_id, profiles!inner(role, deleted_at)', { count: 'exact', head: true })
         .eq('gym_id', gymId)
-        .eq('role', 'member')
-        .is('deleted_at', null)
+        .eq('profiles.role', 'member')
+        .is('profiles.deleted_at', null)
 
       if (countErr || count === null) {
         // Compter est une PRÉCONDITION du refus : sans le compte, on ne sait pas si la
@@ -275,6 +292,21 @@ Deno.serve(async (req) => {
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       email_confirm: true,
+      // 🔴 GYM-330 — AUCUN CONSENTEMENT ICI, ET C'EST DÉLIBÉRÉ. NE PAS « COMPLÉTER ».
+      //
+      // Il manque `terms_accepted`, `privacy_policy_accepted` et `legal_version` — les
+      // trois clés que `handle_new_user` transforme en terms_version /
+      // privacy_policy_version. C'est ce qui a produit les 50 profils sans consentement
+      // relevés en prod le 11/09. La tentation évidente est de les ajouter ici : ce serait
+      // un FAUX CONSENTEMENT.
+      //
+      // UN GÉRANT NE PEUT PAS CONSENTIR À LA PLACE DE SON MEMBRE. Il ne peut pas non plus
+      // attester qu'il lui a montré un texte. Le compte naît donc SANS consentement, et
+      // `LegalAcceptanceGate` (apps/mobile) le recueille à la première connexion — là où
+      // la personne concernée a le texte sous les yeux et coche elle-même.
+      //
+      // Le membre existe et peut être géré par la salle entre-temps ; il ne peut
+      // simplement rien FAIRE dans l'app avant d'avoir accepté.
       user_metadata: {
         first_name: firstName,
         last_name: lastName,

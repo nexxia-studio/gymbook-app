@@ -4,6 +4,8 @@ import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
+// GYM-336 — lecture SERVEUR de la demande d'exécution anticipée (art. VI.53, 1° CDE).
+import { readEarlyPerformanceConsent } from '../_shared/early-performance.ts'
 import {
   findPurchaseBlockingSubscription,
   isPaymentIssue,
@@ -21,6 +23,10 @@ interface SubscriptionRequest {
   member_id: string
   plan_id: string
   redirect_url: string
+  // GYM-336 — OPTIONNELS À DESSEIN, même raison que dans create-payment : les binaires
+  // déjà en circulation ne les envoient pas. Voir _shared/early-performance.ts.
+  early_performance_consent?: boolean
+  early_performance_consent_version?: string
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -61,6 +67,11 @@ Deno.serve(async (req) => {
 
     const body = await req.json() as SubscriptionRequest
     const { gym_id: gymId, member_id: memberId, plan_id: planId, redirect_url: redirectUrl } = body
+
+    // GYM-336 — MÊME MODULE que create-payment, et c'est tout l'intérêt : un abonnement et
+    // un achat de crédits enregistrent la même chose pour le même geste du membre. Le
+    // consentement ne dépend jamais du chemin emprunté.
+    const earlyPerformance = readEarlyPerformanceConsent(body as unknown as Record<string, unknown>)
 
     if (!gymId) return errorResponse(400, 'gym_id requis', 'MISSING_GYM_ID')
     if (!memberId) return errorResponse(400, 'member_id requis', 'MISSING_MEMBER_ID')
@@ -336,6 +347,11 @@ Deno.serve(async (req) => {
         // Commission SEPA effective, comme l'applicationFee demandé à Mollie ci-dessus.
         // Le webhook la recalcule et la réécrit à la confirmation.
         nexxia_fee: feeValue > 0 ? feeValue : null,
+        // GYM-336 — la preuve de la demande d'exécution anticipée, dans le MÊME INSERT que
+        // la commande. C'est la ligne `payments` du PREMIER paiement de l'abonnement qui la
+        // porte : elle survit à l'annulation (qui n'écrit que member_subscriptions) comme au
+        // remboursement (qui change le statut, sans jamais supprimer la ligne).
+        ...earlyPerformance,
       })
 
     if (insertError) {
