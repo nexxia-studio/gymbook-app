@@ -144,7 +144,44 @@ const config = {
     // ce champ n'est plus la version « de l'app » : c'est la version d'UNE des trois. Viniz
     // pose la sienne dans son bloc, en bas de fichier — elle repart de 1.0.0, parce qu'une
     // app neuve sur l'App Store n'hérite pas de l'historique d'une autre.
-    version: '1.1.0',
+    //
+    // 1.2.0 — SECOND SAUT MINOR. Incrément MINOR et non PATCH, au même critère que le bloc
+    // précédent : ce train change ce qu'un membre FAIT, pas seulement ce que l'app
+    // enregistre. Deux écrans nouveaux se mettent en travers de son chemin, et les
+    // notifications Android existent pour la première fois.
+    //  · GYM-330 — ÉCRAN D'ACCEPTATION DES CONDITIONS, bloquant à la connexion. Il enveloppe
+    //    `<Slot />` : tant que le consentement manque, aucune route n'est montée. C'est aussi
+    //    ce train qui porte LEGAL_VERSION 2.0, donc TOUS les membres le voient une fois.
+    //  · GYM-336 — CASE D'EXÉCUTION ANTICIPÉE à l'achat, avec sa preuve horodatée côté
+    //    serveur. Taper une formule n'ouvre plus Mollie directement.
+    //  · GYM-338 — `claim_app_gym` : la porte de remplacement du heal de rattachement, que
+    //    le trigger durci du même lot interdit désormais au client. ⚠️ C'EST LA RAISON POUR
+    //    LAQUELLE CE TRAIN NE PEUT PAS ATTENDRE : entre le déploiement de GYM-338 et la
+    //    publication de cette version, tout inscrit Apple/Google reste sans salle, et c'est
+    //    un filet serveur temporaire (GYM-345) qui les rattrape.
+    //  · GYM-337 — FIREBASE ENFIN RÉFÉRENCÉ + canal de notification Android. Aucun membre
+    //    Android n'avait jamais reçu de notification ; `google-services.json` était dans le
+    //    dépôt mais appelé nulle part.
+    //  · GYM-318 — slug de réinitialisation pris sur le choix local. ⚠️ RAPPELÉ ICI, PAS
+    //    NOUVEAU : il figure déjà au bloc 1.1.0. Il est répété parce qu'il n'atteint
+    //    réellement les membres qu'avec le binaire qui le transporte — et la 1.1.0 est
+    //    restée sans publication de son côté. Ne pas le compter deux fois dans l'ampleur
+    //    du train.
+    //
+    // 🔴 LE PLANCHER DE BUILD A BOUGÉ : 24 EST PRIS. Le bloc 1.1.0 annonçait « ≥ 24 » ;
+    // depuis, un build 24 est parti. Le compteur distant a été LU avant ce commit, pas
+    // déduit :
+    //     eas build:version:get --platform ios     --profile production → 24
+    //     eas build:version:get --platform android --profile production → 7
+    // Le prochain build doit donc porter buildNumber ≥ 25 côté iOS, et versionCode ≥ 8 côté
+    // Android. `autoIncrement: true` s'en charge — ces nombres ne sont PAS déclarés ici, et
+    // conformément aux blocs précédents aucun numéro n'est annoncé : seul le PLANCHER l'est.
+    //
+    // ⚠️ ET LE VERSIONCODE ANDROID COMPTE POUR DE BON À PARTIR DE CE TRAIN. Jusqu'ici il
+    // avançait sans conséquence visible, faute de notifications : c'est la première version
+    // où une régression Android se verrait chez un membre. Le Play Store refuse un
+    // versionCode déjà publié, exactement comme Apple refuse un buildNumber réutilisé.
+    version: '1.2.0',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
