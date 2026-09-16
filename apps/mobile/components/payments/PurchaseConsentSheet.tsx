@@ -116,33 +116,40 @@ export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }:
       </View>
 
       <View className="mt-4 rounded-2xl border p-4" style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}>
-        {/* 🔴 LE LIBELLÉ NE CHANGE PAS D'UN CARACTÈRE (art. VI.53, 1° CDE : la demande
-            expresse ET la reconnaissance de la perte du droit sont la protection
-            elle-même). Seul l'interligne s'ouvre — `leading-6` au lieu de `leading-relaxed`,
-            soit 24 px au lieu de ~22,75 : deux phrases longues se lisent, elles ne se
-            subissent pas. */}
+        {/* 🔴 LE LIBELLÉ EST RACCOURCI, PAS AFFAIBLI (GYM-336b). Il faisait quatre lignes à
+            l'écran d'achat. L'art. VI.53, 1° CDE exige DEUX éléments, et les deux y sont
+            toujours, en une seule phrase :
+              a. la DEMANDE EXPRESSE → « je demande à commencer maintenant » ;
+              b. la RECONNAISSANCE de la perte du droit → « renonce à mon droit de
+                 rétractation de 14 jours pour la part déjà utilisée ».
+            ⚠️ TOUT RACCOURCISSEMENT SUPPLÉMENTAIRE TOUCHERAIT L'UN DES DEUX. Ce n'est pas
+            une marge de style, c'est le plancher légal.
+            ⚠️ ET CE LIBELLÉ EST VERSIONNÉ : le modifier sans incrémenter
+            EARLY_PERFORMANCE_CONSENT_VERSION ferait porter le même numéro à deux textes
+            différents, et la preuve ne dirait plus QUOI a été accepté. */}
         <Checkbox checked={consent} onToggle={() => setConsent((v) => !v)}>
           <Text className="font-dmsans text-sm leading-6" style={{ color: tokens.onSurfaceSecondary }}>
             {t(EARLY_PERFORMANCE_CONSENT_I18N_KEY)}
           </Text>
         </Checkbox>
 
-        {/* Lien tapable vers les CGV — même motif que la case des CGU à l'inscription : le
-            <Text onPress> imbriqué capture le tap sans déclencher le toggle de la case.
-            ⚠️ SÉPARÉ DE LA CLAUSE PAR UN FILET : c'est une NOTE, pas une seconde clause. La
-            taille réduite et l'encre discrète le disaient déjà ; le trait l'affirme
-            visuellement, pour qu'on ne lise pas trois phrases d'un seul bloc. */}
-        <View className="mt-4 border-t pt-3" style={{ borderColor: tokens.border }} />
-        <Text className="font-dmsans text-xs leading-5" style={{ color: tokens.onBackgroundMuted }}>
-          {t('early_performance.legal_hint')}{' '}
-          <Text
-            className="font-dmsans-bold underline"
-            style={{ color: tokens.onSurface }}
-            accessibilityRole="link"
-            onPress={() => router.push('/profile/legal/cgu')}
-          >
-            {t('early_performance.legal_link')}
-          </Text>
+        {/* La phrase « Cette demande est enregistrée avec votre achat… » est SUPPRIMÉE :
+            aucune valeur juridique, c'était du confort de lecture.
+            🔴 LE LIEN, LUI, RESTE — ÉCART ASSUMÉ AVEC LE CADRAGE, qui le supposait
+            « accessible ailleurs dans l'écran ». Il ne l'est pas : ce `router.push` était le
+            SEUL accès aux CGV de cette feuille, et la feuille est une MODALE — en sortir
+            demande d'annuler l'achat. Le retirer aurait coupé l'accès au contrat au moment
+            précis où on le fait accepter. Il ne reste donc que le lien, sans phrase autour :
+            deux mots au lieu de deux phrases.
+            Le <Text onPress> capture le tap sans déclencher le toggle de la case — même
+            motif que la case des CGU à l'inscription. */}
+        <Text
+          className="mt-3 font-dmsans text-xs underline"
+          style={{ color: tokens.onBackgroundMuted }}
+          accessibilityRole="link"
+          onPress={() => router.push('/profile/legal/cgu')}
+        >
+          {t('early_performance.legal_link')}
         </Text>
       </View>
 
