@@ -1556,5 +1556,19 @@
     "error_format": "Format not accepted. Allowed formats: {{formats}}.",
     "error_size": "Image too large ({{taille}}). Maximum {{max}}.",
     "error_network": "Upload failed. Please try again in a moment."
+  },
+  "payment_return": {
+    "success_title": "Payment confirmed",
+    "pending_title": "Payment in progress",
+    "cancel_title": "Payment cancelled",
+    "cancel_body": "The payment was cancelled. No amount has been charged.",
+    "pending_body": "We're waiting for Mollie to confirm. You can close this page.",
+    "credits_added_one": "{{count}} session added to your account",
+    "credits_added_other": "{{count}} sessions added to your account",
+    "reference": "Ref. {{ref}}",
+    "back_to_app_named": "Back to the {{gym}} app",
+    "back_to_app": "Back to the app",
+    "close_window": "Close this window",
+    "close_hint": "You can close this window and go back to the app."
   }
 }

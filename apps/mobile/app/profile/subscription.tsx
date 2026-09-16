@@ -37,8 +37,9 @@ interface ActiveSub {
 
 interface ActiveCredits {
   planId: string
-  creditsTotal: number
-  creditsUsed: number
+  // GYM-97 — `creditsTotal` et `creditsUsed` RETIRÉS : ils n'alimentaient que le
+  // « X utilisée sur Y », dont l'assiette était inexplicable. Les garder « au cas où »
+  // laisserait à portée de main les deux chiffres qu'on vient de retirer de l'écran.
   creditsRemaining: number
   expiresAt: string | null
 }
@@ -207,7 +208,9 @@ export default function SubscriptionScreen() {
     //    Solde = SOMME des lignes dispo (fin du limit 1) ; nom/expiration = ligne la plus récente.
     const { data: creditRows } = await supabase
       .from('member_credits')
-      .select('plan_id, credits_total, credits_used, credits_remaining, expires_at')
+      // GYM-97 — `credits_total` et `credits_used` ne sont plus lus : plus personne ne les
+      // affiche. Le solde vient de `credits_remaining`, colonne générée.
+      .select('plan_id, credits_remaining, expires_at')
       .eq('member_id', user.id)
       .eq('gym_id', gymId)
       .gt('credits_remaining', 0)
@@ -217,8 +220,6 @@ export default function SubscriptionScreen() {
       const first = creditRows[0]
       setActiveCredits({
         planId: first.plan_id,
-        creditsTotal: creditRows.reduce((s, r) => s + (r.credits_total ?? 0), 0),
-        creditsUsed: creditRows.reduce((s, r) => s + (r.credits_used ?? 0), 0),
         creditsRemaining: creditRows.reduce((s, r) => s + (r.credits_remaining ?? 0), 0),
         expiresAt: first.expires_at,
       })
@@ -410,9 +411,32 @@ export default function SubscriptionScreen() {
             <Text className="font-dmsans-bold text-base" style={{ color: tokens.onSurface }}>
               {t('subscription.credits_remaining', { count: activeCredits.creditsRemaining })}
             </Text>
-            <Text className="mt-1 font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
-              {t('subscription.credits_usage', { used: activeCredits.creditsUsed, total: activeCredits.creditsTotal })}
-            </Text>
+            {/* 🔴 GYM-97 — LE « X UTILISÉE SUR Y » EST RETIRÉ. Il n'était pas FAUX
+                arithmétiquement — `credits_remaining` est une colonne GÉNÉRÉE
+                (`credits_total - credits_used`), donc la somme se bouclait toujours. Son
+                ASSIETTE, elle, était inexplicable : la requête ne retient que les lots
+                dont `credits_remaining > 0`, si bien que le « sur Y » ne comptait que les
+                carnets ENCORE ENTAMÉS.
+
+                Deux conséquences, mesurées en production :
+                 · 42 lignes épuisées sur 60 sont masquées, soit 8 séances réellement
+                   consommées que le « X utilisée » ne comptait pas. Un membre ayant fini
+                   un carnet puis racheté lisait « 0 utilisée sur 10 » après en avoir
+                   consommé dix ;
+                 · un crédit RENDU après annulation fait
+                   `credits_used = GREATEST(credits_used - 1, 0)` sur le lot débité
+                   (gym143/gym174) : un lot à 0 repasse à 1, REDEVIENT visible, et « sur Y »
+                   AUGMENTE sans le moindre achat. C'est la contradiction du smoke test du
+                   24/06 — « 1 séance restante » et « 1 utilisée sur 2 » au même écran.
+
+                Le membre a besoin de ce qui lui RESTE. Le solde, lui, est juste : il somme
+                `credits_remaining` sur les lots disponibles, et tous les lots épuisés valent
+                zéro — les masquer ne change donc rien au total. */}
+            {hasActiveSub && (
+              <Text className="mt-1 font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
+                {t('subscription.credits_kept_during_subscription')}
+              </Text>
+            )}
             {activeCredits.expiresAt && (
               <View className="mt-3 flex-row items-center gap-1.5">
                 <Calendar size={14} color={tokens.onSurfaceSecondary} />

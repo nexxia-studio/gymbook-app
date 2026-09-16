@@ -1556,5 +1556,19 @@
     "error_format": "Format non accepté. Formats possibles : {{formats}}.",
     "error_size": "Image trop lourde ({{taille}}). Maximum {{max}}.",
     "error_network": "L'envoi n'a pas abouti. Réessaie dans un instant."
+  },
+  "payment_return": {
+    "success_title": "Paiement confirmé",
+    "pending_title": "Paiement en cours",
+    "cancel_title": "Paiement annulé",
+    "cancel_body": "Le paiement a été annulé. Aucun montant n'a été prélevé.",
+    "pending_body": "Nous attendons la confirmation de Mollie. Vous pouvez fermer cette page.",
+    "credits_added_one": "{{count}} séance ajoutée à votre compte",
+    "credits_added_other": "{{count}} séances ajoutées à votre compte",
+    "reference": "Réf. {{ref}}",
+    "back_to_app_named": "Retourner dans l'app {{gym}}",
+    "back_to_app": "Retourner dans l'application",
+    "close_window": "Fermer cette fenêtre",
+    "close_hint": "Vous pouvez fermer cette fenêtre et retourner dans l'application."
   }
 }
