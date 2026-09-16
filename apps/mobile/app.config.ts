@@ -24,6 +24,16 @@ const isStaging = variant === 'staging'
 // nom du profil et par `distribution` — le doubler ici n'ajouterait que l'ambiguïté.
 const isViniz = variant === 'viniz'
 
+// GYM-324 — Options du plugin expo-notifications. Déclarées ici parce que le bloc
+// `isViniz` les altère (cf. plus bas) : `plugins[]` est commun aux trois variantes, et
+// c'est la seule façon d'y faire varier UNE valeur sans réécrire le tableau.
+// ⚠️ LES VALEURS SONT CELLES DE DOPAMINE, INCHANGÉES — l'objet résolu sans variante est
+// identique à l'octet (prouvé par `expo config --json`, diff vide).
+const notificationOptions = {
+  icon: './assets/notification-icon.png',
+  color: '#C8F000',
+}
+
 const config = {
   expo: {
     name: 'Dopamine',
@@ -271,13 +281,19 @@ const config = {
       'expo-secure-store',
       'expo-apple-authentication',
       'expo-local-authentication',
-      [
-        'expo-notifications',
-        {
-          icon: './assets/notification-icon.png',
-          color: '#C8F000',
-        },
-      ],
+      // ⚠️ GYM-324 — `notificationOptions` EST SORTI DU TABLEAU, ET C'EST TOUT LE CORRECTIF.
+      // `plugins[]` est PARTAGÉ par les trois variantes : la couleur d'accent des
+      // notifications y était donc le lime de DOPAMINE (#C8F000) pour l'app Viniz aussi,
+      // dont l'accent est #C8FF3D. Un membre d'une salle Viniz voyait ses notifications
+      // teintées de la couleur d'un autre club.
+      //
+      // Les valeurs restent écrites TELLES QUELLES ici — la règle de ce fichier (GYM-258)
+      // est que la configuration Dopamine s'écrit d'un seul tenant et que la variante
+      // l'ALTÈRE dans son bloc isolé. Une référence nommée est ce qui rend cette altération
+      // possible sans truffer le tableau d'un ternaire, et sans aller chercher l'entrée à
+      // l'exécution par son nom de plugin — recherche non typée qui casserait en silence
+      // le jour où l'ordre du tableau change.
+      ['expo-notifications', notificationOptions],
       'expo-web-browser',
       'expo-localization',
       'expo-font',
@@ -478,18 +494,84 @@ if (isViniz) {
   e.ios.infoPlist.NSFaceIDUsageDescription =
     'Viniz utilise Face ID pour sécuriser ta connexion.'
 
-  // ⚠️ ICÔNE, ÉCRAN DE DÉMARRAGE ET ICÔNE ADAPTATIVE NE SONT PAS POSÉS ICI — ET C'EST UN
-  // MANQUE CONNU, PAS UN CHOIX. Le dépôt n'a aucun asset Viniz de PRODUCTION : les seuls
-  // 1024×1024 disponibles (`assets/viniz/icon-staging.png`, `adaptive-icon-staging.png`)
-  // portent le bandeau « STAGING », et la seule source propre, `assets/viniz/icon-512.png`,
-  // est en 512 — la moitié de ce qu'exige l'App Store. L'agrandir donnerait une icône
-  // floue : c'est exactement le motif pour lequel `dopamine-logo-d.png` avait été écarté
-  // en GYM-241.
+  // ── GYM-324 — L'ACCENT DES NOTIFICATIONS ──────────────────────────────────────────
+  // #C8FF3D, le lime VINIZ, et non le #C8F000 de Dopamine posé dans `plugins[]`.
+  // ⚠️ ALTÉRATION EN PLACE d'un objet partagé : elle ne vaut que parce que ce bloc ne
+  // s'exécute QUE sous la variante `viniz`. La build Dopamine ne le traverse jamais.
+  // ⚠️ LA VARIANTE STAGING N'EST PAS TOUCHÉE, ET C'EST UN CHOIX DE CADRAGE, pas un oubli :
+  // la preuve exigée est « seule `viniz` change ». Elle porte pourtant le MÊME défaut —
+  // app brandée Viniz, notifications au lime de Dopamine. Signalé en PR.
+  e.plugins = e.plugins.map((entry) =>
+    Array.isArray(entry) && entry[0] === 'expo-notifications'
+      ? ['expo-notifications', { ...notificationOptions, color: '#C8FF3D' }]
+      : entry,
+  )
+
+  // ── GYM-347 — L'ICÔNE DE PRODUCTION ───────────────────────────────────────────────
+  // 🔴 CES TROIS ASSETS EXISTAIENT DÉJÀ, ET PERSONNE NE LES A VUS. Ils viennent de la PR
+  // #264 (GYM-331), relue et fusionnée le 07/09 à 16 h 24 — mais DANS la branche
+  // `gym-eas-production-viniz`, que la PR #263 venait d'emporter dans `develop`
+  // VINGT-SEPT SECONDES plus tôt. La branche n'a jamais été refusionnée : GitHub affichait
+  // #264 « merged », et le travail est resté trois commits en avance, invisible.
+  // Constat TestFlight (build 2, 1.0.0) : l'app « Viniz » portait le logo Dopamine.
   //
-  // 🔴 EN L'ÉTAT, UNE BUILD `production-viniz` PORTERAIT DONC L'ICÔNE DE DOPAMINE. C'est
-  // bloquant pour une soumission, pas pour le profil : aucune build n'est lancée par ce
-  // lot. `assets/viniz/viniz-icon.svg` est vectoriel et permet de produire un 1024 net —
-  // c'est le geste à faire, dans son propre lot, avant la première soumission.
+  // ⚠️ CE N'EST PAS LE MOTIF DE google-services.json (GYM-337), et la nuance compte pour
+  // s'en prémunir : là, le fichier était sur le disque et n'était JAMAIS passé par
+  // `git add`. Ici, il était committé et relu — rangé dans une branche déjà consommée.
+  // Deux causes différentes, un même symptôme : le travail existe et l'intégration ne le
+  // voit pas. Ce que les deux partagent, c'est qu'AUCUN signal n'a été émis.
+  //
+  // Rastérisée depuis `assets/viniz/viniz-icon.svg` — depuis le VECTEUR, et non par
+  // agrandissement de `icon-512.png` : un 512 poussé à 1024 aurait été flou, le motif
+  // exact pour lequel `dopamine-logo-d.png` avait été écarté en GYM-241.
+  //
+  // Vérifié sur le fichier lui-même, pas sur sa description (contrôle REFAIT ici) :
+  //   · 1024×1024, PNG type 2 (truecolor RGB), 8 bits, non entrelacé ;
+  //   · AUCUN canal alpha et AUCUN chunk `tRNS`. Exigence de l'App Store, pas une
+  //     préférence : une icône transparente est refusée en ITMS-90717, à la SOUMISSION —
+  //     donc après la build, quand le train est déjà lancé ;
+  //   · fond #4827B4 plein jusqu'aux quatre coins, marque en #C8FF3D ;
+  //   · aucun bandeau « STAGING » — ce n'est pas un dérivé des assets de la variante.
+  e.icon = './assets/viniz/icon-1024.png'
+
+  // ── L'ICÔNE ADAPTATIVE ANDROID ────────────────────────────────────────────────────
+  // 🔴 C'EST UN SECOND FICHIER, ET IL LUI EN FALLAIT UN. Android ne garantit d'afficher
+  // que le CERCLE CENTRAL de 66 % de l'avant-plan ; le reste est rogné par le masque du
+  // lanceur. `icon-1024.png` ci-dessus atteint 86,1 % — sa barre de pouls court de x=77 à
+  // x=948 et ses deux extrémités auraient été coupées, le pouls devenant un accent sans
+  // ligne. `adaptive-icon-1024.png` est la MÊME marque remise à l'échelle, mesurée à
+  // 58,5 %. Exactement le geste, et la raison, de GYM-241 pour Dopamine.
+  //
+  // ⚠️ LA MESURE EST RADIALE, PAS AXIALE : la zone sûre est un CERCLE, donc ce qui compte
+  // est la distance au centre du pixel le plus éloigné — pas son écart en x ou en y, qui
+  // la sous-estime. Recalé sur les chiffres consignés par GYM-241 :
+  // `adaptive-icon-dopamine.png` 65,8 % et `icon-dopamine.png` 78,4 %. Les deux concordent.
+  //
+  // ⚠️ ET ELLE PASSE PAR LES DEUX MESURES : 57,9 % en axial, 58,5 % en radial. Elles
+  // convergent ici parce que le motif est une barre LARGE ET BASSE — son point extrême est
+  // presque sur l'axe horizontal. Sur le « D » de Dopamine, plus carré, elles s'écartent
+  // de dix-sept points : c'est pourquoi il ne faut pas se fier à l'axiale.
+  //
+  // backgroundColor #4827B4, accordé au fond du fichier : l'avant-plan est opaque, mais
+  // une couleur discordante apparaîtrait en anneau si un lanceur applique un masque plus
+  // petit que l'image.
+  e.android.adaptiveIcon.foregroundImage = './assets/viniz/adaptive-icon-1024.png'
+  e.android.adaptiveIcon.backgroundColor = '#4827B4'
+
+  // ── L'ÉCRAN DE DÉMARRAGE ──────────────────────────────────────────────────────────
+  // ⚠️ PAR LA CLÉ `splash`, PAS PAR LE PLUGIN `expo-splash-screen` — vérifié avant
+  // d'écrire. Le paquet est en dépendance mais n'est PAS déclaré dans `plugins` : le bloc
+  // Dopamine passe par la clé de haut niveau, et la variante staging l'altère en place de
+  // la même façon. On reprend ce motif plutôt que d'introduire un second mécanisme dans le
+  // seul bloc qui n'existe encore chez personne.
+  //
+  // `resizeMode` reste 'contain', hérité du bloc Dopamine : l'image est carrée (1284²) et
+  // doit être centrée sans recadrage, jamais étirée.
+  e.splash.image = './assets/viniz/splash-1284.png'
+  e.splash.backgroundColor = '#4827B4'
+  // ⚠️ LE FOND ACCOMPAGNE L'IMAGE, ET C'EST LA LEÇON DE GYM-241. Le noir de Dopamine sous
+  // une image à fond violet produirait un cadre noir autour du carré, puis un flash au
+  // passage vers l'écran animé. Les deux valeurs se posent ensemble ou pas du tout.
 }
 
 export default config

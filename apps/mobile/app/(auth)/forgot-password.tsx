@@ -21,6 +21,9 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  // GYM-343 — l'URL de retour peut ne pas être constructible (multi sans salle choisie).
+  // On le DIT au membre plutôt que d'envoyer un lien portant le nom d'un autre client.
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = useCallback(async () => {
     setIsLoading(true)
@@ -30,6 +33,28 @@ export default function ForgotPassword() {
     // retrouvait définitivement bloqué hors de l'app. L'URL est construite depuis le slug
     // de la salle (jamais en dur), avec repli sur la constante de build.
     const redirectTo = await buildMemberResetPasswordUrl()
+
+    // 🔴 GYM-343 — PAS DE SALLE, PAS D'ENVOI. En multi, `buildMemberResetPasswordUrl` rend
+    // `null` plutôt que de replier sur la constante de build ('dopamine') : le membre
+    // recevrait sinon un lien au nom d'un autre client, que l'AASA de l'app de production
+    // revendique en plus.
+    //
+    // ⚠️ ENVOYER SANS `redirectTo` SERAIT PIRE, et c'est pourquoi on n'envoie pas du tout :
+    // Supabase appliquerait son Site URL global — pointé sur le dashboard gérant — et le
+    // membre atterrirait sur « Espace réservé aux gérants », bloqué hors de l'app. C'est
+    // exactement le défaut que GYM-205 a corrigé.
+    //
+    // ⚠️ INATTEIGNABLE EN PRATIQUE, ET GARDÉ QUAND MÊME : en multi, cet écran n'est atteint
+    // que depuis `BrandedLogin`, qui ne s'affiche QUE lorsqu'un slug existe (MultiLogin
+    // renvoie sinon vers /gym/select). La garde couvre le jour où un chemin nouveau
+    // oublierait cette précondition — elle ne coûte rien, et son absence coûterait un email.
+    if (!redirectTo) {
+      setIsLoading(false)
+      setError('auth.errors.no_gym_selected')
+      return
+    }
+
+    setError(null)
     await supabase.auth.resetPasswordForEmail(email, { redirectTo })
     setIsLoading(false)
     setSent(true)
@@ -98,6 +123,12 @@ export default function ForgotPassword() {
                   autoCapitalize="none"
                   autoComplete="email"
                 />
+
+                {error && (
+                  <Text className="font-dmsans text-sm leading-relaxed" style={{ color: SEMANTIC.danger }}>
+                    {t(error)}
+                  </Text>
+                )}
 
                 <Button
                   title={t('auth.forgot_password_submit')}

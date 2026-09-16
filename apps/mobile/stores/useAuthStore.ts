@@ -152,6 +152,23 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signUp: async (email, password, firstName, lastName, phone, consents) => {
     set({ isLoading: true, error: null })
+
+    // 🔴 GYM-343 — L'URL DE CONFIRMATION D'ABORD, ET AUCUN COMPTE SI ELLE MANQUE.
+    // En multi, `buildMemberSignupConfirmUrl` rend `null` plutôt que de replier sur la
+    // constante de build ('dopamine') : le membre recevrait un email de confirmation au nom
+    // d'un autre client. Créer le compte puis lui envoyer ce lien serait le pire des deux —
+    // il existerait sans pouvoir être confirmé chez la bonne salle.
+    //
+    // ⚠️ AVANT `supabase.auth.signUp`, PAS APRÈS : rien n'est écrit tant que la cible n'est
+    // pas connue. L'erreur suit la forme des autres refus de ce store (clé i18n dans
+    // `error`, puis `throw`), donc les écrans qui l'appellent la traitent déjà.
+    const emailRedirectTo = await buildMemberSignupConfirmUrl()
+    if (!emailRedirectTo) {
+      const err = new Error('NO_GYM_SELECTED')
+      set({ isLoading: false, error: 'auth.errors.no_gym_selected' })
+      throw err
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -161,7 +178,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         // pointé sur le dashboard — et le membre atterrit sur « Espace réservé aux gérants »,
         // bloqué hors de l'app. Même défaut que GYM-205 sur le mot de passe, même correctif :
         // le relais tenant-aware de GYM-287/303, qui porte le slug dans son chemin.
-        emailRedirectTo: await buildMemberSignupConfirmUrl(),
+        emailRedirectTo,
         data: {
           first_name: firstName,
           last_name: lastName,

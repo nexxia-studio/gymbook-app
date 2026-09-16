@@ -124,7 +124,8 @@
       "invalid_credentials": "Email ou mot de passe incorrect",
       "email_not_confirmed": "Veuillez confirmer votre email",
       "user_already_registered": "Un compte existe déjà avec cet email",
-      "generic": "Une erreur est survenue, réessayez"
+      "generic": "Une erreur est survenue, réessayez",
+      "no_gym_selected": "Choisissez d'abord votre salle : sans elle, nous ne pouvons pas vous envoyer un lien valide."
     },
     "password_rules": {
       "length": "Au moins {{count}} caractères",
