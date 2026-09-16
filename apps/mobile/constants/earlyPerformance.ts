@@ -16,7 +16,16 @@
 // avec GYM-330. Celle-ci ne versionne QUE la phrase de la case à cocher, qui vit à l'écran
 // de paiement et non dans le contrat. Elles bougent pour des raisons différentes, à des
 // rythmes différents.
-export const EARLY_PERFORMANCE_CONSENT_VERSION = '1'
+// HISTORIQUE — chaque valeur désigne UN texte, et un seul :
+//   '1'  GYM-336 (10/09) — libellé long, deux phrases, quatre lignes à l'écran.
+//   '2'  GYM-336b (16/09) — libellé court, une phrase. Les deux éléments exigés par
+//        l'art. VI.53, 1° CDE y sont toujours : la demande expresse de commencer, et la
+//        reconnaissance de la perte du droit pour la part déjà utilisée.
+//
+// ⚠️ LES DEMANDES DÉJÀ ENREGISTRÉES SOUS '1' NE BOUGENT PAS, et c'est tout l'intérêt :
+// elles continuent de désigner le texte que ces membres-là ont réellement accepté. Une
+// version qu'on réécrirait rétroactivement ne prouverait plus rien.
+export const EARLY_PERFORMANCE_CONSENT_VERSION = '2'
 
 // La clé du libellé que la version ci-dessus certifie. Nommée ici pour que la constante et
 // son texte se lisent au même endroit — et pour qu'une recherche sur l'une trouve l'autre.

@@ -40,6 +40,22 @@ import { useTheme } from '../../lib/theme/ThemeProvider'
 import { LEGAL_VERSION } from '../../constants/legal'
 import { LegalAcceptanceScreen } from './LegalAcceptanceScreen'
 
+/**
+ * GYM-346 — Distingue une coupure réseau d'un refus du serveur.
+ *
+ * Un refus de `accept_legal_terms` porte un ERRCODE PostgreSQL (PT401, PT422, PT404) ;
+ * une coupure n'en a aucun et se présente comme un `TypeError` de `fetch`. La distinction
+ * change le message : « vérifiez votre connexion » est actionnable, « réessayez » ne l'est
+ * pas quand le serveur a dit non.
+ *
+ * ⚠️ ELLE NE CHANGE RIEN AU BLOCAGE. Les deux cas laissent `status` sur `needed` : l'app
+ * ne s'ouvre pas, quelle que soit la cause. Un échec ne fait jamais passer.
+ */
+function isNetworkFailure(err: { message?: string; code?: string }): boolean {
+  if (err.code) return false
+  return /network|fetch|timeout|connexion/i.test(err.message ?? '')
+}
+
 type Status =
   | { kind: 'checking' }
   | { kind: 'ok' }
@@ -102,11 +118,26 @@ export function LegalAcceptanceGate({ children }: { children: ReactNode }) {
     setError(null)
     // L'horodatage vient du SERVEUR (accept_legal_terms, GYM-330) — jamais de l'horloge du
     // téléphone. Même règle que la demande d'exécution anticipée de GYM-336.
-    const { error: rpcErr } = await supabase.rpc('accept_legal_terms', { p_version: LEGAL_VERSION })
+    let rpcErr: { message?: string; code?: string } | null = null
+    try {
+      const res = await supabase.rpc('accept_legal_terms', { p_version: LEGAL_VERSION })
+      rpcErr = res.error
+    } catch (e) {
+      // 🔴 GYM-346 — LE `try` N'EST PAS DÉCORATIF. `supabase.rpc` rend l'erreur dans
+      // `{ error }` dans la plupart des cas, mais une coupure réseau peut aussi faire
+      // REMONTER le TypeError de `fetch`. Sans ce bloc, l'exception traversait le hook et
+      // laissait le bouton en « chargement » indéfiniment.
+      rpcErr = { message: (e as Error)?.message }
+    }
     setSubmitting(false)
+
     if (rpcErr) {
       Sentry.captureException(rpcErr, { tags: { area: 'gym330_accept_legal_terms' } })
-      setError(rpcErr.message)
+      // 🔴 ON N'AFFICHE PLUS `rpcErr.message`. En mode avion, il valait « TypeError:
+      // Network request failed » — un message d'outillage montré à un membre, au moment
+      // précis où on lui demande d'accepter un contrat. On rend une CLÉ i18n, comme le fait
+      // déjà `mapPaymentError` pour les achats ; l'écran la traduit.
+      setError(isNetworkFailure(rpcErr) ? 'legal_gate.accept_failed_network' : 'legal_gate.accept_failed')
       return
     }
     setStatus({ kind: 'ok' })

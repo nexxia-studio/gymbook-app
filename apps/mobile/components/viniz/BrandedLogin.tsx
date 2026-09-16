@@ -22,6 +22,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { clearSelectedGymSlug } from '../../lib/gymResolver'
 import { clearCachedBrand } from '../../lib/theme/brand'
+import { OAuthButtons } from '../auth/OAuthButtons'
 import { PoweredByViniz } from './PoweredByViniz'
 import { markSignupIntent } from '../../lib/signupIntent'
 
@@ -81,8 +82,33 @@ export function BrandedLogin() {
             {t('auth.login_title')}
           </Text>
 
+          {/* ── 🔴 GYM-323 — SE RECONNECTER COMME ON S'EST INSCRIT ────────────────────
+              L'INSCRIPTION propose Apple et Google ; cet écran-ci n'en proposait AUCUN.
+              Mesuré en prod : 8 comptes @privaterelay.appleid.com, TOUS sans mot de passe
+              (méthode `apple` seule), tous connectés régulièrement. Ces membres n'avaient
+              donc aucun moyen de revenir autrement que par « mot de passe oublié » — un
+              détour pour un compte qui n'a jamais eu de mot de passe.
+
+              Ce n'est plus un cul-de-sac depuis GYM-155 (délivrabilité vers les adresses
+              relais Apple prouvée, 6 emails délivrés), mais c'est resté une friction
+              inutile, et elle frappe précisément ceux qui ont choisi le parcours le plus
+              court.
+
+              ⚠️ `position="top"` — Sign in with Apple AU-DESSUS du formulaire email, comme
+              sur l'écran de Dopamine. C'est ce placement qui a levé le rejet App Store
+              Guideline 4 (GYM-149) ; l'écran brandé n'a aucune raison d'en diverger.
+
+              ⚠️ `on="background"` — cet écran n'a PAS de carte : le formulaire est posé à
+              même `tokens.background`. Sans ce paramètre, le bouton Google serait rendu
+              `surface` bordé `border`, c'est-à-dire INVISIBLE (1,00 à 1,09 de contraste
+              contre le fond sur les six thèmes mesurés), et le bouton Apple resterait NOIR
+              sur un fond sombre. */}
+          <View className="mt-6">
+            <OAuthButtons position="top" on="background" />
+          </View>
+
           {/* ── FORMULAIRE ─────────────────────────────────────────────────────────── */}
-          <View className="mt-5 gap-5">
+          <View className="gap-5">
             <TextInput
               label={t('auth.email')}
               placeholder={t('auth.email_placeholder')}

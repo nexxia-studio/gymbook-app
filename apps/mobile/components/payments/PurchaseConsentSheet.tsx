@@ -89,32 +89,67 @@ export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }:
         <Text className="mt-4 text-center font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
           {t('early_performance.title')}
         </Text>
-        <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
+      </View>
+
+      {/* 🔴 GYM-346 — CE QU'ON ACHÈTE, D'ABORD ET EN GRAND.
+          La formule et le prix étaient une ligne grise centrée sous le titre, de la même
+          taille que la clause juridique qui suit : le membre ouvrait la feuille sur un mur
+          de texte sans y trouver ce qu'il est en train de payer. Ils deviennent le premier
+          bloc, à l'encre pleine — la case vient APRÈS, une fois l'achat identifié.
+          ⚠️ AUCUNE COULEUR NOUVELLE, ET AUCUN FOND : la hiérarchie est faite par la
+          TYPOGRAPHIE seule (gras/base contre régulier/sm), avec `onSurface` et
+          `onSurfaceSecondary` — les deux encres déjà employées sur cette feuille. Le
+          garde-fou de contraste n'a donc rien de neuf à trancher.
+          🔴 `tokens.field` AVAIT ÉTÉ ESSAYÉ ICI, ET C'ÉTAIT LE PIÈGE DÉJÀ DOCUMENTÉ DANS
+          ui/Checkbox.tsx ET EN GYM-337 : en single il vaut #FFFFFF, soit exactement la
+          couleur de la feuille (`surface`). Le bloc aurait été invisible sur son propre
+          fond chez Dopamine. Pas de fond du tout : rien à faire disparaître. */}
+      <View className="mt-5">
+        <Text className="font-dmsans-bold text-base leading-6" style={{ color: tokens.onSurface }}>
+          {plan.name}
+        </Text>
+        <Text className="mt-1 font-dmsans text-sm leading-6" style={{ color: tokens.onSurfaceSecondary }}>
           {isRecurring
             ? t('early_performance.summary_recurring', { plan: plan.name, price })
             : t('early_performance.summary_one_time', { plan: plan.name, price })}
         </Text>
       </View>
 
-      <View className="mt-6 rounded-2xl border p-4" style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}>
+      <View className="mt-4 rounded-2xl border p-4" style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}>
+        {/* 🔴 LE LIBELLÉ EST RACCOURCI, PAS AFFAIBLI (GYM-336b). Il faisait quatre lignes à
+            l'écran d'achat. L'art. VI.53, 1° CDE exige DEUX éléments, et les deux y sont
+            toujours, en une seule phrase :
+              a. la DEMANDE EXPRESSE → « je demande à commencer maintenant » ;
+              b. la RECONNAISSANCE de la perte du droit → « renonce à mon droit de
+                 rétractation de 14 jours pour la part déjà utilisée ».
+            ⚠️ TOUT RACCOURCISSEMENT SUPPLÉMENTAIRE TOUCHERAIT L'UN DES DEUX. Ce n'est pas
+            une marge de style, c'est le plancher légal.
+            ⚠️ ET CE LIBELLÉ EST VERSIONNÉ : le modifier sans incrémenter
+            EARLY_PERFORMANCE_CONSENT_VERSION ferait porter le même numéro à deux textes
+            différents, et la preuve ne dirait plus QUOI a été accepté. */}
         <Checkbox checked={consent} onToggle={() => setConsent((v) => !v)}>
-          <Text className="font-dmsans text-sm leading-relaxed" style={{ color: tokens.onSurfaceSecondary }}>
+          <Text className="font-dmsans text-sm leading-6" style={{ color: tokens.onSurfaceSecondary }}>
             {t(EARLY_PERFORMANCE_CONSENT_I18N_KEY)}
           </Text>
         </Checkbox>
 
-        {/* Lien tapable vers les CGV — même motif que la case des CGU à l'inscription : le
-            <Text onPress> imbriqué capture le tap sans déclencher le toggle de la case. */}
-        <Text className="mt-3 font-dmsans text-xs leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
-          {t('early_performance.legal_hint')}{' '}
-          <Text
-            className="font-dmsans-bold underline"
-            style={{ color: tokens.onSurface }}
-            accessibilityRole="link"
-            onPress={() => router.push('/profile/legal/cgu')}
-          >
-            {t('early_performance.legal_link')}
-          </Text>
+        {/* La phrase « Cette demande est enregistrée avec votre achat… » est SUPPRIMÉE :
+            aucune valeur juridique, c'était du confort de lecture.
+            🔴 LE LIEN, LUI, RESTE — ÉCART ASSUMÉ AVEC LE CADRAGE, qui le supposait
+            « accessible ailleurs dans l'écran ». Il ne l'est pas : ce `router.push` était le
+            SEUL accès aux CGV de cette feuille, et la feuille est une MODALE — en sortir
+            demande d'annuler l'achat. Le retirer aurait coupé l'accès au contrat au moment
+            précis où on le fait accepter. Il ne reste donc que le lien, sans phrase autour :
+            deux mots au lieu de deux phrases.
+            Le <Text onPress> capture le tap sans déclencher le toggle de la case — même
+            motif que la case des CGU à l'inscription. */}
+        <Text
+          className="mt-3 font-dmsans text-xs underline"
+          style={{ color: tokens.onBackgroundMuted }}
+          accessibilityRole="link"
+          onPress={() => router.push('/profile/legal/cgu')}
+        >
+          {t('early_performance.legal_link')}
         </Text>
       </View>
 
@@ -124,7 +159,10 @@ export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }:
         disabled={!canConfirm}
         accessibilityState={{ disabled: !canConfirm }}
         style={{ backgroundColor: tokens.actionBg }}
-        className={`mt-5 flex-row items-center justify-center gap-3 rounded-2xl px-4 py-4 ${canConfirm ? '' : 'opacity-60'}`}
+        // ⚠️ `mt-7` ET NON `mt-5` : le bouton touchait presque la clause. Un CTA collé au
+        // texte qu'il valide invite à taper avant d'avoir lu — c'est de la mise en forme,
+        // mais elle porte sur le geste qu'on demande.
+        className={`mt-7 flex-row items-center justify-center gap-3 rounded-2xl px-4 py-4 ${canConfirm ? '' : 'opacity-60'}`}
       >
         {busy && <ActivityIndicator color={tokens.onAction} />}
         <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onAction }}>

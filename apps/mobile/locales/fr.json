@@ -124,7 +124,8 @@
       "invalid_credentials": "Email ou mot de passe incorrect",
       "email_not_confirmed": "Veuillez confirmer votre email",
       "user_already_registered": "Un compte existe déjà avec cet email",
-      "generic": "Une erreur est survenue, réessayez"
+      "generic": "Une erreur est survenue, réessayez",
+      "no_gym_selected": "Choisissez d'abord votre salle : sans elle, nous ne pouvons pas vous envoyer un lien valide."
     },
     "password_rules": {
       "length": "Au moins {{count}} caractères",
@@ -571,8 +572,7 @@
     "title": "Avant de payer",
     "summary_one_time": "{{plan}} — {{price}}, paiement immédiat.",
     "summary_recurring": "{{plan}} — {{price}} par mensualité, par domiciliation SEPA.",
-    "consent_label": "Je demande que la prestation commence immédiatement, avant la fin du délai de rétractation de 14 jours. Je reconnais perdre mon droit de rétractation lorsqu'elle aura été pleinement exécutée et, si je me rétracte en cours d'exécution, devoir payer la part déjà fournie.",
-    "legal_hint": "Cette demande est enregistrée avec votre achat. Voir l'article B4 des",
+    "consent_label": "Je demande à commencer maintenant et renonce à mon droit de rétractation de 14 jours pour la part déjà utilisée.",
     "legal_link": "conditions générales",
     "confirm": "Confirmer et payer"
   },
@@ -588,6 +588,8 @@
     "checkbox": "J'ai lu et j'accepte les conditions générales et la politique de confidentialité.",
     "accept": "Accepter et continuer",
     "decline": "Refuser et se déconnecter",
+    "accept_failed_network": "Impossible d'enregistrer votre acceptation : vérifiez votre connexion et réessayez.",
+    "accept_failed": "Impossible d'enregistrer votre acceptation pour le moment. Réessayez dans un instant.",
     "unavailable_title": "Vérification impossible",
     "unavailable_body": "Nous n'avons pas pu vérifier votre acceptation des conditions. Vérifiez votre connexion et réessayez."
   },
@@ -606,7 +608,7 @@
     "summary_credits": "{{count}} séances disponibles",
     "summary_unlimited": "Abonnement illimité",
     "summary_unlimited_until": "Abonnement illimité — jusqu'au {{date}}",
-    "credits_usage": "{{used}} utilisée(s) sur {{total}}",
+    "credits_kept_during_subscription": "Conservées pendant votre abonnement — utilisables à son échéance",
     "valid_until": "Valable jusqu'au {{date}}",
     "available_plans": "Formules disponibles",
     "popular": "⭐ Le plus populaire",

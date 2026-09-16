@@ -124,7 +124,8 @@
       "invalid_credentials": "Invalid email or password",
       "email_not_confirmed": "Please confirm your email",
       "user_already_registered": "An account already exists with this email",
-      "generic": "An error occurred, please try again"
+      "generic": "An error occurred, please try again",
+      "no_gym_selected": "Please choose your gym first: without it, we can't send you a valid link."
     },
     "password_rules": {
       "length": "At least {{count}} characters",
@@ -571,8 +572,7 @@
     "title": "Before you pay",
     "summary_one_time": "{{plan}} — {{price}}, paid immediately.",
     "summary_recurring": "{{plan}} — {{price}} per instalment, by SEPA direct debit.",
-    "consent_label": "I request that the service begin immediately, before the end of the 14-day withdrawal period. I acknowledge that I lose my right of withdrawal once it has been fully performed and that, if I withdraw while it is being performed, I must pay for the part already provided.",
-    "legal_hint": "This request is recorded with your purchase. See article B4 of the",
+    "consent_label": "I ask to start now and waive my 14-day right of withdrawal for the part already used.",
     "legal_link": "terms and conditions",
     "confirm": "Confirm and pay"
   },
@@ -588,6 +588,8 @@
     "checkbox": "I have read and accept the terms and conditions and the privacy policy.",
     "accept": "Accept and continue",
     "decline": "Decline and sign out",
+    "accept_failed_network": "We couldn't record your acceptance: check your connection and try again.",
+    "accept_failed": "We couldn't record your acceptance right now. Please try again in a moment.",
     "unavailable_title": "Cannot verify",
     "unavailable_body": "We could not verify your acceptance of the terms. Check your connection and try again."
   },
@@ -606,7 +608,7 @@
     "summary_credits": "{{count}} sessions available",
     "summary_unlimited": "Unlimited membership",
     "summary_unlimited_until": "Unlimited membership — until {{date}}",
-    "credits_usage": "{{used}} used of {{total}}",
+    "credits_kept_during_subscription": "Kept during your membership — usable once it ends",
     "valid_until": "Valid until {{date}}",
     "available_plans": "Available plans",
     "popular": "⭐ Most popular",
