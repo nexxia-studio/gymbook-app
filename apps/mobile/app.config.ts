@@ -181,7 +181,53 @@ const config = {
     // avançait sans conséquence visible, faute de notifications : c'est la première version
     // où une régression Android se verrait chez un membre. Le Play Store refuse un
     // versionCode déjà publié, exactement comme Apple refuse un buildNumber réutilisé.
-    version: '1.2.0',
+    //
+    // 1.2.1 — RETOUR AU PATCH. Contenu ENTIÈREMENT CORRECTIF : aucune fonctionnalité
+    // nouvelle, rien que le membre ne puisse déjà faire. C'est le critère qui sépare ce
+    // train des deux sauts MINOR qui précèdent — 1.1.0 changeait ce qu'est l'app,
+    // 1.2.0 ce que le membre doit faire ; celui-ci ne corrige que la façon dont on le lui
+    // dit.
+    //  · GYM-336b — le libellé d'exécution anticipée passe de quatre lignes à une phrase.
+    //    Les deux éléments exigés par l'art. VI.53, 1° CDE y sont toujours. ⚠️ LE
+    //    CONSENTEMENT PASSE EN VERSION '2' (constants/earlyPerformance.ts) : deux textes
+    //    différents ne peuvent pas porter le même numéro, sinon la preuve enregistrée ne
+    //    dit plus QUOI a été accepté. Les demandes déjà signées sous '1' ne bougent pas.
+    //  · GYM-330b — l'échec réseau à l'acceptation des conditions affichait
+    //    « TypeError: Network request failed ». Message lisible, bouton réactivable, et la
+    //    logique de blocage INCHANGÉE : un échec ne laisse jamais passer.
+    //  · GYM-97 — l'affichage des crédits cesse de se contredire. Le « X utilisée sur Y »
+    //    est retiré : son assiette ne comptait que les carnets encore entamés, et un crédit
+    //    rendu après annulation la faisait AUGMENTER sans achat. Le solde, lui, était juste
+    //    et ne change pas. Sous abonnement actif, la carte dit désormais que les séances
+    //    sont conservées jusqu'à l'échéance — elles étaient gelées sans que rien le dise.
+    //
+    // ⚠️ GYM-105 N'ENTRE PAS DANS CE BINAIRE. Le correctif « Dopamine en dur » porte sur
+    // apps/dashboard/src/pages/PaymentSuccess.tsx et PaymentCancel.tsx — des pages WEB du
+    // dashboard. Le mobile a son propre écran de retour de paiement, que ce train ne
+    // touche pas. Il est livré dans la même PR, pas dans la même app.
+    //
+    // 🔴 LA 1.2.0 N'A JAMAIS ÉTÉ PUBLIÉE — restée en TestFlight (build 25). Son numéro de
+    // version marketing n'est donc PAS consommé : ITMS-90186 / ITMS-90062 ne portent que
+    // sur les versions effectivement PUBLIÉES. Rien n'obligeait à passer en 1.2.1 de ce
+    // point de vue — c'est le CONTENU qui le justifie, ces trois correctifs étant venus
+    // après le build 25. La 1.2.1 remplace la 1.2.0 et la rend caduque.
+    //
+    // ⚠️ ET C'EST LA MÊME SITUATION QUE LE BLOC 1.1.0, AU RÉSULTAT INVERSE : là, la version
+    // marketing libre avait permis de SAUTER un numéro ; ici elle aurait permis de le
+    // RÉUTILISER. On ne le réutilise pas — un build 25 circule en TestFlight sous « 1.2.0 »,
+    // et deux binaires différents portant le même numéro chez des testeurs est exactement
+    // ce que la numérotation sert à éviter.
+    //
+    // 🔴 LE NUMÉRO DE BUILD, LUI, EST BEL ET BIEN CONSOMMÉ. C'est la distinction que ce
+    // bloc rend facile à manquer : la VERSION MARKETING était libre, le NUMÉRO DE BUILD ne
+    // l'est pas — un binaire téléversé le brûle, publié ou non. Compteurs distants LUS
+    // avant ce commit, pas déduits :
+    //     eas build:version:get --platform ios     --profile production → 25
+    //     eas build:version:get --platform android --profile production → 9
+    // Le prochain build doit donc porter buildNumber ≥ 26 (iOS) et versionCode ≥ 10
+    // (Android). `autoIncrement: true` s'en charge — ces nombres ne sont PAS déclarés ici,
+    // et conformément aux blocs précédents aucun n'est annoncé : seul le PLANCHER l'est.
+    version: '1.2.1',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
