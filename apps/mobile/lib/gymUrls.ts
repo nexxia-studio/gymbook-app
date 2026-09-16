@@ -12,7 +12,7 @@
 // l'adresse et le slug proviennent désormais de la MÊME requête, pas de deux.
 import { getGymProfile, __resetGymProfileCache } from './gymProfile'
 import { GYM_SLUG } from '../constants/dopamine'
-import { readSelectedGymSlug } from './gymResolver'
+import { GYM_MODE, readSelectedGymSlug } from './gymResolver'
 
 /** Domaine des Universal Links membres (GYM-158). Infra produit, pas propre à une salle. */
 const LINKS_BASE = 'https://links.viniz.app'
@@ -66,9 +66,8 @@ export async function getGymSlug(): Promise<string> {
  * stockage). L'expression retombe donc TOUJOURS sur GYM_SLUG chez Dopamine — ce n'est pas
  * une probabilité, c'est le même caractère qu'avant.
  */
-export async function buildMemberResetPasswordUrl(): Promise<string> {
-  const slug = await readSelectedGymSlug()
-  return `${LINKS_BASE}/${slug ?? GYM_SLUG}/reset-password`
+export async function buildMemberResetPasswordUrl(): Promise<string | null> {
+  return buildMemberLink('reset-password')
 }
 
 /**
@@ -87,9 +86,41 @@ export async function buildMemberResetPasswordUrl(): Promise<string> {
  * ⚠️ COCKPIT : cette URL doit figurer dans les Redirect URLs de Supabase Auth (prod ET
  * staging), sinon le lien est rejeté et le parcours reste inopérant.
  */
-export async function buildMemberSignupConfirmUrl(): Promise<string> {
+export async function buildMemberSignupConfirmUrl(): Promise<string | null> {
+  return buildMemberLink('confirm')
+}
+
+/**
+ * 🔴 GYM-343 — EN MULTI, ON NE REPLIE PAS. ON REND `null`.
+ *
+ * CE QUI ÉTAIT ÉCRIT : `${slug ?? GYM_SLUG}`. Or `production-viniz` ne pose pas
+ * EXPO_PUBLIC_GYM_SLUG, donc GYM_SLUG y vaut 'dopamine' — sa valeur de repli. Sans slug
+ * mémorisé, un membre de n'importe quelle salle recevait un lien
+ * `links.viniz.app/dopamine/reset-password` : LE NOM D'UN CLIENT DANS L'EMAIL D'UN AUTRE.
+ * Et pas seulement un nom — `/dopamine/*` est le chemin que l'app de PRODUCTION revendique
+ * par son AASA : sur un appareil qui a les deux apps, le lien pouvait ouvrir Dopamine.
+ *
+ * MÊME MOTIF QUE `claim_app_gym` (GYM-338) : REFUSER PLUTÔT QUE DEVINER. Un lien qu'on ne
+ * peut pas construire justement doit ne pas être construit ; l'appelant le dit au membre.
+ * Une erreur visible se corrige en un geste — un lien portant le nom d'un autre client ne
+ * se rattrape pas, il part par email.
+ *
+ * ⚠️ LE MODE `single` NE BOUGE PAS D'UN CARACTÈRE, et c'est structurel, pas une
+ * probabilité : `readSelectedGymSlug()` rend `null` SANS CONDITION quand GYM_MODE vaut
+ * 'single' (premier test de la fonction, avant tout accès au stockage). La branche ci-
+ * dessous est donc TOUJOURS celle qu'emprunte Dopamine, et elle rend exactement l'URL
+ * d'avant ce lot. Chez Dopamine, 'dopamine' est la bonne réponse — c'est sa salle.
+ */
+async function buildMemberLink(path: 'reset-password' | 'confirm'): Promise<string | null> {
   const slug = await readSelectedGymSlug()
-  return `${LINKS_BASE}/${slug ?? GYM_SLUG}/confirm`
+  if (slug) return `${LINKS_BASE}/${slug}/${path}`
+
+  // `single` : la salle du build EST la salle, le repli est juste.
+  if (GYM_MODE === 'single') return `${LINKS_BASE}/${GYM_SLUG}/${path}`
+
+  // `multi` sans salle connue : aucune réponse honnête. On ne devine pas.
+  console.warn(`[gymUrls] lien ${path} non construit : aucune salle choisie (mode multi)`)
+  return null
 }
 
 /**

@@ -124,7 +124,8 @@
       "invalid_credentials": "Invalid email or password",
       "email_not_confirmed": "Please confirm your email",
       "user_already_registered": "An account already exists with this email",
-      "generic": "An error occurred, please try again"
+      "generic": "An error occurred, please try again",
+      "no_gym_selected": "Please choose your gym first: without it, we can't send you a valid link."
     },
     "password_rules": {
       "length": "At least {{count}} characters",
