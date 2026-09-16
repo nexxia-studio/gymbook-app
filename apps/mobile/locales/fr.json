@@ -608,7 +608,7 @@
     "summary_credits": "{{count}} séances disponibles",
     "summary_unlimited": "Abonnement illimité",
     "summary_unlimited_until": "Abonnement illimité — jusqu'au {{date}}",
-    "credits_usage": "{{used}} utilisée(s) sur {{total}}",
+    "credits_kept_during_subscription": "Conservées pendant votre abonnement — utilisables à son échéance",
     "valid_until": "Valable jusqu'au {{date}}",
     "available_plans": "Formules disponibles",
     "popular": "⭐ Le plus populaire",

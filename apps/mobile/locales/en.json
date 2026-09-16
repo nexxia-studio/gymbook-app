@@ -608,7 +608,7 @@
     "summary_credits": "{{count}} sessions available",
     "summary_unlimited": "Unlimited membership",
     "summary_unlimited_until": "Unlimited membership — until {{date}}",
-    "credits_usage": "{{used}} used of {{total}}",
+    "credits_kept_during_subscription": "Kept during your membership — usable once it ends",
     "valid_until": "Valid until {{date}}",
     "available_plans": "Available plans",
     "popular": "⭐ Most popular",
