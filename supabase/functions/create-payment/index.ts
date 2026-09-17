@@ -1,5 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { getMollieToken } from '../_shared/mollie-token.ts'
+// GYM-346 — même classement et même journalisation que create-subscription. Les deux
+// chemins d'achat répondent désormais à l'identique.
+import {
+  classifyMollieHttpError,
+  classifyMollieNetworkError,
+  logMollieFailure,
+  redactSecrets,
+  TOKEN_OUTCOMES,
+  type MollieOutcome,
+} from '../_shared/mollie-error.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
@@ -43,6 +53,15 @@ function errorResponse(status: number, message: string, code?: string) {
 
 function formatAmount(value: number): string {
   return value.toFixed(2)
+}
+
+/**
+ * GYM-346 — rend un échec Mollie AU MEMBRE : code distinct, statut qui dit définitif ou
+ * incertain, message générique. Le détail Mollie a déjà été journalisé par l'appelant et
+ * ne franchit PAS cette frontière. Identique à create-subscription, volontairement.
+ */
+function mollieErrorResponse(outcome: MollieOutcome) {
+  return errorResponse(outcome.status, outcome.message, outcome.code)
 }
 
 Deno.serve(async (req) => {
@@ -291,9 +310,17 @@ Deno.serve(async (req) => {
       mollieApiKey = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
       if (!mollieApiKey) return errorResponse(500, 'MOLLIE_TEST_API_KEY manquant', 'CONFIG_ERROR')
     } else {
-      const token = await getValidMollieToken(supabaseAdmin, gymId)
-      if (!token) return errorResponse(503, 'Token Mollie expiré — reconnexion requise', 'MOLLIE_TOKEN_EXPIRED')
-      mollieApiKey = token
+      // GYM-346 — trois causes distinctes, jusqu'ici repliées sur un même
+      // MOLLIE_TOKEN_EXPIRED « réessaie plus tard » : salle jamais connectée (la cause de
+      // GYM-259), connexion révoquée, rafraîchissement impossible. Aucune ne se répare en
+      // réessayant. Même traitement que create-subscription.
+      const tokenRes = await getMollieToken(supabaseAdmin, gymId)
+      if (!tokenRes.ok) {
+        const outcome = TOKEN_OUTCOMES[tokenRes.reason]
+        logMollieFailure('create-payment', `token:${tokenRes.reason}`, { gymId, memberId: profile.id, planId: plan.plan_id }, outcome)
+        return mollieErrorResponse(outcome)
+      }
+      mollieApiKey = tokenRes.token
 
       const { data: connMeta } = await supabaseAdmin
         .from('gym_mollie_connections')
@@ -342,29 +369,47 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('[create-payment] Mollie payload:', JSON.stringify(molliePayload))
+    // 🔴 GYM-346 — `webhookUrl` porte `?secret=${MOLLIE_WEBHOOK_SECRET}` EN CLAIR. Cette
+    // ligne écrivait donc le secret du rappel dans les journaux d'exécution à CHAQUE
+    // paiement — réussi compris, pas seulement en cas d'échec. Caviardé.
+    console.log('[create-payment] Mollie payload:', redactSecrets(JSON.stringify(molliePayload)))
 
-    const mollieRes = await fetch('https://api.mollie.com/v2/payments', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${mollieApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(molliePayload),
-    })
+    let mollieRes: Response
+    try {
+      mollieRes = await fetch('https://api.mollie.com/v2/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${mollieApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(molliePayload),
+      })
+    } catch (e) {
+      // GYM-346 — le fetch a levé : pas de réponse, donc pas de statut. Incertain.
+      const outcome = classifyMollieNetworkError()
+      logMollieFailure('create-payment', 'payment:network', { gymId, memberId: profile.id, planId: plan.plan_id }, outcome, String(e))
+      return mollieErrorResponse(outcome)
+    }
 
     console.log('[create-payment] Mollie response status:', mollieRes.status)
 
     if (!mollieRes.ok) {
+      // GYM-346 — cette fonction journalisait DÉJÀ le détail (c'est sa jumelle
+      // create-subscription qui ne le faisait pas). Ce qui manquait ICI : le classement.
+      // Tout échec repartait en 502 « réessaie », y compris un 422 définitif.
       const detail = await mollieRes.text()
-      console.error('[create-payment] Mollie error body:', detail)
-      return errorResponse(502, `Mollie API a refusé la requête: ${detail}`, 'MOLLIE_ERROR')
+      const outcome = classifyMollieHttpError(mollieRes.status, detail)
+      logMollieFailure('create-payment', 'payment', { gymId, memberId: profile.id, planId: plan.plan_id, httpStatus: mollieRes.status }, outcome, detail)
+      return mollieErrorResponse(outcome)
     }
 
     const mollieData = await mollieRes.json()
     const checkoutUrl = mollieData?._links?.checkout?.href as string | undefined
 
     if (!checkoutUrl) {
+      console.error('[create-payment] mollie_failure stage=no_checkout code=MOLLIE_NO_CHECKOUT'
+        + ` definitive=false gym=${gymId} member=${profile.id} plan=${plan.plan_id}`
+        + ` mollie_payment_id=${mollieData?.id ?? '(none)'}`)
       return errorResponse(502, 'Mollie n\'a pas retourné d\'URL de checkout', 'MOLLIE_NO_CHECKOUT')
     }
 

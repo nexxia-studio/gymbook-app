@@ -77,6 +77,43 @@ export function mapPaymentError(code?: string): PaymentErrorInfo {
     case 'MOLLIE_ERROR':
     case 'MOLLIE_NO_CHECKOUT':
       return { messageKey: 'payments.errors.MOLLIE_ERROR', retryable: true, refetch: false }
+    // ══════════════════════════════════════════════════════════════════════════════════
+    // GYM-346 — LE REFUS N'EST PLUS CONFONDU AVEC L'INCERTITUDE
+    // ══════════════════════════════════════════════════════════════════════════════════
+    // Jusqu'ici, TOUT échec Mollie rendait MOLLIE_ERROR « réessaie ». Or un 422 de Mollie
+    // est DÉFINITIF : la même requête à l'identique sera refusée à l'identique. Proposer
+    // « Réessayer » a fait retenter trois fois une requête vouée à échouer (14/09).
+    //
+    // Le serveur classe désormais sur le STATUT rendu par Mollie, et n'envoie plus jamais
+    // son détail — il peut porter des informations de compte, et il transitait par
+    // l'appareil du membre avant de remonter dans Sentry.
+    //
+    // ⚠️ MOLLIE_ERROR reste au-dessus, inchangé : les binaires DÉJÀ EN CIRCULATION
+    // parlent à un backend qui le renvoie encore, et le renverra jusqu'au déploiement.
+    //
+    // ⚠️ AUCUN de ces codes n'est ajouté à EXPECTED_EDGE_CODES (lib/edgeInvoke.ts) : ce
+    // sont des pannes ou des défauts de configuration, ils DOIVENT alerter Sentry. C'est
+    // l'absence d'alerte qui a coûté deux semaines sur GYM-259.
+
+    // La salle n'a jamais connecté Mollie, ou sa connexion n'est plus active. Le membre
+    // n'y peut rien et réessayer ne répare rien : c'est au gérant d'agir. C'est la cause
+    // exacte de GYM-259, jusqu'ici indistinguable d'une panne passagère.
+    case 'MOLLIE_NOT_CONNECTED':
+      return { messageKey: 'payments.errors.MOLLIE_NOT_CONNECTED', retryable: false, refetch: false }
+    // Le jeton existe mais Mollie le refuse (401/403), ou il n'est plus rafraîchissable.
+    // Le gérant doit refaire la connexion.
+    case 'MOLLIE_TOKEN_REJECTED':
+      return { messageKey: 'payments.errors.MOLLIE_TOKEN_REJECTED', retryable: false, refetch: false }
+    // Aucun moyen de paiement disponible pour cette salle — configuration Mollie.
+    case 'MOLLIE_METHOD_UNAVAILABLE':
+      return { messageKey: 'payments.errors.MOLLIE_METHOD_UNAVAILABLE', retryable: false, refetch: false }
+    // Refus métier définitif (422). Réessayer à l'identique redonnera le même refus.
+    case 'MOLLIE_REFUSED':
+      return { messageKey: 'payments.errors.MOLLIE_REFUSED', retryable: false, refetch: false }
+    // Panne ou injoignabilité du prestataire (5xx, 429, timeout, réseau) — INCERTAIN,
+    // rien n'a été débité, la nouvelle tentative a du sens.
+    case 'MOLLIE_UNAVAILABLE':
+      return { messageKey: 'payments.errors.MOLLIE_UNAVAILABLE', retryable: true, refetch: false }
     // One-time uniquement
     case 'PLAN_NOT_ONE_TIME':
       return { messageKey: 'payments.errors.PLAN_NOT_ONE_TIME', retryable: false, refetch: false }
