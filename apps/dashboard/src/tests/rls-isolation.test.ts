@@ -21,9 +21,19 @@ if (!MOVE95_EMAIL || !MOVE95_PASSWORD || !STUDIO_EMAIL || !STUDIO_PASSWORD) {
   throw new Error('STAGING_MOVE95_EMAIL / STAGING_MOVE95_PASSWORD / STAGING_STUDIO_EMAIL / STAGING_STUDIO_PASSWORD manquant — définis-les dans apps/dashboard/.env.test (gitignoré) ou l\'environnement')
 }
 
+// GYM-350 — alias resserrés. Les gardes ci-dessus suffisent à l'exécution, mais pas au
+// contrôle de types : `signIn` et `main` sont des DÉCLARATIONS de fonction, donc hoistées,
+// et le resserrement obtenu ici au niveau du module ne les traverse pas. On fige les valeurs
+// une fois les gardes passées. Aucun changement de comportement.
+const ANON_KEY: string = SUPABASE_ANON_KEY
+const MOVE95_USER: string = MOVE95_EMAIL
+const MOVE95_PASS: string = MOVE95_PASSWORD
+const STUDIO_USER: string = STUDIO_EMAIL
+const STUDIO_PASS: string = STUDIO_PASSWORD
+
 // ─── Helpers ───────────────────────────────────────────────────
 async function signIn(email: string, password: string): Promise<SupabaseClient> {
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  const client = createClient(SUPABASE_URL, ANON_KEY)
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`Auth failed for ${email}: ${error.message}`)
   return client
@@ -182,29 +192,37 @@ async function testCrossTenantWrite(
   ))
 
   // Studio tries to UPDATE Move95 coaches
-  const { count } = await studio
+  //
+  // ⚠️ On compte les lignes RENVOYÉES, pas `count`. Après `.update()`/`.delete()` on est sur
+  // un PostgrestTransformBuilder, dont `select(columns)` n'accepte QU'UN argument et ignore
+  // silencieusement `{ count, head }` : `count` restait `null`, et `(count ?? 0) === 0` était
+  // vrai même RLS grandes ouvertes. Le test ne pouvait pas échouer (GYM-350).
+  // `.select('id')` pose `Prefer: return=representation` : `updRows` liste les lignes
+  // réellement touchées — vide quand RLS bloque.
+  const { data: updRows, error: updErr } = await studio
     .from('coaches')
     .update({ name: 'HACKED' })
     .eq('gym_id', MOVE95_ID)
-    .select('id', { count: 'exact', head: true })
+    .select('id')
   results.push(test(
     'Studio Test CANNOT UPDATE Move95 coaches',
-    (count ?? 0) === 0,
+    !!updErr || (updRows?.length ?? 0) === 0,
     '0 rows affected',
-    `${count ?? 0} rows affected`,
+    updErr ? `Blocked: ${updErr.code}` : `${updRows?.length ?? 0} rows affected`,
   ))
 
   // Studio tries to DELETE Move95 activities
-  const { count: delCount } = await studio
+  // Même correction que l'UPDATE ci-dessus (GYM-350).
+  const { data: delRows, error: delErr } = await studio
     .from('activities')
     .delete()
     .eq('gym_id', MOVE95_ID)
-    .select('id', { count: 'exact', head: true })
+    .select('id')
   results.push(test(
     'Studio Test CANNOT DELETE Move95 activities',
-    (delCount ?? 0) === 0,
+    !!delErr || (delRows?.length ?? 0) === 0,
     '0 rows affected',
-    `${delCount ?? 0} rows affected`,
+    delErr ? `Blocked: ${delErr.code}` : `${delRows?.length ?? 0} rows affected`,
   ))
 
   return results
@@ -218,7 +236,7 @@ async function main() {
   let studio: SupabaseClient
 
   try {
-    move95 = await signIn(MOVE95_EMAIL, MOVE95_PASSWORD)
+    move95 = await signIn(MOVE95_USER, MOVE95_PASS)
     console.log('  Move95 admin: authenticated')
   } catch (e) {
     console.error(`  Move95 auth FAILED: ${e}`)
@@ -226,7 +244,7 @@ async function main() {
   }
 
   try {
-    studio = await signIn(STUDIO_EMAIL, STUDIO_PASSWORD)
+    studio = await signIn(STUDIO_USER, STUDIO_PASS)
     console.log('  Studio Test admin: authenticated')
   } catch (e) {
     console.error(`  Studio Test auth FAILED: ${e}`)
