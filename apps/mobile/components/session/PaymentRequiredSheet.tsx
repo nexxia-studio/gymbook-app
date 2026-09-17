@@ -158,7 +158,23 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         }
       }, 2000)
 
-      openCheckout(result.checkoutUrl)
+      // GYM-352 — LE RÉSULTAT EST LU. Ce chemin échoue à l'identique de celui de
+      // profile/subscription.tsx (constaté le 17/09 à 16h03) alors qu'il ne démonte aucune
+      // modale et ne navigue pas : la cause est en aval, commune aux deux.
+      //
+      // ⚠️ TOUJOURS PAS `await` — volontairement. Sur iOS, `openBrowserAsync` ne résout
+      // qu'à la FERMETURE du navigateur : attendre ici suspendrait la fonction pendant tout
+      // le paiement, alors que le poll des crédits doit tourner PENDANT. On lit le résultat
+      // à part, quand il arrive.
+      void openCheckout(result.checkoutUrl).then((outcome) => {
+        if (outcome.presented) return
+        // Le navigateur ne s'est pas affiché : inutile de faire patienter le membre soixante
+        // secondes devant un poll de crédits qui ne verra jamais rien.
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        setIsLoadingDropIn(false)
+        setStep('options')
+        setDropInError(t('payment_required.errors.checkout_not_opened'))
+      })
     } catch (e) {
       console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
       setStep('options')

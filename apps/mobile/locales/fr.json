@@ -290,7 +290,8 @@
       "no_gym": "Gym introuvable",
       "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
       "no_plan": "Formule à la séance indisponible.",
-      "not_confirmed": "Paiement non confirmé pour le moment. S'il a été débité, vos crédits arriveront sous peu : vérifiez vos réservations avant de réessayer."
+      "not_confirmed": "Paiement non confirmé pour le moment. S'il a été débité, vos crédits arriveront sous peu : vérifiez vos réservations avant de réessayer.",
+      "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie."
     }
   },
   "session": {
@@ -519,8 +520,12 @@
     "close": "Fermer",
     "failed_title": "PAIEMENT ÉCHOUÉ",
     "failed_message": "Le paiement n'a pas abouti. Aucun montant confirmé n'a été prélevé.",
-    "timeout_title": "PAIEMENT EN COURS DE TRAITEMENT",
-    "timeout_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
+    "not_opened_title": "LA PAGE DE PAIEMENT NE S'EST PAS OUVERTE",
+    "not_opened_message": "Aucun montant n'a été débité. Reviens aux formules et réessaie — si cela recommence, préviens la salle.",
+    "not_finalized_title": "PAIEMENT NON FINALISÉ",
+    "not_finalized_message": "Tu n'as pas terminé le paiement. Aucun montant n'a été débité — tu peux reprendre quand tu veux.",
+    "awaiting_title": "PAIEMENT EN COURS DE TRAITEMENT",
+    "awaiting_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
     "check_again": "Vérifier à nouveau",
     "modal_success_title": "Paiement réussi",
     "modal_success_body": "Ton paiement a bien été confirmé.",

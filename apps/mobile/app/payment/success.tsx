@@ -65,7 +65,9 @@ const makeStyles = (tokens: ThemeTokens) => ({
 export default function PaymentSuccess() {
   const { t } = useTranslation()
   const router = useRouter()
-  const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string; returnTo?: string }>()
+  // GYM-352 — `checkout_opened: '0'` est posé par l'appelant quand `openCheckout` a constaté
+  // que le navigateur ne s'était pas affiché. Voir lib/payments.ts.
+  const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string; returnTo?: string; checkout_opened?: string }>()
   const isDropInRetry = params.source === 'drop_in' && !!params.slot_id
 
   // ============================================================
@@ -78,7 +80,7 @@ export default function PaymentSuccess() {
   // ============================================================
   // Mode classique — poll du paiement par payment.id
   // ============================================================
-  return <ClassicPaymentScreen rowId={params.id} mollieId={params.mollie_id} returnTo={params.returnTo} router={router} t={t} />
+  return <ClassicPaymentScreen rowId={params.id} mollieId={params.mollie_id} returnTo={params.returnTo} checkoutOpened={params.checkout_opened} router={router} t={t} />
 }
 
 function DropInRetryScreen({ slotId }: { slotId: string }) {
@@ -212,6 +214,7 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
 function ClassicPaymentScreen({
   rowId,
   mollieId,
+  checkoutOpened,
   returnTo,
   router,
   t,
@@ -222,6 +225,8 @@ function ClassicPaymentScreen({
   //               par la NAVIGATION PROPRIÉTAIRE (écran monté avant même d'ouvrir le navigateur).
   rowId: string | undefined
   mollieId: string | undefined
+  // GYM-352 — '0' quand `openCheckout` a constaté que le navigateur ne s'était pas affiché.
+  checkoutOpened: string | undefined
   // Destination post-succès contextuelle : renseignée par l'écran d'achat (ex. mon abonnement).
   // Absente (deep link pur) → défaut Réservations > À venir.
   returnTo: string | undefined
@@ -366,6 +371,36 @@ function ClassicPaymentScreen({
       setStatus('failed')
     }
   }, [rowId, mollieId, stopPolling])
+
+  // ╔═════════════════════════════════════════════════════════════════════════════════════╗
+  // ║  GYM-352 — L'ÉCRAN CESSE DE MENTIR AU BOUT DE CINQ MINUTES                          ║
+  // ╚═════════════════════════════════════════════════════════════════════════════════════╝
+  //
+  // LE DÉFAUT. Au bout du timeout, l'écran affichait TOUJOURS « Ton paiement est bien
+  // enregistré… tes séances seront créditées automatiquement, tu n'as rien à faire. »
+  // Le 17/09, c'était FAUX : le navigateur ne s'était jamais ouvert, aucun paiement n'avait
+  // eu lieu, et on disait au membre d'attendre un crédit qui ne viendrait jamais.
+  //
+  // TROIS SITUATIONS, ET ELLES N'APPELLENT PAS LA MÊME PHRASE :
+  //
+  //   · not_opened   — la page de paiement ne s'est pas ouverte. L'app le SAIT désormais
+  //                    (GYM-352, param `checkout_opened=0`). Rien n'a été débité.
+  //   · not_finalized— la ligne existe mais n'a jamais quitté `pending`/`open` : le membre
+  //                    n'a pas terminé le paiement chez Mollie. Rien n'a été débité.
+  //   · awaiting     — tout le reste. C'est le SEUL cas où « ton paiement est enregistré,
+  //                    tu n'as rien à faire » est vrai : le webhook tarde (constat du 04/08,
+  //                    crédit reçu en 2 min 33 s), et c'est pour lui que le plafond est à 5 min.
+  //
+  // ⚠️ DEUX SIGNAUX INDÉPENDANTS, ET C'EST VOULU. `checkout_opened` repose sur l'heuristique
+  // de délai de `openCheckout` ; le statut de la ligne, lui, est un fait serveur. Si
+  // l'heuristique se trompe, `not_finalized` rattrape le cas — le membre n'est jamais
+  // renvoyé au message « rien à faire » alors qu'il lui reste tout à faire.
+  const timeoutKind: 'not_opened' | 'not_finalized' | 'awaiting' =
+    checkoutOpened === '0'
+      ? 'not_opened'
+      : payment && (payment.status === 'pending' || payment.status === 'open')
+        ? 'not_finalized'
+        : 'awaiting'
 
   // Cycle de poll : démarre AU MONTAGE (navigation propriétaire ou deep link), immédiat +
   // intervalle, borné par un timeout global ~2 min.
@@ -516,10 +551,10 @@ function ClassicPaymentScreen({
 
         {status === 'timeout' && (
           <>
-            <Text style={{ fontSize: 64, marginBottom: 16 }}>⏳</Text>
-            <Text style={titleStyle}>{t('payment.timeout_title')}</Text>
+            <Text style={{ fontSize: 64, marginBottom: 16 }}>{timeoutKind === 'awaiting' ? '⏳' : '⚠️'}</Text>
+            <Text style={titleStyle}>{t(`payment.${timeoutKind}_title`)}</Text>
             <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
-              {t('payment.timeout_message')}
+              {t(`payment.${timeoutKind}_message`)}
             </Text>
             {/* GYM-207 — relance RÉELLE, en remplacement de l'ancienne consigne
                 « Tire pour rafraîchir » qui ne correspondait à aucun geste sur cet écran.
