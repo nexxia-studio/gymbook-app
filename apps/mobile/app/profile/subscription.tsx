@@ -328,7 +328,21 @@ export default function SubscriptionScreen() {
         if (plan.billingType === 'one_time' && result.paymentId) {
           router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }
-        await openCheckout(result.checkoutUrl)
+        // GYM-352 — LE RÉSULTAT EST LU. `openCheckout` rendait `void` : quand le navigateur
+        // ne s'ouvrait pas (constaté le 17/09 à 15h34), le membre restait devant l'écran de
+        // vérification sans que rien, nulle part, ne l'ait su.
+        //
+        // ⚠️ L'ORDRE N'EST PAS CHANGÉ. L'écran de vérification reste monté AVANT le
+        // navigateur : c'est l'intention de GYM-96, pour que le poll et le filet AppState
+        // soient armés quel que soit le mode de retour. La piste « présentation pendant une
+        // transition de navigation » doit être MESURÉE avant d'être corrigée — ce lot fournit
+        // la mesure, pas le réordonnancement.
+        const outcome = await openCheckout(result.checkoutUrl)
+        if (!outcome.presented) {
+          // L'écran est déjà monté : on le prévient au lieu de le laisser mentir pendant
+          // cinq minutes puis annoncer un paiement « bien enregistré » qui n'a pas eu lieu.
+          router.setParams({ checkout_opened: '0' })
+        }
         return
       }
       // Échec : la feuille se ferme aussi — le message d'erreur porte sur l'achat, pas sur

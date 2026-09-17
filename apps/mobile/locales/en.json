@@ -290,7 +290,8 @@
       "no_gym": "Gym not found",
       "checkout_failed": "Payment could not start. Try again.",
       "no_plan": "Drop-in plan unavailable.",
-      "not_confirmed": "Payment not confirmed yet. If you were charged, your credits will arrive shortly: check your bookings before trying again."
+      "not_confirmed": "Payment not confirmed yet. If you were charged, your credits will arrive shortly: check your bookings before trying again.",
+      "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again."
     }
   },
   "session": {
@@ -519,8 +520,12 @@
     "close": "Close",
     "failed_title": "PAYMENT FAILED",
     "failed_message": "The payment did not go through. No confirmed amount was charged.",
-    "timeout_title": "PAYMENT BEING PROCESSED",
-    "timeout_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, you don't need to do anything.",
+    "not_opened_title": "THE PAYMENT PAGE DIDN'T OPEN",
+    "not_opened_message": "Nothing was charged. Go back to the plans and try again — if it happens again, let the gym know.",
+    "not_finalized_title": "PAYMENT NOT COMPLETED",
+    "not_finalized_message": "You didn't complete the payment. Nothing was charged — you can pick it up again whenever you like.",
+    "awaiting_title": "PAYMENT BEING PROCESSED",
+    "awaiting_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, there is nothing to do.",
     "check_again": "Check again",
     "modal_success_title": "Payment successful",
     "modal_success_body": "Your payment has been confirmed.",

@@ -8,6 +8,10 @@
 // serveur qui date la demande et l'écrit dans `payments`. Voir
 // supabase/functions/_shared/early-performance.ts.
 import * as WebBrowser from 'expo-web-browser'
+import { Platform } from 'react-native'
+// GYM-352 — un navigateur qui ne s'ouvre pas est une panne : elle doit alerter, au même
+// titre que les échecs d'infrastructure de GYM-270. Ce n'est pas un refus métier.
+import * as Sentry from '@sentry/react-native'
 import i18n from './i18n'
 import { captureEvent } from './analytics'
 import { tryEdgeInvoke } from './edgeInvoke'
@@ -206,6 +210,15 @@ async function invokeCheckout(fn: string, body: Record<string, unknown>): Promis
   // ⚠️ Une réponse 200 SANS checkout_url reste un échec — c'était déjà le cas avant, et le
   // rester est important : Mollie a pu refuser sans que la fonction rende un 4xx. Sans
   // code, l'écran retombe sur son message générique, comme auparavant.
+  //
+  // 🔴 GYM-352 — DEUXIÈME RETOUR NON LU DE CE FICHIER. Ce cas-ci ne journalisait RIEN : un
+  // 200 sans `checkout_url` perdait toute la réponse en silence, et `mapPaymentError(undefined)`
+  // affichait « une erreur est survenue, réessaie ». Même motif que `openCheckout` ci-dessous.
+  // Le comportement est INCHANGÉ — seule la trace est ajoutée.
+  if (res.ok) {
+    console.error(`[invokeCheckout] ${fn} : 200 SANS checkout_url`
+      + ` success=${String(res.data?.success)} payment_id=${String(res.data?.payment_id ?? '(none)')}`)
+  }
   return { ok: false, code: res.ok ? undefined : res.error.code || undefined }
 }
 
@@ -236,7 +249,131 @@ export async function startSubscriptionCheckout(
   })
 }
 
-/** Ouvre l'URL de checkout Mollie — mécanisme unique partout. */
-export async function openCheckout(url: string): Promise<void> {
-  await WebBrowser.openBrowserAsync(url)
+// ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+// ║  GYM-352 — openCheckout DIT enfin ce qui s'est passé                                  ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+//
+// LE DÉFAUT. Cette fonction était `Promise<void>` et JETAIT le résultat de
+// `openBrowserAsync`. L'app était donc structurellement incapable de savoir si le
+// navigateur s'était affiché. Constaté en recette le 17/09, DEUX FOIS, par deux chemins
+// différents (profile/subscription.tsx à 15h34, PaymentRequiredSheet à 16h03) : paiement
+// créé chez Mollie, `checkout_url` valide, écran « Vérification… » affiché — et la page de
+// paiement jamais ouverte. Aucune exception, aucun événement Sentry : rien à lire.
+//
+// ⚠️ QUATRIÈME CAS DE LA SEMAINE DU MÊME MOTIF : un `catch` qui avale (GYM-337), un
+// `update` qu'on ne lit pas (GYM-337), un `tsc` qui ne vérifie rien (GYM-350), un résultat
+// qu'on jette (ici). Le motif n'est pas l'erreur : c'est le RETOUR NON LU.
+//
+// ⚠️ CE LOT NE CORRIGE PAS LA CAUSE — il la rend mesurable. La piste retenue (présenter le
+// navigateur pendant une transition de navigation) ne doit pas être « corrigée » avant
+// d'être mesurée : l'écran de vérification est monté AVANT le navigateur délibérément
+// (GYM-96), pour que le poll démarre quel que soit le mode de retour.
+
+/** Ce que `openBrowserAsync` a réellement fait. */
+export interface CheckoutOpenOutcome {
+  /**
+   * INFÉRÉ, pas rapporté — voir `PRESENTATION_FLOOR_MS`. Les champs bruts ci-dessous
+   * restent la mesure ; celui-ci n'est qu'une lecture commode pour l'appelant.
+   */
+  presented: boolean
+  /**
+   * Brut, tel que le module le rend : 'opened' | 'cancel' | 'dismiss' | 'locked' | 'threw'.
+   *
+   * ⚠️ 'locked' N'EST PAS DANS LES TYPES PUBLICS d'expo-web-browser — il est dans le code
+   * natif (ios/WebBrowserModule.swift). Voir `LOCKED` ci-dessous : c'est le cas le plus
+   * probable des deux échecs du 17/09.
+   */
+  type: string
+  /** Brut : millisecondes écoulées. LE signal discriminant sur iOS. */
+  elapsedMs: number
+  detail?: string
+}
+
+/**
+ * 🔴 POURQUOI LE DÉLAI, ET PAS SEULEMENT LE TYPE.
+ *
+ * Les deux plateformes ne résolvent PAS au même moment :
+ *   · Android — `openBrowserAsync` résout AUSSITÔT, avec `type: 'opened'`.
+ *   · iOS     — elle résout à la FERMETURE du navigateur, avec 'cancel' (le membre l'a
+ *               fermé) ou 'dismiss' (fermeture programmatique).
+ *
+ * Sur iOS, un 'cancel' est donc NORMAL après un vrai affichage. Ce qui ne l'est pas, c'est
+ * un 'cancel' rendu instantanément : personne ne peut ouvrir et fermer une page en moins
+ * d'une demi-seconde — l'animation de présentation dure à elle seule ~300 ms. Une
+ * résolution immédiate signifie que la présentation n'a pas eu lieu.
+ *
+ * ⚠️ SEUIL HEURISTIQUE, ASSUMÉ COMME TEL. C'est pourquoi `type` et `elapsedMs` sont
+ * journalisés BRUTS et rendus à l'appelant : si le seuil se révèle mal placé, la mesure
+ * reste lisible et le diagnostic ne dépend pas de lui.
+ */
+const PRESENTATION_FLOOR_MS = 400
+
+/**
+ * 🔴 'locked' — LE CAS QUE LA SIGNATURE TYPESCRIPT NE DIT PAS, ET QUI EXPLIQUE UN ÉCHEC
+ * DÉFINITIF.
+ *
+ * Dans `expo-web-browser/ios/WebBrowserModule.swift` :
+ *
+ *     if vcDidPresent { currentWebBrowserSession = nil; vcDidPresent = false }
+ *     guard currentWebBrowserSession == nil else {
+ *       promise.resolve(["type": "locked"])   // résout AUSSITÔT, sans rien présenter
+ *       return
+ *     }
+ *
+ * `vcDidPresent` n'est posé que dans le complétion de `present(...)`, et la session n'est
+ * remise à nil que là ou à la fermeture du navigateur. Si une présentation n'aboutit
+ * JAMAIS — `WebBrowserSession.open()` fait `currentViewController?.present(...)`, et ce
+ * `?` avale silencieusement le cas où `UIApplication.shared.keyWindow` est nil — alors :
+ *
+ *   · `didPresent` ne part jamais → `vcDidPresent` reste false ;
+ *   · le rappel de session ne part jamais → `currentWebBrowserSession` reste non nul ;
+ *   · TOUS les appels suivants rendent 'locked', instantanément, jusqu'au redémarrage.
+ *
+ * C'est la seule hypothèse qui explique que DEUX chemins différents, à 29 minutes
+ * d'intervalle, échouent à l'identique sans lever quoi que ce soit.
+ *
+ * ⚠️ NON CORRIGÉ DANS CE LOT, DÉLIBÉRÉMENT. `WebBrowser.dismissBrowser()` déverrouillerait
+ * la session bloquée (`dismiss` sur un contrôleur non présenté appelle quand même son
+ * complétion, donc `finish` et la remise à nil). Mais c'est une correction fondée sur une
+ * lecture de code, pas sur une mesure : le journal ci-dessous dira 'locked' ou autre chose
+ * dès le prochain essai, et c'est cette mesure qui doit décider.
+ */
+const LOCKED = 'locked'
+
+/**
+ * Ouvre l'URL de checkout Mollie — mécanisme unique partout.
+ *
+ * Ne lève JAMAIS : un échec d'ouverture est une information à rendre, pas une exception à
+ * propager. Les appelants l'affichaient jusqu'ici comme une erreur générique, ou pas du tout.
+ */
+export async function openCheckout(url: string): Promise<CheckoutOpenOutcome> {
+  const startedAt = Date.now()
+  try {
+    const res = await WebBrowser.openBrowserAsync(url)
+    const elapsedMs = Date.now() - startedAt
+    const type = String(res?.type ?? 'unknown')
+    // 'locked' est un échec CERTAIN, pas une inférence : le module dit lui-même qu'il n'a
+    // rien présenté. Il court-circuite donc l'heuristique de délai.
+    const presented = type !== LOCKED && (type === 'opened' || elapsedMs >= PRESENTATION_FLOOR_MS)
+    // 🔴 LA LIGNE QUI MANQUAIT. Un seul console.log, avec les valeurs BRUTES.
+    console.log(`[openCheckout] platform=${Platform.OS} type=${type} elapsedMs=${elapsedMs} presented=${presented}`)
+    if (!presented) {
+      // Le navigateur ne s'est pas affiché : c'est une panne, elle doit alerter. Ce n'est
+      // PAS un refus métier — le membre n'a rien refusé, il n'a rien pu voir.
+      Sentry.captureException(new Error(
+        type === LOCKED
+          // Message distinct : 'locked' veut dire que le module est bloqué sur une session
+          // fantôme et le restera jusqu'au redémarrage — ce n'est pas un échec ponctuel.
+          ? `openCheckout: module VERROUILLÉ sur une session fantôme (platform=${Platform.OS} elapsedMs=${elapsedMs}) — tous les achats échoueront jusqu'au redémarrage`
+          : `openCheckout: navigateur non présenté (platform=${Platform.OS} type=${type} elapsedMs=${elapsedMs})`,
+      ))
+    }
+    return { presented, type, elapsedMs }
+  } catch (e) {
+    const elapsedMs = Date.now() - startedAt
+    const detail = e instanceof Error ? e.message : String(e)
+    console.error(`[openCheckout] platform=${Platform.OS} type=threw elapsedMs=${elapsedMs} detail=${detail}`)
+    Sentry.captureException(e)
+    return { presented: false, type: 'threw', elapsedMs, detail }
+  }
 }
