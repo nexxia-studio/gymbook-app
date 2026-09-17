@@ -112,7 +112,35 @@ le taire le rend invérifiable.
 
 ---
 
-## 6. Le motif à retenir
+## 6. Bancs RLS — la cible doit exister ET contenir des données
+
+Un banc d'isolation qui interroge une salle **inexistante** rend 0 ligne : il est vert, et il
+ne prouve rien. C'est ce qui est arrivé — le banc pointait sur `a0000000-…-0001`, salle de
+**production**, absente de staging.
+
+Un banc qui interroge une salle **vide** a le même défaut, en plus discret.
+
+Trois règles, appliquées dans `apps/dashboard/src/tests/rls-isolation.test.ts` :
+
+1. **Aucun compteur en dur.** « L'admin voit 8 activités » périme au premier changement de
+   jeu de données. La formulation qui tient : **toutes les lignes vues portent SON `gym_id`**.
+2. **La vacuité est marquée, pas tue.** Chaque assertion dont la cible est vide sort
+   `<< À VIDE — ne prouve rien` et est comptée à part :
+   `32/32 passed | dont 28 qui prouvent quelque chose | 4 à vide`.
+3. **Exiger le bon motif d'échec.** Un INSERT inter-locataires doit être refusé avec le code
+   **42501** (refus RLS). Une violation `NOT NULL` ou de clé étrangère passerait sinon pour
+   une preuve d'isolation.
+
+⚠️ **Les tentatives destructrices visent « Studio Yoga Test 1 »** (1 activité, 1 coach,
+0 réservation), jamais « Dopamine (Staging Clone) » dont les 2 activités portent 293 créneaux
+et 28 réservations. Le sens Yoga → Dopamine se limite donc à un INSERT.
+
+⚠️ **`admin.dopamine@staging.test` est gérant de Studio Test Staging, pas de Dopamine.** Le
+nom ment. Le gérant de Dopamine (Staging Clone) est `admin.clone@staging.test`.
+
+---
+
+## 7. Le motif à retenir
 
 Les quatre cas ci-dessus se ressemblent : **une commande verte dont le périmètre réel est
 plus étroit qu'on ne croit.** Avant d'accepter une preuve, se demander non pas « est-ce
@@ -124,4 +152,6 @@ vert ? » mais :
    délibérément le code et vérifier qu'elle passe au rouge. C'est le seul test d'un test.
 
 La question 3 est celle qui a démasqué l'assertion RLS vide : elle passait au vert avec les
-RLS grandes ouvertes.
+RLS grandes ouvertes. Elle a servi trois fois dans GYM-350 — sur `deno check`, sur le banc
+`early-performance`, et sur le banc RLS réécrit (attaquant pointé sur sa propre salle :
+**exit 1, 6 échecs critiques**).
