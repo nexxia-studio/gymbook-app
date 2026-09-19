@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MapPin } from 'lucide-react-native'
@@ -26,6 +26,18 @@ import { formatTime, formatDateStr, toLocalTime } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { useCrossGymGuard } from '../../hooks/useCrossGymGuard'
+// GYM-352 — « crédit visible » de la décision B. Ce hook lit DÉJÀ les deux sources
+// (crédits à l'unité ET abonnement) et rend `isActive = hasSubscription || hasCredits` :
+// c'est exactement la question « le membre a-t-il de quoi réserver ? », et elle répond
+// donc aussi pour un abonnement, sans redupliquer le prédicat côté client.
+import { useSubscriptionSummary } from '../../hooks/useSubscriptionSummary'
+// GYM-352 — l'intention de réservation, posée ICI et nulle part ailleurs (voir handleBook).
+import {
+  poserBookingIntent,
+  lireBookingIntent,
+  effacerBookingIntent,
+  porteSurCeCreneau,
+} from '../../lib/bookingIntent'
 import { CrossGymInterstitial } from '../../components/gym/CrossGymInterstitial'
 import { raiseNotMemberNotice } from '../../lib/activeGymSession'
 
@@ -96,6 +108,11 @@ export default function SessionDetail() {
   // GYM-196 — limite renvoyée par le serveur (configurable par salle), jamais devinée.
   const [maxBookingsLimit, setMaxBookingsLimit] = useState<number | undefined>(undefined)
   const [paymentRequiredVisible, setPaymentRequiredVisible] = useState(false)
+  // GYM-352 — vrai quand une intention VALIDE porte sur CE créneau : le membre est parti
+  // acheter pour ce cours-ci et n'a pas encore confirmé. Le bouton change alors de libellé
+  // et une ligne le lui rappelle.
+  const [intentionArmee, setIntentionArmee] = useState(false)
+  const { summary: droitsMembre, refresh: rafraichirDroits } = useSubscriptionSummary()
   const [suspensionModal, setSuspensionModal] = useState<{ visible: boolean; until: string | null }>({ visible: false, until: null })
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
   const [existingBookingId, setExistingBookingId] = useState<string | null>(null)
@@ -283,6 +300,24 @@ export default function SessionDetail() {
 
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
 
+  // GYM-352 — relecture à CHAQUE reprise de l'écran, pas seulement au montage. Le membre
+  // revient ici par trois chemins (deep link, retour manuel, relance du poll) et l'écran
+  // reste monté sous le navigateur in-app : un effet au seul montage ne verrait rien.
+  useFocusEffect(
+    useCallback(() => {
+      let vivant = true
+      void lireBookingIntent().then((intent) => {
+        if (!vivant) return
+        const armee = porteSurCeCreneau(intent, slotId)
+        setIntentionArmee(armee)
+        // Le crédit vient d'arriver pendant que le membre était sur le navigateur : on
+        // relit ses droits, sinon la ligne « tu as X » afficherait l'état d'avant l'achat.
+        if (armee) rafraichirDroits()
+      })
+      return () => { vivant = false }
+    }, [slotId, rafraichirDroits]),
+  )
+
   const handleBook = useCallback(async () => {
     console.log('[Booking] handleBook called, slotId:', slotId)
     setLoading(true)
@@ -303,6 +338,36 @@ export default function SessionDetail() {
       return
     }
     if (result.code === 'PAYMENT_REQUIRED') {
+      // ╔═══════════════════════════════════════════════════════════════════════════════╗
+      // ║  🔴 GYM-352 — L'INTENTION EST POSÉE ICI, ET NULLE PART AILLEURS              ║
+      // ╚═══════════════════════════════════════════════════════════════════════════════╝
+      //
+      // C'est le SEUL endroit qui voit les deux branches d'achat avant qu'elles ne se
+      // séparent : la séance à l'unité (qui reste dans la feuille) et l'abonnement (qui
+      // quitte l'écran par `goToSubscription` → `onClose()` puis push vers /profile/
+      // subscription, démontant cette fiche). La poser dans la feuille laisserait la
+      // seconde branche sans intention.
+      //
+      // ⚠️ `await` AVANT d'ouvrir la feuille : si l'écriture disque est lente, elle doit
+      // avoir eu lieu avant que le membre ne puisse partir acheter.
+      // 🔴 ET SURTOUT : NE PAS RENVOYER ACHETER QUELQU'UN QUI VIENT DE PAYER.
+      //
+      // Sans ce test, le correctif se mordrait la queue : le membre revient du paiement,
+      // tape « Confirmer ma réservation », le crédit n'est pas encore arrivé (jusqu'à
+      // 2 min 33 s, GYM-207), le serveur rend PAYMENT_REQUIRED — et l'app lui rouvrirait
+      // la feuille d'achat. On lui ferait payer deux fois le même cours.
+      //
+      // L'intention est CONSERVÉE : elle n'a pas été honorée, le membre va réessayer.
+      if (intentionArmee) {
+        Alert.alert(t('session.intent_pending_title'), t('session.intent_pending_message'))
+        rafraichirDroits()
+        return
+      }
+
+      if (gymId && slotData.startsAt) {
+        await poserBookingIntent({ slotId, gymId, startsAt: slotData.startsAt })
+        setIntentionArmee(true)
+      }
       setPaymentRequiredVisible(true)
       return
     }
@@ -323,10 +388,15 @@ export default function SessionDetail() {
     }
 
     // Confirmed
+    // GYM-352 — l'intention est consommée, QUEL QUE SOIT le créneau réservé. Le membre a
+    // obtenu ce qu'il voulait ; laisser la proposition vivante la ferait ressurgir au
+    // prochain lancement, sur un cours qu'il a déjà pris ou abandonné.
+    void effacerBookingIntent()
+    setIntentionArmee(false)
     setBookedCount((c) => c + 1)
     setBookingState('confirmed')
     setBookingModalVisible(true)
-  }, [slotId, createBooking, t])
+  }, [slotId, gymId, slotData.startsAt, createBooking, intentionArmee, rafraichirDroits, t])
 
   const handleCancel = useCallback(async () => {
     // 🔴 GYM-276 — `cancelBooking` LÈVE (EdgeError) et RIEN ne l'attrapait : hors ligne,
@@ -546,6 +616,37 @@ export default function SessionDetail() {
           </View>
         )}
 
+        {/* 🔴 GYM-352 — LE CRÉDIT EST VISIBLE AU MOMENT DE CONFIRMER.
+            Le membre revient d'un achat fait POUR CE COURS : lui montrer ce qu'il vient
+            d'obtenir, juste au-dessus du bouton, est ce qui transforme « j'ai payé, et
+            après ? » en un geste évident. `droitsMembre.detail` couvre les deux cas —
+            « 1 séance » comme « Illimité jusqu'au 12/10 ». */}
+        {intentionArmee && droitsMembre.isActive && droitsMembre.detail && (
+          <View className="mb-3 rounded-xl px-3 py-2" style={{ backgroundColor: tokens.actionBg + '1A' }}>
+            <Text className="font-dmsans text-xs" style={{ color: tokens.onSurface }}>
+              {/* 🔴 GYM-352 — LE COURS S'EST REMPLI PENDANT LE PAIEMENT. Le membre vient
+                  de payer : le renvoyer au planning lui ferait perdre le cours ET le fil.
+                  On lui propose la liste d'attente comme SECOND GESTE explicite (le bouton
+                  dit déjà « LISTE D'ATTENTE » quand `isFull`), et on lui dit les deux
+                  choses qu'il a besoin de savoir.
+
+                  ⚠️ LE DÉLAI VIENT DE LA SALLE, jamais 30 en dur : `notify-waitlist` lit
+                  `gym.waitlist_confirmation_minutes ?? 30`, configurable par salle. Si on
+                  ne le connaît pas encore, on ne l'annonce pas — la variante sans délai.
+
+                  ✅ ET LE CRÉDIT RESTE ENTIER : `create-booking` le dit explicitement —
+                  « le débit du crédit est déplacé APRÈS la confirmation du siège. Aucun
+                  débit ici, ni sur le chemin waitlist ». Le membre vient de payer, il doit
+                  savoir qu'il ne perd rien en s'inscrivant sur la liste. */}
+              {isFull
+                ? gym?.waitlistConfirmationMinutes
+                  ? t('session.intent_full_waitlist', { minutes: gym.waitlistConfirmationMinutes })
+                  : t('session.intent_full_waitlist_nodelay')
+                : t('session.intent_credit_ready', { detail: droitsMembre.detail })}
+            </Text>
+          </View>
+        )}
+
         <View className="flex-row items-center">
           <View className="flex-1">
             <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>
@@ -612,7 +713,16 @@ export default function SessionDetail() {
                 <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: tokens.onAction }}>...</Text>
               ) : (
                 <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 16, color: isFull ? '#FFFFFF' : tokens.onAction }}>
-                  {isFull ? t('session.waitlist').toUpperCase() : t('session.enroll').toUpperCase()}
+                  {/* GYM-352 — « CONFIRMER MA RÉSERVATION » quand le membre revient d'un
+                      achat fait POUR CE COURS. Le geste reste le même (handleBook, donc
+                      create_booking_atomic inchangé) ; c'est le libellé qui cesse de
+                      faire croire qu'il recommence à zéro. Le cas « complet » garde son
+                      libellé de liste d'attente : il prime, c'est l'état du cours. */}
+                  {isFull
+                    ? t('session.waitlist').toUpperCase()
+                    : intentionArmee
+                      ? t('session.confirm_booking').toUpperCase()
+                      : t('session.enroll').toUpperCase()}
                 </Text>
               )}
             </TouchableOpacity>

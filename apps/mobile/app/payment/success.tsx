@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
-import { tryEdgeInvoke } from '../../lib/edgeInvoke'
+// GYM-352 — même prédicat d'abonnement actif que le reste de l'app.
+import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/subscription'
+import { lireBookingIntent, effacerBookingIntent, type BookingIntent } from '../../lib/bookingIntent'
 import { captureEvent } from '../../lib/analytics'
 import { useAuthStore } from '../../stores/useAuthStore'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
@@ -24,7 +26,9 @@ interface Payment {
   credits_granted: number
 }
 
-type DropInStatus = 'polling' | 'booking' | 'success' | 'error'
+// GYM-352 — l'état 'booking' a disparu avec la réservation automatique : cet écran ne
+// réserve plus, il ramène à la fiche du cours où le membre confirme lui-même.
+type DropInStatus = 'polling' | 'success' | 'error'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -102,36 +106,55 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
         return
       }
 
-      const maxAttempts = 15
-      for (let i = 0; i < maxAttempts; i++) {
-        await sleep(1000)
-        const { data: credits } = await supabase
-          .from('member_credits')
-          .select('credits_total, credits_used')
-          .eq('member_id', user.id)
-          .eq('gym_id', gymId)
-          .maybeSingle()
-
-        const hasCredits = credits && (credits.credits_total - credits.credits_used) > 0
-        if (!hasCredits) continue
-
-        setStatus('booking')
-        // GYM-270 — même helper que le store de réservation : un refus métier (créneau
-        // devenu complet, crédit consommé entre-temps) n'a pas à alerter Sentry ici non
-        // plus. L'écran affiche son état d'erreur, identique à avant.
-        const res = await tryEdgeInvoke('create-booking', { slot_id: slotId })
-        if (!res.ok) {
-          setStatus('error')
-          return
-        }
-
-        setStatus('success')
+      // ⚠️ GYM-352 — 5 MINUTES, comme le plafond de l'écran de vérification. C'était
+      // 15 secondes (15 × 1 s), pour un crédit mesuré à 2 min 33 s en production.
+      const MAX_TENTATIVES = 150 // 150 × 2 s = 5 min
+      for (let i = 0; i < MAX_TENTATIVES; i++) {
         await sleep(2000)
-        router.replace('/(tabs)/bookings')
+        // GYM-352 — le DROIT, pas le crédit : un abonnement ouvre le même accès
+        // (create-booking : `!activeSubscription && !creditsAvailable`).
+        const [creditsRes, subRes] = await Promise.all([
+          supabase
+            .from('member_credits')
+            .select('credits_remaining')
+            .eq('member_id', user.id)
+            .eq('gym_id', gymId)
+            .gt('credits_remaining', 0),
+          supabase
+            .from('member_subscriptions')
+            .select('status, ends_at')
+            .eq('member_id', user.id)
+            .eq('gym_id', gymId)
+            .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
+            .order('starts_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+
+        const aDesCredits = (creditsRes.data?.length ?? 0) > 0
+        const aUnAbonnement = !!subRes.data && isSubscriptionActive(subRes.data.status, subRes.data.ends_at)
+        if (!aDesCredits && !aUnAbonnement) continue
+
+        // ╔═════════════════════════════════════════════════════════════════════════════╗
+        // ║  🔴 GYM-352 — CET ÉCRAN NE RÉSERVE PLUS. IL RAMÈNE AU COURS.                ║
+        // ╚═════════════════════════════════════════════════════════════════════════════╝
+        //
+        // Il appelait `create-booking` puis redirigeait vers l'onglet Réservations : le
+        // membre se retrouvait inscrit sans l'avoir confirmé. La décision produit est un
+        // geste EXPLICITE, jamais de réservation silencieuse.
+        //
+        // ⚠️ Et ce code n'a JAMAIS tourné en production : sa condition de montage exige
+        // `slot_id` dans l'URL, que `buildPaymentReturnUrl` n'a jamais émis. Il n'y a donc
+        // aucune habitude de membre à désapprendre — on corrige avant la première fois.
+        setStatus('success')
+        await sleep(1200)
+        router.replace({ pathname: '/session/[id]', params: { id: slotId } })
         return
       }
 
-      // Timeout — webhook trop lent, fallback manuel
+      // Le poll a expiré — mais l'intention est sur le disque : le membre retrouvera son
+      // cours en rouvrant l'app. On le ramène quand même sur la fiche, qui saura dire où
+      // en est son droit.
       setStatus('error')
     }
 
@@ -166,15 +189,6 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
           </>
         )}
 
-        {status === 'booking' && (
-          <>
-            <ActivityIndicator size="large" color={tokens.accent} />
-            <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
-              {t('payment_drop_in_retry.booking_title')}
-            </Text>
-          </>
-        )}
-
         {status === 'success' && (
           <>
             <Text style={{ fontSize: 64 }}>✅</Text>
@@ -196,12 +210,12 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
               {t('payment_drop_in_retry.error_sub')}
             </Text>
             <Pressable
-              onPress={() => router.replace('/(tabs)/schedule')}
+              onPress={() => router.replace({ pathname: '/session/[id]', params: { id: slotId } })}
               className="mt-4 w-full items-center rounded-xl py-4"
               style={{ backgroundColor: tokens.accent }}
             >
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onAccent }}>
-                {t('payment_drop_in_retry.back_to_schedule')}
+                {t('payment_drop_in_retry.back_to_course')}
               </Text>
             </Pressable>
           </>
@@ -236,6 +250,23 @@ function ClassicPaymentScreen({
   const { tokens } = useTheme()
   const { title: titleStyle, cta: ctaLabel } = makeStyles(tokens)
   const [payment, setPayment] = useState<Payment | null>(null)
+  // ╔═════════════════════════════════════════════════════════════════════════════════════╗
+  // ║  🔴 GYM-352 — LE CŒUR DU MALENTENDU EST ICI                                         ║
+  // ╚═════════════════════════════════════════════════════════════════════════════════════╝
+  //
+  // Cet écran annonçait « PAIEMENT CONFIRMÉ ! » puis proposait « Voir mes réservations »,
+  // qui mène à `/(tabs)/bookings`. L'app FÉLICITAIT le membre et l'envoyait vers une liste
+  // où son cours n'était pas. Le malentendu n'est pas une inattention de sa part : c'est
+  // ce que l'app lui disait de faire.
+  //
+  // Quand une intention existe, le paiement n'est pas la fin du parcours mais son AVANT-
+  // DERNIÈRE étape. Le titre, le sous-titre et la destination changent tous les trois.
+  const [intention, setIntention] = useState<BookingIntent | null>(null)
+  useEffect(() => {
+    let vivant = true
+    void lireBookingIntent().then((i) => { if (vivant) setIntention(i) })
+    return () => { vivant = false }
+  }, [])
   const [status, setStatus] = useState<ClassicStatus>('polling')
   // 🔴 GYM-294 — MÊME GARDE QUE L'ÉCRAN DE CRÉNEAU, PAS UNE SECONDE VÉRIFICATION.
   // La policy de `payments` (`member_id = auth.uid()`) n'a AUCUNE clause de salle : un
@@ -267,9 +298,17 @@ function ClassicPaymentScreen({
 
   // Destination post-succès contextuelle : returnTo si l'achat vient d'un écran précis
   // (ex. mon abonnement → le membre voit ses crédits), sinon défaut Réservations > À venir.
+  //
+  // 🔴 GYM-352 — L'INTENTION PRIME SUR TOUT. Elle passe AVANT `returnTo` : un membre parti
+  // d'un cours doit revenir au cours, même si l'achat a transité par l'écran des formules.
+  // C'est la décision produit — il revient sur la fiche, crédit visible, bouton armé.
   const goToSuccessDestination = useCallback(() => {
+    if (intention) {
+      router.replace({ pathname: '/session/[id]', params: { id: intention.slotId } })
+      return
+    }
     router.replace((returnTo ?? '/(tabs)/bookings') as never)
-  }, [router, returnTo])
+  }, [router, returnTo, intention])
 
   // QA-06 : bouton Fermer FONCTIONNEL. Coupe le poll résiduel puis revient à l'écran
   // précédent (ou, si ouvert par deep link sans historique, atterrit sur Réservations).
@@ -365,6 +404,12 @@ function ClassicPaymentScreen({
     } else if (TERMINAL_FAILURE.has(s)) {
       settledRef.current = true
       stopPolling()
+      // 🔴 GYM-352 — L'INTENTION NE DOIT PAS SURVIVRE À UN PAIEMENT MORT. Abandonné,
+      // refusé ou expiré : sans cet effacement, la proposition « Confirmer ma réservation »
+      // ressurgirait au prochain lancement sur un cours que le membre n'a jamais payé — un
+      // fantôme dont il ne comprendrait pas l'origine.
+      void effacerBookingIntent()
+      setIntention(null)
       // `status` porte la raison telle que Mollie l'a rendue (failed / canceled / expired) :
       // un abandon volontaire et un refus bancaire n'appellent pas la même réaction.
       captureEvent('payment_failed', { status: s })
@@ -518,8 +563,12 @@ function ClassicPaymentScreen({
 
         {status === 'success' && (
           <>
-            <Text style={{ fontSize: 64, marginBottom: 16 }}>✅</Text>
-            <Text style={titleStyle}>{t('payment.success_title')}</Text>
+            <Text style={{ fontSize: 64, marginBottom: 16 }}>{intention ? '🎟️' : '✅'}</Text>
+            {/* GYM-352 — « PAIEMENT CONFIRMÉ » devient « IL RESTE UN GESTE » : le paiement
+                n'est pas la fin du parcours quand un cours attend d'être confirmé. */}
+            <Text style={titleStyle}>
+              {t(intention ? 'payment.intent_success_title' : 'payment.success_title')}
+            </Text>
             {payment && (
               <>
                 <Text className="mt-3 font-dmsans text-base text-center" style={{ color: tokens.onSurfaceSecondary }}>
@@ -530,8 +579,18 @@ function ClassicPaymentScreen({
                 </Text>
               </>
             )}
-            <Pressable onPress={goToBookings} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
-              <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
+            {intention && (
+              <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
+                {t('payment.intent_success_body')}
+              </Text>
+            )}
+            {/* ⚠️ `goToSuccessDestination`, PAS `goToBookings` : c'est lui qui connaît
+                l'intention. Le bouton menait à la liste des réservations — exactement
+                l'endroit où le cours n'était pas. */}
+            <Pressable onPress={goToSuccessDestination} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
+              <Text style={ctaLabel}>
+                {t(intention ? 'payment.intent_go_to_course' : 'payment.go_to_bookings')}
+              </Text>
             </Pressable>
           </>
         )}
@@ -589,16 +648,18 @@ function ClassicPaymentScreen({
           <View className="w-full items-center rounded-3xl p-8" style={{ backgroundColor: tokens.surface }}>
             <Text style={{ fontSize: 56, marginBottom: 12 }}>🎉</Text>
             <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onSurface, textAlign: 'center', letterSpacing: 1 }}>
-              {t('payment.modal_success_title')}
+              {t(intention ? 'payment.intent_success_title' : 'payment.modal_success_title')}
             </Text>
             <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onSurfaceSecondary }}>
-              {t('payment.modal_success_body')}
+              {t(intention ? 'payment.intent_success_body' : 'payment.modal_success_body')}
             </Text>
             <Pressable
               onPress={() => { setSuccessVisible(false); goToSuccessDestination() }}
               style={{ backgroundColor: tokens.actionBg }} className="mt-8 w-full items-center rounded-xl py-4"
             >
-              <Text style={ctaLabel}>{t('payment.go_to_bookings')}</Text>
+              <Text style={ctaLabel}>
+                {t(intention ? 'payment.intent_go_to_course' : 'payment.go_to_bookings')}
+              </Text>
             </Pressable>
           </View>
         </View>
