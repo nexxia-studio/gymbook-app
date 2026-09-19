@@ -18,6 +18,12 @@ import { getActiveGymId } from './activeGym'
 
 /** Identité de la salle telle qu'on peut la MONTRER à un membre. */
 export interface GymProfile {
+  /**
+   * GYM-352 — minutes dont dispose un membre notifié pour confirmer sa place depuis la
+   * liste d'attente. Défaut serveur : 30 (`notify-waitlist`). `null` tant qu'on ne sait pas
+   * — l'écran n'annonce alors aucun délai plutôt qu'un chiffre inventé.
+   */
+  waitlistConfirmationMinutes: number | null
   /** Dénomination commerciale (nexxia_gyms.name). */
   name: string | null
   /** Adresse d'EXPLOITATION — celle où le membre se rend. Jamais le siège social. */
@@ -95,7 +101,7 @@ export async function getGymProfile(): Promise<GymProfile | null> {
       const { data, error } = await supabase
         .from('nexxia_gyms')
         // ⚠️ Aucune colonne legal_* ici — voir l'en-tête du module.
-        .select('name, address, postal_code, city, email, slug, subdomain, booking_horizon_days')
+        .select('name, address, postal_code, city, email, slug, subdomain, booking_horizon_days, waitlist_confirmation_minutes')
         .eq('id', gymId)
         .maybeSingle()
 
@@ -112,6 +118,11 @@ export async function getGymProfile(): Promise<GymProfile | null> {
         // ⚠️ Suivi jusqu'à l'OBJET RENDU, pas seulement jusqu'au SELECT : c'est au mapping
         // que GYM-228 avait perdu `requires_coach`, pourtant bien demandée dans la requête.
         bookingHorizonDays: sanitizeHorizon(data.booking_horizon_days),
+        // 🔴 GYM-352 — LE DÉLAI EST CELUI DE LA SALLE, PAS 30 EN DUR. `notify-waitlist`
+        // lit `gym.waitlist_confirmation_minutes ?? 30` : la valeur est CONFIGURABLE par
+        // salle. Écrire « 30 minutes » dans l'app mentirait à toute salle qui l'a changée.
+        // Même défaut suivi jusqu'à l'objet rendu que `bookingHorizonDays` ci-dessus.
+        waitlistConfirmationMinutes: sanitizeMinutes(data.waitlist_confirmation_minutes),
       }
       cached.set(gymId, profil)
       return profil
@@ -134,6 +145,19 @@ export async function getGymProfile(): Promise<GymProfile | null> {
  * normal pourrait porter autre chose. Une valeur non entière ou hors bornes retombe sur le
  * défaut plutôt que de produire une date de fin absurde.
  */
+/**
+ * GYM-352 — `null` plutôt qu'un repli à 30, DÉLIBÉRÉMENT, et c'est l'inverse du choix fait
+ * pour l'horizon juste en dessous. L'horizon sert à CALCULER une date : un appelant ne peut
+ * rien faire d'une absence, d'où le repli. Le délai de confirmation, lui, sert à ÉCRIRE une
+ * phrase au membre : en l'absence de valeur sûre, ne rien annoncer vaut mieux qu'annoncer
+ * un chiffre qui pourrait être faux chez cette salle-là.
+ */
+function sanitizeMinutes(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(n) || n < 1 || n > 24 * 60) return null
+  return n
+}
+
 function sanitizeHorizon(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value)
   if (!Number.isInteger(n) || n < 1 || n > 366) return DEFAULT_HORIZON_DAYS

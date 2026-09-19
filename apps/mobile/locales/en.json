@@ -261,7 +261,8 @@
     "success_sub": "See you at the class",
     "error_title": "PAYMENT RECEIVED",
     "error_sub": "Go back to the class and tap Book to finalize.",
-    "back_to_schedule": "Back to schedule"
+    "back_to_schedule": "Back to schedule",
+    "back_to_course": "Back to the class"
   },
   "payment_required": {
     "title": "Booking unavailable",
@@ -290,7 +291,7 @@
       "no_gym": "Gym not found",
       "checkout_failed": "Payment could not start. Try again.",
       "no_plan": "Drop-in plan unavailable.",
-      "not_confirmed": "Payment not confirmed yet. If you were charged, your credits will arrive shortly: check your bookings before trying again.",
+      "not_confirmed": "The credit hasn't arrived yet — this can take two to three minutes. Your class is kept: come back to its page to confirm as soon as the credit is there.",
       "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again."
     }
   },
@@ -332,7 +333,13 @@
     "max_bookings_message_one": "You already have {{count}} upcoming booking. Cancel it to create a new one.",
     "max_bookings_message_other": "You already have {{count}} upcoming bookings. Cancel one to create a new one.",
     "max_bookings_message_generic": "You've reached your limit of upcoming bookings. Cancel one to create a new one.",
-    "cancel_failed": "The cancellation did not go through. Please try again."
+    "cancel_failed": "The cancellation did not go through. Please try again.",
+    "confirm_booking": "Confirm my booking",
+    "intent_credit_ready": "You have {{detail}} — all that's left is to confirm your booking.",
+    "intent_full_waitlist": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll have {{minutes}} minutes to confirm. Your credit stays intact.",
+    "intent_full_waitlist_nodelay": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll be notified and given time to confirm. Your credit stays intact.",
+    "intent_pending_title": "Credit on its way",
+    "intent_pending_message": "Your payment is registered, but the credit hasn't arrived yet — this can take two to three minutes. Your class is kept: try again in a moment."
   },
   "bookings": {
     "title": "My classes",
@@ -530,7 +537,10 @@
     "modal_success_title": "Payment successful",
     "modal_success_body": "Your payment has been confirmed.",
     "offline_title": "Connection lost",
-    "offline_hint": "Your payment is safe — we'll retry as soon as you're back online."
+    "offline_hint": "Your payment is safe — we'll retry as soon as you're back online.",
+    "intent_success_title": "ONE STEP LEFT",
+    "intent_success_body": "Your credit is there. Your spot isn't booked yet — confirm your booking on the class page.",
+    "intent_go_to_course": "Confirm my booking"
   },
   "payments": {
     "title": "Payment history",

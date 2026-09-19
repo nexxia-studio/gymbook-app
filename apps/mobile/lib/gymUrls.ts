@@ -144,8 +144,23 @@ async function buildMemberLink(path: 'reset-password' | 'confirm'): Promise<stri
  * même temps que la salle active — gymSwitch.ts:140 — et activeGymSession le resynchronise.
  * Ce n'est donc pas un arbitrage de justesse, mais du hors-périmètre : rien à corriger.)
  */
-export async function buildPaymentReturnUrl(source: string): Promise<string> {
-  return `${LINKS_BASE}/${await getGymSlug()}/payment-success?source=${encodeURIComponent(source)}`
+/**
+ * 🔴 GYM-352 — `slotId` EST LE SECOND SIGNAL, ET IL MANQUAIT.
+ *
+ * Cette fonction ne portait que `source`. Or `app/payment/success.tsx` ne monte son écran
+ * de reprise que si `source === 'drop_in' && slot_id` est présent — condition qui n'a donc
+ * JAMAIS pu être vraie. Quatre-vingt-dix lignes de logique de reprise n'ont jamais tourné
+ * en production, et le membre atterrissait sur l'écran générique, son cours perdu.
+ *
+ * ⚠️ IL DOUBLE `lib/bookingIntent.ts`, IL NE LE REMPLACE PAS. L'intention sur disque est
+ * la source qui survit à un redémarrage ; ce paramètre est un second signal qui ne tombe
+ * pas en panne de la même façon (un AsyncStorage qui refuse d'écrire ne l'emporte pas, et
+ * réciproquement une URL tronquée n'emporte pas l'intention). Deux signaux indépendants,
+ * comme pour l'écran de vérification de GYM-352.
+ */
+export async function buildPaymentReturnUrl(source: string, slotId?: string): Promise<string> {
+  const base = `${LINKS_BASE}/${await getGymSlug()}/payment-success?source=${encodeURIComponent(source)}`
+  return slotId ? `${base}&slot_id=${encodeURIComponent(slotId)}` : base
 }
 
 /** Réinitialise le cache — tests uniquement. Délègue au cache partagé (GYM-216). */
