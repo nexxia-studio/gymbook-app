@@ -23,6 +23,36 @@ import { SEMANTIC } from '../../lib/theme/semantic'
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 const EASE_OUT = Easing.out(Easing.cubic)
 
+// ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+// ║  GYM-74 — LES DATES SUIVENT LA LANGUE, ET PLUS 'fr-BE' EN DUR                         ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+//
+// Cet écran appelait `toLocaleDateString('fr-BE', …)` à TROIS endroits : le nom du mois en
+// cours, la date d'adhésion, et les étiquettes de mois de la carte d'activité. Ce sont les
+// chaînes les plus insidieuses du lot — invisibles dans le JSX, elles auraient rendu
+// « septembre » au beau milieu d'une app anglaise sans qu'aucune relecture du JSX ne le voie.
+//
+// ⚠️ `fr` EST REMAPPÉ VERS `fr-BE`, DÉLIBÉRÉMENT. Le rendu français d'aujourd'hui doit
+// rester au caractère près : `fr` et `fr-BE` diffèrent sur des détails d'abréviation, et
+// Dopamine ne doit voir AUCUN changement. Les autres langues prennent leur tag tel quel.
+//
+// ⚠️ ENVELOPPÉ DANS UN try/catch, comme `formatPrice` de lib/payments.ts : c'est le motif
+// du dépôt pour `Intl`, dont la disponibilité dépend du binaire Hermes embarqué.
+const TAGS: Record<string, string> = { fr: 'fr-BE' }
+
+function formatDateLocale(
+  date: Date,
+  options: Intl.DateTimeFormatOptions,
+  langue: string,
+): string {
+  const tag = TAGS[langue] ?? langue ?? 'fr-BE'
+  try {
+    return date.toLocaleDateString(tag, options)
+  } catch {
+    return date.toLocaleDateString('fr-BE', options)
+  }
+}
+
 function AnimatedNumber({ value, delay = 0, suffix = '' }: { value: number; delay?: number; suffix?: string }) {
   const { tokens } = useTheme()
   const [display, setDisplay] = useState(0)
@@ -47,6 +77,7 @@ function AnimatedNumber({ value, delay = 0, suffix = '' }: { value: number; dela
 
 function LevelCard({ totalSeances }: { totalSeances: number }) {
   const { tokens } = useTheme()
+  const { t } = useTranslation()
   const { level, progress, nextLevel, remaining } = getLevelInfo(totalSeances)
   const barWidth = useSharedValue(0)
 
@@ -75,7 +106,7 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
             {level.name.toUpperCase()}
           </Text>
           <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onBackground }}>
-            {totalSeances} séances complétées
+            {t('studio.sessions_completed', { count: totalSeances })}
           </Text>
         </View>
       </View>
@@ -107,7 +138,11 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
       {nextLevel && (
         // GYM-286 (A-6) — RATTACHÉ. #999999 → `onBackgroundMuted` #9A9890, écart 9.
         <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onBackgroundMuted, marginTop: 8 }}>
-          Plus que {remaining} séances pour {nextLevel.name} {nextLevel.icon}
+          {/* ⚠️ `level.name` et `level.icon` NE SONT PAS TRADUITS ICI — ils viennent de
+              `utils/gamification.ts` (Rookie, Regular, Warrior, Champion, Legend) et
+              sont interpolés tels quels. Voir la recette : ils vivent hors de cet écran
+              et leur traduction est un arbitrage produit, pas une extraction. */}
+          {t('studio.next_level', { count: remaining, level: nextLevel.name, icon: nextLevel.icon })}
         </Text>
       )}
     </View>
@@ -116,12 +151,16 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
 
 function StreakCard({ streakWeeks, streakRecord }: { streakWeeks: number; streakRecord: number }) {
   const { tokens } = useTheme()
+  const { t } = useTranslation()
   return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>Streak</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>{t('studio.streak')}</Text>
       <AnimatedNumber value={streakWeeks} delay={100} />
       <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2 }}>
-        semaines d'affilée
+        {/* Le NOMBRE est rendu par `AnimatedNumber` juste au-dessus : cette ligne ne
+            porte que l'unité. La forme plurielle dépend quand même de lui — i18next
+            accepte un `count` qui ne figure pas dans le libellé. */}
+        {t('studio.streak_weeks', { count: streakWeeks })}
       </Text>
       <View className="mt-3 flex-row gap-1.5">
         {[0, 1, 2, 3].map((i) => (
@@ -133,7 +172,7 @@ function StreakCard({ streakWeeks, streakRecord }: { streakWeeks: number; streak
         ))}
       </View>
       <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: tokens.onBackgroundMuted, marginTop: 6 }}>
-        Record : {streakRecord} sem.
+        {t('studio.streak_record', { count: streakRecord })}
       </Text>
     </View>
   )
@@ -141,6 +180,7 @@ function StreakCard({ streakWeeks, streakRecord }: { streakWeeks: number; streak
 
 function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: number }) {
   const { tokens } = useTheme()
+  const { t } = useTranslation()
   const total = confirmed + noShow
   const rate = total > 0 ? confirmed / total : 1
   const pct = Math.round(rate * 100)
@@ -162,7 +202,7 @@ function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: numb
 
   return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Présence</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>{t('studio.attendance')}</Text>
       <View className="items-center">
         <View style={{ width: 76, height: 76 }}>
           <Svg width={76} height={76} viewBox="0 0 76 76">
@@ -186,7 +226,15 @@ function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: numb
         </View>
       </View>
       <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: tokens.onBackgroundMuted, textAlign: 'center', marginTop: 6 }}>
-        {confirmed} confirmées · {noShow} no-shows
+        {/* 🔴 DEUX NOMBRES, DEUX PLURIELS — i18next ne sait pas fléchir deux `count`
+            dans une même clé. On compose donc deux clés fléchies séparément et on les
+            joint, EXACTEMENT comme `useSubscriptionSummary` le fait pour « Illimité ·
+            3 séances » (`parts.join(' · ')`, GYM-208). Reprendre ce mécanisme plutôt
+            que d'en inventer un troisième. */}
+        {[
+          t('studio.attendance_confirmed', { count: confirmed }),
+          t('studio.attendance_noshow', { count: noShow }),
+        ].join(' · ')}
       </Text>
     </View>
   )
@@ -194,11 +242,12 @@ function AttendanceCard({ confirmed, noShow }: { confirmed: number; noShow: numb
 
 function MonthCard({ count, lastMonth }: { count: number; lastMonth: number }) {
   const { tokens } = useTheme()
+  const { t, i18n } = useTranslation()
   const delta = count - lastMonth
-  const monthName = new Date().toLocaleDateString('fr-BE', { month: 'long' })
+  const monthName = formatDateLocale(new Date(), { month: 'long' }, i18n.language)
   return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>Ce mois</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>{t('studio.this_month')}</Text>
       <AnimatedNumber value={count} delay={300} />
       <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2, textTransform: 'capitalize' }}>
         {monthName}
@@ -210,7 +259,9 @@ function MonthCard({ count, lastMonth }: { count: number; lastMonth: number }) {
           palier — un orphelin de plus. */}
       {delta !== 0 && (
         <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: delta > 0 ? SEMANTIC.success : SEMANTIC.danger, marginTop: 4 }}>
-          {delta > 0 ? '+' : ''}{delta} vs mois dernier
+          {/* Le signe est composé ICI et passé comme texte : une variation signée se
+              lit « +3 » dans toutes les langues, et la faire fléchir n'aurait pas de sens. */}
+          {t('studio.vs_last_month', { delta: `${delta > 0 ? '+' : ''}${delta}` })}
         </Text>
       )}
     </View>
@@ -219,14 +270,17 @@ function MonthCard({ count, lastMonth }: { count: number; lastMonth: number }) {
 
 function TotalCard({ total, memberSince }: { total: number; memberSince: string | null }) {
   const { tokens } = useTheme()
-  const since = memberSince ? new Date(memberSince).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+  const { t, i18n } = useTranslation()
+  const since = memberSince
+    ? formatDateLocale(new Date(memberSince), { day: 'numeric', month: 'short', year: 'numeric' }, i18n.language)
+    : ''
   return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>Total</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 4 }}>{t('studio.total')}</Text>
       <AnimatedNumber value={total} delay={400} />
       {since ? (
         <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onSurfaceSecondary, marginTop: 2 }}>
-          depuis le {since}
+          {t('studio.member_since', { date: since })}
         </Text>
       ) : null}
     </View>
@@ -235,6 +289,7 @@ function TotalCard({ total, memberSince }: { total: number; memberSince: string 
 
 function HistogramCard({ data }: { data: { day: string; count: number }[] }) {
   const { tokens } = useTheme()
+  const { t } = useTranslation()
   const maxCount = Math.max(...data.map((d) => d.count), 1)
   const firstLabel = data[0]?.day.slice(5) ?? ''
   const midLabel = data[14]?.day.slice(5) ?? ''
@@ -243,7 +298,7 @@ function HistogramCard({ data }: { data: { day: string; count: number }[] }) {
   return (
     <View className="rounded-2xl p-5" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
       <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 12 }}>
-        30 derniers jours
+        {t('studio.last_30_days')}
       </Text>
       <View className="flex-row items-end justify-between" style={{ height: 80 }}>
         {data.map((d, i) => {
@@ -284,6 +339,7 @@ function HistoBar({ count, maxCount, index, recent }: { count: number; maxCount:
 
 function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
   const { tokens } = useTheme()
+  const { t, i18n } = useTranslation()
   const weekMap = new Map(data.map((d) => [d.week, d.count]))
   // GYM-93 — frontières de semaine sur l'horloge de la SALLE, pas du téléphone. Même
   // défaut que le filtre de période du planning : le dimanche soir à Bruxelles est déjà
@@ -317,14 +373,14 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
     const d = new Date(w.key)
     if (d.getMonth() !== prevMonth) {
       prevMonth = d.getMonth()
-      monthLabels.push({ label: d.toLocaleDateString('fr-BE', { month: 'short' }), col: i })
+      monthLabels.push({ label: formatDateLocale(d, { month: 'short' }, i18n.language), col: i })
     }
   })
 
   return (
     <View className="rounded-2xl p-5" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
       <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 12 }}>
-        Activité (6 mois)
+        {t('studio.activity_6_months')}
       </Text>
       <View
         className="flex-row"
@@ -352,7 +408,7 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
         ))}
       </View>
       <View className="mt-2 flex-row items-center gap-1">
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>Moins</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>{t('studio.less')}</Text>
         {[0, 1, 2, 3].map((v) => (
           <View
             key={v}
@@ -367,7 +423,7 @@ function HeatmapCard({ data }: { data: { week: string; count: number }[] }) {
             }}
           />
         ))}
-        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>Plus</Text>
+        <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: tokens.onBackgroundMuted }}>{t('studio.more')}</Text>
       </View>
     </View>
   )
@@ -397,15 +453,18 @@ function HeatmapCell({ count, index, size }: { count: number; index: number; siz
 
 function FavoriteCoursCard({ data }: { data: { name: string; count: number } | null }) {
   const { tokens } = useTheme()
+  const { t } = useTranslation()
   if (!data) return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted }}>Cours favori</Text>
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onSurfaceSecondary, marginTop: 8 }}>Aucun encore</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted }}>{t('studio.favorite_class')}</Text>
+      {/* ⚠️ ÉTAT VIDE — c'est celui qu'on oublie, et celui que voit un membre qui n'a
+          encore rien fait. Traduit au même titre que les titres. */}
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onSurfaceSecondary, marginTop: 8 }}>{t('studio.none_yet')}</Text>
     </View>
   )
   return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Cours favori</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>{t('studio.favorite_class')}</Text>
       <View className="flex-row items-center gap-2">
         {/* 🔴 GYM-290 (décision C, A-2) — FUSION : le troisième orangé rejoint `warning`. */}
         <Flame size={16} color={SEMANTIC.warning} />
@@ -414,7 +473,7 @@ function FavoriteCoursCard({ data }: { data: { name: string; count: number } | n
         </Text>
       </View>
       <View className="mt-2 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: tokens.page }}>
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>{data.count} séances</Text>
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>{t('studio.sessions_count', { count: data.count })}</Text>
       </View>
     </View>
   )
@@ -422,16 +481,17 @@ function FavoriteCoursCard({ data }: { data: { name: string; count: number } | n
 
 function FavoriteCoachCard({ data }: { data: { name: string; count: number } | null }) {
   const { tokens } = useTheme()
+  const { t } = useTranslation()
   const initials = data ? data.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : ''
   if (!data) return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted }}>Coach préféré</Text>
-      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onSurfaceSecondary, marginTop: 8 }}>Aucun encore</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted }}>{t('studio.favorite_coach')}</Text>
+      <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: tokens.onSurfaceSecondary, marginTop: 8 }}>{t('studio.none_yet')}</Text>
     </View>
   )
   return (
     <View className="flex-1 rounded-2xl p-4" style={{ backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.border }}>
-      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>Coach préféré</Text>
+      <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 12, color: tokens.onBackgroundMuted, marginBottom: 8 }}>{t('studio.favorite_coach')}</Text>
       <View className="flex-row items-center gap-2">
         <View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: tokens.background }}>
           <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 12, color: tokens.accent }}>{initials}</Text>
@@ -441,7 +501,7 @@ function FavoriteCoachCard({ data }: { data: { name: string; count: number } | n
         </Text>
       </View>
       <View className="mt-2 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: tokens.page }}>
-        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>{data.count} séances</Text>
+        <Text style={{ fontFamily: 'DMSans_500Medium', fontSize: 11, color: tokens.onSurfaceSecondary }}>{t('studio.sessions_count', { count: data.count })}</Text>
       </View>
     </View>
   )
@@ -459,7 +519,7 @@ export default function Studio() {
       <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
         <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
-            MA PROGRESSION
+            {t('studio.progression_title')}
           </Text>
         </View>
         <View className="flex-1 items-center justify-center" style={{ backgroundColor: tokens.page }}>
@@ -474,12 +534,23 @@ export default function Studio() {
       <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
         <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
           <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
-            MA PROGRESSION
+            {t('studio.progression_title')}
           </Text>
         </View>
         <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: tokens.page }}>
           <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: tokens.onBackgroundMuted, textAlign: 'center' }}>
-            {error ?? 'Impossible de charger ta progression'}
+            {/* ╔═══════════════════════════════════════════════════════════════════════╗
+                🔴 GYM-74 — `error` N'EST PLUS AFFICHÉ, ET CE N'EST PAS UN OUBLI.
+                ╚═══════════════════════════════════════════════════════════════════════╝
+                `useProgression` remplit `error` avec `res?.message ?? fnError?.message
+                ?? 'Erreur'` : une chaîne venue du SERVEUR ou du SDK Supabase. Elle est
+                donc intraduisible par construction — et, accessoirement, elle exposait
+                au membre un détail technique qu'il ne peut pas lire (même famille que
+                GYM-346 : le détail va dans les journaux, pas dans l'écran).
+
+                Le membre voit désormais un message utile et traduit ; le détail reste
+                dans `error`, disponible pour le diagnostic. */}
+            {t('studio.load_error')}
           </Text>
         </View>
       </SafeAreaView>
@@ -490,7 +561,7 @@ export default function Studio() {
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top']}>
       <View className="px-5 pb-4 pt-3" style={{ backgroundColor: tokens.background }}>
         <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 32, color: tokens.onBackground }}>
-          MA PROGRESSION
+          {t('studio.progression_title')}
         </Text>
         {/* 🔴 GYM-300 (3c) — ENCRE RÉSOLUE, OPACITÉ CONSERVÉE. `text-white/40` était un
             BLANC EN DUR : illisible dès que la salle a un fond clair, et l'en-tête de
@@ -513,7 +584,7 @@ export default function Studio() {
           className="font-dmsans text-[13px]"
           style={{ color: tokens.onBackground + '66' }}
         >
-          Tes stats, ton niveau, ta régularité
+          {t('studio.progression_subtitle')}
         </Text>
       </View>
       <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
