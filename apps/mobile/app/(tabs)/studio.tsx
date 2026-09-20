@@ -139,7 +139,7 @@ function LevelCard({ totalSeances }: { totalSeances: number }) {
         // GYM-286 (A-6) — RATTACHÉ. #999999 → `onBackgroundMuted` #9A9890, écart 9.
         <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: tokens.onBackgroundMuted, marginTop: 8 }}>
           {/* ⚠️ `level.name` et `level.icon` NE SONT PAS TRADUITS ICI — ils viennent de
-              `utils/gamification.ts` (Rookie, Regular, Warrior, Champion, Légende) et
+              `utils/gamification.ts` (Rookie, Regular, Warrior, Champion, Legend) et
               sont interpolés tels quels. Voir la recette : ils vivent hors de cet écran
               et leur traduction est un arbitrage produit, pas une extraction. */}
           {t('studio.next_level', { count: remaining, level: nextLevel.name, icon: nextLevel.icon })}

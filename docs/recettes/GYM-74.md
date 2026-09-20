@@ -119,7 +119,7 @@ décides de les reprendre.
 - **`studio.title` / `studio.plans` / `studio.info`** existaient déjà dans les locales et ne
   sont **référencées nulle part** — vestiges d'un écran antérieur. Laissées en place :
   les supprimer n'est pas une extraction.
-- **Les noms de niveaux** (`utils/gamification.ts`) sont `Rookie`, `Regular`, `Warrior`,
+- **Les noms de niveaux** (`utils/gamification.ts`) étaient `Rookie`, `Regular`, `Warrior`,
   `Champion`, **`Légende`** — quatre anglais et un français. Voir § 6.
 
 ---
@@ -133,21 +133,30 @@ décides de les reprendre.
 | **initiales du coach** | dérivées du nom ci-dessus | **laissées** — dérivation, pas une chaîne |
 | **`error`** de `useProgression` | message serveur / SDK Supabase | **cessé d'être affiché** (§ 4) |
 
-### ⚠️ Un cas frontière : les noms de niveaux
+### Les noms de niveaux : NON traduits, et l'intrus corrigé
 
-`level.name` et `nextLevel.name` viennent de `utils/gamification.ts` — **une constante de
-l'app, pas du serveur**. Ils sont donc traduisibles en principe.
+`level.name` vient de `utils/gamification.ts` — une constante de l'app, pas du serveur.
 
-**Je ne les ai pas traduits**, et c'est un choix à valider :
-1. ils vivent **hors de cet écran** — les extraire déborderait du fichier du lot ;
-2. `Rookie`/`Regular`/`Warrior`/`Champion` sont des termes de gamification que beaucoup de
-   produits laissent en anglais dans toutes les langues ; **`Légende` est l'intrus**, pas
-   l'inverse ;
-3. les traduire est un **arbitrage produit** (garde-t-on les termes anglais ?), pas une
-   extraction mécanique.
+**Décision : ne pas les traduire.** Ce sont des **noms**, pas des libellés — `Rookie`,
+`Regular`, `Warrior`, `Champion` sont le vocabulaire du fitness et fonctionnent tels quels
+en français.
 
-Ils sont interpolés tels quels dans `studio.next_level`, qui les reçoit en paramètre — la
-clé est donc déjà prête si tu décides de les traduire plus tard.
+🔴 **Mais l'intrus est corrigé : « Légende » → « Legend ».** C'était le seul terme francisé
+d'une liste par ailleurs anglaise. Le mot reste transparent en français, et la liste devient
+cohérente dans les deux langues.
+
+⚠️ **Une seule ligne, et aucune autre dépendance — vérifié :**
+
+| | |
+|---|---|
+| `getLevelInfo` | choisit le niveau par `min`/`max`, **jamais par le nom** |
+| consommateurs de `LEVELS` | `getLevelInfo` seul |
+| consommateurs de `getLevelInfo` | `studio.tsx` seul, qui ne fait qu'**afficher** `level.name` |
+| comparaison sur le nom | **aucune** dans tout le dépôt |
+| stockage / serveur / analytics | **aucun** — la chaîne ne quitte jamais l'écran |
+
+Ils restent interpolés en paramètre de `studio.next_level` : la clé reste prête si la
+décision change un jour.
 
 ---
 
