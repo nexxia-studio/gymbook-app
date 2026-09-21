@@ -1416,6 +1416,14 @@
       "free": "Free",
       "your_plan": "Your plan"
     },
+    "trial_banner": {
+      "ending_title_one": "1 day left on your trial.",
+      "ending_title_other": "{{count}} days left on your trial.",
+      "ended_title": "Your trial has ended.",
+      "ending_body": "After that, your members keep everything they have already paid for — only new online sales stop.",
+      "ended_body": "Your members keep their memberships and credits until they run out; only new online sales have stopped.",
+      "cta": "Choose a plan"
+    },
     "features": {
       "payments_enabled": "Online payments",
       "analytics_enabled": "Advanced statistics",

@@ -1416,6 +1416,14 @@
       "free": "Gratuit",
       "your_plan": "Votre plan"
     },
+    "trial_banner": {
+      "ending_title_one": "Il reste 1 jour d'essai.",
+      "ending_title_other": "Il reste {{count}} jours d'essai.",
+      "ended_title": "Votre essai est terminé.",
+      "ending_body": "Ensuite, vos membres gardent tout ce qu'ils ont déjà payé — seules les nouvelles ventes en ligne s'arrêtent.",
+      "ended_body": "Vos membres gardent leurs abonnements et leurs crédits jusqu'à leur terme ; seules les nouvelles ventes en ligne sont arrêtées.",
+      "cta": "Choisir une formule"
+    },
     "features": {
       "payments_enabled": "Paiements en ligne",
       "analytics_enabled": "Statistiques avancées",
