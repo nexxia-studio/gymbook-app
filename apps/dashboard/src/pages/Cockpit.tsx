@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Building2, ShieldAlert, AlertCircle, Check, Minus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { useNavigate } from 'react-router-dom'
 import { useCockpitGyms, type CockpitGym } from '@/hooks/useCockpitGyms'
 
 /**
@@ -52,6 +53,7 @@ function PlanCell({ gym }: { gym: CockpitGym }) {
 export default function Cockpit() {
   const { t, i18n } = useTranslation()
   const { gyms, isLoading, error } = useCockpitGyms()
+  const navigate = useNavigate()
 
   const dateFmt = useMemo(
     () => new Intl.DateTimeFormat(i18n.language || 'fr-BE', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -138,7 +140,11 @@ export default function Cockpit() {
               </thead>
               <tbody>
                 {gyms.map((g) => (
-                  <tr key={g.gym_id} className="border-b border-border/50 last:border-0">
+                  // GYM — la ligne ouvre la fiche (lot 2). `cursor-pointer` et le survol
+                  // disent que c'est cliquable ; rien d'autre ne change pour le lot 1.
+                  <tr key={g.gym_id}
+                      onClick={() => navigate(`/cockpit/${g.gym_id}`)}
+                      className="cursor-pointer border-b border-border/50 last:border-0 hover:bg-border/20">
                     <td className="px-4 py-3">
                       <div className="font-body-bold text-sm">{g.name}</div>
                       <div className="font-body text-xs text-muted">{g.slug}</div>
