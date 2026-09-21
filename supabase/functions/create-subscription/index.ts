@@ -12,7 +12,7 @@ import {
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
-import { getEffectiveCommission } from '../_shared/commission.ts'
+import { commissionFromPlan } from '../_shared/commission.ts'
 // GYM-336 — lecture SERVEUR de la demande d'exécution anticipée (art. VI.53, 1° CDE).
 import { readEarlyPerformanceConsent } from '../_shared/early-performance.ts'
 import {
@@ -266,7 +266,11 @@ Deno.serve(async (req) => {
     }
 
     const priceEur = plan.price_cents / 100
-    const { sepaRate: effectiveSepaRate } = await getEffectiveCommission(supabaseAdmin, gymId)
+    // 🔴 GYM-250 — MÊME LECTURE QUE create-payment, et pour la même raison : `effectivePlan`
+    // est déjà résolu par la garde `payments_enabled`. Ici l'enjeu est plus lourd qu'un
+    // paiement à l'unité — ce taux est SCELLÉ dans l'`applicationFee` de l'abonnement
+    // Mollie et vaudra pour toutes ses échéances.
+    const { sepaRate: effectiveSepaRate } = commissionFromPlan(effectivePlan)
     const applicationFeeCents = Math.round(plan.price_cents * effectiveSepaRate)
     const feeValue = applicationFeeCents / 100
 

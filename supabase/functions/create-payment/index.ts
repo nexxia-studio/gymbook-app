@@ -13,7 +13,7 @@ import {
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
-import { getEffectiveCommission } from '../_shared/commission.ts'
+import { commissionFromPlan } from '../_shared/commission.ts'
 // GYM-336 — lecture SERVEUR de la demande d'exécution anticipée (art. VI.53, 1° CDE).
 import { readEarlyPerformanceConsent } from '../_shared/early-performance.ts'
 import {
@@ -332,7 +332,13 @@ Deno.serve(async (req) => {
     }
 
     const amountCents = plan.price_cents
-    const { cbRate: effectiveCbRate } = await getEffectiveCommission(supabaseAdmin, gymId)
+    // 🔴 GYM-250 — LE TAUX VIENT DU PLAN DÉJÀ RÉSOLU, plus d'une seconde lecture.
+    // `effectivePlan` est en main depuis la garde `payments_enabled` ci-dessus. Re-résoudre
+    // ici aurait été une seconde lecture pouvant répondre autre chose que la première : la
+    // salle serait facturée sur un taux qu'elle n'avait pas quand on a décidé qu'elle
+    // pouvait vendre. Et ce taux est désormais celui du plan EFFECTIF — pendant un essai,
+    // celui du plan servi, pas de la colonne `free` que la salle porte encore.
+    const { cbRate: effectiveCbRate } = commissionFromPlan(effectivePlan)
     const applicationFeeCents = Math.round(amountCents * effectiveCbRate)
     const feeValue = applicationFeeCents / 100
 

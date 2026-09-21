@@ -507,13 +507,44 @@ Deno.serve(async (req) => {
         }
 
         const plan = planId ? await resolvePlan(supabase, gymId, planId) : null
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🔴 GYM-250 — LE TAUX DE COMMISSION EST RÉSOLU ICI, UNE SEULE FOIS POUR CE RAPPEL
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Il l'était DEUX fois, à deux endroits de ce même bloc : une fois pour
+        // l'`applicationFee` de l'abonnement Mollie, une fois pour le `nexxia_fee` de la
+        // ligne `payments`. Deux lectures séparées de la même chose peuvent répondre
+        // différemment — et on aurait alors ENREGISTRÉ un montant que Mollie n'a pas
+        // prélevé. Une résolution, deux usages, un seul chiffre.
+        //
+        // 🔴 `null` = PANNE, ET ON NE PASSE PAS OUTRE. L'ancienne version rendait 0 % sur
+        // une lecture en échec ; ici ce zéro-là serait SCELLÉ dans l'`applicationFee` de
+        // l'abonnement, pour toutes ses échéances. On préfère faire réessayer Mollie
+        // (503 + lettre morte) : le rappel est idempotent, un retry ne recrée rien.
+        let effectiveSepaRate = 0
+        if (plan) {
+          const commission = await getEffectiveCommission(supabase, gymId)
+          if (!commission) {
+            await recordWebhookFailure(supabase, {
+              functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+              gymId, stage: 'commission_resolution',
+              detail: { error: 'get_effective_plan a échoué — commission non résolue' },
+            })
+            return new Response('commission resolution failed', { status: 503 })
+          }
+          effectiveSepaRate = commission.sepaRate
+        }
+
         if (plan && customerId) {
           const planAmount = plan.price_cents / 100
           const durationMonths = plan.duration_months ?? 1
           const renewalTimes = Math.max(durationMonths - 1, 1)
 
-          // GYM-79 — applicationFee SEPA récurrent (commission effective, jamais en test mode)
-          const { sepaRate: effectiveSepaRate } = await getEffectiveCommission(supabase, gymId)
+          // GYM-79 — applicationFee SEPA récurrent (commission effective, jamais en test mode).
+          // ⚠️ CETTE VALEUR EST SCELLÉE : Mollie l'applique à CHAQUE échéance de l'abonnement
+          // et rien ne la met à jour ensuite. C'est très exactement pourquoi le taux doit
+          // venir du plan EFFECTIF (GYM-250) — sur la colonne, une vente faite pendant un
+          // essai aurait porté 0 % pendant douze mois.
           const feeCents = Math.round(plan.price_cents * effectiveSepaRate)
           const subPayload: Record<string, unknown> = {
             amount: { currency: plan.currency, value: planAmount.toFixed(2) },
@@ -695,10 +726,12 @@ Deno.serve(async (req) => {
         // GYM-55b — nexxia_fee : MÊME logique que les one_time (create-payment) → commission
         // SEPA effective (0 pour Dopamine via override), en euros, null si nul. C'est le fee
         // réellement prélevé en applicationFee sur ce premier paiement (create-subscription).
+        // GYM-250 — MÊME taux que l'applicationFee ci-dessus, par construction : c'est la
+        // même variable. Ce champ n'est pas un calcul, c'est la TRACE de ce qui a été
+        // prélevé ; le faire diverger du montant réel était le risque de la double lecture.
         let firstNexxiaFee: number | null = null
         if (plan) {
-          const { sepaRate } = await getEffectiveCommission(supabase, gymId)
-          const feeEur = Math.round(plan.price_cents * sepaRate) / 100
+          const feeEur = Math.round(plan.price_cents * effectiveSepaRate) / 100
           firstNexxiaFee = feeEur > 0 ? feeEur : null
         }
 
