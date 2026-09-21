@@ -179,3 +179,155 @@ GRANT EXECUTE ON FUNCTION public.cockpit_list_gyms() TO authenticated;
 --
 -- ⚠️ `gym_id = NULL` : un super-administrateur n'appartient à aucune salle. Lui en laisser
 -- une le ferait apparaître dans le décompte des membres de cette salle-là.
+
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+-- ║  🔴 LES POLITIQUES SUPER-ADMIN PASSENT EN LECTURE SEULE                               ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+--
+-- LE PRINCIPE : le super-administrateur LIT par la RLS, il n'ÉCRIT que par des RPC
+-- `SECURITY DEFINER` qui journalisent dans `gym_admin_actions` DANS LA MÊME TRANSACTION
+-- (lot 2). Un journal qu'on peut contourner n'est pas un journal.
+--
+-- L'ÉTAT AVANT : 16 politiques sur 17 étaient en `ALL` — lecture ET écriture. Le compte
+-- super-administrateur, une fois créé, aurait pu écrire partout, y compris sur `profiles` :
+-- donc PROMOUVOIR D'AUTRES SUPER-ADMINISTRATEURS, hors de tout journal. C'est cette
+-- écriture-là qui n'a aucune raison d'exister.
+--
+-- ⚠️ AUCUN GÉRANT NE PERD RIEN, ET CE N'EST PAS UNE OPINION.
+-- Les 17 politiques ont toutes `USING (is_super_admin())` SEUL — relevé sur la production
+-- le 21/09, aucune ne combine `gym_admin` et `super_admin` dans une même clause. Or une
+-- politique `USING (is_super_admin())` n'accorde JAMAIS rien à un gérant : le prédicat est
+-- faux pour lui. La passer en `SELECT` ne peut donc lui retirer aucun droit. Les droits des
+-- gérants vivent dans des politiques SÉPARÉES, que cette migration ne touche pas.
+--
+-- ⚠️ ET LA MIGRATION LE VÉRIFIE ELLE-MÊME PLUTÔT QUE DE ME CROIRE.
+-- La boucle ci-dessous ne convertit QUE les politiques dont le `USING` vaut EXACTEMENT
+-- `is_super_admin()` et qui n'ont AUCUN `WITH CHECK`. Une politique combinée — « admin de
+-- la salle OU super_admin » — ne correspondrait pas au motif et serait laissée intacte,
+-- même si la base avait changé depuis mon relevé. C'est la leçon de GYM-350 : une
+-- migration qui fait confiance à un instantané est une migration qui ment un jour.
+--
+-- ⚠️ TROIS TABLES N'ONT QUE CETTE POLITIQUE : `impersonation_logs`, `login_attempts` et
+-- `super_admin_proxy_actions`. Elles deviennent donc en lecture seule POUR LA RLS — mais
+-- elles sont vides (0 ligne, vérifié) et ne sont écrites que par `service_role`, QUI
+-- CONTOURNE LA RLS. Rien ne se ferme qui était ouvert à quelqu'un.
+--
+-- `credit_adjustments` est déjà en `SELECT` : la boucle ne la voit pas, et c'est correct.
+
+DO $$
+DECLARE
+  r record;
+  n integer := 0;
+BEGIN
+  FOR r IN
+    SELECT tablename, policyname
+      FROM pg_policies
+     WHERE schemaname = 'public'
+       AND cmd = 'ALL'
+       -- Espaces retirés : `pg_policies` peut rendre `is_super_admin()` avec des variantes
+       -- de mise en forme selon la version de Postgres.
+       AND regexp_replace(coalesce(qual::text, ''), '\s', '', 'g') = 'is_super_admin()'
+       AND coalesce(with_check::text, '') = ''
+     ORDER BY tablename
+  LOOP
+    EXECUTE format('DROP POLICY %I ON public.%I', r.policyname, r.tablename);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR SELECT USING (public.is_super_admin())',
+      r.policyname, r.tablename);
+    n := n + 1;
+    RAISE NOTICE '  lecture seule : %  (%)', r.tablename, r.policyname;
+  END LOOP;
+
+  RAISE NOTICE 'Politiques super-admin converties en lecture seule : %', n;
+
+  -- 🔴 LE COMPTE ATTENDU EST 16, relevé sur la production le 21/09. Un écart n'arrête pas
+  -- la migration — il peut venir d'un environnement légitimement différent — mais il DOIT
+  -- se voir. Une conversion silencieuse de 3 politiques au lieu de 16 laisserait treize
+  -- écritures ouvertes sans que personne ne le sache.
+  IF n <> 16 THEN
+    RAISE WARNING '⚠️ ATTENDU 16 politiques, % converties. Relire pg_policies AVANT de créer le compte super-administrateur.', n;
+  END IF;
+END $$;
+
+-- Contrôle d'après-coup, lisible dans la sortie de psql : plus aucune politique
+-- super-admin ne doit autoriser l'écriture.
+DO $$
+DECLARE
+  restantes integer;
+BEGIN
+  SELECT count(*) INTO restantes
+    FROM pg_policies
+   WHERE schemaname = 'public'
+     AND cmd <> 'SELECT'
+     AND (qual::text ILIKE '%is_super_admin%' OR coalesce(with_check::text, '') ILIKE '%is_super_admin%');
+
+  IF restantes = 0 THEN
+    RAISE NOTICE '✅ Aucune politique super-admin n''accorde plus l''écriture.';
+  ELSE
+    RAISE WARNING '🔴 % politique(s) super-admin accordent ENCORE l''écriture — à examiner une par une.', restantes;
+  END IF;
+END $$;
+
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+-- ║  CE QUE CETTE MIGRATION NE RÉVOQUE PAS, ET POURQUOI                                   ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+--
+-- Deux révocations étaient demandées. Les deux garde-fous posés avec elles ont SAUTÉ à la
+-- vérification. Rien n'est révoqué ; voici ce qui a été trouvé.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- ① `INSERT(role)` sur `profiles` — NON RÉVOQUÉ : un appelant client le pose
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- `apps/mobile/lib/ensureProfile.ts:151` fait bien `supabase.from('profiles').insert({…})`
+-- et la ligne 156 y pose `role: 'member'`. La consigne était : « s'il en pose un, dis-le au
+-- lieu de révoquer ». Il en pose un.
+--
+-- ⚠️ MAIS CE CHEMIN EST DÉJÀ MORT, et c'est ce qui rend la décision facile :
+-- `profiles` porte QUATRE politiques — une `ALL` (super-admin), deux `SELECT`, une
+-- `UPDATE` — et AUCUNE `INSERT`. La RLS étant active, PostgreSQL refuse donc tout INSERT
+-- client, quel que soit le droit de colonne. Le repli d'`ensureProfile` ne peut pas
+-- s'exécuter aujourd'hui ; son échec part d'ailleurs dans Sentry sous le tag
+-- `gym338_fallback_insert`.
+--
+-- 🔴 LE RISQUE RÉEL EST INTACT : le jour où quelqu'un ajoute une politique `INSERT` sur
+-- `profiles` — pour faire revivre ce repli, par exemple — la colonne `role` devient
+-- écrivable PAR LE CLIENT, `anon` compris. C'est la forme exacte du piège de gym203 :
+-- un droit dormant que personne ne relit, réveillé par un changement sans rapport.
+--
+-- RECOMMANDATION (décision du cockpit) : supprimer d'abord le repli mort
+-- d'`ensureProfile.ts`, puis révoquer :
+--     REVOKE INSERT (role) ON public.profiles FROM anon, authenticated;
+-- Dans cet ordre, rien ne casse — et sans le repli, plus aucun appelant ne pose `role`.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- ② `UPDATE(gym_id)` sur `profiles` — NON RÉVOQUÉ : la prémisse est inexacte
+-- ─────────────────────────────────────────────────────────────────────────────────────
+-- Le cadrage disait : « les anciennes versions sont déjà refusées par le trigger de
+-- GYM-338 ». Le trigger déployé dit autre chose. `enforce_gym_id_immutable`, relu sur la
+-- production :
+--
+--     IF NEW.gym_id IS DISTINCT FROM OLD.gym_id THEN
+--       IF NEW.gym_id IS NOT NULL AND EXISTS (
+--         SELECT 1 FROM member_gyms mg WHERE mg.member_id = NEW.id AND mg.gym_id = NEW.gym_id
+--       ) THEN RETURN NEW;  -- ← PASSE
+--       END IF;
+--       RAISE EXCEPTION 'GYM_ID_IMMUTABLE…' USING ERRCODE = '42501';
+--     END IF;
+--
+-- Il LAISSE DONC PASSER un client qui bascule vers une salle DONT IL EST DÉJÀ MEMBRE.
+-- Ce n'est pas un trou : c'est précisément la bascule de salle active, et le trigger porte
+-- déjà la propriété de sécurité qui compte — on ne peut pointer que vers une salle à
+-- laquelle on appartient. Une ancienne version de l'app qui basculerait par un PATCH
+-- direct fonctionne donc ENCORE aujourd'hui, contrairement à ce que la prémisse supposait.
+--
+-- Côté dépôt, plus aucun appelant ne l'utilise : la bascule passe par `switch_active_gym`
+-- et le rattrapage par `claim_app_gym` — toutes deux `SECURITY DEFINER`, donc indifférentes
+-- aux droits de colonne. Révoquer ne casserait RIEN de ce que nous compilons aujourd'hui,
+-- mais casserait les binaires en circulation qui utilisent encore le chemin direct, sans
+-- gain de sécurité puisque le trigger garde déjà la porte.
+--
+-- RECOMMANDATION : ne pas révoquer tant que le parc mobile n'est pas connu. Si le cockpit
+-- confirme qu'aucun binaire antérieur à `switch_active_gym` ne circule plus, alors :
+--     REVOKE UPDATE (gym_id) ON public.profiles FROM authenticated;

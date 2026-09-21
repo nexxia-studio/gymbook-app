@@ -103,7 +103,7 @@ brute n'apparaît **que lorsqu'elle diffère**. Ce n'est pas théorique : Dopami
   du piège de gym203.**
 - 🟠 **`UPDATE(gym_id)` est toujours accordé au client** — la colonne même de gym203.
 
-### b. Les 17 politiques : **16 accordent l'ÉCRITURE**
+### b. Les 17 politiques : **16 accordaient l'ÉCRITURE — corrigé dans ce lot**
 
 | portée | nombre | tables |
 |---|---|---|
@@ -114,10 +114,41 @@ brute n'apparaît **que lorsqu'elle diffère**. Ce n'est pas théorique : Dopami
 super-administrateur, une fois créé, pourra écrire partout via la RLS — y compris sur
 `profiles`, donc **promouvoir d'autres super-administrateurs**.
 
-⚠️ **Non modifié, comme demandé.** Mais c'est un arbitrage à prendre avant le lot 2 : soit
-les politiques restent `ALL` et le lot 2 s'y appuie, soit on les restreint et le lot 2
-passe par des RPC `SECURITY DEFINER` journalisées. La seconde voie est celle que le lot 2
-annonce déjà (`gym_admin_actions`).
+🔴 **CORRIGÉ DANS CE LOT** (décision du 21/09). Principe retenu : **le super-administrateur
+LIT par la RLS, il n'ÉCRIT que par des RPC `SECURITY DEFINER` qui journalisent dans
+`gym_admin_actions` dans la même transaction** (lot 2). Un journal qu'on peut contourner
+n'est pas un journal.
+
+#### Aucun gérant ne perd de droit — et ce n'est pas une opinion
+
+Les 17 politiques ont **toutes** `USING (is_super_admin())` **seul** : relevé sur la
+production, **aucune ne combine** `gym_admin` et `super_admin`. Or une politique
+`USING (is_super_admin())` n'accorde **jamais rien** à un gérant — le prédicat est faux
+pour lui. La passer en `SELECT` ne peut donc lui retirer aucun droit. Les droits des
+gérants vivent dans des politiques **séparées**, intactes.
+
+| table | autres politiques (gérant/membre) |
+|---|---|
+| `nexxia_gyms` · `profiles` | 3 chacune (SELECT, UPDATE) |
+| `medical_notes` | 2 (SELECT, UPDATE) |
+| `gym_admin_actions` · `gym_communications` | 1 `ALL` chacune — **les gérants gardent leurs écritures** |
+| 8 autres | 1 `SELECT` chacune |
+| `impersonation_logs` · `login_attempts` · `super_admin_proxy_actions` | **0** — voir ci-dessous |
+
+⚠️ Ces trois dernières n'ont que la politique super-admin : elles deviennent en lecture
+seule **pour la RLS**. Elles sont vides (0 ligne) et ne sont écrites que par `service_role`,
+**qui contourne la RLS**. Rien ne se ferme qui était ouvert à quelqu'un.
+
+#### La migration se vérifie elle-même
+
+Elle ne convertit **que** les politiques dont le `USING` vaut **exactement**
+`is_super_admin()` et qui n'ont **aucun** `WITH CHECK`. Une politique combinée ne
+correspondrait pas au motif et serait laissée intacte — **même si la base avait changé
+depuis mon relevé**. C'est la leçon de GYM-350 : une migration qui fait confiance à un
+instantané est une migration qui ment un jour.
+
+Elle avertit si le compte converti n'est pas 16, et contrôle après coup qu'aucune politique
+super-admin n'accorde plus l'écriture.
 
 ### c. Le compte — à créer par le cockpit, pas par moi
 
@@ -146,6 +177,57 @@ END IF;
 
 Le filtre du menu latéral est **un confort, pas une protection**, et c'est écrit dans le
 code : le retirer ne ferait fuir aucune donnée.
+
+### 🔴 Les deux révocations demandées : NON FAITES, les deux garde-fous ont sauté
+
+#### ① `INSERT(role)` — un appelant client le pose
+
+`apps/mobile/lib/ensureProfile.ts:151` fait bien `.from('profiles').insert({…})`, et la
+ligne **156 y pose `role: 'member'`**. La consigne était « s'il en pose un, dis-le au lieu
+de révoquer ». Il en pose un.
+
+⚠️ **Mais ce chemin est déjà mort**, et c'est ce qui rend la décision facile : `profiles`
+porte **quatre** politiques — une `ALL`, deux `SELECT`, une `UPDATE` — et **aucune
+`INSERT`**. RLS active ⇒ PostgreSQL refuse tout INSERT client, quel que soit le droit de
+colonne. Le repli ne peut pas s'exécuter aujourd'hui.
+
+*(J'ai cherché confirmation dans Sentry sous le tag `gym338_fallback_insert` : la recherche
+n'a pas appliqué mon filtre de tag, je la tiens donc pour **non concluante**. La preuve
+structurelle suffit.)*
+
+🔴 **Le risque reste intact** : le jour où quelqu'un ajoute une politique `INSERT` — pour
+faire revivre ce repli, par exemple — `role` devient écrivable **par le client**, `anon`
+compris. Forme exacte du piège de gym203.
+
+**Recommandation :** supprimer d'abord le repli mort, **puis** révoquer. Dans cet ordre,
+rien ne casse.
+
+#### ② `UPDATE(gym_id)` — la prémisse du cadrage est inexacte
+
+Le cadrage disait « les anciennes versions sont déjà refusées par le trigger de GYM-338 ».
+**Le trigger déployé dit autre chose** :
+
+```sql
+IF NEW.gym_id IS DISTINCT FROM OLD.gym_id THEN
+  IF NEW.gym_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM member_gyms mg WHERE mg.member_id = NEW.id AND mg.gym_id = NEW.gym_id
+  ) THEN RETURN NEW;  -- ← PASSE
+  END IF;
+  RAISE EXCEPTION 'GYM_ID_IMMUTABLE…' USING ERRCODE = '42501';
+END IF;
+```
+
+Il **laisse passer** un client qui bascule vers une salle **dont il est déjà membre**. Ce
+n'est pas un trou — c'est la bascule de salle active, et le trigger porte déjà la propriété
+de sécurité qui compte. Une ancienne version basculant par PATCH direct **fonctionne donc
+encore aujourd'hui**.
+
+Côté dépôt, plus aucun appelant : `switch_active_gym` et `claim_app_gym`, toutes deux
+`SECURITY DEFINER` (vérifié), donc indifférentes aux droits de colonne.
+
+**Recommandation :** ne pas révoquer tant que le parc mobile n'est pas connu. Révoquer ne
+casserait rien de ce qu'on compile, mais casserait les binaires en circulation utilisant le
+chemin direct — **sans gain de sécurité**, puisque le trigger garde déjà la porte.
 
 ---
 
@@ -177,6 +259,13 @@ Aucune action — plan, commission, essai : c'est le **lot 2**, par RPC journali
 - **Les expressions de la RPC validées sur la production** avant écriture : elles rendent
   Dopamine (premium, 109 membres, 139 créneaux à venir, Mollie ✓) et Pace (free, 1 membre,
   19 créneaux, pas de Mollie)
+- 🔴 **Banc RLS #293 : 32/32, exit 0** — joué sur staging comme ligne de base. Le
+  changement **ne peut pas** l'affecter : les politiques converties ont
+  `USING (is_super_admin())`, faux pour les comptes du banc, donc elles ne leur accordaient
+  rien. ⚠️ **À rejouer après application** pour le confirmer par la mesure et non par le
+  raisonnement.
+- **Aucune politique combinée** : les 17 ont `is_super_admin()` seul — relevé sur la
+  production. La migration le revérifie d'elle-même à l'exécution
 - **`tsc --build` exit 0** (jamais `--noEmit`, GYM-350)
 - ⚠️ **`tsc --build` a d'abord REFUSÉ le lot** : `cockpit_list_gyms` n'existe pas dans
   `types/database.ts`, qui est généré depuis la base. Le contrôle a donc attrapé une vraie
