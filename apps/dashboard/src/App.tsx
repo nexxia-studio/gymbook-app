@@ -9,6 +9,7 @@ import { ToastContainer } from '@/components/ui/Toast'
 import MollieCallback from '@/pages/MollieCallback'
 import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCancel from '@/pages/PaymentCancel'
+import Cockpit from '@/pages/Cockpit'
 
 const Login = lazy(() => import('@/pages/Login'))
 // GYM-248 — inscription gérant self-serve REBRANCHÉE (voir l'en-tête de pages/Signup.tsx :
@@ -187,6 +188,25 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+        {/* ╔═══════════════════════════════════════════════════════════════════════════╗
+            ║  COCKPIT B2B — LOT 1. `ProtectedRoute` n'exige qu'une SESSION.            ║
+            ╚═══════════════════════════════════════════════════════════════════════════╝
+            Le refus du rôle est SERVEUR : `cockpit_list_gyms()` lève 42501 pour tout
+            appelant non super-administrateur. Un `gym_admin` qui tape /cockpit à la main
+            arrive donc sur l'écran et en repart avec ZÉRO donnée — pas parce qu'un garde
+            client l'a renvoyé, mais parce que la base a refusé.
+
+            ⚠️ On ne pose PAS de garde de rôle côté client ici, et c'est délibéré : il
+            ferait croire que la protection vient de lui. Le jour où quelqu'un le
+            contournerait ou le retirerait, rien ne changerait — c'est la RPC qui garde. */}
+        <Route
+          path="/cockpit"
+          element={
+            <ProtectedRoute>
+              <Cockpit />
             </ProtectedRoute>
           }
         />
