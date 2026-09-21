@@ -597,7 +597,7 @@
       "PROFILE_NOT_FOUND": "Profil introuvable.",
       "GYM_FORBIDDEN": "Accès à cette salle refusé.",
       "PLAN_NOT_FOUND": "Formule indisponible.",
-      "PAYMENTS_DISABLED": "Les paiements ne sont pas activés pour cette salle.",
+      "PAYMENTS_DISABLED": "Le paiement en ligne n'est pas disponible pour cette salle. Tu peux régler directement auprès d'elle — tes abonnements et tes crédits en cours ne changent pas.",
       "PLAN_MISCONFIGURED": "Formule mal configurée, contacte la salle.",
       "MOLLIE_TOKEN_EXPIRED": "Paiement temporairement indisponible, réessaie plus tard.",
       "MOLLIE_ERROR": "Le paiement a échoué côté prestataire, réessaie.",

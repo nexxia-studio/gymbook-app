@@ -62,6 +62,11 @@ import {
   emailSender,
   emailShell,
   escapeHtml,
+  // GYM-250 — l'identité Viniz vit désormais dans `_shared`, partagée avec
+  // `send-trial-reminders`. Mêmes valeurs, un seul exemplaire.
+  VINIZ_BRANDING,
+  VINIZ_CTA_BG,
+  VINIZ_CTA_FG,
   type GymBranding,
 } from '../_shared/gym-branding.ts'
 // GYM-313 — réécriture du `redirect_to` des emails de réinitialisation. Module PUR et
@@ -149,22 +154,12 @@ const RECOVERY_REDIRECT: RecoveryRedirectConfig = {
 // ⚠️ FOND TRANSPARENT, ET C'EST STRUCTUREL. Le fond de l'en-tête vient de
 // `secondaryColor` (#17102E ici), pas du fichier : un PNG à fond opaque afficherait un
 // rectangle par-dessus. Les deux PNG déposés ont bien un canal alpha.
-const VINIZ_WORDMARK_PNG = 'https://links.viniz.app/brand/viniz-wordmark-lime@2x.png'
-
-const VINIZ_BRANDING: GymBranding = {
-  name: 'Viniz',
-  slug: '',
-  address: null,
-  postalCode: null,
-  city: null,
-  email: null,
-  phone: null,
-  logoUrl: VINIZ_WORDMARK_PNG,
-  primaryColor: '#C8FF3D',
-  secondaryColor: '#17102E',
-}
-const VINIZ_CTA_BG = '#4827B4'
-const VINIZ_CTA_FG = '#C8FF3D'
+// 🔴 GYM-250 — CES QUATRE CONSTANTES ONT DÉMÉNAGÉ DANS `_shared/gym-branding.ts`, sans
+// changer d'une valeur. Elles vivaient ici tant qu'un seul courrier s'adressait au gérant ;
+// les relances d'essai (`send-trial-reminders`) sont le second, et deux exemplaires de la
+// marque auraient divergé au premier changement de logo. Tout le commentaire d'origine —
+// pourquoi l'identité du PRODUIT n'est pas une donnée de salle, pourquoi le `slug` est
+// vide, pourquoi le PNG doit être transparent et en @2x — a suivi au même endroit.
 
 // Rôles qui font d'un compte un utilisateur du DASHBOARD, donc un destinataire Viniz —
 // même s'il est rattaché à une salle. Un gérant reçoit du Viniz, pas du branding de sa
