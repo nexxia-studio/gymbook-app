@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { homePathForRole } from '@/lib/homePath'
 
 export default function Login() {
   const { t } = useTranslation()
@@ -20,7 +21,9 @@ export default function Login() {
     clearError()
     try {
       await signIn(email, password)
-      navigate('/dashboard')
+      // `signIn` a déjà posé `role` dans le store (même fetch que `gym_id`) : la
+      // destination est donc connue ici. Voir lib/homePath.ts.
+      navigate(homePathForRole(useAuthStore.getState().role))
     } catch {
       // Error is handled in store
     }
