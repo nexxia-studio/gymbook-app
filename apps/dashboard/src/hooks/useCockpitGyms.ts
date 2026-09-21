@@ -67,24 +67,10 @@ export function useCockpitGyms() {
     setIsLoading(true)
     setError(null)
 
-    // ⚠️ TYPAGE FORCÉ, EN UN SEUL POINT, ET TEMPORAIRE.
-    //
-    // `types/database.ts` est GÉNÉRÉ depuis la base. La migration de ce lot n'étant pas
-    // appliquée (aucun déploiement n'était autorisé), `cockpit_list_gyms` n'y figure pas
-    // encore et `tsc --build` refuse l'appel — ce qui est le comportement voulu : c'est
-    // GYM-350 qui a rendu ce contrôle réel, et il vient d'attraper une vraie absence.
-    //
-    // 🔴 À RETIRER à la régénération des types, juste après l'application de la migration :
-    //     npx supabase gen types typescript --project-id <ref> > src/types/database.ts
-    // Tant que ce cast vit, le contrat de la RPC est décrit ICI et pas dans les types
-    // générés — c'est une dette, elle est nommée.
-    const client = supabase as unknown as {
-      rpc(fn: 'cockpit_list_gyms'): Promise<{
-        data: CockpitGym[] | null
-        error: { code?: string; message?: string } | null
-      }>
-    }
-    const { data, error: rpcError } = await client.rpc('cockpit_list_gyms')
+    // Les types sont régénérés depuis staging : `cockpit_list_gyms` figure désormais dans
+    // `types/database.ts`, et l'appel est typé sans aucun cast. Le contournement temporaire
+    // du premier commit est retiré.
+    const { data, error: rpcError } = await supabase.rpc('cockpit_list_gyms')
 
     if (rpcError) {
       // 🔴 `42501` est le code que la RPC lève pour un appelant non super-administrateur.

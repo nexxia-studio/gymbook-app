@@ -231,10 +231,87 @@ chemin direct — **sans gain de sécurité**, puisque le trigger garde déjà l
 
 ---
 
+## § 4 — 🔴 Le super-administrateur n'atteignait pas le cockpit
+
+**Constaté dans le navigateur** (staging, 21/09) : connecté en super-admin, Antoine
+atterrissait sur `/pending` — « en attente d'activation ».
+
+**Cause** : `ProtectedRoute.tsx` testait `if (!gymId) → /pending` **avant** le contrôle de
+rôle. Or un super-administrateur a délibérément `gym_id = NULL` : il n'appartient à aucune
+salle, sinon il gonflerait le décompte de ses membres.
+
+### a. Le mécanisme retenu : une prop `requireGym`, défaut `true`
+
+**Pourquoi pas un réordonnancement global.** Déplacer le contrôle de rôle avant celui de la
+salle changerait le parcours de **toutes** les routes — y compris celui d'un compte sans
+profil résolu, qui doit continuer d'atterrir sur `/pending`. Avec la prop, chaque
+`<ProtectedRoute>` existant garde le défaut et reste **strictement équivalent** ; seule la
+route qui tolère l'absence de salle le déclare, **à son point d'appel, où on peut le lire**.
+
+### b. ✅ Le rôle EST chargé quand `gym_id` est NULL — vérifié
+
+`role` et `gym_id` viennent du **même `.select('gym_id, role')`**, dans les trois chemins du
+store : `signIn`, `initialize`, `refreshProfile`. Le rôle se résout donc indépendamment de
+la salle. **Pas de loader infini.**
+
+⚠️ Et le loader `role === null` ne s'applique désormais **qu'au parcours qui exige une
+salle**. Sans salle exigée, un rôle nul après `initialized` n'est plus une attente mais un
+fait — `initialized` n'est posé qu'**après** le fetch du profil (`useAuthStore:252`). On
+tombe alors dans la garde de rôle, qui refuse. Un loader éternel serait la pire des réponses.
+
+### c. La destination après connexion
+
+`lib/homePath.ts` — **une seule source** pour les trois points de redirection (route `/`,
+route `/login`, et `Login.tsx` après `signIn`). Trois littéraux `'/dashboard'` recopiés
+auraient divergé au premier oubli.
+
+⚠️ Rediriger n'interdit rien : `/cockpit` reste gardé par la RPC.
+
+### d. Les écrans qui supposent une salle
+
+Un super-administrateur ne voit **que** le cockpit. Planning, Membres, Formules, Revenus,
+Communications et Réglages supposent tous une salle : les lui montrer l'enverrait sur des
+écrans vides — ou sur `/pending`, puisqu'ils sont gardés par `requireGym`.
+
+⚠️ **Rien ne change pour un gérant** : la branche n'est prise que pour `super_admin`.
+
+---
+
 ## § 3 — Ce que le lot ne fait pas
 
 Aucune action — plan, commission, essai : c'est le **lot 2**, par RPC journalisées dans
 `gym_admin_actions`. Pas d'impersonation (tables présentes, 0 ligne, hors périmètre).
+
+---
+
+## § 5 — Alignement sur ce qui a été appliqué
+
+Le cockpit a appliqué la migration en staging avec **deux changements**. Le registre les
+porte désormais — sinon il mentirait.
+
+**① `identite_legale_ok` = `public.gym_legal_identity_complete(g.id)`.** Ma version exigeait
+`legal_form`, que Dopamine n'a pas — et n'a pas à avoir : une personne physique n'a pas de
+forme juridique. Elle aurait affiché **en rouge une salle qui encaisse légalement**, et Pace
+avec elle. Vérifié sur la production : avec la règle GYM-121, **les deux sont complètes**.
+Une seule règle, et elle vit déjà en base.
+
+**② `REVOKE EXECUTE … FROM anon`.** Toute fonction de `public` naît exécutable par tous, et
+PostgREST expose `anon` comme un rôle à part entière : `REVOKE … FROM public` retire le
+droit du pseudo-rôle PUBLIC, **pas** celui accordé nommément à `anon`. Sans cette ligne,
+`anon` gardait l'EXECUTE — refusé par le garde interne, mais la porte lui restait ouverte.
+Vérifié après application : les droits sont `postgres | authenticated | service_role`.
+
+---
+
+## § 6 — Types régénérés
+
+`types/database.ts` régénéré depuis staging (`supabase gen types`). Le cast temporaire de
+`useCockpitGyms.ts` est **retiré** — l'appel est typé sans contournement.
+
+⚠️ Le fichier passe de 3160 à **3397 lignes**, et **aucune table n'est perdue** (vérifié par
+comparaison). Il était **périmé** : il manquait `claim_app_gym`, `get_effective_plan_core`,
+`gym_legal_identity_complete`, `accept_legal_terms`, `attach_profile_to_gym` — toutes
+déployées depuis longtemps.
 
 ---
 
@@ -259,11 +336,18 @@ Aucune action — plan, commission, essai : c'est le **lot 2**, par RPC journali
 - **Les expressions de la RPC validées sur la production** avant écriture : elles rendent
   Dopamine (premium, 109 membres, 139 créneaux à venir, Mollie ✓) et Pace (free, 1 membre,
   19 créneaux, pas de Mollie)
-- 🔴 **Banc RLS #293 : 32/32, exit 0** — joué sur staging comme ligne de base. Le
-  changement **ne peut pas** l'affecter : les politiques converties ont
-  `USING (is_super_admin())`, faux pour les comptes du banc, donc elles ne leur accordaient
-  rien. ⚠️ **À rejouer après application** pour le confirmer par la mesure et non par le
-  raisonnement.
+- 🔴 **Banc RLS #293 : 32/32, exit 0 AVANT et APRÈS application.** La migration étant
+  désormais appliquée sur staging, ce n'est plus un raisonnement mais une mesure.
+- 🔴 **Les trois parcours, avec de VRAIES sessions sur staging :**
+
+  | compte | rôle | salle | après connexion | `/dashboard` | `/cockpit` | données RPC |
+  |---|---|---|---|---|---|---|
+  | `admin.cockpit@staging.test` | `super_admin` | **NULL** | **`/cockpit`** | `/pending` *(normal, masqué du menu)* | **écran rendu** | **3 salles** |
+  | `admin.clone@staging.test` | `gym_admin` | posé | `/dashboard` | écran rendu | écran rendu | **REFUS 42501** |
+  | `member.studiotest@staging.test` | `member` | posé | `/dashboard` | Accès réservé | Accès réservé | **REFUS 42501** |
+
+  ✅ **Rien ne change pour le gérant ni pour le membre.** Le super-administrateur, lui,
+  n'atterrit plus sur `/pending` et lit bien les trois salles.
 - **Aucune politique combinée** : les 17 ont `is_super_admin()` seul — relevé sur la
   production. La migration le revérifie d'elle-même à l'exécution
 - **`tsc --build` exit 0** (jamais `--noEmit`, GYM-350)

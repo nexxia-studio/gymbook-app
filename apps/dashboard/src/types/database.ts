@@ -1297,6 +1297,39 @@ export type Database = {
           },
         ]
       }
+      member_gyms: {
+        Row: {
+          gym_id: string
+          joined_at: string
+          member_id: string
+        }
+        Insert: {
+          gym_id: string
+          joined_at?: string
+          member_id: string
+        }
+        Update: {
+          gym_id?: string
+          joined_at?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_gyms_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "nexxia_gyms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_gyms_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_subscriptions: {
         Row: {
           amount: number | null
@@ -1309,6 +1342,7 @@ export type Database = {
           ends_at: string | null
           gym_id: string
           id: string
+          last_failed_payment_id: string | null
           max_payments: number | null
           member_id: string
           mollie_customer_id: string | null
@@ -1316,10 +1350,16 @@ export type Database = {
           next_payment_at: string | null
           pause_resumes_at: string | null
           paused_at: string | null
+          payment_failed_at: string | null
+          payment_failed_count: number
+          payment_suspended_at: string | null
           payments_count: number | null
           plan_code: string | null
           plan_id: string | null
           plan_name: string | null
+          prenotification_sent_at: string | null
+          reminder_14d_sent_at: string | null
+          reminder_3d_sent_at: string | null
           site_id: string | null
           source_payment_id: string | null
           starts_at: string
@@ -1338,6 +1378,7 @@ export type Database = {
           ends_at?: string | null
           gym_id: string
           id?: string
+          last_failed_payment_id?: string | null
           max_payments?: number | null
           member_id: string
           mollie_customer_id?: string | null
@@ -1345,10 +1386,16 @@ export type Database = {
           next_payment_at?: string | null
           pause_resumes_at?: string | null
           paused_at?: string | null
+          payment_failed_at?: string | null
+          payment_failed_count?: number
+          payment_suspended_at?: string | null
           payments_count?: number | null
           plan_code?: string | null
           plan_id?: string | null
           plan_name?: string | null
+          prenotification_sent_at?: string | null
+          reminder_14d_sent_at?: string | null
+          reminder_3d_sent_at?: string | null
           site_id?: string | null
           source_payment_id?: string | null
           starts_at: string
@@ -1367,6 +1414,7 @@ export type Database = {
           ends_at?: string | null
           gym_id?: string
           id?: string
+          last_failed_payment_id?: string | null
           max_payments?: number | null
           member_id?: string
           mollie_customer_id?: string | null
@@ -1374,10 +1422,16 @@ export type Database = {
           next_payment_at?: string | null
           pause_resumes_at?: string | null
           paused_at?: string | null
+          payment_failed_at?: string | null
+          payment_failed_count?: number
+          payment_suspended_at?: string | null
           payments_count?: number | null
           plan_code?: string | null
           plan_id?: string | null
           plan_name?: string | null
+          prenotification_sent_at?: string | null
+          reminder_14d_sent_at?: string | null
+          reminder_3d_sent_at?: string | null
           site_id?: string | null
           source_payment_id?: string | null
           starts_at?: string
@@ -1607,6 +1661,7 @@ export type Database = {
           country: string | null
           created_at: string | null
           currency: string | null
+          dedicated_app_gym: boolean
           default_language: string | null
           deleted_at: string | null
           dpo_email: string | null
@@ -1657,6 +1712,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           currency?: string | null
+          dedicated_app_gym?: boolean
           default_language?: string | null
           deleted_at?: string | null
           dpo_email?: string | null
@@ -1707,6 +1763,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           currency?: string | null
+          dedicated_app_gym?: boolean
           default_language?: string | null
           deleted_at?: string | null
           dpo_email?: string | null
@@ -2112,6 +2169,8 @@ export type Database = {
           created_at: string | null
           credits_granted: number | null
           currency: string
+          early_performance_consent_version: string | null
+          early_performance_requested_at: string | null
           expires_at: string | null
           gym_id: string
           id: string
@@ -2134,6 +2193,8 @@ export type Database = {
           created_at?: string | null
           credits_granted?: number | null
           currency?: string
+          early_performance_consent_version?: string | null
+          early_performance_requested_at?: string | null
           expires_at?: string | null
           gym_id: string
           id?: string
@@ -2156,6 +2217,8 @@ export type Database = {
           created_at?: string | null
           credits_granted?: number | null
           currency?: string
+          early_performance_consent_version?: string | null
+          early_performance_requested_at?: string | null
           expires_at?: string | null
           gym_id?: string
           id?: string
@@ -2818,6 +2881,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_legal_terms: { Args: { p_version: string }; Returns: Json }
       adjust_member_credits_atomic: {
         Args: {
           p_delta: number
@@ -2857,6 +2921,14 @@ export type Database = {
         }
         Returns: Json
       }
+      attach_profile_to_gym: {
+        Args: { p_gym_id: string; p_member_id: string; p_role?: string }
+        Returns: Json
+      }
+      autoheal_journal: {
+        Args: { p_count: number; p_detail: Json; p_stage: string }
+        Returns: undefined
+      }
       cancel_slot_atomic: {
         Args: { p_reason?: string; p_slot_id: string }
         Returns: Json
@@ -2879,13 +2951,26 @@ export type Database = {
         }
         Returns: boolean
       }
+      claim_app_gym: { Args: { p_gym_id: string }; Returns: Json }
       cleanup_oauth_states: { Args: never; Returns: undefined }
-      create_gym_self_serve: {
-        Args: {
-          p_gym_name: string
-          p_timezone?: string
-        }
-        Returns: Json
+      cockpit_list_gyms: {
+        Args: never
+        Returns: {
+          creee_le: string
+          creneaux_a_venir: number
+          derniere_activite: string
+          essai_actif: boolean
+          essai_fin: string
+          gym_id: string
+          identite_legale_ok: boolean
+          membres: number
+          mollie_connecte: boolean
+          name: string
+          plan_colonne: string
+          plan_effectif: string
+          slug: string
+          statut: string
+        }[]
       }
       create_booking_atomic: {
         Args: {
@@ -2896,6 +2981,10 @@ export type Database = {
           p_member_id: string
           p_slot_id: string
         }
+        Returns: Json
+      }
+      create_gym_self_serve: {
+        Args: { p_gym_name: string; p_timezone?: string }
         Returns: Json
       }
       create_mollie_vault_tokens: {
@@ -2942,6 +3031,7 @@ export type Database = {
         }[]
       }
       get_effective_plan: { Args: { p_gym_id: string }; Returns: Json }
+      get_effective_plan_core: { Args: { p_gym_id: string }; Returns: Json }
       get_gym_mollie_tokens: {
         Args: { p_gym_id: string }
         Returns: {
@@ -2969,12 +3059,54 @@ export type Database = {
           slot_starts_at: string
         }[]
       }
+      get_pending_sepa_prenotifications: {
+        Args: never
+        Returns: {
+          amount: number
+          days_remaining: number
+          gym_id: string
+          is_catchup: boolean
+          member_email: string
+          member_first_name: string
+          member_id: string
+          next_payment_at: string
+          plan_name: string
+          preferred_language: string
+          subscription_id: string
+        }[]
+      }
+      get_pending_subscription_reminders: {
+        Args: never
+        Returns: {
+          days_remaining: number
+          ends_at: string
+          gym_id: string
+          member_email: string
+          member_first_name: string
+          member_id: string
+          plan_name: string
+          preferred_language: string
+          push_token: string
+          reminder_type: string
+          subscription_id: string
+        }[]
+      }
       gym_has_feature: {
         Args: { p_feature: string; p_gym_id: string }
         Returns: boolean
       }
+      gym_legal_identity_complete: {
+        Args: { p_gym_id: string }
+        Returns: boolean
+      }
+      gym_legal_identity_missing: {
+        Args: { p_gym_id: string }
+        Returns: string[]
+      }
+      gym_slugify: { Args: { p_text: string }; Returns: string }
       is_gym_admin: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      join_gym_self_serve: { Args: { p_slug: string }; Returns: Json }
       mark_attendance_atomic: {
         Args: { p_booking_id: string; p_new_status: string }
         Returns: Json
@@ -2983,7 +3115,32 @@ export type Database = {
         Args: { p_booking_id: string; p_reminder_type: string }
         Returns: undefined
       }
+      mark_sepa_prenotification_sent: {
+        Args: { p_subscription_id: string }
+        Returns: undefined
+      }
+      mark_subscription_reminder_sent: {
+        Args: { p_reminder_type: string; p_subscription_id: string }
+        Returns: undefined
+      }
+      member_gyms_autoheal: { Args: never; Returns: Json }
+      member_gyms_drift: { Args: never; Returns: Json }
+      my_gym_memberships: {
+        Args: never
+        Returns: {
+          gym_id: string
+          is_active: boolean
+          joined_at: string
+          logo_url: string
+          name: string
+          slug: string
+        }[]
+      }
       notify_next_in_waitlist: { Args: { p_slot_id: string }; Returns: Json }
+      notify_waitlist_for_free_seats: {
+        Args: { p_slot_id: string }
+        Returns: Json
+      }
       process_no_shows: {
         Args: never
         Returns: {
@@ -2993,6 +3150,48 @@ export type Database = {
         }[]
       }
       promote_waitlist_atomic: { Args: { p_booking_id: string }; Returns: Json }
+      public_gym_branding: {
+        Args: { p_slug: string }
+        Returns: {
+          logo_url: string
+          name: string
+          primary_color: string
+          secondary_color: string
+          short_name: string
+          slug: string
+        }[]
+      }
+      public_gym_legal_identity: {
+        Args: { p_slug: string }
+        Returns: {
+          address: string
+          city: string
+          commercial_name: string
+          email: string
+          legal_address: string
+          legal_city: string
+          legal_form: string
+          legal_name: string
+          legal_postal_code: string
+          name: string
+          phone: string
+          postal_code: string
+          vat_number: string
+        }[]
+      }
+      public_gym_schedule: {
+        Args: { p_from?: string; p_slug: string; p_to?: string }
+        Returns: {
+          activity_color: string
+          activity_name: string
+          capacity: number
+          coach_name: string
+          ends_at: string
+          seats_available: number
+          slot_id: string
+          starts_at: string
+        }[]
+      }
       reorder_waitlist: { Args: { p_slot_id: string }; Returns: undefined }
       request_account_deletion: { Args: { p_user_id: string }; Returns: string }
       reset_noshow_counters: {
@@ -3020,11 +3219,49 @@ export type Database = {
           price_cents: number
         }[]
       }
+      search_gyms: {
+        Args: { p_query: string }
+        Returns: {
+          city: string
+          logo_url: string
+          name: string
+          primary_color: string
+          secondary_color: string
+          short_name: string
+          slug: string
+        }[]
+      }
+      set_gym_onboarding_progress: {
+        Args: { p_completed: boolean; p_gym_id: string; p_step: number }
+        Returns: undefined
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      suspend_overdue_subscriptions: {
+        Args: { p_grace_days?: number }
+        Returns: {
+          amount: number
+          gym_id: string
+          id: string
+          member_id: string
+          payment_failed_at: string
+          payment_failed_count: number
+          plan_name: string
+        }[]
+      }
+      switch_active_gym: { Args: { p_gym_id: string }; Returns: Json }
       update_mollie_vault_token: {
         Args: { p_new_secret: string; p_vault_id: string }
         Returns: undefined
+      }
+      waitlist_join_atomic: {
+        Args: {
+          p_existing_booking_id?: string
+          p_gym_id: string
+          p_member_id: string
+          p_slot_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
@@ -3044,12 +3281,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3073,11 +3310,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3098,11 +3335,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3123,11 +3360,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3140,11 +3377,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

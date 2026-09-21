@@ -99,7 +99,15 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="mt-4 flex flex-1 flex-col gap-1 px-3">
-          {[...NAV_ITEMS, ...(role === 'super_admin' ? [COCKPIT_ITEM] : [])].map(({ key, path, icon: Icon }) => (
+          {/* 🔴 UN SUPER-ADMINISTRATEUR N'A PAS DE SALLE : Planning, Membres, Formules,
+              Revenus, Communications et Réglages la SUPPOSENT tous. Les lui montrer
+              l'enverrait sur des écrans vides et trompeurs — ou sur /pending, puisqu'ils
+              sont gardés par `requireGym`. Il ne voit donc que le cockpit.
+
+              ⚠️ RIEN NE CHANGE POUR UN GÉRANT : la branche n'est prise que pour
+              `super_admin`. Un gérant, avec ou sans salle, garde exactement ses sept
+              entrées — ce qui était la condition posée. */}
+          {(role === 'super_admin' ? [COCKPIT_ITEM] : NAV_ITEMS).map(({ key, path, icon: Icon }) => (
             <NavLink
               key={key}
               to={path}

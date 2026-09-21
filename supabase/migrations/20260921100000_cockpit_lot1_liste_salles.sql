@@ -116,15 +116,18 @@ BEGIN
     EXISTS (SELECT 1 FROM public.gym_mollie_connections m
              WHERE m.gym_id = g.id AND m.status = 'active'),
 
-    -- Identité légale COMPLÈTE : c'est ce qu'il faut pour facturer la salle (lot 4) et
-    -- pour que SES factures membres soient conformes. Partiel = faux, sans nuance : une
-    -- identité à moitié remplie ne permet ni l'un ni l'autre.
-    (g.legal_name IS NOT NULL AND btrim(g.legal_name) <> ''
-     AND g.legal_form IS NOT NULL AND btrim(g.legal_form) <> ''
-     AND g.legal_address IS NOT NULL AND btrim(g.legal_address) <> ''
-     AND g.legal_postal_code IS NOT NULL AND btrim(g.legal_postal_code) <> ''
-     AND g.legal_city IS NOT NULL AND btrim(g.legal_city) <> ''
-     AND g.vat_number IS NOT NULL AND btrim(g.vat_number) <> ''),
+    -- ═══ IDENTITÉ LÉGALE — LA RÈGLE DE GYM-121, ET ELLE SEULE ═══
+    --
+    -- 🔴 CORRIGÉ À L'APPLICATION (staging, 21/09). J'avais écrit le prédicat à la main, en
+    -- y exigeant `legal_form`. Dopamine ne l'a pas — et n'a pas à l'avoir : une personne
+    -- physique n'a pas de forme juridique. Ma version affichait donc EN ROUGE une salle qui
+    -- encaisse légalement, et Pace avec elle. Les deux, en réalité, sont complètes.
+    --
+    -- ⚠️ UNE SEULE RÈGLE, ET ELLE VIT DÉJÀ EN BASE. `gym_legal_identity_complete` délègue à
+    -- `gym_legal_identity_missing`, qui sert déjà les factures membres et le dashboard. Un
+    -- second prédicat recopié ici aurait divergé du premier — c'est exactement le motif que
+    -- le décompte des membres a coûté (GYM-348), reproduit sur l'identité légale.
+    public.gym_legal_identity_complete(g.id),
 
     -- Dernière activité : le plus récent des trois signaux qui disent qu'une salle VIT —
     -- une réservation, un paiement, une connexion de membre. Pas `updated_at` de la
@@ -156,6 +159,17 @@ COMMENT ON FUNCTION public.cockpit_list_gyms() IS
 -- cette porte, même pour s'y faire refuser. Le refus interne reste la vraie garde — ceci
 -- n'est que la première.
 REVOKE ALL ON FUNCTION public.cockpit_list_gyms() FROM public;
+
+-- 🔴 AJOUTÉ À L'APPLICATION (staging, 21/09) — ET CE N'EST PAS REDONDANT.
+--
+-- Toute fonction créée dans `public` naît EXÉCUTABLE PAR TOUS, et PostgREST expose `anon`
+-- comme un rôle à part entière. `REVOKE ... FROM public` retire le droit accordé au
+-- pseudo-rôle PUBLIC — il ne retire PAS un droit accordé nommément à `anon`, que Supabase
+-- pose de son côté. Sans cette ligne, `anon` conservait l'EXECUTE : il se serait fait
+-- refuser par le garde interne, mais la porte lui restait ouverte, et une porte ouverte
+-- qu'on croit fermée est ce qui finit par se voir en prod.
+REVOKE EXECUTE ON FUNCTION public.cockpit_list_gyms() FROM anon;
+
 GRANT EXECUTE ON FUNCTION public.cockpit_list_gyms() TO authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────
