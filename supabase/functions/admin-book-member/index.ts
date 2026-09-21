@@ -13,8 +13,13 @@
 //
 // ⚠️ SÉPARER LES FONCTIONS N'EST PAS ASSOUPLIR LES RÈGLES. Les gardes de create-booking
 // sont rejouées ici UNE PAR UNE et DANS LE MÊME ORDRE, via _shared/booking-guards.ts (les
-// quatre lectures sont littéralement le même code). Ce qui change relève de l'acteur, pas
-// de la règle : contrôle de rôle en tête, et refus d'un créneau PASSÉ.
+// lectures sont littéralement le même code). Ce qui change relève de l'acteur, pas de la
+// règle : contrôle de rôle en tête, et refus d'un créneau PASSÉ.
+//
+// 🔴 21/09 — LE QUOTA DE MEMBRES A ÉTÉ RETIRÉ DES DEUX CHEMINS À LA FOIS, et cette
+// simultanéité EST la règle : ce module existe pour que les deux ne divergent jamais. Le
+// retirer d'un seul aurait rendu une salle au-delà de sa limite réservable par son gérant
+// et pas par ses membres — une asymétrie que personne n'aurait su expliquer au comptoir.
 //
 // ⚠️ CE N'EST PAS LE WALK-IN. mark-attendance action 'walkin' inscrit ET pointe présent un
 // membre debout au comptoir, pour un cours en cours. L'appliquer à un cours de la semaine
@@ -29,8 +34,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
 import {
-  checkMemberQuota,
   countFutureConfirmedBookings,
+  getMaxActiveBookings,
   hasAccessRights,
   hasAvailableCredits,
 } from '../_shared/booking-guards.ts'
@@ -281,11 +286,13 @@ Deno.serve(async (req) => {
       return errorResponse(422, 'SLOT_PAST', 'Créneau déjà passé')
     }
 
-    // ── GARDE 4 — quota de membres du plan Viniz (create-booking étape 4b). ────
-    const quotaCheck = await checkMemberQuota(admin, gymId)
-    if (!quotaCheck.allowed) {
-      return errorResponse(403, quotaCheck.reason ?? 'FORBIDDEN', 'Limite de membres atteinte sur ce plan Viniz')
-    }
+    // ── GARDE 4 — RETIRÉE le 21/09, EN MÊME TEMPS QUE CELLE DE create-booking. ─
+    // ⚠️ SYMÉTRIE : les deux chemins se comportent pareil, et c'est la raison même pour
+    // laquelle les gardes vivent dans _shared. Un gérant qui inscrit un membre existant
+    // fait le même geste que ce membre — sur une salle au-delà de sa limite, il était
+    // refusé exactement comme lui, avec le même 403 et le même motif de facturation. La
+    // limite de membres garde l'ARRIVÉE d'un membre, pas sa réservation : quand le gérant
+    // AJOUTE un membre (admin-create-member), la garde est là et elle reste.
 
     // ── GARDE 5 — déjà inscrit ? (create-booking étape 5, à l'identique). ──────
     const { data: existingRows } = await admin
@@ -309,9 +316,10 @@ Deno.serve(async (req) => {
     // ── GARDE 6 — plafond de réservations à venir (GYM-196). ───────────────────
     // ⚠️ APPLIQUÉE ICI, contrairement au walk-in qui l'omet volontairement. Décision
     // produit d'Antoine : la règle vaut aussi quand c'est le gérant qui inscrit. Le
-    // plafond vient du gym DU CRÉNEAU et a déjà été lu par checkMemberQuota — aucune
-    // requête supplémentaire. `limit` est renvoyé pour que le dashboard nomme le nombre.
-    const maxActiveBookings = quotaCheck.maxActiveBookings
+    // plafond vient du gym DU CRÉNEAU, désormais lu pour lui-même (il voyageait avant
+    // dans le retour de `checkMemberQuota`). `limit` est renvoyé pour que le dashboard
+    // nomme le nombre.
+    const maxActiveBookings = await getMaxActiveBookings(admin, gymId)
     if (maxActiveBookings !== null) {
       const futureCount = await countFutureConfirmedBookings(admin, memberId)
       if (futureCount >= maxActiveBookings) {

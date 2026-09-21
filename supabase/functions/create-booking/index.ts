@@ -9,12 +9,16 @@ function embeddedName(rel: unknown, fallback: string): string {
   const one = Array.isArray(value) ? value[0] ?? null : value
   return one?.name ?? fallback
 }
-// GYM-226 — les quatre lectures de garde (quota salle, abonnement ouvrant, crédit
-// disponible, plafond de réservations à venir) vivent désormais dans _shared, partagées
-// avec admin-book-member. EXTRACTION PURE : requêtes, filtres et replis inchangés.
+// GYM-226 — les lectures de garde (abonnement ouvrant, crédit disponible, plafond de
+// réservations à venir) vivent dans _shared, partagées avec admin-book-member.
+//
+// 🔴 `checkMemberQuota` A DISPARU DE CETTE LISTE le 21/09 : le quota de MEMBRES du plan
+// Viniz ne borne plus la réservation (décision produit — la limite borne l'ARRIVÉE d'un
+// membre, jamais la réservation d'un membre existant). Seul `max_active_bookings` en est
+// conservé, désormais lu pour lui-même par `getMaxActiveBookings`.
 import {
-  checkMemberQuota,
   countFutureConfirmedBookings,
+  getMaxActiveBookings,
   hasAccessRights,
   hasAvailableCredits,
 } from '../_shared/booking-guards.ts'
@@ -102,11 +106,12 @@ Deno.serve(async (req) => {
     if (new Date(slot.starts_at) < new Date()) return errorResponse(400, 'Créneau déjà passé', 'SLOT_PAST')
     if (slot.gym_id !== profile.gym_id) return errorResponse(403, 'Accès refusé', 'WRONG_GYM')
 
-    // 4b. Freemium member quota guard
-    const quotaCheck = await checkMemberQuota(supabaseAdmin, slot.gym_id)
-    if (!quotaCheck.allowed) {
-      return errorResponse(403, 'Limite de membres atteinte sur ce plan Viniz', quotaCheck.reason)
-    }
+    // 4b. 🔴 LE QUOTA DE MEMBRES A ÉTÉ RETIRÉ D'ICI (21/09).
+    //     Il refusait la réservation de TOUS les membres d'une salle au-delà de sa limite
+    //     — abonnés en cours compris, dont les prélèvements SEPA continuaient. La limite
+    //     de membres garde l'ARRIVÉE (handle_new_user, admin-create-member,
+    //     join_gym_self_serve, invite-team-member), pas la RÉSERVATION.
+    //     Le détail de la démonstration est dans _shared/booking-guards.ts.
 
     // 5. Check if already booked (any status)
     const { data: existingRows } = await supabaseAdmin
@@ -129,9 +134,12 @@ Deno.serve(async (req) => {
     // 6. Limite de réservations confirmées à venir (GYM-196 — configurable par salle).
     //    Position INCHANGÉE dans l'ordre des gardes : avant le guard paiement et avant la
     //    RPC, pour ne débiter aucun crédit à un membre qu'on va refuser.
-    //    La limite vient du gym DU CRÉNEAU, et a déjà été lue par checkMemberQuota
-    //    ci-dessus — aucune requête supplémentaire. NULL = aucune limite.
-    const maxActiveBookings = quotaCheck.maxActiveBookings
+    //    La limite vient du gym DU CRÉNEAU. Elle est désormais lue ICI, pour elle-même :
+    //    elle voyageait auparavant dans le retour de `checkMemberQuota`, au motif que la
+    //    ligne nexxia_gyms était de toute façon lue pour le quota. Le quota parti, la
+    //    lecture reste — c'est la MÊME requête sur la MÊME ligne, une colonne en moins.
+    //    NULL = aucune limite.
+    const maxActiveBookings = await getMaxActiveBookings(supabaseAdmin, slot.gym_id)
     if (maxActiveBookings !== null) {
       const futureCount = await countFutureConfirmedBookings(supabaseAdmin, user.id)
 

@@ -129,6 +129,14 @@ export const KNOWN_EDGE_ERROR_CODES = [
   //    pointage walk-in qui sert.
   //  · MEMBER_QUOTA_REACHED — quota de membres du plan Viniz (limite d'abonnement de la
   //    salle, pas du membre) : rien à faire au comptoir, c'est un sujet de facturation.
+  //    🔴 21/09 — PLUS AUCUNE FONCTION NE LE PRODUIT : le quota de membres ne borne plus
+  //    la réservation (ni côté membre, ni côté gérant). L'entrée RESTE listée à dessein,
+  //    et pas par oubli : tant que la production sert l'ancienne version d'
+  //    `admin-book-member`, le code peut encore arriver, et le retirer maintenant le
+  //    ferait retomber sur le message de repli — un refus clair redeviendrait vague
+  //    pendant la fenêtre de déploiement. À retirer une fois les deux fonctions
+  //    déployées ; le message de la salle pleine, lui, reste servi par
+  //    `admin-create-member` sous PLAN_MEMBER_LIMIT.
   'ALREADY_WAITLISTED', 'SLOT_PAST', 'MEMBER_QUOTA_REACHED',
   // ── admin-book-member (GYM-231, dépassement de capacité) ──
   //  · OVERBOOK_REASON_REQUIRED — le serveur refuse un dépassement sans motif. Normalement
