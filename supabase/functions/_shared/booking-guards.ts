@@ -3,89 +3,92 @@
 // POURQUOI CE MODULE EXISTE. Le dashboard obtient un second chemin de réservation
 // (admin-book-member : le GÉRANT inscrit un tiers à un cours futur) à côté du chemin
 // libre-service existant (create-booking : le MEMBRE se réserve lui-même). Les deux
-// posent EXACTEMENT les mêmes questions à la base — quota de la salle, abonnement
-// encore ouvrant, crédit disponible, plafond de réservations à venir — et seule
-// l'identité du sujet change.
+// posent EXACTEMENT les mêmes questions à la base — abonnement encore ouvrant, crédit
+// disponible, plafond de réservations à venir — et seule l'identité du sujet change.
 //
-// Recopier ces quatre lectures dans la nouvelle fonction, c'était accepter qu'elles
+// Recopier ces lectures dans la nouvelle fonction, c'était accepter qu'elles
 // divergent au premier ajustement. Le dépôt en a déjà fait les frais : GYM-191 a dû
 // rattraper le prédicat « abonnement encore valide » dans QUATRE Edge Functions parce
 // qu'il y avait été dupliqué (cf. _shared/active-subscription.ts, dont ce module est le
 // prolongement direct).
 //
-// ⚠️ EXTRACTION PURE. Chaque fonction ci-dessous reproduit à l'identique la requête
-// qu'elle remplace dans create-booking : mêmes colonnes, mêmes filtres, mêmes valeurs de
-// repli. Aucune règle n'est ajoutée, retirée ni assouplie ici — le chemin membre, seul
-// chemin de réservation en production sur iOS, doit se comporter exactement comme avant.
+// ⚠️ CE MODULE ÉTAIT UNE EXTRACTION PURE — chaque fonction reproduisait à l'identique la
+// requête de create-booking, sans qu'aucune règle ne soit ajoutée, retirée ni assouplie.
+// CE N'EST PLUS VRAI DEPUIS LE 21/09, et il faut le lire ici plutôt que le découvrir :
+// `checkMemberQuota` (le quota de MEMBRES du plan, rejoué à chaque réservation) a été
+// RETIRÉ des deux chemins. Le pourquoi tient sous le bloc `getMaxActiveBookings`
+// ci-dessous ; en une phrase : cette garde ne protégeait pas l'entrée de la salle, elle
+// en fermait la sortie à des membres qui avaient déjà payé.
+//
+// Les trois autres lectures, elles, restent à l'identique — abonnement ouvrant, crédit
+// disponible, réservations à venir. Le chemin membre, seul chemin de réservation en
+// production sur iOS, ne change sur AUCUNE de ces trois.
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ACCESS_SUBSCRIPTION_STATUSES, notExpiredFilter } from './active-subscription.ts'
 
 /**
- * GYM-196 — quota de membres du plan Viniz + plafond de réservations simultanées.
+ * GYM-196 — LE PLAFOND DE RÉSERVATIONS SIMULTANÉES de la salle. `null` = aucune limite.
  *
- * `maxActiveBookings` est remonté ICI plutôt que par une seconde requête : la ligne
- * nexxia_gyms est déjà lue pour le quota de membres, autant en tirer les deux
- * informations. NULL = aucune limite de réservations.
+ * ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+ * ║  🔴 CE QUI A ÉTÉ RETIRÉ ICI : `checkMemberQuota` — le quota de MEMBRES à la           ║
+ * ║  RÉSERVATION. Décision produit (Antoine, 21/09) : « on ne casse jamais ce qu'un       ║
+ * ║  membre a déjà payé ».                                                                ║
+ * ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+ *
+ * La limite de membres d'un plan Viniz borne l'ARRIVÉE d'un nouveau membre. Elle n'a
+ * jamais eu à borner la RÉSERVATION d'un membre déjà présent — et la rejouer ici produisait
+ * exactement le contraire de ce que le plan facture :
+ *
+ *   1. 🔴 UNE SALLE AU-DELÀ DE SA LIMITE BLOQUAIT TOUS SES MEMBRES. Une salle de 40 membres
+ *      retombée en Free (15) ne refusait pas le 41ᵉ arrivant — elle refusait les 40 déjà
+ *      là, y compris les abonnés en cours. Et leurs prélèvements SEPA, eux, continuaient :
+ *      aucun webhook de renouvellement ne regarde le plan de la salle. DÉBITÉ ET BLOQUÉ.
+ *
+ *   2. 🔴 ELLE LISAIT LA COLONNE `nexxia_gyms.plan`, PAS LE PLAN EFFECTIF. Elle ignorait
+ *      donc l'essai : le jour où l'essai de 14 jours s'allume, une salle de plus de 15
+ *      membres en essai Pro aurait été bloquée PENDANT son essai, par la colonne `free`
+ *      qu'elle porte encore. Les quatre gardes d'arrivée, elles, lisent bien le plan
+ *      effectif (vérifié en base, cf. recette) : cette lecture-ci était la seule fausse.
+ *
+ *   3. 🔴 `>=` SUR UN CHEMIN QUI N'AJOUTE PERSONNE. Une salle Free à EXACTEMENT 15 membres
+ *      — le nombre que le plan AUTORISE — ne pouvait plus rien réserver. Sur une garde
+ *      d'arrivée, `>=` est juste (on refuse le 16ᵉ). Ici il n'y a pas de 16ᵉ : le membre
+ *      est déjà compté dans les 15. Ce défaut-là ne se corrige pas, il disparaît avec le
+ *      contrôle.
+ *
+ * ⚠️ LES QUATRE GARDES D'ARRIVÉE SUFFISENT, et elles comptent déjà sur `member_gyms` avec
+ * le MÊME prédicat, à la lettre (GYM-102 / GYM-283 / GYM-338 / GYM-348) :
+ *     handle_new_user · admin-create-member · join_gym_self_serve · invite-team-member
+ * Retirer ce cinquième contrôle ne rouvre donc aucune porte d'entrée : il n'en gardait
+ * aucune. Il gardait la sortie.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CETTE FONCTION SUBSISTE PLUTÔT QUE DE DISPARAÎTRE AVEC LE QUOTA
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * `checkMemberQuota` rendait DEUX choses sans rapport l'une avec l'autre : le verdict du
+ * quota, et `max_active_bookings` — au motif que la ligne `nexxia_gyms` était de toute
+ * façon lue. Le plafond de réservations à venir (GYM-196) est une règle VIVANTE, réglée
+ * par salle, et les deux appelants s'en servent. Supprimer la fonction entière l'aurait
+ * emporté avec le quota. Elle est donc réduite à ce qu'elle a toujours dû être : la
+ * lecture d'une limite, sans verdict.
+ *
+ * ⚠️ REPLI FAIL-OPEN, ET C'EST UN CHANGEMENT ASSUMÉ. Si la lecture échoue, on rend `null`
+ * — aucun plafond — et la réservation passe. Avant, une lecture en échec faisait rendre
+ * `PLAN_NOT_FOUND` et REFUSAIT la réservation. Une panne de lecture passagère ne doit pas
+ * fermer la salle à des membres qui ont payé : c'est la même politique que le décompte de
+ * membres appliquait déjà, et c'est la décision produit du 21/09 appliquée jusqu'au bout.
  */
-export async function checkMemberQuota(
+export async function getMaxActiveBookings(
   supabase: SupabaseClient,
   gymId: string,
-): Promise<{ allowed: boolean; reason?: string; maxActiveBookings: number | null }> {
+): Promise<number | null> {
   const { data: gym } = await supabase
     .from('nexxia_gyms')
-    .select('plan, max_active_bookings')
+    .select('max_active_bookings')
     .eq('id', gymId)
     .single()
 
-  const maxActiveBookings = (gym?.max_active_bookings as number | null) ?? null
-
-  if (!gym?.plan) return { allowed: false, reason: 'PLAN_NOT_FOUND', maxActiveBookings }
-
-  const { data: limits } = await supabase
-    .from('nexxia_plan_limits')
-    .select('max_members')
-    .eq('plan', gym.plan)
-    .single()
-
-  // null = illimité
-  if (!limits || limits.max_members === null) return { allowed: true, maxActiveBookings }
-
-  // ═══ GYM-102 (2/5) — LE DÉCOMPTE PORTE SUR member_gyms, PLUS SUR profiles.gym_id ═══
-  //
-  // 🔴 CE QUI ÉTAIT ÉCRIT ICI : `.from('profiles').eq('gym_id', gymId)`. Depuis GYM-283,
-  // `profiles.gym_id` n'est plus « la salle du membre » mais sa salle ACTIVE — celle
-  // qu'il regarde en ce moment. Un membre inscrit dans deux salles qui bascule sur la
-  // seconde DISPARAÎT de ce décompte alors qu'il occupe toujours sa place dans la
-  // première : le plafond du plan Free serait devenu contournable à la RÉSERVATION en
-  // faisant simplement tourner les membres.
-  //
-  // ⚠️ MÊME PRÉDICAT QUE handle_new_user, À LA LETTRE — relu sur la base le 26/08 :
-  //     FROM member_gyms mg JOIN profiles p ON p.id = mg.member_id
-  //     WHERE mg.gym_id = <salle> AND p.role = 'member' AND p.deleted_at IS NULL
-  // Les deux gardes doivent compter pareil : si l'inscription et la réservation ne
-  // s'accordaient pas sur le nombre de membres, une salle pourrait être « pleine » pour
-  // l'une et pas pour l'autre, et personne ne saurait laquelle a raison.
-  //
-  // `profiles!inner` fait la jointure INTERNE : sans `!inner`, PostgREST rendrait aussi
-  // les appartenances dont le profil ne satisfait pas les filtres, et le compte serait
-  // gonflé par les comptes supprimés.
-  const { count } = await supabase
-    .from('member_gyms')
-    .select('member_id, profiles!inner(role, deleted_at)', { count: 'exact', head: true })
-    .eq('gym_id', gymId)
-    .eq('profiles.role', 'member')
-    .is('profiles.deleted_at', null)
-
-  // ⚠️ COMPORTEMENT DE REPLI INCHANGÉ, ET C'EST DÉLIBÉRÉ : en cas d'erreur de requête,
-  // `count` vaut null, `(null ?? 0) >= max` est faux, et la réservation PASSE. C'était
-  // déjà le cas avec l'ancienne requête. Basculer en fail-closed refuserait toutes les
-  // réservations d'une salle sur une panne de lecture passagère — un remède pire que le
-  // mal. Ce lot ne change que la SOURCE du décompte, pas sa politique d'erreur.
-  if ((count ?? 0) >= limits.max_members) {
-    return { allowed: false, reason: 'MEMBER_QUOTA_REACHED', maxActiveBookings }
-  }
-
-  return { allowed: true, maxActiveBookings }
+  return (gym?.max_active_bookings as number | null) ?? null
 }
 
 /**
