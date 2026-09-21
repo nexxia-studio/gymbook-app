@@ -1595,6 +1595,44 @@
       "mollie": "Mollie",
       "legal": "Legal identity",
       "last_activity": "Last activity"
+    },
+    "gym_not_found": "Gym not found.",
+    "back_to_list": "Back to the list",
+    "actions_title": "Actions",
+    "actions_note": "Every action requires a reason, is written to the journal in the same transaction, and can be undone from this screen.",
+    "confirm_title": "Confirm this action",
+    "confirm_cta": "Confirm",
+    "confirm_busy": "Working…",
+    "reason_label": "Reason (required)",
+    "reason_placeholder": "Why this change?",
+    "err_unchanged": "That value is already in place — nothing was written.",
+    "err_invalid": "The server refused the input. Check the reason and the value.",
+    "journal_title": "Journal",
+    "journal_note": "Append only: a written line can be neither edited nor deleted, not even by the platform.",
+    "journal_empty": "No action recorded for this gym.",
+    "journal": {
+      "when": "When",
+      "action": "Action",
+      "before": "Before",
+      "after": "After",
+      "reason": "Reason"
+    },
+    "act": {
+      "plan_title": "Plan",
+      "status_title": "Status",
+      "trial_title": "Trial",
+      "commission_title": "Commission",
+      "plan_to": "Move this gym to “{{plan}}”",
+      "status_to": "Set the status to “{{status}}”",
+      "trial_to": "Move the trial end to {{date}}",
+      "trial_clear": "End the trial",
+      "trial_extend": "+{{days}} days",
+      "commission_to": "Override: {{sepa}}% SEPA · {{cb}}% card",
+      "commission_clear": "Remove the override",
+      "commission_set": "Set the override",
+      "sepa_pct": "SEPA %",
+      "cb_pct": "Card %",
+      "commission_hint": "In percent — 1.5 means 1.5%. The database stores fractions."
     }
   }
 }
