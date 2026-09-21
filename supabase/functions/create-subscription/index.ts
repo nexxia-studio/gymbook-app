@@ -1,5 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getValidMollieToken } from '../_shared/mollie-token.ts'
+import { getMollieToken } from '../_shared/mollie-token.ts'
+// GYM-346 — classement et journalisation des échecs Mollie. Le détail va dans les
+// journaux serveur, jamais dans le corps rendu au membre.
+import {
+  classifyMollieHttpError,
+  classifyMollieNetworkError,
+  logMollieFailure,
+  TOKEN_OUTCOMES,
+  type MollieOutcome,
+} from '../_shared/mollie-error.ts'
 import { resolvePlan } from '../_shared/plan-resolver.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
@@ -42,6 +51,16 @@ function errorResponse(status: number, message: string, code?: string) {
 
 function formatAmount(value: number): string {
   return value.toFixed(2)
+}
+
+/**
+ * GYM-346 — rend un échec Mollie AU MEMBRE : code distinct, statut qui dit définitif ou
+ * incertain, message générique. Le détail Mollie a déjà été journalisé par l'appelant et
+ * ne franchit PAS cette frontière — une réponse Mollie peut porter des informations de
+ * compte, et elle transitait jusqu'ici par l'appareil du membre.
+ */
+function mollieErrorResponse(outcome: MollieOutcome) {
+  return errorResponse(outcome.status, outcome.message, outcome.code)
 }
 
 Deno.serve(async (req) => {
@@ -181,9 +200,17 @@ Deno.serve(async (req) => {
       mollieApiKey = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
       if (!mollieApiKey) return errorResponse(500, 'MOLLIE_TEST_API_KEY manquant', 'CONFIG_ERROR')
     } else {
-      const token = await getValidMollieToken(supabaseAdmin, gymId)
-      if (!token) return errorResponse(503, 'Token Mollie expiré — reconnexion requise', 'MOLLIE_TOKEN_EXPIRED')
-      mollieApiKey = token
+      // GYM-346 — trois causes distinctes, jusqu'ici repliées sur un même
+      // MOLLIE_TOKEN_EXPIRED « réessaie plus tard » : salle jamais connectée (la cause de
+      // GYM-259), connexion révoquée, rafraîchissement impossible. Aucune ne se répare en
+      // réessayant, et aucune n'est du ressort du membre.
+      const tokenRes = await getMollieToken(supabaseAdmin, gymId)
+      if (!tokenRes.ok) {
+        const outcome = TOKEN_OUTCOMES[tokenRes.reason]
+        logMollieFailure('create-subscription', `token:${tokenRes.reason}`, { gymId, memberId, planId }, outcome)
+        return mollieErrorResponse(outcome)
+      }
+      mollieApiKey = tokenRes.token
 
       const { data: connMeta } = await supabaseAdmin
         .from('gym_mollie_connections')
@@ -205,22 +232,33 @@ Deno.serve(async (req) => {
 
     if (!customerId) {
       const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.email
-      const customerRes = await fetch('https://api.mollie.com/v2/customers', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${mollieApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: fullName,
-          email: profile.email,
-          metadata: { gym_id: gymId, member_id: memberId },
-        }),
-      })
+      let customerRes: Response
+      try {
+        customerRes = await fetch('https://api.mollie.com/v2/customers', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${mollieApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: fullName,
+            email: profile.email,
+            metadata: { gym_id: gymId, member_id: memberId },
+          }),
+        })
+      } catch (e) {
+        // GYM-346 — le fetch a levé : pas de réponse, donc pas de statut. On ne sait même
+        // pas si Mollie a reçu la requête — incertain, donc réessayable.
+        const outcome = classifyMollieNetworkError()
+        logMollieFailure('create-subscription', 'customer:network', { gymId, memberId, planId }, outcome, String(e))
+        return mollieErrorResponse(outcome)
+      }
 
       if (!customerRes.ok) {
         const detail = await customerRes.text()
-        return errorResponse(502, `Création customer Mollie échouée: ${detail}`, 'MOLLIE_CUSTOMER_ERROR')
+        const outcome = classifyMollieHttpError(customerRes.status, detail)
+        logMollieFailure('create-subscription', 'customer', { gymId, memberId, planId, httpStatus: customerRes.status }, outcome, detail)
+        return mollieErrorResponse(outcome)
       }
 
       const customerData = await customerRes.json()
@@ -266,24 +304,41 @@ Deno.serve(async (req) => {
       }
     }
 
-    const paymentRes = await fetch('https://api.mollie.com/v2/payments', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${mollieApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(firstPaymentPayload),
-    })
+    let paymentRes: Response
+    try {
+      paymentRes = await fetch('https://api.mollie.com/v2/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${mollieApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(firstPaymentPayload),
+      })
+    } catch (e) {
+      const outcome = classifyMollieNetworkError()
+      logMollieFailure('create-subscription', 'payment:network', { gymId, memberId, planId }, outcome, String(e))
+      return mollieErrorResponse(outcome)
+    }
 
     if (!paymentRes.ok) {
+      // 🔴 GYM-346 — LA LIGNE QUI MANQUAIT. C'est ici que le détail de Mollie disparaissait :
+      // il partait dans le corps d'un 502 que `mapPaymentError` JETAIT, sans qu'aucune trace
+      // ne reste côté serveur. Trois échecs le 14/09, zéro ligne de journal.
       const detail = await paymentRes.text()
-      return errorResponse(502, `Mollie API a refusé la requête: ${detail}`, 'MOLLIE_ERROR')
+      const outcome = classifyMollieHttpError(paymentRes.status, detail)
+      logMollieFailure('create-subscription', 'payment', { gymId, memberId, planId, httpStatus: paymentRes.status }, outcome, detail)
+      return mollieErrorResponse(outcome)
     }
 
     const paymentData = await paymentRes.json()
     const checkoutUrl = paymentData?._links?.checkout?.href as string | undefined
 
     if (!checkoutUrl) {
+      // Réponse 2xx SANS URL de checkout : Mollie a accepté mais ne nous donne pas de quoi
+      // poursuivre. Incertain — rien n'a été débité, réessayer a du sens.
+      console.error('[create-subscription] mollie_failure stage=no_checkout code=MOLLIE_NO_CHECKOUT'
+        + ` definitive=false gym=${gymId} member=${memberId} plan=${planId}`
+        + ` mollie_payment_id=${paymentData?.id ?? '(none)'}`)
       return errorResponse(502, 'Mollie n\'a pas retourné d\'URL de checkout', 'MOLLIE_NO_CHECKOUT')
     }
 

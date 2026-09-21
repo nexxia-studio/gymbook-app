@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { homePathForRole } from '@/lib/homePath'
 import { useSessionKeepAlive } from '@/hooks/useSessionKeepAlive'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ACTIVATION_PATH, shouldInterceptInvite } from '@/lib/inviteLink'
@@ -9,6 +10,7 @@ import { ToastContainer } from '@/components/ui/Toast'
 import MollieCallback from '@/pages/MollieCallback'
 import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCancel from '@/pages/PaymentCancel'
+import Cockpit from '@/pages/Cockpit'
 
 const Login = lazy(() => import('@/pages/Login'))
 // GYM-248 — inscription gérant self-serve REBRANCHÉE (voir l'en-tête de pages/Signup.tsx :
@@ -67,6 +69,7 @@ function PendingOrCreateGym() {
 
 function AppRoutes() {
   const session = useAuthStore((s) => s.session)
+  const role = useAuthStore((s) => s.role)
   const { pathname } = useLocation()
 
   // GYM-202 — Détournement d'une arrivée par lien d'INVITATION.
@@ -87,19 +90,25 @@ function AppRoutes() {
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
+        {/* 🔴 GYM — LA DESTINATION DÉPEND DU RÔLE.
+            `/dashboard` EXIGE une salle : y envoyer un super-administrateur le renverrait
+            aussitôt sur /pending, c'est-à-dire le défaut qu'on vient de corriger, déplacé
+            d'un cran. `homePathForRole` est la seule source de cette décision — les trois
+            points de redirection (ici, /login, et Login.tsx après `signIn`) s'en servent,
+            pour qu'ils ne puissent pas diverger. */}
         <Route
           path="/"
-          element={<Navigate to={session ? '/dashboard' : '/login'} replace />}
+          element={<Navigate to={session ? homePathForRole(role) : '/login'} replace />}
         />
         <Route
           path="/login"
-          element={session ? <Navigate to="/dashboard" replace /> : <Login />}
+          element={session ? <Navigate to={homePathForRole(role)} replace /> : <Login />}
         />
         {/* GYM-248 — INSCRIPTION GÉRANT ROUVERTE. Ce qui l'avait fermée (GYM-200 §5) était
             l'attribution de gym_admin CÔTÉ CLIENT ; elle n'existe plus : handle_new_user
             force role='member' et seule create_gym_self_serve promeut, côté serveur.
             Une session déjà ouverte n'a rien à faire sur le formulaire d'inscription. */}
-        <Route path="/signup" element={session ? <Navigate to="/dashboard" replace /> : <Signup />} />
+        <Route path="/signup" element={session ? <Navigate to={homePathForRole(role)} replace /> : <Signup />} />
         {/* Atterrissage du lien de confirmation d'email → création de la salle.
             Publique au sens du routeur — comme /welcome, la session vient du fragment —
             mais la page exige une session valide et se redirige elle-même sinon. */}
@@ -187,6 +196,28 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+        {/* ╔═══════════════════════════════════════════════════════════════════════════╗
+            ║  COCKPIT B2B — LOT 1. `ProtectedRoute` n'exige qu'une SESSION.            ║
+            ╚═══════════════════════════════════════════════════════════════════════════╝
+            Le refus du rôle est SERVEUR : `cockpit_list_gyms()` lève 42501 pour tout
+            appelant non super-administrateur. Un `gym_admin` qui tape /cockpit à la main
+            arrive donc sur l'écran et en repart avec ZÉRO donnée — pas parce qu'un garde
+            client l'a renvoyé, mais parce que la base a refusé.
+
+            ⚠️ On ne pose PAS de garde de rôle côté client ici, et c'est délibéré : il
+            ferait croire que la protection vient de lui. Le jour où quelqu'un le
+            contournerait ou le retirerait, rien ne changerait — c'est la RPC qui garde. */}
+        <Route
+          path="/cockpit"
+          element={
+            // ⚠️ `requireGym={false}` — LA SEULE ROUTE QUI LE DIT, et c'est voulu : un
+            // super-administrateur a `gym_id = NULL` par construction. Sans cela il
+            // atterrissait sur /pending (constaté en staging le 21/09).
+            <ProtectedRoute requireGym={false}>
+              <Cockpit />
             </ProtectedRoute>
           }
         />

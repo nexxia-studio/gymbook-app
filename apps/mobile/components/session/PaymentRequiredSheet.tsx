@@ -11,7 +11,9 @@ import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { useBookingStore } from '../../stores/useBookingStore'
+// GYM-352 — MÊME prédicat que le résumé du profil : un abonnement « actif » se juge sur le
+// statut ET sur le terme. Le redéfinir ici en ferait une seconde vérité.
+import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/subscription'
 import { useGymPlans } from '../../hooks/useGymPlans'
 import { PurchaseConsentBody } from '../payments/PurchaseConsentSheet'
 import {
@@ -37,7 +39,6 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   const router = useRouter()
   const gymId = useAuthStore((s) => s.gym_id)
   const memberId = useAuthStore((s) => s.user?.id)
-  const { createBooking } = useBookingStore()
   const { creditPlans, unlimitedPlans, loading: plansLoading, refetch } = useGymPlans()
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
@@ -115,7 +116,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     try {
       const result = await startOneTimeCheckout(dropInPlan.id, {
         gymId,
-        redirectUrl: await buildRedirectUrl('drop_in'),
+        // GYM-352 — `slotId` voyage dans l'URL de retour : second signal, indépendant de
+        // l'intention sur disque. Sans lui, `app/payment/success.tsx` ne montait jamais son
+        // écran de reprise, dont la condition exige `slot_id`.
+        redirectUrl: await buildRedirectUrl('drop_in', slotId),
         earlyPerformanceConsent: true,
       })
 
@@ -131,34 +135,92 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         return
       }
 
+      // ╔═══════════════════════════════════════════════════════════════════════════════╗
+      // ║  🔴 GYM-352 — CE POLL DURAIT 60 s POUR UN CRÉDIT QUI MET 2 min 33 s          ║
+      // ╚═══════════════════════════════════════════════════════════════════════════════╝
+      //
+      // `30` tentatives × `2000 ms` = 60 secondes. Or la latence réelle du webhook de
+      // crédit est mesurée dans ce dépôt à 2 min 33 s (GYM-207, constat prod du 04/08 —
+      // c'est la raison du plafond à 5 min de l'écran de vérification). La continuation
+      // était donc 2,5 fois plus courte que le délai qu'elle devait couvrir : tout paiement
+      // crédité après une minute perdait le cours. C'est l'explication quantitative des
+      // 25 achats sur 70 sans réservation.
+      //
+      // Nouveau plafond : 5 minutes, ALIGNÉ SUR CELUI DE `app/payment/success.tsx`. Ce
+      // n'est pas un chiffre choisi ici — c'est le précédent du dépôt, établi sur une
+      // mesure de production, avec sa marge. Deux plafonds différents pour la même attente
+      // finiraient par diverger.
+      //
+      // ⚠️ ET SURTOUT : CE POLL N'EST PLUS CRITIQUE. L'intention est sur le disque
+      // (lib/bookingIntent.ts) depuis `session/[id].tsx`. S'il expire, le membre retrouve
+      // son cours à la reprise de l'écran ou au prochain lancement. Le poll est devenu un
+      // confort — il évite d'attendre — et non plus la condition de tout le parcours.
+      const MAX_TENTATIVES = 150 // 150 × 2 s = 5 min
       let pollAttempts = 0
       pollRef.current = setInterval(async () => {
         pollAttempts++
-        // GYM-94 — multi-lignes : au moins une ligne dispo (fin du maybeSingle qui cassait en cumul).
+        // GYM-352 — ON INTERROGE LE DROIT, PAS LE CRÉDIT. Cette requête ne regardait que
+        // `member_credits` : un ABONNEMENT acheté depuis cette feuille n'y apparaît jamais,
+        // et le membre restait devant un spinner jusqu'au bout. Le serveur, lui, autorise
+        // les deux à l'identique (`create-booking` : `!activeSubscription && !creditsAvailable`).
         const { data: credits } = await supabase
           .from('member_credits')
           .select('credits_remaining')
           .eq('member_id', memberId)
           .eq('gym_id', gymId)
           .gt('credits_remaining', 0)
+        const { data: sub } = await supabase
+          .from('member_subscriptions')
+          .select('status, ends_at')
+          .eq('member_id', memberId)
+          .eq('gym_id', gymId)
+          .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
+          .order('starts_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
 
-        if (credits && credits.length > 0) {
+        const aDesCredits = !!credits && credits.length > 0
+        const aUnAbonnement = !!sub && isSubscriptionActive(sub.status, sub.ends_at)
+
+        if (aDesCredits || aUnAbonnement) {
           clearInterval(pollRef.current!)
           pollRef.current = null
           setIsLoadingDropIn(false)
-          await createBooking(slotId)
+          // 🔴 GYM-352 — PLUS DE RÉSERVATION SILENCIEUSE. Cette branche appelait
+          // `createBooking(slotId)` puis fermait la feuille : le membre se retrouvait
+          // réservé sans l'avoir confirmé. La décision produit est un geste EXPLICITE.
+          // On rend donc la main à la fiche du cours, où l'intention arme le bouton
+          // « Confirmer ma réservation ». Un seul endroit décide, quel que soit le chemin
+          // de retour — poll, deep link ou retour manuel.
           onClose()
           return
         }
-        if (pollAttempts >= 30) {
+        if (pollAttempts >= MAX_TENTATIVES) {
           clearInterval(pollRef.current!)
           pollRef.current = null
           setIsLoadingDropIn(false)
+          // L'intention survit : le message dit d'attendre, pas que c'est perdu.
           setDropInError(t('payment_required.errors.not_confirmed'))
         }
       }, 2000)
 
-      openCheckout(result.checkoutUrl)
+      // GYM-352 — LE RÉSULTAT EST LU. Ce chemin échoue à l'identique de celui de
+      // profile/subscription.tsx (constaté le 17/09 à 16h03) alors qu'il ne démonte aucune
+      // modale et ne navigue pas : la cause est en aval, commune aux deux.
+      //
+      // ⚠️ TOUJOURS PAS `await` — volontairement. Sur iOS, `openBrowserAsync` ne résout
+      // qu'à la FERMETURE du navigateur : attendre ici suspendrait la fonction pendant tout
+      // le paiement, alors que le poll des crédits doit tourner PENDANT. On lit le résultat
+      // à part, quand il arrive.
+      void openCheckout(result.checkoutUrl).then((outcome) => {
+        if (outcome.presented) return
+        // Le navigateur ne s'est pas affiché : inutile de faire patienter le membre soixante
+        // secondes devant un poll de crédits qui ne verra jamais rien.
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        setIsLoadingDropIn(false)
+        setStep('options')
+        setDropInError(t('payment_required.errors.checkout_not_opened'))
+      })
     } catch (e) {
       console.error('[PaymentRequiredSheet] drop-in uncaught:', e)
       setStep('options')

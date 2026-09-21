@@ -261,7 +261,8 @@
     "success_sub": "See you at the class",
     "error_title": "PAYMENT RECEIVED",
     "error_sub": "Go back to the class and tap Book to finalize.",
-    "back_to_schedule": "Back to schedule"
+    "back_to_schedule": "Back to schedule",
+    "back_to_course": "Back to the class"
   },
   "payment_required": {
     "title": "Booking unavailable",
@@ -290,7 +291,8 @@
       "no_gym": "Gym not found",
       "checkout_failed": "Payment could not start. Try again.",
       "no_plan": "Drop-in plan unavailable.",
-      "not_confirmed": "Payment not confirmed yet. If you were charged, your credits will arrive shortly: check your bookings before trying again."
+      "not_confirmed": "The credit hasn't arrived yet — this can take two to three minutes. Your class is kept: come back to its page to confirm as soon as the credit is there.",
+      "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again."
     }
   },
   "session": {
@@ -331,7 +333,13 @@
     "max_bookings_message_one": "You already have {{count}} upcoming booking. Cancel it to create a new one.",
     "max_bookings_message_other": "You already have {{count}} upcoming bookings. Cancel one to create a new one.",
     "max_bookings_message_generic": "You've reached your limit of upcoming bookings. Cancel one to create a new one.",
-    "cancel_failed": "The cancellation did not go through. Please try again."
+    "cancel_failed": "The cancellation did not go through. Please try again.",
+    "confirm_booking": "Confirm my booking",
+    "intent_credit_ready": "You have {{detail}} — all that's left is to confirm your booking.",
+    "intent_full_waitlist": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll have {{minutes}} minutes to confirm. Your credit stays intact.",
+    "intent_full_waitlist_nodelay": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll be notified and given time to confirm. Your credit stays intact.",
+    "intent_pending_title": "Credit on its way",
+    "intent_pending_message": "Your payment is registered, but the credit hasn't arrived yet — this can take two to three minutes. Your class is kept: try again in a moment."
   },
   "bookings": {
     "title": "My classes",
@@ -367,7 +375,37 @@
   "studio": {
     "title": "Studio",
     "plans": "Plans",
-    "info": "Information"
+    "info": "Information",
+    "progression_title": "MY PROGRESS",
+    "progression_subtitle": "Your stats, your level, your consistency",
+    "load_error": "Couldn't load your progress",
+    "sessions_completed_one": "{{count}} session completed",
+    "sessions_completed_other": "{{count}} sessions completed",
+    "next_level_one": "{{count}} more session to reach {{level}} {{icon}}",
+    "next_level_other": "{{count}} more sessions to reach {{level}} {{icon}}",
+    "streak": "Streak",
+    "streak_weeks_one": "week in a row",
+    "streak_weeks_other": "weeks in a row",
+    "streak_record_one": "Record: {{count}} wk",
+    "streak_record_other": "Record: {{count}} wks",
+    "attendance": "Attendance",
+    "attendance_confirmed_one": "{{count}} confirmed",
+    "attendance_confirmed_other": "{{count}} confirmed",
+    "attendance_noshow_one": "{{count}} no-show",
+    "attendance_noshow_other": "{{count}} no-shows",
+    "this_month": "This month",
+    "vs_last_month": "{{delta}} vs last month",
+    "total": "Total",
+    "member_since": "since {{date}}",
+    "last_30_days": "Last 30 days",
+    "activity_6_months": "Activity (6 months)",
+    "less": "Less",
+    "more": "More",
+    "favorite_class": "Favourite class",
+    "favorite_coach": "Favourite coach",
+    "none_yet": "None yet",
+    "sessions_count_one": "{{count}} session",
+    "sessions_count_other": "{{count}} sessions"
   },
   "profile": {
     "title": "My profile",
@@ -519,13 +557,20 @@
     "close": "Close",
     "failed_title": "PAYMENT FAILED",
     "failed_message": "The payment did not go through. No confirmed amount was charged.",
-    "timeout_title": "PAYMENT BEING PROCESSED",
-    "timeout_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, you don't need to do anything.",
+    "not_opened_title": "THE PAYMENT PAGE DIDN'T OPEN",
+    "not_opened_message": "Nothing was charged. Go back to the plans and try again — if it happens again, let the gym know.",
+    "not_finalized_title": "PAYMENT NOT COMPLETED",
+    "not_finalized_message": "You didn't complete the payment. Nothing was charged — you can pick it up again whenever you like.",
+    "awaiting_title": "PAYMENT BEING PROCESSED",
+    "awaiting_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, there is nothing to do.",
     "check_again": "Check again",
     "modal_success_title": "Payment successful",
     "modal_success_body": "Your payment has been confirmed.",
     "offline_title": "Connection lost",
-    "offline_hint": "Your payment is safe — we'll retry as soon as you're back online."
+    "offline_hint": "Your payment is safe — we'll retry as soon as you're back online.",
+    "intent_success_title": "ONE STEP LEFT",
+    "intent_success_body": "Your credit is there. Your spot isn't booked yet — confirm your booking on the class page.",
+    "intent_go_to_course": "Confirm my booking"
   },
   "payments": {
     "title": "Payment history",
@@ -556,6 +601,11 @@
       "PLAN_MISCONFIGURED": "Plan misconfigured, please contact the gym.",
       "MOLLIE_TOKEN_EXPIRED": "Payment temporarily unavailable, try again later.",
       "MOLLIE_ERROR": "Payment failed on the provider side, please try again.",
+      "MOLLIE_NOT_CONNECTED": "This gym has not enabled online payments yet. Please contact them — there is nothing to retry on your side.",
+      "MOLLIE_TOKEN_REJECTED": "This gym needs to reconnect its payment account. Please contact them — there is nothing to retry on your side.",
+      "MOLLIE_METHOD_UNAVAILABLE": "No payment method is available for this gym. Please contact them.",
+      "MOLLIE_REFUSED": "The payment provider declined the request. Retrying as-is will not help — please contact the gym.",
+      "MOLLIE_UNAVAILABLE": "The payment provider is temporarily unavailable. Nothing was charged, please try again shortly.",
       "PLAN_NOT_ONE_TIME": "This plan is not a one-time purchase.",
       "MEMBER_MISMATCH": "You can only subscribe for yourself.",
       "PLAN_NOT_RECURRING": "This plan is not a subscription.",

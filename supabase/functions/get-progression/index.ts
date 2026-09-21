@@ -168,7 +168,12 @@ Deno.serve(async (req) => {
     if (coursFavoriRows && coursFavoriRows.length > 0) {
       const activityCounts: Record<string, number> = {}
       for (const row of coursFavoriRows) {
-        const ts = (row as { time_slots: { activities: { name: string } } | { activities: { name: string } }[] }).time_slots
+        // GYM-350 — cast via `unknown`, le remède que TypeScript indique lui-même (TS2352).
+        // Les types générés annoncent `activities` en TABLEAU ; PostgREST rend un OBJET pour une
+        // relation vers-un. L'assertion porte sur la forme d'exécution, que les types générés
+        // ne capturent pas. Un cast est effacé à la compilation : AUCUN changement de
+        // comportement. La lecture défensive ci-dessous est laissée telle quelle.
+        const ts = (row as unknown as { time_slots: { activities: { name: string } } | { activities: { name: string } }[] }).time_slots
         const arr = Array.isArray(ts) ? ts : [ts]
         const name = arr[0]?.activities?.name
         if (name) activityCounts[name] = (activityCounts[name] ?? 0) + 1
@@ -188,7 +193,12 @@ Deno.serve(async (req) => {
     if (coachFavoriRows && coachFavoriRows.length > 0) {
       const coachCounts: Record<string, number> = {}
       for (const row of coachFavoriRows) {
-        const ts = (row as { time_slots: { coaches: { name: string } } | { coaches: { name: string } }[] }).time_slots
+        // GYM-350 — cast via `unknown`, le remède que TypeScript indique lui-même (TS2352).
+        // Les types générés annoncent `coaches` en TABLEAU ; PostgREST rend un OBJET pour une
+        // relation vers-un. L'assertion porte sur la forme d'exécution, que les types générés
+        // ne capturent pas. Un cast est effacé à la compilation : AUCUN changement de
+        // comportement. La lecture défensive ci-dessous est laissée telle quelle.
+        const ts = (row as unknown as { time_slots: { coaches: { name: string } } | { coaches: { name: string } }[] }).time_slots
         const arr = Array.isArray(ts) ? ts : [ts]
         const name = arr[0]?.coaches?.name
         if (name) coachCounts[name] = (coachCounts[name] ?? 0) + 1

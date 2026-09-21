@@ -261,7 +261,8 @@
     "success_sub": "À bientôt au cours",
     "error_title": "PAIEMENT REÇU",
     "error_sub": "Retournez sur le cours et appuyez sur Réserver pour finaliser.",
-    "back_to_schedule": "Retour au planning"
+    "back_to_schedule": "Retour au planning",
+    "back_to_course": "Revenir au cours"
   },
   "payment_required": {
     "title": "Réservation impossible",
@@ -290,7 +291,8 @@
       "no_gym": "Gym introuvable",
       "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
       "no_plan": "Formule à la séance indisponible.",
-      "not_confirmed": "Paiement non confirmé pour le moment. S'il a été débité, vos crédits arriveront sous peu : vérifiez vos réservations avant de réessayer."
+      "not_confirmed": "Le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ton cours est gardé : reviens sur sa fiche pour confirmer dès que le crédit est là.",
+      "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie."
     }
   },
   "session": {
@@ -331,7 +333,13 @@
     "max_bookings_message_one": "Vous avez déjà {{count}} réservation à venir. Annulez-la pour pouvoir en créer une nouvelle.",
     "max_bookings_message_other": "Vous avez déjà {{count}} réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle.",
     "max_bookings_message_generic": "Vous avez atteint votre limite de réservations à venir. Annulez-en une pour pouvoir en créer une nouvelle.",
-    "cancel_failed": "L'annulation n'a pas abouti. Réessaie."
+    "cancel_failed": "L'annulation n'a pas abouti. Réessaie.",
+    "confirm_booking": "Confirmer ma réservation",
+    "intent_credit_ready": "Tu as {{detail}} — il ne reste qu'à confirmer ta réservation.",
+    "intent_full_waitlist": "Ce cours s'est rempli pendant ton paiement. Tu peux t'inscrire sur la liste d'attente : si une place se libère, tu auras {{minutes}} minutes pour confirmer. Ton crédit reste entier.",
+    "intent_full_waitlist_nodelay": "Ce cours s'est rempli pendant ton paiement. Tu peux t'inscrire sur la liste d'attente : si une place se libère, tu seras prévenu et tu auras un délai pour confirmer. Ton crédit reste entier.",
+    "intent_pending_title": "Crédit en route",
+    "intent_pending_message": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ton cours est gardé : réessaie dans un instant."
   },
   "bookings": {
     "title": "Mes cours",
@@ -367,7 +375,37 @@
   "studio": {
     "title": "Studio",
     "plans": "Formules",
-    "info": "Informations"
+    "info": "Informations",
+    "progression_title": "MA PROGRESSION",
+    "progression_subtitle": "Tes stats, ton niveau, ta régularité",
+    "load_error": "Impossible de charger ta progression",
+    "sessions_completed_one": "{{count}} séance complétée",
+    "sessions_completed_other": "{{count}} séances complétées",
+    "next_level_one": "Plus que {{count}} séance pour {{level}} {{icon}}",
+    "next_level_other": "Plus que {{count}} séances pour {{level}} {{icon}}",
+    "streak": "Streak",
+    "streak_weeks_one": "semaine d'affilée",
+    "streak_weeks_other": "semaines d'affilée",
+    "streak_record_one": "Record : {{count}} sem.",
+    "streak_record_other": "Record : {{count}} sem.",
+    "attendance": "Présence",
+    "attendance_confirmed_one": "{{count}} confirmée",
+    "attendance_confirmed_other": "{{count}} confirmées",
+    "attendance_noshow_one": "{{count}} no-show",
+    "attendance_noshow_other": "{{count}} no-shows",
+    "this_month": "Ce mois",
+    "vs_last_month": "{{delta}} vs mois dernier",
+    "total": "Total",
+    "member_since": "depuis le {{date}}",
+    "last_30_days": "30 derniers jours",
+    "activity_6_months": "Activité (6 mois)",
+    "less": "Moins",
+    "more": "Plus",
+    "favorite_class": "Cours favori",
+    "favorite_coach": "Coach préféré",
+    "none_yet": "Aucun encore",
+    "sessions_count_one": "{{count}} séance",
+    "sessions_count_other": "{{count}} séances"
   },
   "profile": {
     "title": "Mon profil",
@@ -519,13 +557,20 @@
     "close": "Fermer",
     "failed_title": "PAIEMENT ÉCHOUÉ",
     "failed_message": "Le paiement n'a pas abouti. Aucun montant confirmé n'a été prélevé.",
-    "timeout_title": "PAIEMENT EN COURS DE TRAITEMENT",
-    "timeout_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
+    "not_opened_title": "LA PAGE DE PAIEMENT NE S'EST PAS OUVERTE",
+    "not_opened_message": "Aucun montant n'a été débité. Reviens aux formules et réessaie — si cela recommence, préviens la salle.",
+    "not_finalized_title": "PAIEMENT NON FINALISÉ",
+    "not_finalized_message": "Tu n'as pas terminé le paiement. Aucun montant n'a été débité — tu peux reprendre quand tu veux.",
+    "awaiting_title": "PAIEMENT EN COURS DE TRAITEMENT",
+    "awaiting_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
     "check_again": "Vérifier à nouveau",
     "modal_success_title": "Paiement réussi",
     "modal_success_body": "Ton paiement a bien été confirmé.",
     "offline_title": "Connexion perdue",
-    "offline_hint": "Ton paiement n'est pas perdu — on réessaie dès que la connexion revient."
+    "offline_hint": "Ton paiement n'est pas perdu — on réessaie dès que la connexion revient.",
+    "intent_success_title": "IL RESTE UN GESTE",
+    "intent_success_body": "Ton crédit est bien là. Ta place n'est pas encore prise — confirme ta réservation sur la fiche du cours.",
+    "intent_go_to_course": "Confirmer ma réservation"
   },
   "payments": {
     "title": "Historique des paiements",
@@ -556,6 +601,11 @@
       "PLAN_MISCONFIGURED": "Formule mal configurée, contacte la salle.",
       "MOLLIE_TOKEN_EXPIRED": "Paiement temporairement indisponible, réessaie plus tard.",
       "MOLLIE_ERROR": "Le paiement a échoué côté prestataire, réessaie.",
+      "MOLLIE_NOT_CONNECTED": "La salle n'a pas encore activé les paiements en ligne. Contacte-la, il n'y a rien à réessayer de ton côté.",
+      "MOLLIE_TOKEN_REJECTED": "La salle doit reconnecter son compte de paiement. Contacte-la, il n'y a rien à réessayer de ton côté.",
+      "MOLLIE_METHOD_UNAVAILABLE": "Aucun moyen de paiement n'est disponible pour cette salle. Contacte-la.",
+      "MOLLIE_REFUSED": "Le prestataire de paiement a refusé la demande. Réessayer à l'identique ne changera rien — contacte la salle.",
+      "MOLLIE_UNAVAILABLE": "Le prestataire de paiement est momentanément indisponible. Rien n'a été débité, réessaie dans un instant.",
       "PLAN_NOT_ONE_TIME": "Cette formule n'est pas un achat à l'unité.",
       "MEMBER_MISMATCH": "Tu ne peux souscrire que pour toi-même.",
       "PLAN_NOT_RECURRING": "Cette formule n'est pas un abonnement.",

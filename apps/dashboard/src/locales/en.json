@@ -157,7 +157,8 @@
     "payments": "Payments",
     "revenue": "Revenue",
     "communications": "Communications",
-    "settings": "Settings"
+    "settings": "Settings",
+    "cockpit": "My gyms"
   },
   "communications": {
     "title": "Communications",
@@ -1570,5 +1571,30 @@
     "back_to_app": "Back to the app",
     "close_window": "Close this window",
     "close_hint": "You can close this window and go back to the app."
+  },
+  "cockpit": {
+    "title": "My gyms",
+    "subtitle": "Super-admin view — read only",
+    "loading": "Loading gyms…",
+    "empty": "No gyms.",
+    "count_one": "{{count}} gym",
+    "count_other": "{{count}} gyms",
+    "trial_over": "trial ended",
+    "members_note": "Member counts come from memberships (member_gyms), not from the profile's active gym — the same count the plan guards use.",
+    "forbidden_title": "Restricted access",
+    "forbidden_body": "This page is reserved for the super-admin. The server refused the read — nothing was loaded.",
+    "failed_title": "Could not load",
+    "failed_body": "The gym list could not be read. Details are in the console.",
+    "col": {
+      "gym": "Gym",
+      "plan": "Effective plan",
+      "status": "Status",
+      "trial_end": "Trial ends",
+      "members": "Members",
+      "slots": "Upcoming slots",
+      "mollie": "Mollie",
+      "legal": "Legal identity",
+      "last_activity": "Last activity"
+    }
   }
 }
