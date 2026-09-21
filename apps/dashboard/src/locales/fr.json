@@ -1418,13 +1418,9 @@
     },
     "features": {
       "payments_enabled": "Paiements en ligne",
-      "qr_checkin_enabled": "Check-in QR code",
-      "ios_app_enabled": "Application iOS",
-      "android_app_enabled": "Application Android",
       "analytics_enabled": "Statistiques avancées",
       "export_enabled": "Export des données",
       "multi_site_enabled": "Multi-sites",
-      "api_access_enabled": "Accès API",
       "custom_domain": "Domaine personnalisé"
     },
     "upgrade": {

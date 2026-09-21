@@ -39,16 +39,42 @@ export interface CatalogPlan {
 // chaîne à la compilation, une concaténation lui ferait perdre le typage.
 const SELECT_COLS = 'plan, price_cents, price_yearly_cents, max_members, max_admins, max_sites, payments_enabled, notifications_enabled, analytics_enabled, export_enabled, qr_checkin_enabled, ios_app_enabled, android_app_enabled, multi_site_enabled, api_access_enabled, custom_domain' as const
 
-/** Drapeaux montrés dans la grille comparative, dans l'ordre d'affichage. */
+/**
+ * Drapeaux montrés dans la grille comparative, dans l'ordre d'affichage.
+ *
+ * ╔═══════════════════════════════════════════════════════════════════════════════════╗
+ * ║  🔴 LE TABLEAU NE PROMET QUE CE QUE LE CODE TIENT. Quatre lignes ont été retirées. ║
+ * ╚═══════════════════════════════════════════════════════════════════════════════════╝
+ *
+ * `qr_checkin_enabled`, `ios_app_enabled`, `android_app_enabled` et `api_access_enabled`
+ * existaient dans la grille, dans les types générés et dans ce tableau — et **nulle part
+ * ailleurs**. Recensement du 21/09, sur les 35 fonctions Edge, tout `apps/dashboard/src`
+ * et toute l'app mobile : aucun code ne les lit. Le check-in QR n'a même aucune
+ * implémentation.
+ *
+ * Le tableau mentait donc dans les DEUX sens : il refusait à Free l'application iOS que
+ * Free a en réalité, et il promettait à Pro un check-in QR qui n'existe pas.
+ *
+ * ⚠️ ET ON NE LES BRANCHE PAS — décision d'Antoine (21/09). Dans Viniz, toutes les salles
+ * vivent dans la MÊME application : couper l'app selon le plan couperait l'accès à des
+ * membres qui ont payé leur abonnement, c'est-à-dire casserait la règle d'extinction. Le
+ * lot A vient de retirer cette même faute de la réservation ; la rajouter ici serait la
+ * remettre à une autre porte.
+ *
+ * ⚠️ LES COLONNES RESTENT LUES (`SELECT_COLS`) ET TYPÉES : `CatalogPlan` décrit la table,
+ * pas cet écran. Le jour où l'une de ces fonctionnalités existe vraiment, une seule ligne
+ * la remet ici.
+ *
+ * ⚠️ DEUX LIGNES CONSERVÉES MÉRITENT UN ŒIL, mais ne sont pas dans la décision du 21/09 :
+ * `custom_domain` n'est appliqué nulle part non plus, et `multi_site_enabled` — lui, bien
+ * appliqué (CoachModal) — est à `false` sur les QUATRE plans de la grille. Aucune des deux
+ * ne ment, elles n'informent simplement personne. Signalées, pas touchées.
+ */
 export const CATALOG_FEATURE_KEYS = [
   'payments_enabled',
-  'qr_checkin_enabled',
-  'ios_app_enabled',
-  'android_app_enabled',
   'analytics_enabled',
   'export_enabled',
   'multi_site_enabled',
-  'api_access_enabled',
   'custom_domain',
 ] as const
 
