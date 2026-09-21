@@ -1595,6 +1595,44 @@
       "mollie": "Mollie",
       "legal": "Identité légale",
       "last_activity": "Dernière activité"
+    },
+    "gym_not_found": "Salle introuvable.",
+    "back_to_list": "Retour à la liste",
+    "actions_title": "Gestes",
+    "actions_note": "Chaque geste demande un motif, s'écrit au journal dans la même transaction, et se défait par le même écran.",
+    "confirm_title": "Confirmer ce geste",
+    "confirm_cta": "Confirmer",
+    "confirm_busy": "En cours…",
+    "reason_label": "Motif (obligatoire)",
+    "reason_placeholder": "Pourquoi ce changement ?",
+    "err_unchanged": "Cette valeur est déjà en place — rien n'a été écrit.",
+    "err_invalid": "Saisie refusée par le serveur. Vérifie le motif et la valeur.",
+    "journal_title": "Journal",
+    "journal_note": "Ajout seul : une ligne écrite ne peut être ni modifiée ni supprimée, y compris par la plateforme.",
+    "journal_empty": "Aucun geste enregistré pour cette salle.",
+    "journal": {
+      "when": "Quand",
+      "action": "Geste",
+      "before": "Avant",
+      "after": "Après",
+      "reason": "Motif"
+    },
+    "act": {
+      "plan_title": "Plan",
+      "status_title": "Statut",
+      "trial_title": "Essai",
+      "commission_title": "Commission",
+      "plan_to": "Passer la salle en « {{plan}} »",
+      "status_to": "Passer le statut à « {{status}} »",
+      "trial_to": "Porter la fin d'essai au {{date}}",
+      "trial_clear": "Clore l'essai",
+      "trial_extend": "+{{days}} jours",
+      "commission_to": "Déroger : {{sepa}} % SEPA · {{cb}} % carte",
+      "commission_clear": "Retirer la dérogation",
+      "commission_set": "Poser la dérogation",
+      "sepa_pct": "SEPA %",
+      "cb_pct": "Carte %",
+      "commission_hint": "En pourcentage — 1,5 signifie 1,5 %. La base les stocke en fraction."
     }
   }
 }

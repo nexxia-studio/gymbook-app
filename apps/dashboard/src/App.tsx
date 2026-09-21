@@ -11,6 +11,7 @@ import MollieCallback from '@/pages/MollieCallback'
 import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCancel from '@/pages/PaymentCancel'
 import Cockpit from '@/pages/Cockpit'
+import CockpitGym from '@/pages/CockpitGym'
 
 const Login = lazy(() => import('@/pages/Login'))
 // GYM-248 — inscription gérant self-serve REBRANCHÉE (voir l'en-tête de pages/Signup.tsx :
@@ -210,6 +211,15 @@ function AppRoutes() {
             ⚠️ On ne pose PAS de garde de rôle côté client ici, et c'est délibéré : il
             ferait croire que la protection vient de lui. Le jour où quelqu'un le
             contournerait ou le retirerait, rien ne changerait — c'est la RPC qui garde. */}
+        <Route
+          path="/cockpit/:gymId"
+          element={
+            // Même tolérance que la liste : un super-administrateur n'a pas de salle.
+            <ProtectedRoute requireGym={false}>
+              <CockpitGym />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/cockpit"
           element={
