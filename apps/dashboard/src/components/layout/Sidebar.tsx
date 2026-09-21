@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  Building2,
   LayoutDashboard,
   Calendar,
   Users,
@@ -26,10 +27,23 @@ const NAV_ITEMS = [
   { key: 'settings', path: '/settings', icon: Settings },
 ] as const
 
+// ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+// ║  COCKPIT B2B — LOT 1. Entrée SÉPARÉE, et affichée au seul super-administrateur.       ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+//
+// ⚠️ CE FILTRE EST UN CONFORT, PAS UNE PROTECTION, et il ne faut pas s'y tromper : il
+// évite à un gérant de voir un menu qui ne le concerne pas. La PROTECTION est serveur —
+// `cockpit_list_gyms()` lève 42501 pour tout appelant non super-administrateur. Un
+// `gym_admin` qui tape /cockpit à la main arrive sur l'écran et en repart avec zéro donnée.
+//
+// Le jour où quelqu'un retire ce filtre, rien ne fuit. C'est le test à se poser.
+const COCKPIT_ITEM = { key: 'cockpit', path: '/cockpit', icon: Building2 } as const
+
 export function Sidebar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, signOut } = useAuthStore()
+  const role = useAuthStore((s) => s.role)
   const gymName = useGymStore((s) => s.gym?.name) ?? 'Viniz'
   const { sidebarOpen, toggleSidebar } = useUIStore()
 
@@ -85,7 +99,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="mt-4 flex flex-1 flex-col gap-1 px-3">
-          {NAV_ITEMS.map(({ key, path, icon: Icon }) => (
+          {[...NAV_ITEMS, ...(role === 'super_admin' ? [COCKPIT_ITEM] : [])].map(({ key, path, icon: Icon }) => (
             <NavLink
               key={key}
               to={path}

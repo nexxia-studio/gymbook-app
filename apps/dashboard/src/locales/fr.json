@@ -157,7 +157,8 @@
     "payments": "Paiements",
     "revenue": "Revenus",
     "communications": "Communications",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "cockpit": "Mes salles"
   },
   "communications": {
     "title": "Communications",
@@ -1570,5 +1571,30 @@
     "back_to_app": "Retourner dans l'application",
     "close_window": "Fermer cette fenêtre",
     "close_hint": "Vous pouvez fermer cette fenêtre et retourner dans l'application."
+  },
+  "cockpit": {
+    "title": "Mes salles",
+    "subtitle": "Vue super-administrateur — lecture seule",
+    "loading": "Chargement des salles…",
+    "empty": "Aucune salle.",
+    "count_one": "{{count}} salle",
+    "count_other": "{{count}} salles",
+    "trial_over": "essai terminé",
+    "members_note": "Le nombre de membres est compté sur les appartenances (member_gyms), pas sur la salle active du profil — même décompte que les gardes de plan.",
+    "forbidden_title": "Accès réservé",
+    "forbidden_body": "Cette page est réservée au super-administrateur. Le serveur a refusé la lecture — rien n'a été chargé.",
+    "failed_title": "Lecture impossible",
+    "failed_body": "La liste des salles n'a pas pu être lue. Le détail est dans la console.",
+    "col": {
+      "gym": "Salle",
+      "plan": "Plan effectif",
+      "status": "Statut",
+      "trial_end": "Fin d'essai",
+      "members": "Membres",
+      "slots": "Créneaux à venir",
+      "mollie": "Mollie",
+      "legal": "Identité légale",
+      "last_activity": "Dernière activité"
+    }
   }
 }
