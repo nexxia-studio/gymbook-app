@@ -237,7 +237,61 @@ const config = {
     // Le prochain build doit donc porter buildNumber ≥ 26 (iOS) et versionCode ≥ 10
     // (Android). `autoIncrement: true` s'en charge — ces nombres ne sont PAS déclarés ici,
     // et conformément aux blocs précédents aucun n'est annoncé : seul le PLANCHER l'est.
-    version: '1.2.1',
+    //
+    // 1.2.2 — PATCH, ET LE PLUS URGENT DES TRAINS PUBLIÉS JUSQU'ICI. Contenu ENTIÈREMENT
+    // CORRECTIF : aucune fonctionnalité nouvelle, rien que le membre ne puisse déjà faire.
+    // Même critère que le bloc 1.2.1 — on ne corrige que la façon dont l'app se comporte.
+    //
+    //  · 🔴 GYM-352 — LA PAGE DE PAIEMENT MOLLIE NE S'OUVRAIT PAS depuis Profil →
+    //    Abonnement. Ce n'est pas une gêne d'affichage : c'est de l'argent qui n'entre pas.
+    //    MESURÉ EN PRODUCTION, pas déduit — 9 achats échoués, 3 membres, ~600 € non
+    //    encaissés les 21 et 22/09. Dans tous les cas la ligne `payments` existe et
+    //    `checkout_url` est stockée : le lien Mollie était obtenu, la page n'a jamais été
+    //    réglée, le paiement a expiré.
+    //    ⚠️ ET LA RÉPARTITION DÉSIGNE UN SEUL ÉCRAN : les 9 échecs viennent tous de Profil →
+    //    Abonnement, les 2 achats RÉUSSIS de la feuille de réservation — qui, elle, ne
+    //    démonte aucune modale et ne navigue pas avant de présenter le navigateur.
+    //    Le correctif désarme le verrou de session avant chaque essai, présente le
+    //    navigateur AVANT de naviguer, réessaie une fois, et — surtout — le dit au membre
+    //    au lieu de le laisser devant un écran qui tourne cinq minutes.
+    //
+    //  · Photo du coach sur la fiche de séance. La colonne était remplie par le dashboard
+    //    et aucune requête de l'app ne la demandait.
+    //
+    //  · GYM-336b — le libellé d'exécution anticipée passe de quatre lignes à une phrase.
+    //    ⚠️ LE CONSENTEMENT PASSE EN VERSION '2' : deux textes différents ne peuvent pas
+    //    porter le même numéro, sinon la preuve enregistrée ne dit plus QUOI a été accepté.
+    //  · GYM-330b — l'échec réseau à l'acceptation des conditions affichait
+    //    « TypeError: Network request failed ». Message lisible, et la logique de blocage
+    //    INCHANGÉE : un échec ne laisse jamais passer.
+    //  · GYM-97 — l'affichage des crédits cesse de se contredire.
+    //  · GYM-74 — l'écran Studio était entièrement en français codé en dur.
+    //
+    // ⚠️ LES QUATRE DERNIERS FIGURENT DÉJÀ AU BLOC 1.2.1, ET CE N'EST PAS UN DOUBLON À
+    // CORRIGER. Vérifié sur l'historique plutôt que supposé : leurs fusions sont
+    // POSTÉRIEURES au commit de bump 1.2.1 (GYM-336b et GYM-97 le 16/09 après lui, GYM-74
+    // le 20/09). Un bloc décrit une INTENTION de train ; c'est le BINAIRE qui transporte
+    // le correctif jusqu'au membre. Même situation que GYM-318 au bloc 1.2.0, et même
+    // conséquence : ne pas les compter deux fois dans l'ampleur du train.
+    //
+    // 🔴 LA 1.2.1, ELLE, EST BIEN PUBLIÉE — App Store, et Play Store en attente d'examen.
+    // C'est ce qui sépare ce bloc des deux précédents : sa version marketing est CONSOMMÉE.
+    // ITMS-90186 / ITMS-90062 s'appliquent pleinement, le train 1.2.1 est fermé, et 1.2.2
+    // est le premier numéro disponible. Aucun arbitrage à faire ici — contrairement aux
+    // blocs 1.1.0 et 1.2.1, où la version libre laissait un choix.
+    //
+    // 🔴 COMPTEURS DISTANTS LUS AVANT CE COMMIT, PAS DÉDUITS :
+    //     eas build:version:get --platform ios     --profile production → 26
+    //     eas build:version:get --platform android --profile production → 10
+    // Le prochain build doit donc porter buildNumber ≥ 27 (iOS) et versionCode ≥ 11
+    // (Android). `autoIncrement: true` s'en charge — ces nombres ne sont PAS déclarés ici,
+    // et conformément à tous les blocs précédents aucun n'est annoncé : seul le PLANCHER
+    // l'est.
+    //
+    // ⚠️ LE PLANCHER ANDROID COMPTE POUR DE BON. Le Play Store a la 1.2.1 EN EXAMEN : son
+    // versionCode 10 est déposé, donc brûlé, qu'il soit publié ou non — exactement comme
+    // un buildNumber téléversé chez Apple.
+    version: '1.2.2',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
