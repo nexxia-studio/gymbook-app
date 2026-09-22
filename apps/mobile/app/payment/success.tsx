@@ -69,8 +69,14 @@ const makeStyles = (tokens: ThemeTokens) => ({
 export default function PaymentSuccess() {
   const { t } = useTranslation()
   const router = useRouter()
-  // GYM-352 — `checkout_opened: '0'` est posé par l'appelant quand `openCheckout` a constaté
-  // que le navigateur ne s'était pas affiché. Voir lib/payments.ts.
+  // GYM-352 — `checkout_opened: '0'` signalait que le navigateur ne s'était pas affiché.
+  //
+  // ⚠️ 22/09 — PLUS AUCUN APPELANT NE LE POSE, et le param est CONSERVÉ quand même. Le
+  // correctif a inversé l'ordre : cet écran n'est monté que DEPUIS `onPresented`,
+  // c'est-à-dire une fois la page Mollie à l'écran — le cas « monté puis pas ouvert » ne
+  // peut donc plus se produire par ce chemin. Le lire coûte une ligne et couvre un lien
+  // profond ancien ou un appelant futur ; le retirer obligerait à re-décider quoi faire
+  // d'un paramètre qui arriverait quand même.
   const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string; returnTo?: string; checkout_opened?: string }>()
   const isDropInRetry = params.source === 'drop_in' && !!params.slot_id
 

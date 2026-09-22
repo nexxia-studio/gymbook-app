@@ -616,7 +616,10 @@
       "PLAN_RESOLUTION_FAILED": "Could not check the gym's plan right now. Please try again.",
       "FALLBACK": "Something went wrong, please try again.",
       "SUBSCRIPTION_PAST_DUE": "Your membership has a payment awaiting settlement: a new one cannot be taken out for now."
-    }
+    },
+    "checkout_not_opened_title": "The payment page didn't open",
+    "checkout_not_opened_message": "Nothing was charged. You can try again — if it happens again, close and reopen the app.",
+    "retry": "Try again"
   },
   "early_performance": {
     "title": "Before you pay",
