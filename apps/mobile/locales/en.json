@@ -597,7 +597,7 @@
       "PROFILE_NOT_FOUND": "Profile not found.",
       "GYM_FORBIDDEN": "Access to this gym denied.",
       "PLAN_NOT_FOUND": "Plan unavailable.",
-      "PAYMENTS_DISABLED": "Payments are not enabled for this gym.",
+      "PAYMENTS_DISABLED": "Online payment isn't available for this gym. You can pay them directly — your current membership and credits are unaffected.",
       "PLAN_MISCONFIGURED": "Plan misconfigured, please contact the gym.",
       "MOLLIE_TOKEN_EXPIRED": "Payment temporarily unavailable, try again later.",
       "MOLLIE_ERROR": "Payment failed on the provider side, please try again.",

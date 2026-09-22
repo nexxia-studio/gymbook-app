@@ -86,6 +86,41 @@ export const FALLBACK_SECONDARY = '#2D1B69'
  */
 const PRODUCT_NAME = 'Viniz'
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * L'IDENTITÉ VINIZ — le PRODUIT, pas un tenant
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * 🔴 DÉPLACÉE ICI DEPUIS `auth-email-hook` (GYM-250), à l'identique. Elle y était seule
+ * parce qu'un seul courrier s'adressait au gérant ; les relances d'essai sont le second.
+ * Deux exemplaires auraient divergé au premier changement de logo — c'est le motif de
+ * `_shared/active-subscription.ts` et de `booking-guards.ts`, appliqué à la marque.
+ *
+ * La règle « pas de données de salle en dur » vise les données de TENANT, qui varient et se
+ * règlent au cockpit. Viniz n'est pas un tenant : c'est le produit. Son nom et ses couleurs
+ * sont de l'infrastructure, au même titre que LINKS_BASE ou le domaine d'envoi vérifié.
+ *
+ * ⚠️ `slug` VIDE EST VOULU : aucun Universal Link MEMBRE n'a de sens dans un courrier
+ * adressé au gérant. Ces emails passent par `ctaUrl` (une URL absolue du dashboard),
+ * jamais par `ctaPath` — et `emailShell` masque le bouton si l'URL manque.
+ *
+ * ⚠️ FOND TRANSPARENT, ET C'EST STRUCTUREL : le fond de l'en-tête vient de
+ * `secondaryColor` (#17102E), pas du fichier. Un PNG opaque peindrait un rectangle
+ * par-dessus.
+ */
+export const VINIZ_WORDMARK_PNG = 'https://links.viniz.app/brand/viniz-wordmark-lime@2x.png'
+
+/** Couleur de FOND du bouton des emails Viniz. Va de pair avec `VINIZ_CTA_FG`. */
+export const VINIZ_CTA_BG = '#4827B4'
+/** Couleur du LIBELLÉ du bouton des emails Viniz. */
+export const VINIZ_CTA_FG = '#C8FF3D'
+
+/**
+ * Adresse du dashboard, pour les boutons des courriers adressés au gérant.
+ * Même variable qu'`auth-email-hook` et `admin-create-member` — on reprend la convention
+ * plutôt que d'en inventer une troisième.
+ */
+export const DASHBOARD_URL = (Deno.env.get('DASHBOARD_URL') ?? 'https://app.viniz.app').replace(/\/+$/, '')
+
 export interface GymBranding {
   name: string
   slug: string
@@ -97,6 +132,25 @@ export interface GymBranding {
   logoUrl: string | null
   primaryColor: string
   secondaryColor: string
+}
+
+/**
+ * L'identité Viniz sous la forme d'un `GymBranding`, pour que `emailShell` la consomme
+ * sans distinction. Les jetons sont ceux de l'email d'invitation GYM-200 :
+ *   secondaryColor #17102E = fond de l'en-tête → le mot VINIZ s'y détache en lime
+ *   primaryColor   #C8FF3D = couleur du mot-marque
+ */
+export const VINIZ_BRANDING: GymBranding = {
+  name: 'Viniz',
+  slug: '',
+  address: null,
+  postalCode: null,
+  city: null,
+  email: null,
+  phone: null,
+  logoUrl: VINIZ_WORDMARK_PNG,
+  primaryColor: '#C8FF3D',
+  secondaryColor: '#17102E',
 }
 
 /** Colonnes lues — la liste vit ici pour qu'un ajout profite à tous les gabarits. */
