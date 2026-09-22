@@ -1025,7 +1025,6 @@
     "sort_order": "Ordre d'affichage",
     "photo": "Photo",
     "photo_drop": "Glissez une photo ou cliquez pour sélectionner",
-    "photo_remove": "Supprimer la photo",
     "active": "Actif",
     "inactive": "Inactif",
     "edit": "Modifier",
@@ -1400,7 +1399,8 @@
     },
     "current": {
       "title": "Votre plan",
-      "trial": "Essai — limites du plan {{plan}}"
+      "trial": "Essai — limites du plan {{plan}}",
+      "trial_subscribed": "Essai — plan souscrit : {{plan}}"
     },
     "quota": {
       "members": "Membres",
@@ -1535,7 +1535,8 @@
       "unlimited": "Illimité",
       "limits_unavailable": "Le détail de ton plan n'est pas disponible pour le moment. Tu le retrouveras dans Réglages → Abonnement.",
       "start": "Commencer la configuration",
-      "see_plans": "Découvrir les plans"
+      "see_plans": "Découvrir les plans",
+      "subtitle_neutral": "Ta salle est créée. Voici ce dont tu disposes."
     },
     "done": {
       "title": "Ta salle est prête",
@@ -1637,6 +1638,27 @@
       "sepa_pct": "SEPA %",
       "cb_pct": "Carte %",
       "commission_hint": "En pourcentage — 1,5 signifie 1,5 %. La base les stocke en fraction."
-    }
+    },
+    "plan_trial": "{{effective}} — essai jusqu'au {{date}} · souscrit : {{subscribed}}"
+  },
+  "trial_notice": {
+    "headline_one": "Tu es en {{subscribed}}. Nous t'offrons {{count}} jour de {{trial}}.",
+    "headline_other": "Tu es en {{subscribed}}. Nous t'offrons {{count}} jours de {{trial}}.",
+    "during_title": "Ce que {{trial}} t'apporte jusque-là",
+    "after_title": "Sans action de ta part d'ici le {{date}}, tu repasses en {{subscribed}} :",
+    "limit_members_one": "{{count}} membre",
+    "limit_members_other": "{{count}} membres",
+    "limit_members_unlimited": "membres illimités",
+    "limit_admins_one": "{{count}} compte gérant",
+    "limit_admins_other": "{{count}} comptes gérants",
+    "limit_admins_unlimited": "comptes gérants illimités",
+    "without": "sans {{feature}}"
+  },
+  "member_space": {
+    "title": "Ton espace est dans l'application",
+    "message": "Ce site est le tableau de bord des gérants de salle. Tes réservations, tes crédits et ton abonnement vivent dans l'application.",
+    "message_with_gym": "Ce site est le tableau de bord des gérants de salle. Tes réservations chez {{gym}}, tes crédits et ton abonnement vivent dans l'application.",
+    "cta_app": "Ouvrir l'application",
+    "cta_viniz": "En savoir plus sur Viniz"
   }
 }
