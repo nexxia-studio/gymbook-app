@@ -6,6 +6,7 @@ import { usePlanCatalog, CATALOG_FEATURE_KEYS, type CatalogPlan } from '@/hooks/
 import { useMembers } from '@/hooks/useMembers'
 import { useTeam } from '@/hooks/useTeam'
 import { useGymStore } from '@/stores/useGymStore'
+import { TrialPlanNotice } from '@/components/subscription/TrialPlanNotice'
 
 const UPGRADE_EMAIL = 'hello@viniz.app'
 
@@ -121,14 +122,17 @@ export function SubscriptionSection() {
           <h2 className="font-display text-xl font-black tracking-tight text-dark">
             {t('subscription.current.title')}
           </h2>
+          {/* 🔴 22/09 — LE BADGE DISAIT LE PLAN SOUSCRIT, LES BARRES DISAIENT LES LIMITES
+              SERVIES. Le badge portait « free » pendant qu'en dessous s'affichait
+              « 0 / 200 membres » : le gérant en déduisait que Free offre 200 membres.
+              Le badge nomme donc désormais le plan SERVI, et la mention d'essai dit
+              lequel est souscrit — l'information manquante était celle-là. */}
           <span className="rounded-full bg-[#4827B4] px-3 py-1 font-ui text-xs font-bold uppercase tracking-wide text-[#C8FF3D] dark:bg-[#C8FF3D] dark:text-[#17102E]">
-            {currentPlan}
+            {trialActive && effectivePlan !== currentPlan ? effectivePlan : currentPlan}
           </span>
-          {/* Un essai sert les limites d'un AUTRE plan que celui contracté : le dire, sinon
-              les chiffres ci-dessous paraissent incohérents avec le badge. */}
           {trialActive && effectivePlan !== currentPlan && (
             <span className="rounded-full bg-accent-dim/10 px-3 py-1 font-ui text-xs font-bold text-accent-dim">
-              {t('subscription.current.trial', { plan: effectivePlan })}
+              {t('subscription.current.trial_subscribed', { plan: currentPlan })}
             </span>
           )}
         </div>
@@ -138,6 +142,11 @@ export function SubscriptionSection() {
           <QuotaBar label={t('subscription.quota.admins')} current={adminCount} max={limits?.max_admins ?? null} />
         </div>
       </div>
+
+      {/* ⚠️ LE MÊME ENCART QUE L'ÉCRAN DE BIENVENUE, et c'est délibéré : le gérant qui
+          revient ici des semaines plus tard doit lire EXACTEMENT la même chose, avec la
+          date mise à jour. Deux formulations de la même règle finiraient par diverger. */}
+      <TrialPlanNotice />
 
       {/* ── Grille comparative ─────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-border bg-card p-6">

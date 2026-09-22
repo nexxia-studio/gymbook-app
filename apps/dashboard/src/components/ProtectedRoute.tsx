@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ShieldAlert, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { MEMBER_PATH } from '@/lib/homePath'
 import type { ReactNode } from 'react'
 
 // GYM-145 — seuls les gérants accèdent au dashboard.
@@ -78,6 +79,16 @@ export function ProtectedRoute({ children, requireGym = true }: ProtectedRoutePr
   // loader éternel serait la pire des réponses.
   if (requireGym && role === null) {
     return <Loader />
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // 🔴 22/09 — UN MEMBRE EST ORIENTÉ, PLUS ÉCONDUIT
+  // ═══════════════════════════════════════════════════════════════════════════════════
+  // L'écran ci-dessous reste le refus pour tout rôle inattendu ; un MEMBRE, lui, a une
+  // destination : `/member`, qui lui dit où vit sa salle. Le cul-de-sac d'avant n'offrait
+  // qu'un bouton « Se déconnecter » — poli, et sans issue.
+  if (role === 'member') {
+    return <Navigate to={MEMBER_PATH} replace />
   }
 
   // GYM-145 — garde de rôle : un compte member ne doit pas accéder au dashboard gérant.

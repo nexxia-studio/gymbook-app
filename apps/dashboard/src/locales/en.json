@@ -1025,7 +1025,6 @@
     "sort_order": "Display order",
     "photo": "Photo",
     "photo_drop": "Drop a photo or click to select",
-    "photo_remove": "Remove photo",
     "active": "Active",
     "inactive": "Inactive",
     "edit": "Edit",
@@ -1400,7 +1399,8 @@
     },
     "current": {
       "title": "Your plan",
-      "trial": "Trial — {{plan}} plan limits"
+      "trial": "Trial — {{plan}} plan limits",
+      "trial_subscribed": "Trial — subscribed plan: {{plan}}"
     },
     "quota": {
       "members": "Members",
@@ -1535,7 +1535,8 @@
       "unlimited": "Unlimited",
       "limits_unavailable": "Your plan details aren't available right now. You'll find them under Settings → Subscription.",
       "start": "Start setting up",
-      "see_plans": "See the plans"
+      "see_plans": "See the plans",
+      "subtitle_neutral": "Your gym is created. Here's what you have."
     },
     "done": {
       "title": "Your gym is ready",
@@ -1637,6 +1638,27 @@
       "sepa_pct": "SEPA %",
       "cb_pct": "Card %",
       "commission_hint": "In percent — 1.5 means 1.5%. The database stores fractions."
-    }
+    },
+    "plan_trial": "{{effective}} — trial until {{date}} · subscribed: {{subscribed}}"
+  },
+  "trial_notice": {
+    "headline_one": "You're on {{subscribed}}. We're giving you {{count}} day of {{trial}}.",
+    "headline_other": "You're on {{subscribed}}. We're giving you {{count}} days of {{trial}}.",
+    "during_title": "What {{trial}} gives you until then",
+    "after_title": "Unless you act before {{date}}, you go back to {{subscribed}}:",
+    "limit_members_one": "{{count}} member",
+    "limit_members_other": "{{count}} members",
+    "limit_members_unlimited": "unlimited members",
+    "limit_admins_one": "{{count}} manager account",
+    "limit_admins_other": "{{count}} manager accounts",
+    "limit_admins_unlimited": "unlimited manager accounts",
+    "without": "no {{feature}}"
+  },
+  "member_space": {
+    "title": "Your space is in the app",
+    "message": "This site is the dashboard for gym managers. Your bookings, credits and membership live in the app.",
+    "message_with_gym": "This site is the dashboard for gym managers. Your bookings at {{gym}}, your credits and your membership live in the app.",
+    "cta_app": "Open the app",
+    "cta_viniz": "Learn more about Viniz"
   }
 }

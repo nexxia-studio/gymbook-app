@@ -37,15 +37,32 @@ function Flag({ on }: { on: boolean }) {
  * servie qu'elle ne l'est.
  */
 function PlanCell({ gym }: { gym: CockpitGym }) {
+  const { t, i18n } = useTranslation()
   const divergent = gym.plan_colonne !== gym.plan_effectif
+  // 🔴 22/09 — UN ÉCART EXPLIQUÉ N'EST PAS UNE ANOMALIE.
+  // L'orange signalait « ces deux valeurs ne devraient pas différer » — vrai pour Dopamine
+  // (dérogation `nexxia_features`), faux pour une salle en essai, où l'écart est le
+  // fonctionnement NORMAL. Depuis l'allumage de l'essai, toute salle neuve serait apparue
+  // en alerte dès sa création. L'orange est donc réservé à ce qu'on ne sait pas expliquer.
+  const parEssai = divergent && gym.essai_actif && gym.essai_fin
   return (
     <div className="flex flex-col">
       <span className="font-body-bold text-sm">{gym.plan_effectif}</span>
-      {divergent && (
+      {parEssai ? (
+        <span className="font-body text-xs text-muted">
+          {t('cockpit.plan_trial', {
+            effective: gym.plan_effectif,
+            subscribed: gym.plan_colonne,
+            date: new Intl.DateTimeFormat(i18n.language || 'fr-BE', {
+              day: '2-digit', month: '2-digit', year: 'numeric',
+            }).format(new Date(gym.essai_fin as string)),
+          })}
+        </span>
+      ) : divergent ? (
         <span className="font-body text-xs text-amber-600 dark:text-amber-400">
           colonne : {gym.plan_colonne}
         </span>
-      )}
+      ) : null}
     </div>
   )
 }

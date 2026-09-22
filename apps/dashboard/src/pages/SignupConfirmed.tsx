@@ -155,6 +155,22 @@ export default function SignupConfirmed() {
         setNameError(t(mapped.messageKey))
         return
       }
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // 🔴 LA BOUCLE DU 22/09, ET SA SORTIE — UNE LIGNE
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // `already-has-gym` (PT409) est la SEULE réponse du serveur qui PROUVE que le
+      // magasin client est périmé : la base voit un `gym_id`, le magasin non. Sans ce
+      // rafraîchissement, le lien « Aller à mon tableau de bord » ci-dessous menait à
+      // `/dashboard` → `ProtectedRoute` lisait le magasin périmé → `/pending` →
+      // `PendingOrCreateGym` (gym_id absent + intent gym_owner) → RETOUR ICI. Le gérant
+      // rebondissait entre trois écrans sans jamais sortir.
+      //
+      // ⚠️ ON ATTEND LA RELECTURE AVANT D'AFFICHER LE LIEN. L'afficher d'abord le rendrait
+      // cliquable pendant l'aller-retour, c'est-à-dire exactement dans la fenêtre où il
+      // reboucle encore.
+      if (mapped.outcome === 'already-has-gym') {
+        await refreshProfile()
+      }
       setBanner({ message: t(mapped.messageKey), outcome: mapped.outcome })
       return
     }

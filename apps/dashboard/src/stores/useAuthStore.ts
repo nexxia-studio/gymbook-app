@@ -251,6 +251,32 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Auth résolue (avec ou sans session) → les gardes peuvent statuer.
     set({ initialized: true })
 
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // 🔴 22/09 — LA VISITE AU DASHBOARD EST ENFIN NOTÉE
+    // ═══════════════════════════════════════════════════════════════════════════════════
+    // Le cockpit lisait `profiles.last_seen_at` pour dire « dernière activité ». Or
+    // PERSONNE n'écrivait cette colonne : vérifié sur tout le dépôt, et `NULL` sur les
+    // trois salles de production. Ce terme-là ne valait rien, et une salle en configuration
+    // paraissait morte.
+    //
+    // ⚠️ PAR RPC, PAS PAR `UPDATE`. `last_seen_at` est hors de la liste blanche de colonnes
+    // GYM-203 — un client ne peut pas l'écrire, et c'est très bien : une télémétrie que son
+    // sujet peut forger ne vaut rien. `touch_last_seen()` n'accepte aucun paramètre et
+    // écrit sur `auth.uid()`, avec un anti-battement de 5 minutes côté serveur.
+    //
+    // ⚠️ BEST-EFFORT, ET JAMAIS BLOQUANT. Une télémétrie qui empêcherait de se connecter
+    // serait pire que pas de télémétrie du tout : l'échec part en console et rien d'autre.
+    if (data.session) {
+      // ⚠️ FAÇADE TYPÉE, TEMPORAIRE : `touch_last_seen` n'est pas encore dans
+      // `types/database.ts` (généré depuis la base, et la migration n'est pas appliquée).
+      // 🔴 À RETIRER à la régénération des types — même dette que les lots cockpit, nommée
+      // au même endroit qu'eux.
+      const rpc = supabase as unknown as { rpc(fn: 'touch_last_seen'): PromiseLike<{ error: unknown }> }
+      void Promise.resolve(rpc.rpc('touch_last_seen')).then(({ error }) => {
+        if (error) console.error('[auth] touch_last_seen :', error)
+      })
+    }
+
     // GYM-227 — COHÉRENCE DE L'AFFICHAGE.
     //
     // 🔴 Ce listener ne mettait à jour que `user` et `session`. Sur une déconnexion, il

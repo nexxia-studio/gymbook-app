@@ -1,7 +1,13 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEffectivePlan } from '@/hooks/useEffectivePlan'
-import { X, Upload } from 'lucide-react'
+import { X } from 'lucide-react'
+import { useGymStore } from '@/stores/useGymStore'
+// 🔴 22/09 — LA ZONE DE DÉPÔT EXISTAIT DÉJÀ (GYM-305/215) : clic, glisser-déposer,
+// contraintes du bucket dites avant l'envoi, nettoyage des frères d'extension, aperçu.
+// Elle n'avait simplement jamais été branchée ici. En écrire une seconde aurait été la
+// faute que son propre en-tête met en garde de commettre.
+import { MediaUpload } from '@/components/ui/MediaUpload'
 import { Button } from '@/components/ui/Button'
 import type { CoachItem, CoachFormData } from '@/types/coach'
 
@@ -16,13 +22,6 @@ interface CoachModalProps {
 
 type FormErrors = Partial<Record<keyof CoachFormData, string>>
 
-function nameToColor(name: string): string {
-  const colors = ['#4ECDC4', '#FF6B6B', '#6C5CE7', '#FF8E53', '#A8E6CF', '#B8B8FF', '#FFB7C5', '#81ECEC']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
-}
-
 export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivities, availableSites }: CoachModalProps) {
   // GYM-248 — « Sites assignés » est un écran MULTI-SITES. Hors de ce cas, il n'a aucun
   // sens : une salle mono-site vit sans aucune ligne gym_sites, et le champ affichait un
@@ -33,10 +32,37 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isEdit = !!editCoach
 
+  // ── La photo ─────────────────────────────────────────────────────────────────────
+  const gymId = useGymStore((s2) => s2.gym?.id) ?? null
+
+  /**
+   * 🔴 LE CHEMIN DOIT ÊTRE DÉTERMINISTE — c'est la règle de `MediaUpload`, et c'est elle
+   * qui évite les orphelins : un remplacement ÉCRASE le même objet au lieu d'en créer un
+   * second. Il faut donc un identifiant AVANT l'enregistrement.
+   *
+   * En édition, c'est celui du coach. En création, on en tire un ici et on le passe à
+   * l'INSERT : le fichier et la ligne partagent la même identité dès le premier geste.
+   *
+   * ⚠️ CONTREPARTIE ASSUMÉE, ET ELLE EST NOUVELLE ICI : un gérant qui dépose une photo
+   * puis ferme la modale sans enregistrer laisse un fichier seul dans le bucket (2 Mo au
+   * pire). Les deux autres usages de `MediaUpload` n'ont pas ce cas — l'objet existe avant
+   * la photo. Le retour inverse (n'envoyer qu'à l'enregistrement) priverait l'écran de
+   * tout aperçu, ce qui est précisément ce qu'on vient de corriger.
+   */
+  const coachId = useMemo(
+    () => editCoach?.id ?? (typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
+    // `open` en dépendance : une nouvelle ouverture = une nouvelle fiche, donc un
+    // nouveau chemin. Sans lui, deux créations successives se partageraient un fichier.
+    [editCoach, open],
+  )
+
   const [form, setForm] = useState<CoachFormData>({
     firstName: '',
     lastName: '',
     bio: '',
+    photoUrl: null,
     specialties: [],
     // Aucune pré-sélection : cocher un site à la place du gérant, c'est décider pour lui.
     sites: [],
@@ -52,6 +78,7 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
         firstName: editCoach.firstName,
         lastName: editCoach.lastName,
         bio: editCoach.bio,
+        photoUrl: editCoach.photoUrl,
         specialties: [...editCoach.specialties],
         sites: [...editCoach.sites],
         sortOrder: editCoach.sortOrder,
@@ -60,9 +87,11 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
     } else {
       setForm({
         firstName: '', lastName: '', bio: '',
+        // Une nouvelle fiche part sans photo : l'avatar retombe sur les initiales.
+        photoUrl: null,
         specialties: [],
         // Aucune pré-sélection : cocher un site à la place du gérant, c'est décider pour lui.
-    sites: [],
+        sites: [],
         sortOrder: 1, active: true,
       })
     }
@@ -95,12 +124,11 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
   function handleSubmit(ev: FormEvent) {
     ev.preventDefault()
     if (!validate()) return
-    onSubmit(form)
+    // `id` accompagne une CRÉATION : la ligne prend l'identifiant sous lequel la photo
+    // a déjà été déposée. En édition il est ignoré (la fiche a le sien).
+    onSubmit({ ...form, id: coachId })
   }
 
-  const fullName = `${form.firstName} ${form.lastName}`.trim()
-  const initials = `${form.firstName.charAt(0) || '?'}${form.lastName.charAt(0) || ''}`.toUpperCase()
-  const avatarColor = nameToColor(fullName || '?')
 
   const selectClass = 'w-full rounded-xl border border-border bg-card px-4 py-3 font-body text-sm text-dark outline-none transition-colors focus:border-dark'
   const labelClass = 'font-body text-sm font-medium text-dark'
@@ -126,26 +154,31 @@ export function CoachModal({ open, onClose, onSubmit, editCoach, availableActivi
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5">
           <div className="flex flex-col gap-5">
-            {/* Photo zone */}
+            {/* ═══════════════════════════════════════════════════════════════════════
+                🔴 22/09 — LA PHOTO EST ENFIN BRANCHÉE.
+                ═══════════════════════════════════════════════════════════════════════
+                Ce bloc était DÉCORATIF : un `<button>` sans `onClick`, aucun
+                `<input type="file">`, aucune zone de dépôt — et `photo_url` n'était jamais
+                écrite par `useCoaches`. Le gérant cliquait sur un élément inerte.
+
+                ⚠️ CE N'ÉTAIT PAS UNE POLITIQUE STORAGE, et c'est vérifié plutôt que
+                supposé : sous l'identité d'un vrai `gym_admin`, un INSERT dans
+                `gym-media` sur `<gym_id>/coaches/…` est ACCEPTÉ, et le dossier d'une autre
+                salle est refusé en 42501. La politique ne regarde ni l'âge de la salle ni
+                le sous-dossier — elle compare le premier segment du chemin au `gym_id` du
+                gérant. Rien ne manquait côté serveur. */}
             <div>
-              <label className={labelClass}>{t('coaches.photo')}</label>
-              <div className="mt-2 flex items-center gap-4">
-                <div
-                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full font-display text-2xl font-black text-white"
-                  style={{ backgroundColor: avatarColor }}
-                >
-                  {initials}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 font-body text-xs font-medium text-secondary transition-colors hover:bg-dark/5"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {t('coaches.photo_drop')}
-                  </button>
-                </div>
-              </div>
+              <MediaUpload
+                label={t('coaches.photo')}
+                value={form.photoUrl ?? ''}
+                path={`${gymId}/coaches/${coachId}`}
+                aspect="aspect-square"
+                previewClassName="bg-dark/5"
+                // Sans salle résolue, le chemin serait `undefined/coaches/…` : la zone le
+                // DIT plutôt que d'échouer à l'envoi.
+                disabled={!gymId}
+                onChange={(url) => setForm((f) => ({ ...f, photoUrl: url }))}
+              />
             </div>
 
             {/* Name row */}

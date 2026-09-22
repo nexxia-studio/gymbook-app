@@ -53,9 +53,14 @@ export function useCoaches() {
   const createCoach = useCallback(async (data: CoachFormData) => {
     if (!gymId) return
     await supabase.from('coaches').insert({
+      // L'identifiant vient du formulaire quand il y en a un : la photo a déjà été
+      // déposée sous `<gym>/coaches/<id>`, la ligne doit porter le même id.
+      ...(data.id ? { id: data.id } : {}),
       gym_id: gymId,
       name: `${data.firstName} ${data.lastName}`.trim(),
       bio: data.bio,
+      // 22/09 — la colonne existait et n'était jamais écrite (cf. CoachFormData.photoUrl).
+      photo_url: data.photoUrl,
       specialties: data.specialties,
       sort_order: data.sortOrder,
       active: data.active,
@@ -67,6 +72,7 @@ export function useCoaches() {
     await supabase.from('coaches').update({
       name: `${data.firstName} ${data.lastName}`.trim(),
       bio: data.bio,
+      photo_url: data.photoUrl,
       specialties: data.specialties,
       sort_order: data.sortOrder,
       active: data.active,
