@@ -286,6 +286,8 @@ export interface CheckoutOpenOutcome {
   type: string
   /** Brut : millisecondes écoulées. LE signal discriminant sur iOS. */
   elapsedMs: number
+  /** 1 ou 2 — un échec de présentation est réessayé UNE fois (correctif du 22/09). */
+  attempts: number
   detail?: string
 }
 
@@ -332,48 +334,210 @@ const PRESENTATION_FLOOR_MS = 400
  * C'est la seule hypothèse qui explique que DEUX chemins différents, à 29 minutes
  * d'intervalle, échouent à l'identique sans lever quoi que ce soit.
  *
- * ⚠️ NON CORRIGÉ DANS CE LOT, DÉLIBÉRÉMENT. `WebBrowser.dismissBrowser()` déverrouillerait
- * la session bloquée (`dismiss` sur un contrôleur non présenté appelle quand même son
- * complétion, donc `finish` et la remise à nil). Mais c'est une correction fondée sur une
- * lecture de code, pas sur une mesure : le journal ci-dessous dira 'locked' ou autre chose
- * dès le prochain essai, et c'est cette mesure qui doit décider.
+ * 🔴 22/09 — ON NE PEUT PLUS ATTENDRE LA MESURE. Ce commentaire disait « non corrigé
+ * délibérément : le journal dira 'locked' dès le prochain essai, et c'est cette mesure qui
+ * doit décider ». L'argument était bon — et il est mort de deux façons :
+ *
+ *   · le journal n'est JAMAIS parti : l'instrumentation du 17/09 n'est pas dans la 1.2.1
+ *     (bump de version le 16/09, instrumentation le 17/09 — vérifié sur l'historique) ;
+ *   · pendant ce temps, 9 achats ont échoué en deux jours, ~600 € non encaissés.
+ *
+ * Attendre une mesure qui ne peut pas arriver, c'est ne rien attendre du tout. Le correctif
+ * couvre donc TOUTES les hypothèses à la fois — verrou hérité, cascade de présentation,
+ * échec ponctuel — parce qu'un aller-retour de revue Apple par hypothèse coûterait des
+ * semaines de ventes. `desarmerLeVerrou()` ci-dessous est la réponse à celle-ci.
  */
 const LOCKED = 'locked'
 
 /**
- * Ouvre l'URL de checkout Mollie — mécanisme unique partout.
- *
- * Ne lève JAMAIS : un échec d'ouverture est une information à rendre, pas une exception à
- * propager. Les appelants l'affichaient jusqu'ici comme une erreur générique, ou pas du tout.
+ * D'où vient l'achat, et sur quoi il porte. ⚠️ CE N'EST PAS DÉCORATIF : sans l'écran
+ * d'origine ni l'identifiant du paiement, un événement Sentry ne se raccroche à aucune
+ * ligne `payments`, et on ne peut ni compter les échecs ni vérifier qu'un correctif a
+ * marché. C'est très exactement ce qui nous a manqué les 21 et 22/09.
  */
-export async function openCheckout(url: string): Promise<CheckoutOpenOutcome> {
+export interface CheckoutContext {
+  /** `profile_subscription` | `payment_required_sheet`. */
+  screen: string
+  /** `mollie_payment_id` quand il est connu (one-time). */
+  paymentId?: string | null
+  planId?: string | null
+}
+
+/** Une tentative, telle que le module l'a rendue. */
+interface Tentative {
+  type: string
+  elapsedMs: number
+  presented: boolean
+  detail?: string
+}
+
+/**
+ * Déverrouille une session fantôme avant de présenter.
+ *
+ * 🔴 C'EST LE POINT 1 DU CORRECTIF. `dismissBrowser()` sur un contrôleur non présenté
+ * appelle quand même sa complétion — donc `finish`, donc la remise à `nil` de
+ * `currentWebBrowserSession`. Un verrou hérité d'une session précédente est ainsi désarmé
+ * AVANT qu'il ne fasse échouer l'ouverture.
+ *
+ * ⚠️ iOS SEULEMENT, ET ELLE NE DOIT JAMAIS LEVER. `dismissBrowser` n'existe pas sur
+ * Android, et sur iOS elle rejette quand il n'y a rien à fermer — c'est-à-dire dans le cas
+ * NORMAL. Une exception ici empêcherait le paiement qu'on essaie de sauver.
+ */
+async function desarmerLeVerrou(): Promise<void> {
+  if (Platform.OS !== 'ios') return
+  try {
+    await WebBrowser.dismissBrowser()
+  } catch {
+    // Rien à fermer : c'est le cas normal, et ce n'est pas une erreur.
+  }
+}
+
+/** Une seule tentative de présentation, mesurée. */
+async function tenter(url: string): Promise<Tentative> {
   const startedAt = Date.now()
   try {
     const res = await WebBrowser.openBrowserAsync(url)
     const elapsedMs = Date.now() - startedAt
     const type = String(res?.type ?? 'unknown')
-    // 'locked' est un échec CERTAIN, pas une inférence : le module dit lui-même qu'il n'a
-    // rien présenté. Il court-circuite donc l'heuristique de délai.
     const presented = type !== LOCKED && (type === 'opened' || elapsedMs >= PRESENTATION_FLOOR_MS)
-    // 🔴 LA LIGNE QUI MANQUAIT. Un seul console.log, avec les valeurs BRUTES.
-    console.log(`[openCheckout] platform=${Platform.OS} type=${type} elapsedMs=${elapsedMs} presented=${presented}`)
-    if (!presented) {
-      // Le navigateur ne s'est pas affiché : c'est une panne, elle doit alerter. Ce n'est
-      // PAS un refus métier — le membre n'a rien refusé, il n'a rien pu voir.
-      Sentry.captureException(new Error(
-        type === LOCKED
-          // Message distinct : 'locked' veut dire que le module est bloqué sur une session
-          // fantôme et le restera jusqu'au redémarrage — ce n'est pas un échec ponctuel.
-          ? `openCheckout: module VERROUILLÉ sur une session fantôme (platform=${Platform.OS} elapsedMs=${elapsedMs}) — tous les achats échoueront jusqu'au redémarrage`
-          : `openCheckout: navigateur non présenté (platform=${Platform.OS} type=${type} elapsedMs=${elapsedMs})`,
-      ))
-    }
-    return { presented, type, elapsedMs }
+    return { type, elapsedMs, presented }
   } catch (e) {
-    const elapsedMs = Date.now() - startedAt
-    const detail = e instanceof Error ? e.message : String(e)
-    console.error(`[openCheckout] platform=${Platform.OS} type=threw elapsedMs=${elapsedMs} detail=${detail}`)
-    Sentry.captureException(e)
-    return { presented: false, type: 'threw', elapsedMs, detail }
+    return {
+      type: 'threw',
+      elapsedMs: Date.now() - startedAt,
+      presented: false,
+      detail: e instanceof Error ? e.message : String(e),
+    }
   }
+}
+
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+ * ║  OUVRE LA PAGE MOLLIE — ET SURVIT AUX TROIS FAÇONS DONT ELLE NE S'OUVRAIT PAS        ║
+ * ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+ *
+ * 🔴 CE QUE LA PRODUCTION A MESURÉ (21–22/09) : 9 échecs, 3 membres, ~600 € non encaissés.
+ * Dans TOUS les cas la ligne `payments` existe et `checkout_url` est stockée — le lien
+ * Mollie a été obtenu, la page n'a jamais été réglée, le paiement a expiré.
+ *
+ * Trois défenses, dans cet ordre :
+ *   ① `dismissBrowser()` AVANT chaque présentation — désarme un verrou hérité ;
+ *   ② `onPresented` prévient l'appelant DÈS que la page est à l'écran, pour qu'il ne
+ *      navigue et ne démonte RIEN dans le même tic que la présentation ;
+ *   ③ un échec de PRÉSENTATION est réessayé UNE fois. Un navigateur qui ne s'affiche pas
+ *      n'est pas un membre qui renonce — les confondre, c'est perdre la vente.
+ *
+ * ⚠️ `onPresented` NE PEUT PAS ATTENDRE LA PROMESSE. Sur iOS, `openBrowserAsync` ne résout
+ * qu'à la FERMETURE du navigateur : attendre pour savoir si la page s'est ouverte
+ * reviendrait à attendre la fin du paiement. On infère donc la présentation au passage du
+ * seuil — si la promesse n'a pas résolu après {@link PRESENTATION_FLOOR_MS}, c'est qu'il y
+ * a bien quelque chose à l'écran. C'est la même heuristique que `presented`, prise dans
+ * l'autre sens, et elle se falsifie de la même façon.
+ *
+ * ⚠️ NE LÈVE JAMAIS. Un échec d'ouverture est une information à rendre, pas une exception
+ * à propager.
+ */
+export async function openCheckout(
+  url: string,
+  ctx: CheckoutContext,
+  /** Appelé AU PLUS UNE FOIS, dès que la page est à l'écran. C'est là qu'on navigue. */
+  onPresented?: () => void,
+): Promise<CheckoutOpenOutcome> {
+  let prevenu = false
+  const prevenir = () => {
+    if (prevenu) return
+    prevenu = true
+    try { onPresented?.() } catch (e) { Sentry.captureException(e) }
+  }
+
+  const tentatives: Tentative[] = []
+
+  for (let essai = 1; essai <= 2; essai++) {
+    // ① Le verrou est désarmé avant CHAQUE essai, pas seulement avant le second : le
+    // verrou peut être hérité d'une session précédente de l'app, donc présent dès le
+    // premier achat. C'est ce qu'implique l'écart de deux heures entre les essais
+    // d'Emma — une session fraîche échouait AUSSI.
+    await desarmerLeVerrou()
+
+    // ② Le minuteur qui prévient l'appelant. Armé AVANT la présentation, annulé si la
+    // promesse résout avant lui (ce qui signifie justement qu'il n'y a rien à l'écran).
+    const minuteur = setTimeout(prevenir, PRESENTATION_FLOOR_MS)
+    const t = await tenter(url)
+    clearTimeout(minuteur)
+    tentatives.push(t)
+
+    if (t.presented) {
+      // Android résout aussitôt avec 'opened' : le minuteur n'a pas eu le temps de partir.
+      prevenir()
+      journaliser(ctx, tentatives, true)
+      return { presented: true, type: t.type, elapsedMs: t.elapsedMs, attempts: essai, detail: t.detail }
+    }
+
+    // ③ Un seul réessai, et seulement sur un échec de PRÉSENTATION.
+    //
+    // ⚠️ `threw` N'EST PAS RÉESSAYÉ. Une exception vient d'une URL invalide ou d'un module
+    // absent : recommencer donnerait la même exception, et ouvrirait deux fois la porte à
+    // un comportement qu'on ne comprend pas.
+    if (essai === 1 && t.type !== 'threw') continue
+    break
+  }
+
+  const derniere = tentatives[tentatives.length - 1]
+  journaliser(ctx, tentatives, false)
+  return {
+    presented: false,
+    type: derniere.type,
+    elapsedMs: derniere.elapsedMs,
+    attempts: tentatives.length,
+    detail: derniere.detail,
+  }
+}
+
+/**
+ * 🔴 SENTRY, PAS `console.log` — C'EST LE POINT 4, ET C'EST CE QUI NOUS A MANQUÉ.
+ *
+ * L'instrumentation de GYM-352 écrivait dans la console. Antoine a cherché `[openCheckout]`
+ * dans Sentry le 22/09 : aucun résultat — et pour DEUX raisons, dont une qu'il faut dire.
+ * La console n'est pas capturée, c'est vrai ; mais surtout **cette instrumentation n'est pas
+ * dans la 1.2.1** : le relevé git le montre (bump 1.2.0 → 1.2.1 le 16/09, instrumentation le
+ * 17/09). L'absence d'événement ne prouvait donc rien du tout.
+ *
+ * ⚠️ `captureMessage` ET NON `captureException` POUR LE SUCCÈS : un achat qui marche n'est
+ * pas une erreur, et le noyer dans les issues rendrait le tableau illisible. On envoie un
+ * message de niveau `info` sur le succès APRÈS un réessai (l'information qui compte : le
+ * correctif a rattrapé une vente) et `error` sur l'échec définitif.
+ */
+function journaliser(ctx: CheckoutContext, tentatives: Tentative[], reussi: boolean): void {
+  const resume = tentatives
+    .map((t, i) => `#${i + 1} type=${t.type} ms=${t.elapsedMs}${t.detail ? ` detail=${t.detail}` : ''}`)
+    .join(' | ')
+
+  // Un succès du PREMIER coup est le cas normal : il n'a rien à raconter.
+  if (reussi && tentatives.length === 1) return
+
+  Sentry.captureMessage(
+    reussi
+      ? `openCheckout: page présentée au ${tentatives.length}ᵉ essai (${ctx.screen})`
+      : `openCheckout: page JAMAIS présentée après ${tentatives.length} essai(s) (${ctx.screen})`,
+    {
+      level: reussi ? 'info' : 'error',
+      tags: {
+        // Des ÉTIQUETTES, parce qu'elles se filtrent et se comptent dans Sentry — un
+        // message libre ne se compte pas.
+        checkout_screen: ctx.screen,
+        checkout_result: reussi ? 'presented' : 'never_presented',
+        checkout_last_type: tentatives[tentatives.length - 1].type,
+        platform: Platform.OS,
+      },
+      extra: {
+        payment_id: ctx.paymentId ?? null,
+        plan_id: ctx.planId ?? null,
+        attempts: tentatives.length,
+        tentatives: resume,
+      },
+    },
+  )
+
+  // La console reste, pour le débogage local. Elle ne remplace rien.
+  console.log(`[openCheckout] screen=${ctx.screen} payment=${ctx.paymentId ?? '-'} ${resume}`)
 }

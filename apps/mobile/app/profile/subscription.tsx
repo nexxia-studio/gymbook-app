@@ -324,24 +324,67 @@ export default function SubscriptionScreen() {
         // ⚠️ LA FEUILLE SE FERME AVANT LA NAVIGATION ET AVANT LE NAVIGATEUR. La laisser
         // ouverte superposerait une modale à l'écran de vérification, et le membre
         // reviendrait du checkout Mollie sur une case à cocher déjà honorée.
-        setPendingPlan(null)
-        if (plan.billingType === 'one_time' && result.paymentId) {
-          router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
-        }
-        // GYM-352 — LE RÉSULTAT EST LU. `openCheckout` rendait `void` : quand le navigateur
-        // ne s'ouvrait pas (constaté le 17/09 à 15h34), le membre restait devant l'écran de
-        // vérification sans que rien, nulle part, ne l'ait su.
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🔴 22/09 — L'ORDRE EST INVERSÉ, ET C'EST LE CŒUR DU CORRECTIF
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CE QUI ÉTAIT ÉCRIT ICI, dans CET ordre et dans LE MÊME TIC :
+        //     setPendingPlan(null)        → démonte la modale de consentement
+        //     router.push('/payment/success')  → navigue
+        //     openCheckout(url)           → présente le navigateur
         //
-        // ⚠️ L'ORDRE N'EST PAS CHANGÉ. L'écran de vérification reste monté AVANT le
-        // navigateur : c'est l'intention de GYM-96, pour que le poll et le filet AppState
-        // soient armés quel que soit le mode de retour. La piste « présentation pendant une
-        // transition de navigation » doit être MESURÉE avant d'être corrigée — ce lot fournit
-        // la mesure, pas le réordonnancement.
-        const outcome = await openCheckout(result.checkoutUrl)
+        // Les trois au même instant. Or `WebBrowserSession.open()` fait
+        // `currentViewController?.present(...)` — et ce `?` avale SILENCIEUSEMENT le cas où
+        // il n'y a pas de contrôleur présentable, ce qui est exactement l'état d'une
+        // hiérarchie en train de démonter une modale et de pousser un écran.
+        //
+        // 🔴 ET LES DONNÉES DE PRODUCTION DÉSIGNENT CET ÉCRAN. Les 9 échecs des 21–22/09
+        // viennent tous d'ici (packs de 10 crédits, abonnement 12 mois) ; les 2 achats qui
+        // ont RÉUSSI viennent de `PaymentRequiredSheet`, qui ne démonte rien et ne navigue
+        // pas avant de présenter.
+        //
+        // ⚠️ L'INTENTION DE GYM-96 EST CONSERVÉE, PAS ABANDONNÉE. L'écran de vérification
+        // doit être monté pour que son poll et son filet AppState soient armés quel que
+        // soit le mode de retour — il l'est désormais DANS `onPresented`, c'est-à-dire dès
+        // que la page Mollie est à l'écran, et non plus avant qu'elle n'essaie de s'y
+        // mettre. Le poll démarre donc toujours, simplement un tic plus tard.
+        let monte = false
+        const outcome = await openCheckout(
+          result.checkoutUrl,
+          { screen: 'profile_subscription', paymentId: result.paymentId, planId: plan.id },
+          () => {
+            monte = true
+            setPendingPlan(null)
+            if (plan.billingType === 'one_time' && result.paymentId) {
+              router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
+            }
+          },
+        )
+
         if (!outcome.presented) {
-          // L'écran est déjà monté : on le prévient au lieu de le laisser mentir pendant
-          // cinq minutes puis annoncer un paiement « bien enregistré » qui n'a pas eu lieu.
-          router.setParams({ checkout_opened: '0' })
+          // 🔴 LE MEMBRE DOIT L'APPRENDRE, ET POUVOIR RÉESSAYER. Il restait jusqu'ici devant
+          // un écran de vérification qui tournait cinq minutes pour rien. `openCheckout` a
+          // déjà réessayé une fois : arrivé ici, ce n'est plus un accident ponctuel.
+          setPendingPlan(null)
+          // ⚠️ « RÉESSAYER » RELANCE LE MÊME ACHAT. Redemander au membre quelle formule il
+          // voulait, après un échec qui n'est pas de son fait, serait le punir deux fois.
+          // ⚠️ ET LE MESSAGE NE DIT PAS « erreur » : rien n'a été débité, rien n'est perdu.
+          // Il dit ce qui s'est passé — la page ne s'est pas ouverte — et ce qu'on propose.
+          Alert.alert(
+            t('payments.checkout_not_opened_title'),
+            t('payments.checkout_not_opened_message'),
+            [
+              { text: t('common.cancel'), style: 'cancel' },
+              { text: t('payments.retry'), onPress: () => { void runCheckout(plan) } },
+            ],
+          )
+        } else if (!monte) {
+          // Ceinture : la page s'est présentée mais le rappel n'est pas parti (cas
+          // théorique — Android résout aussitôt). On monte l'écran de vérification quand
+          // même, pour ne pas perdre le poll.
+          setPendingPlan(null)
+          if (plan.billingType === 'one_time' && result.paymentId) {
+            router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
+          }
         }
         return
       }
