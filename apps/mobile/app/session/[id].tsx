@@ -93,12 +93,17 @@ export default function SessionDetail() {
     time: params.time ?? '',
     endTime: params.endTime ?? '',
     coach: params.coach ?? '',
+    // Les paramètres de navigation ne portent PAS la photo : la fiche s'ouvre avec le nom
+    // déjà connu (rendu instantané), et la photo arrive avec la lecture ci-dessous.
+    // L'annotation est nécessaire — sans elle l'état est inféré `null` et refuserait
+    // l'URL, comme les deux voisins `imageUrl` / `activityColor`.
+    coachPhoto: null as string | null,
     duration: Number(params.duration) || 60,
     capacity: Number(params.capacity) || 6,
     booked: Number(params.booked) || 0,
   })
 
-  const { activity, description, imageUrl, activityColor, icon, date, time, endTime, coach, duration, capacity } = slotData
+  const { activity, description, imageUrl, activityColor, icon, date, time, endTime, coach, coachPhoto, duration, capacity } = slotData
 
   const [bookedCount, setBookedCount] = useState(slotData.booked)
   const [loading, setLoading] = useState(false)
@@ -140,7 +145,7 @@ export default function SessionDetail() {
         .select(`
           id, gym_id, activity_id, starts_at, ends_at, capacity, bookings_count, status,
           activities(name, duration_min, description, image_url, color, icon),
-          coaches(name)
+          coaches(name, photo_url)
         `)
         .eq('id', slotId)
         .single()
@@ -158,7 +163,9 @@ export default function SessionDetail() {
           color: string | null
           icon: string | null
         } | null
-        const coa = data.coaches as unknown as { name: string } | null
+        // 🔴 22/09 — `photo_url` EST ENFIN DEMANDÉE. La colonne existait, le dashboard la
+        // remplit, et aucune des trois requêtes de l'app ne l'avait jamais réclamée.
+        const coa = data.coaches as unknown as { name: string; photo_url: string | null } | null
         const actName = act?.name ?? activity
         const coachName = coa?.name ?? coach
         const dur = act?.duration_min ?? duration
@@ -175,6 +182,7 @@ export default function SessionDetail() {
           time: formatTime(data.starts_at),
           endTime: formatTime(data.ends_at),
           coach: coachName,
+          coachPhoto: coa?.photo_url ?? null,
           duration: dur,
           capacity: data.capacity,
           booked: data.bookings_count ?? 0,
@@ -523,6 +531,7 @@ export default function SessionDetail() {
           time={time}
           endTime={endTime}
           coach={coach}
+          coachPhoto={coachPhoto}
           booked={bookedCount}
           capacity={capacity}
         />
