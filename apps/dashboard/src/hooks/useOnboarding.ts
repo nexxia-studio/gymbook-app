@@ -29,12 +29,23 @@ export interface OnboardingState {
    * Objectifs atteints, par étape (2..5). Sert à annoncer « c'est fait » plutôt que de
    * proposer une action que le gérant vient d'accomplir.
    *
-   * Pas de `refresh()` exposé : quitter le dashboard DÉMONTE le wizard, et y revenir le
-   * remonte — `load()` rejoue donc la détection tout seul, au seul moment où elle peut
-   * avoir changé. Une méthode de rafraîchissement que personne n'appellerait serait une
-   * promesse en l'air.
+   * 🔴 CE COMMENTAIRE DISAIT « PAS DE `refresh()` EXPOSÉ », et l'argument était bon TANT
+   * QUE les étapes 2 et 3 faisaient quitter le dashboard : le wizard se démontait, y
+   * revenir le remontait, et `load()` rejouait la détection tout seul. Depuis que ces deux
+   * étapes ouvrent une MODALE par-dessus le dashboard, le gérant ne quitte plus rien — et
+   * la détection ne se rejouerait donc jamais. L'activité créée existerait, et l'assistant
+   * continuerait de proposer de la créer.
    */
   satisfied: Record<number, boolean>
+  /**
+   * Rejoue la détection. À appeler quand un objet vient d'être créé SANS navigation —
+   * c'est-à-dire depuis les modales des étapes 2 et 3.
+   *
+   * ⚠️ IL N'AVANCE PAS L'ÉTAPE, il la RECALCULE. La règle posée au premier parcours E2E
+   * tient : une étape n'est franchie que parce que la chose existe, jamais parce qu'on a
+   * cliqué.
+   */
+  refresh: () => Promise<void>
   /** Ferme pour CETTE session sans perdre l'étape — le « plus tard » des écrans. */
   dismiss: () => void
   goToStep: (step: number) => Promise<SaveOutcome>
@@ -201,6 +212,7 @@ export function useOnboarding(): OnboardingState {
     step,
     completed,
     satisfied,
+    refresh: load,
     isOpen: Boolean(gymId) && completed === false && dismissedFor !== gymId,
     dismiss: () => setDismissedFor(gymId),
     goToStep,

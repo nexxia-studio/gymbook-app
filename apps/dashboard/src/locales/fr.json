@@ -1484,15 +1484,19 @@
     "step1": {
       "title": "Ta salle",
       "description": "Ton logo et tes couleurs, tels que tes membres les verront dans l'app.",
-      "logo_label": "Lien vers ton logo",
-      "logo_helper": "Colle l'URL d'une image déjà en ligne.",
+      "logo_label": "Ton logo",
       "primary_label": "Couleur principale",
       "secondary_label": "Couleur secondaire",
       "submit": "Enregistrer et continuer",
       "saved": "Identité visuelle enregistrée.",
       "color_hint": "Laisse vide pour garder la palette Viniz — tu pourras la changer plus tard.",
       "vat_title": "TVA : 6 % appliqués à tes ventes",
-      "vat_helper": "6 % = accès aux installations sportives en Belgique — confirme avec ton comptable. Modifiable dans Réglages → Salle → Informations légales."
+      "vat_helper": "6 % = accès aux installations sportives en Belgique — confirme avec ton comptable. Modifiable dans Réglages → Salle → Informations légales.",
+      "logo_reco": "Format large conseillé (env. 500 × 100), fond transparent.",
+      "colors_scanning": "Lecture des couleurs de ton logo…",
+      "colors_found": "Couleurs trouvées dans ton logo",
+      "colors_use": "Utiliser ces couleurs",
+      "colors_hint": "Rien n'est enregistré tant que tu n'as pas cliqué — tu peux aussi choisir les tiennes."
     },
     "step2": {
       "title": "Ta première activité",
@@ -1542,7 +1546,9 @@
       "title": "Ta salle est prête",
       "message": "{{gym}} est en ligne. Tu peux revenir sur chaque réglage à tout moment.",
       "cta": "C'est parti"
-    }
+    },
+    "return_hint": "Reviens à la configuration quand c'est fait.",
+    "return_cta": "Reprendre la configuration"
   },
   "legal": {
     "draft_title": "Version provisoire — en attente de validation juridique",
@@ -1638,8 +1644,7 @@
       "sepa_pct": "SEPA %",
       "cb_pct": "Carte %",
       "commission_hint": "En pourcentage — 1,5 signifie 1,5 %. La base les stocke en fraction."
-    },
-    "plan_trial": "{{effective}} — essai jusqu'au {{date}} · souscrit : {{subscribed}}"
+    }
   },
   "trial_notice": {
     "headline_one": "Tu es en {{subscribed}}. Nous t'offrons {{count}} jour de {{trial}}.",
@@ -1659,6 +1664,9 @@
     "message": "Ce site est le tableau de bord des gérants de salle. Tes réservations, tes crédits et ton abonnement vivent dans l'application.",
     "message_with_gym": "Ce site est le tableau de bord des gérants de salle. Tes réservations chez {{gym}}, tes crédits et ton abonnement vivent dans l'application.",
     "cta_app": "Ouvrir l'application",
-    "cta_viniz": "En savoir plus sur Viniz"
+    "cta_viniz": "En savoir plus sur Viniz",
+    "not_installed": "Tu n'as pas encore l'application ?",
+    "store_ios": "Télécharger sur l'App Store",
+    "store_android": "Télécharger sur Google Play"
   }
 }

@@ -1484,15 +1484,19 @@
     "step1": {
       "title": "Your gym",
       "description": "Your logo and colours, exactly as members will see them in the app.",
-      "logo_label": "Logo URL",
-      "logo_helper": "Paste the URL of an image that's already online.",
+      "logo_label": "Your logo",
       "primary_label": "Primary colour",
       "secondary_label": "Secondary colour",
       "submit": "Save and continue",
       "saved": "Branding saved.",
       "color_hint": "Leave empty to keep the Viniz palette — you can change it later.",
       "vat_title": "VAT: 6% applied to your sales",
-      "vat_helper": "6% = access to sports facilities in Belgium — confirm with your accountant. Editable in Settings → Gym → Legal information."
+      "vat_helper": "6% = access to sports facilities in Belgium — confirm with your accountant. Editable in Settings → Gym → Legal information.",
+      "logo_reco": "Wide format recommended (approx. 500 × 100), transparent background.",
+      "colors_scanning": "Reading the colours in your logo…",
+      "colors_found": "Colours found in your logo",
+      "colors_use": "Use these colours",
+      "colors_hint": "Nothing is saved until you click — you can also pick your own."
     },
     "step2": {
       "title": "Your first activity",
@@ -1542,7 +1546,9 @@
       "title": "Your gym is ready",
       "message": "{{gym}} is live. You can revisit every setting whenever you like.",
       "cta": "Let's go"
-    }
+    },
+    "return_hint": "Come back to setup when you're done.",
+    "return_cta": "Resume setup"
   },
   "legal": {
     "draft_title": "Draft version — pending legal review",
@@ -1638,8 +1644,7 @@
       "sepa_pct": "SEPA %",
       "cb_pct": "Card %",
       "commission_hint": "In percent — 1.5 means 1.5%. The database stores fractions."
-    },
-    "plan_trial": "{{effective}} — trial until {{date}} · subscribed: {{subscribed}}"
+    }
   },
   "trial_notice": {
     "headline_one": "You're on {{subscribed}}. We're giving you {{count}} day of {{trial}}.",
@@ -1659,6 +1664,9 @@
     "message": "This site is the dashboard for gym managers. Your bookings, credits and membership live in the app.",
     "message_with_gym": "This site is the dashboard for gym managers. Your bookings at {{gym}}, your credits and your membership live in the app.",
     "cta_app": "Open the app",
-    "cta_viniz": "Learn more about Viniz"
+    "cta_viniz": "Learn more about Viniz",
+    "not_installed": "Don't have the app yet?",
+    "store_ios": "Download on the App Store",
+    "store_android": "Get it on Google Play"
   }
 }

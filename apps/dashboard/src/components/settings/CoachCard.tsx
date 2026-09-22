@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MoreVertical, Pencil, Power, Trash2 } from 'lucide-react'
 import type { CoachItem } from '@/types/coach'
+// 22/09 — la photo du coach s'affiche enfin, initiales en repli. Une seule règle, un
+// seul composant.
+import { CoachAvatar } from '@/components/settings/CoachAvatar'
 
 interface CoachCardProps {
   coach: CoachItem
@@ -11,14 +14,6 @@ interface CoachCardProps {
   onDelete: () => void
 }
 
-// Deterministic color from name
-function nameToColor(name: string): string {
-  const colors = ['#4ECDC4', '#FF6B6B', '#6C5CE7', '#FF8E53', '#A8E6CF', '#B8B8FF', '#FFB7C5', '#81ECEC']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
-}
-
 const MAX_PILLS = 3
 
 export function CoachCard({ coach, activityColors, onEdit, onToggle, onDelete }: CoachCardProps) {
@@ -26,8 +21,6 @@ export function CoachCard({ coach, activityColors, onEdit, onToggle, onDelete }:
   const [menuOpen, setMenuOpen] = useState(false)
 
   const fullName = `${coach.firstName} ${coach.lastName}`.trim()
-  const initials = `${coach.firstName.charAt(0)}${coach.lastName.charAt(0) || ''}`.toUpperCase()
-  const avatarColor = nameToColor(fullName)
   const visibleSpecialties = coach.specialties.slice(0, MAX_PILLS)
   const extraCount = coach.specialties.length - MAX_PILLS
 
@@ -78,13 +71,14 @@ export function CoachCard({ coach, activityColors, onEdit, onToggle, onDelete }:
 
       {/* Content */}
       <div className="p-5">
-        {/* Avatar */}
-        <div
-          className="mb-4 flex h-16 w-16 items-center justify-center rounded-full font-display text-xl font-black text-white"
-          style={{ backgroundColor: avatarColor }}
-        >
-          {initials}
-        </div>
+        {/* Avatar — la photo si elle existe, les initiales sinon. */}
+        <CoachAvatar
+          firstName={coach.firstName}
+          lastName={coach.lastName}
+          photoUrl={coach.photoUrl}
+          className="mb-4 h-16 w-16"
+          textClassName="text-xl"
+        />
 
         {/* Name */}
         <h3 className="font-display text-lg font-black tracking-tight text-dark">

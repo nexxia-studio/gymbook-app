@@ -616,7 +616,10 @@
       "PLAN_RESOLUTION_FAILED": "Impossible de vérifier le plan de la salle pour le moment. Réessaie.",
       "FALLBACK": "Une erreur est survenue, réessaie.",
       "SUBSCRIPTION_PAST_DUE": "Ton abonnement a un paiement en attente de régularisation : impossible d'en souscrire un nouveau pour l'instant."
-    }
+    },
+    "checkout_not_opened_title": "La page de paiement ne s'est pas ouverte",
+    "checkout_not_opened_message": "Rien n'a été débité. Tu peux réessayer — si ça recommence, ferme et rouvre l'application.",
+    "retry": "Réessayer"
   },
   "early_performance": {
     "title": "Avant de payer",

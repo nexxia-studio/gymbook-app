@@ -212,7 +212,16 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       // qu'à la FERMETURE du navigateur : attendre ici suspendrait la fonction pendant tout
       // le paiement, alors que le poll des crédits doit tourner PENDANT. On lit le résultat
       // à part, quand il arrive.
-      void openCheckout(result.checkoutUrl).then((outcome) => {
+      // ⚠️ CET ÉCRAN EST CELUI QUI MARCHE, ET ON N'Y TOUCHE PAS À L'ORDRE. Les deux achats
+      // qui ont RÉUSSI les 21–22/09 (Séance d'essai 15 €, One-Shot 20 €) viennent d'ici :
+      // la feuille reste montée, rien ne navigue, rien ne se démonte avant la présentation.
+      // Il reçoit seulement le contexte de journalisation et les deux défenses internes
+      // (désarmement du verrou, réessai unique) — aucune inversion n'est nécessaire.
+      void openCheckout(result.checkoutUrl, {
+        screen: 'payment_required_sheet',
+        paymentId: result.paymentId,
+        planId: dropInPlan.id,
+      }).then((outcome) => {
         if (outcome.presented) return
         // Le navigateur ne s'est pas affiché : inutile de faire patienter le membre soixante
         // secondes devant un poll de crédits qui ne verra jamais rien.
