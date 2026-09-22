@@ -1,7 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { homePathForRole } from '@/lib/homePath'
+import { homePathForRole, MEMBER_PATH } from '@/lib/homePath'
 import { useSessionKeepAlive } from '@/hooks/useSessionKeepAlive'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ACTIVATION_PATH, shouldInterceptInvite } from '@/lib/inviteLink'
@@ -36,6 +36,8 @@ const Terms = lazy(() => import('@/pages/legal/Terms'))
 // les CGV de la SALLE, qui ne lient pas le gérant.
 const Cgu = lazy(() => import('@/pages/legal/Cgu'))
 const Support = lazy(() => import('@/pages/Support'))
+// 22/09 — la SORTIE d'un membre arrivé sur le dashboard (cf. lib/homePath.ts).
+const MemberSpace = lazy(() => import('@/pages/MemberSpace'))
 
 function Loading() {
   return (
@@ -129,6 +131,10 @@ function AppRoutes() {
         <Route path="/legal/terms" element={<Terms />} />
         <Route path="/legal/cgu" element={<Cgu />} />
         <Route path="/support" element={<Support />} />
+        {/* 🔴 22/09 — L'ÉCRAN D'UN MEMBRE. Hors ProtectedRoute à dessein : cette page n'est
+            pas un écran du dashboard, c'est sa sortie. Elle exige une session et s'oriente
+            elle-même (gérant → /dashboard, sans session → /login). */}
+        <Route path={MEMBER_PATH} element={<MemberSpace />} />
         {/* GYM-248 — REPRISE D'UN PARCOURS INTERROMPU.
             Un gérant qui a confirmé son email puis fermé l'onglet avant de créer sa salle a
             un profil SANS gym_id : ProtectedRoute l'envoie vers /pending, un écran qui lui

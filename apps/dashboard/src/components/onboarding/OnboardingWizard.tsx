@@ -38,6 +38,8 @@ import { useOnboarding } from '@/hooks/useOnboarding'
 import { ONBOARDING_LAST_STEP, hasSeenWelcome, markWelcomeSeen } from '@/lib/onboarding'
 import type { SaveOutcome } from '@/lib/onboarding'
 import { useEffectivePlan } from '@/hooks/useEffectivePlan'
+// 22/09 — l'encart qui dit l'essai SANS mentir sur le plan souscrit.
+import { TrialPlanNotice } from '@/components/subscription/TrialPlanNotice'
 
 const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus] as const
 
@@ -47,7 +49,7 @@ export function OnboardingWizard() {
   const gym = useGymStore((s) => s.gym)
   const addToast = useToastStore((s) => s.addToast)
   const { step, completed, isOpen, satisfied, dismiss, advance, complete } = useOnboarding()
-  const { plan, limits } = useEffectivePlan()
+  const { plan, effectivePlan, trialActive, limits } = useEffectivePlan()
 
   const [celebrating, setCelebrating] = useState(false)
   // Écran de bienvenue : lu une seule fois à l'initialisation (pas d'effet, donc pas de
@@ -194,12 +196,19 @@ export function OnboardingWizard() {
             <h2 className="font-display text-xl font-black tracking-tight text-dark">
               {t('onboarding.welcome.title')}
             </h2>
+            {/* 🔴 22/09 — LE SOUS-TITRE NE NOMME PLUS LE PLAN PENDANT UN ESSAI.
+                Il disait « Tu es sur le plan Free — voici ce qu'il comprend », juste
+                au-dessus des limites du plan PRO servies par l'essai. Les deux étaient
+                exacts séparément, et faux ensemble. Pendant un essai, c'est
+                `TrialPlanNotice` qui parle — lui sait dire les deux plans. */}
             <p className="mt-1 font-body text-sm leading-relaxed text-dark/50">
-              {t('onboarding.welcome.subtitle', {
-                plan: t(`onboarding.welcome.plan_names.${plan ?? 'free'}`, {
-                  defaultValue: plan ?? 'free',
-                }),
-              })}
+              {trialActive && plan !== effectivePlan
+                ? t('onboarding.welcome.subtitle_neutral')
+                : t('onboarding.welcome.subtitle', {
+                    plan: t(`onboarding.welcome.plan_names.${plan ?? 'free'}`, {
+                      defaultValue: plan ?? 'free',
+                    }),
+                  })}
             </p>
           </div>
         </div>
@@ -209,7 +218,14 @@ export function OnboardingWizard() {
             · `limits.max_*` null = la limite est ILLIMITÉE (convention de la grille GYM-245).
             Rendre le premier comme le second annoncerait « illimité » alors qu'on ne sait
             rien — exactement l'erreur que _shared/effective-plan.ts met en garde de faire. */}
-        {limits ? (
+        {/* PENDANT UN ESSAI : l'encart qui dit l'offre, puis la retombée datée. La liste
+            brute des limites ne suffit pas — elle ne dit pas à quel plan elles
+            appartiennent, et c'est très exactement le défaut du 22/09. */}
+        {trialActive && plan !== effectivePlan ? (
+          <div className="mt-5">
+            <TrialPlanNotice variant="welcome" />
+          </div>
+        ) : limits ? (
           <ul className="mt-5 flex flex-col gap-2">
             <LimitRow label={t('onboarding.welcome.limit_members')} value={limits.max_members} />
             <LimitRow label={t('onboarding.welcome.limit_slots')} value={limits.max_slots_per_month} />

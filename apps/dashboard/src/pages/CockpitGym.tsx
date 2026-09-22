@@ -123,8 +123,19 @@ export default function CockpitGym() {
 
       {/* ── L'état, repris du lot 1 ─────────────────────────────────────────────── */}
       <div className="mt-6 grid gap-3 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 🔴 22/09 — l'écart dû à un ESSAI se lit comme un essai, pas comme une anomalie.
+            Même règle qu'en liste (Cockpit.tsx) : l'alerte reste pour l'inexpliqué. */}
         <Champ libelle={t('cockpit.col.plan')} valeur={salle.plan_effectif}
-               note={salle.plan_colonne !== salle.plan_effectif ? `colonne : ${salle.plan_colonne}` : undefined} />
+               note={
+                 salle.plan_colonne === salle.plan_effectif ? undefined
+                 : salle.essai_actif && salle.essai_fin
+                   ? t('cockpit.plan_trial', {
+                       effective: salle.plan_effectif,
+                       subscribed: salle.plan_colonne,
+                       date: showDate(salle.essai_fin),
+                     })
+                   : `colonne : ${salle.plan_colonne}`
+               } />
         <Champ libelle={t('cockpit.col.status')} valeur={salle.statut} />
         <Champ libelle={t('cockpit.col.trial_end')}
                valeur={salle.essai_fin ? showDate(salle.essai_fin) : '—'}
