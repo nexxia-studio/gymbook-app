@@ -1,10 +1,11 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import { Smartphone, LogOut, ArrowUpRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useGymStore } from '@/stores/useGymStore'
-import { memberAppUrl, hasOwnApp } from '@/lib/memberApp'
+import { appDeLaSalle, plateforme } from '@/lib/memberApp'
 import vinizWordmark from '@/assets/brand/viniz-wordmark.svg'
 
 /**
@@ -54,8 +55,24 @@ export default function MemberSpace() {
     return <Navigate to="/dashboard" replace />
   }
 
-  const url = memberAppUrl(gym?.slug)
-  const ownApp = hasOwnApp(gym?.slug)
+  const app = appDeLaSalle(gym?.slug)
+  // La plateforme est lue UNE fois : elle ne change pas pendant une visite.
+  const os = useMemo(() => plateforme(), [])
+
+  /**
+   * ⚠️ DEUX NIVEAUX, ET L'ORDRE EST LE POINT.
+   *   ① le lien UNIVERSEL d'abord : si l'app est installée, le système l'ouvre sans passer
+   *      par le navigateur — c'est la seule issue qui marche pour un membre déjà équipé,
+   *      et c'est la plupart d'entre eux ;
+   *   ② les magasins ensuite, et SEULEMENT ceux qui existent vraiment. La fiche Play Store
+   *      de Dopamine rend un 404 aujourd'hui (mesuré le 22/09) : `android` vaut `null` et
+   *      aucun bouton ne s'affiche. Un bouton vers une page d'erreur serait pire que pas
+   *      de bouton.
+   */
+  const magasins = (os === 'ios' ? [['ios', app.ios]]
+    : os === 'android' ? [['android', app.android]]
+    : [['ios', app.ios], ['android', app.android]]) as Array<['ios' | 'android', string | null]>
+  const magasinsUtiles = magasins.filter(([, url]) => Boolean(url))
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
@@ -81,14 +98,34 @@ export default function MemberSpace() {
         </p>
 
         <a
-          href={url}
+          href={app.universal}
           target="_blank"
           rel="noreferrer"
           className="mt-8 inline-flex items-center gap-2 rounded-xl bg-dark px-6 py-3 font-ui text-sm font-bold text-light transition-opacity hover:opacity-90"
         >
-          {ownApp ? t('member_space.cta_app') : t('member_space.cta_viniz')}
+          {app.own ? t('member_space.cta_app') : t('member_space.cta_viniz')}
           <ArrowUpRight className="h-4 w-4" />
         </a>
+
+        {/* ② Le second niveau n'apparaît que s'il mène quelque part. */}
+        {app.own && magasinsUtiles.length > 0 && (
+          <div className="mt-5">
+            <p className="font-body text-xs text-secondary">{t('member_space.not_installed')}</p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+              {magasinsUtiles.map(([cle, url]) => (
+                <a
+                  key={cle}
+                  href={url as string}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-body text-sm font-semibold text-accent-dim underline underline-offset-4 hover:opacity-80"
+                >
+                  {t(`member_space.store_${cle}`)}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-8">
           <Button variant="ghost" onClick={() => { void signOut() }}>

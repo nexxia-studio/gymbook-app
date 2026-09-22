@@ -19,7 +19,7 @@
 //    Constaté au premier parcours gérant réel. NE PAS réintroduire d'avancement ici.
 //  · Seule l'étape 1 écrit directement — logo_url / primary_color / secondary_color sont
 //    dans la liste blanche GYM-180, vérifié.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -27,7 +27,6 @@ import {
   PartyPopper, Sparkles, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 // GYM-285 — le champ couleur et la palette suggérée sont désormais PARTAGÉS avec la page
 // Réglages → Apparence : une seule façon de dire « pas encore choisi ».
 import { ColorField, VINIZ_PRIMARY, VINIZ_SECONDARY } from '@/components/ui/ColorField'
@@ -38,6 +37,17 @@ import { useOnboarding } from '@/hooks/useOnboarding'
 import { ONBOARDING_LAST_STEP, hasSeenWelcome, markWelcomeSeen } from '@/lib/onboarding'
 import type { SaveOutcome } from '@/lib/onboarding'
 import { useEffectivePlan } from '@/hooks/useEffectivePlan'
+import { MediaUpload } from '@/components/ui/MediaUpload'
+// 🔴 LES ÉTAPES 2 ET 3 NE FONT PLUS SORTIR DU DASHBOARD : leur modale s'ouvre ici même.
+// Ce sont EXACTEMENT les composants de Réglages, avec les mêmes gestionnaires de création —
+// aucune seconde version d'un formulaire qui existe déjà.
+import { ActivityModal } from '@/components/settings/ActivityModal'
+import { CoachModal } from '@/components/settings/CoachModal'
+import { useActivities } from '@/hooks/useActivities'
+import { useCoaches } from '@/hooks/useCoaches'
+import { useGymSites } from '@/hooks/useGymSites'
+import { proposerPaletteDepuisLogo } from '@/lib/logoColorsFromImage'
+import type { PaletteProposee } from '@/lib/logoColors'
 // 22/09 — l'encart qui dit l'essai SANS mentir sur le plan souscrit.
 import { TrialPlanNotice } from '@/components/subscription/TrialPlanNotice'
 
@@ -48,10 +58,25 @@ export function OnboardingWizard() {
   const navigate = useNavigate()
   const gym = useGymStore((s) => s.gym)
   const addToast = useToastStore((s) => s.addToast)
-  const { step, completed, isOpen, satisfied, dismiss, advance, complete } = useOnboarding()
+  const { step, completed, isOpen, satisfied, refresh, dismiss, advance, complete } = useOnboarding()
   const { plan, effectivePlan, trialActive, limits } = useEffectivePlan()
 
   const [celebrating, setCelebrating] = useState(false)
+  /**
+   * Quelle modale de création est ouverte au-dessus du dashboard (2 = activité,
+   * 3 = coach), ou `null`. ⚠️ ELLE N'AVANCE PAS L'ÉTAPE : à la fermeture on rejoue la
+   * DÉTECTION, et c'est l'existence de l'objet qui fait franchir l'étape.
+   */
+  const [modale, setModale] = useState<2 | 3 | null>(null)
+
+  const { activities, createActivity, slugify } = useActivities()
+  const { createCoach } = useCoaches()
+  const { siteNames } = useGymSites()
+  // Même dérivation qu'en Réglages : seules les activités ACTIVES sont proposées à un coach.
+  const activitesPourCoach = useMemo(
+    () => activities.filter((a) => a.active).map((a) => ({ name: a.name, color: a.color })),
+    [activities],
+  )
   // Écran de bienvenue : lu une seule fois à l'initialisation (pas d'effet, donc pas de
   // rendu en cascade). `gym?.id` peut être null au premier rendu — on retombe alors sur
   // « déjà vu » et le calcul est refait dès que la salle arrive, via la clé du composant.
@@ -77,6 +102,14 @@ export function OnboardingWizard() {
   const [secondary, setSecondary] = useState<string | null>(null)
   const [brandLoaded, setBrandLoaded] = useState(false)
   const [savingBrand, setSavingBrand] = useState(false)
+  /**
+   * La palette TIRÉE DU LOGO, en attente d'un geste. `null` = rien à proposer — logo
+   * monochrome, image illisible, ou aucun couple ne passant le garde-fou de contraste.
+   * ⚠️ ELLE N'EST JAMAIS APPLIQUÉE TOUTE SEULE : c'est la décision GYM-102, et tout ce
+   * module la répète. Le gérant clique, ou rien ne change.
+   */
+  const [proposee, setProposee] = useState<PaletteProposee | null>(null)
+  const [analyse, setAnalyse] = useState(false)
 
   useEffect(() => {
     if (!gym?.id || brandLoaded || step !== 1) return
@@ -127,15 +160,41 @@ export function OnboardingWizard() {
     navigate(path)
   }
 
+  /**
+   * Le logo est persisté TOUT DE SUITE — contrat de `MediaUpload` : le fichier est déjà en
+   * ligne à un chemin déterministe, et laisser la base sur l'ancienne URL servirait déjà la
+   * NOUVELLE image sous un `?v=` périmé.
+   *
+   * Puis on analyse l'image. ⚠️ L'ANALYSE NE TOUCHE À AUCUNE COULEUR : elle remplit
+   * `proposee`, et c'est le clic du gérant qui fait passer la proposition dans les champs.
+   */
+  async function handleLogoChange(url: string | null) {
+    if (!gym?.id) return
+    setLogoUrl(url ?? '')
+    setProposee(null)
+    const { error } = await supabase.from('nexxia_gyms').update({ logo_url: url }).eq('id', gym.id)
+    if (error) { addToast(t('onboarding.save_error'), 'warning'); return }
+    if (!url) return
+    setAnalyse(true)
+    const palette = await proposerPaletteDepuisLogo(url)
+    setAnalyse(false)
+    // `null` = rien de proposable (logo monochrome, image illisible, ou aucun couple ne
+    // passant le garde-fou). On ne montre alors rien : proposer « à peu près » ferait
+    // accepter au gérant des couleurs que son app ignorerait.
+    setProposee(palette)
+  }
+
   async function handleSaveBrand() {
     if (!gym?.id) return
     setSavingBrand(true)
     // logo_url / primary_color / secondary_color : liste blanche GYM-180, écriture RLS
     // directe comme GymSettingsCard. Pas d'upload de fichier — cf. la note de PR.
+    // ⚠️ `logo_url` N'EST PLUS DANS CETTE ÉCRITURE. Il se persiste à l'envoi du fichier
+    // (voir `handleLogoChange`), comme dans Réglages → Apparence : le réécrire ici
+    // reposerait la valeur lue au chargement et ANNULERAIT un logo posé entre-temps.
     const { error } = await supabase
       .from('nexxia_gyms')
       .update({
-        logo_url: logoUrl.trim() || null,
         // `null` traverse jusqu'en base : c'est la valeur qui dit « pas encore choisi ».
         primary_color: primary,
         secondary_color: secondary,
@@ -318,15 +377,54 @@ export function OnboardingWizard() {
               {t('onboarding.step1.vat_helper')}
             </p>
           </div>
-          <Input
+          {/* ═══════════════════════════════════════════════════════════════════════════
+              🔴 L'URL EST REMPLACÉE PAR UN TÉLÉVERSEMENT.
+              ═══════════════════════════════════════════════════════════════════════════
+              « Colle l'URL d'une image déjà en ligne » demandait au gérant d'héberger son
+              logo quelque part AVANT de pouvoir le poser — c'est-à-dire de résoudre un
+              problème d'informaticien à la première étape de sa configuration.
+
+              ⚠️ `MediaUpload` (GYM-305/215) FAIT DÉJÀ TOUT : clic, glisser-déposer,
+              contraintes du bucket dites avant l'envoi, chemin déterministe
+              `{gym_id}/logo.{ext}`, nettoyage des frères d'extension, `?v=` anti-cache.
+              C'est le MÊME composant que Réglages → Apparence — le wizard était le seul
+              écran à ne pas l'utiliser. */}
+          <MediaUpload
             label={t('onboarding.step1.logo_label')}
-            name="logoUrl"
-            type="url"
-            placeholder="https://…"
             value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            helper={t('onboarding.step1.logo_helper')}
+            path={`${gym?.id}/logo`}
+            recommendation={t('onboarding.step1.logo_reco')}
+            disabled={!gym?.id}
+            onChange={handleLogoChange}
           />
+
+          {/* ── LA PALETTE TIRÉE DU LOGO — PROPOSÉE, JAMAIS POSÉE ────────────────────
+              ⚠️ Aucune couleur ne part en base sans ce clic. `null` reste `null` tant que
+              le gérant n'a rien décidé (GYM-102, à ne jamais défaire). */}
+          {analyse && (
+            <p className="font-body text-xs text-muted">{t('onboarding.step1.colors_scanning')}</p>
+          )}
+          {proposee && (
+            <div className="rounded-xl border border-[#E8E6E0] bg-[#F5F4F0] px-4 py-3">
+              <p className="font-body text-sm font-semibold text-dark">
+                {t('onboarding.step1.colors_found')}
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <span className="h-8 w-8 rounded-lg border border-black/10" style={{ backgroundColor: proposee.primary }} />
+                <span className="h-8 w-8 rounded-lg border border-black/10" style={{ backgroundColor: proposee.secondary }} />
+                <button
+                  type="button"
+                  onClick={() => { setPrimary(proposee.primary); setSecondary(proposee.secondary) }}
+                  className="ml-auto rounded-xl bg-dark px-4 py-2 font-ui text-xs font-bold text-light transition-opacity hover:opacity-90"
+                >
+                  {t('onboarding.step1.colors_use')}
+                </button>
+              </div>
+              <p className="mt-2 font-body text-xs text-dark/50">
+                {t('onboarding.step1.colors_hint')}
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <ColorField
               label={t('onboarding.step1.primary_label')}
@@ -363,12 +461,53 @@ export function OnboardingWizard() {
               </p>
             </div>
           )}
-          <Button onClick={() => handleGo(STEP_TARGETS[step])} className="w-full">
+          {/* ═══════════════════════════════════════════════════════════════════════════
+              ② LES ÉTAPES 2 ET 3 NE QUITTENT PLUS LE FIL.
+              ═══════════════════════════════════════════════════════════════════════════
+              Une activité et un coach sont des FORMULAIRES : les envoyer chercher dans
+              Réglages coûtait un aller, un retour, et l'occasion d'abandonner entre les
+              deux. Leur modale s'ouvre ici, au-dessus du dashboard.
+
+              Les étapes 4 à 6 — planning, politique d'absences, membres — restent des
+              navigations : ce sont de vrais écrans, et les enfermer dans une modale serait
+              pire que le voyage. Elles ont le bandeau de retour à la place. */}
+          <Button
+            onClick={() => (step === 2 || step === 3 ? setModale(step) : handleGo(STEP_TARGETS[step]))}
+            className="w-full"
+          >
             {t(`onboarding.step${step}.cta`)}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       )}
+
+      {/* ── Les deux modales de création, montées ICI ─────────────────────────────
+          ⚠️ APRÈS LA CRÉATION, ON REJOUE LA DÉTECTION — jamais `advance()`. Tant que les
+          étapes 2 et 3 faisaient quitter le dashboard, le wizard se démontait et la
+          détection repartait toute seule au retour ; elle ne repart plus, puisqu'on ne
+          part plus. `refresh()` remplace ce que la navigation faisait gratuitement. */}
+      <ActivityModal
+        open={modale === 2}
+        onClose={() => setModale(null)}
+        onSubmit={async (data) => {
+          const res = await createActivity(data)
+          if (res?.error) { addToast(t('onboarding.save_error'), 'warning'); return }
+          setModale(null)
+          await refresh()
+        }}
+        slugify={slugify}
+      />
+      <CoachModal
+        open={modale === 3}
+        onClose={() => setModale(null)}
+        onSubmit={async (data) => {
+          await createCoach(data)
+          setModale(null)
+          await refresh()
+        }}
+        availableActivities={activitesPourCoach}
+        availableSites={siteNames}
+      />
 
       {/* ── Sorties : toujours les deux, à chaque étape. ── */}
       <div className="mt-5 flex items-center justify-between border-t border-[#E8E6E0] pt-4">
@@ -398,8 +537,8 @@ export function OnboardingWizard() {
  * La politique d'absences vit dans l'onglet 'gym' (table noshow_rules, GYM-175).
  */
 const STEP_TARGETS: Record<number, string> = {
-  2: '/settings?tab=activities',
-  3: '/settings?tab=coaches',
+  // ⚠️ 2 ET 3 N'Y SONT PLUS : leur modale s'ouvre sur le dashboard (cf. le CTA). Les
+  // laisser ici aurait laissé deux chemins vers la même création, dont un mort.
   4: '/planning',
   5: '/settings?tab=gym',
   6: '/members',

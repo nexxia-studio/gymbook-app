@@ -123,19 +123,11 @@ export default function CockpitGym() {
 
       {/* ── L'état, repris du lot 1 ─────────────────────────────────────────────── */}
       <div className="mt-6 grid gap-3 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2 lg:grid-cols-4">
-        {/* 🔴 22/09 — l'écart dû à un ESSAI se lit comme un essai, pas comme une anomalie.
-            Même règle qu'en liste (Cockpit.tsx) : l'alerte reste pour l'inexpliqué. */}
-        <Champ libelle={t('cockpit.col.plan')} valeur={salle.plan_effectif}
-               note={
-                 salle.plan_colonne === salle.plan_effectif ? undefined
-                 : salle.essai_actif && salle.essai_fin
-                   ? t('cockpit.plan_trial', {
-                       effective: salle.plan_effectif,
-                       subscribed: salle.plan_colonne,
-                       date: showDate(salle.essai_fin),
-                     })
-                   : `colonne : ${salle.plan_colonne}`
-               } />
+        {/* 🔴 MÊME RÈGLE QU'EN LISTE (décision du 22/09) : le plan SERVI, et en dessous le
+            plan SOUSCRIT quand il diffère. Rien de plus — la date est dans « Fin d'essai »
+            juste à côté, le statut dans « Statut ». */}
+        <Champ libelle={t('cockpit.col.plan')} valeur={salle.plan_effectif} bleu
+               note={salle.plan_colonne === salle.plan_effectif ? undefined : salle.plan_colonne} />
         <Champ libelle={t('cockpit.col.status')} valeur={salle.statut} />
         <Champ libelle={t('cockpit.col.trial_end')}
                valeur={salle.essai_fin ? showDate(salle.essai_fin) : '—'}
@@ -287,11 +279,15 @@ export default function CockpitGym() {
   )
 }
 
-function Champ({ libelle, valeur, note }: { libelle: string; valeur: string; note?: string }) {
+function Champ({ libelle, valeur, note, bleu = false }: {
+  libelle: string; valeur: string; note?: string
+  /** Le plan SERVI se lit en bleu, comme en liste (décision du 22/09). */
+  bleu?: boolean
+}) {
   return (
     <div>
       <div className="font-body text-xs uppercase tracking-wide text-muted">{libelle}</div>
-      <div className="font-body-bold text-sm">{valeur}</div>
+      <div className={`font-body-bold text-sm ${bleu ? 'text-[#4827B4] dark:text-[#C8FF3D]' : ''}`}>{valeur}</div>
       {note && <div className="font-body text-xs text-amber-600 dark:text-amber-400">{note}</div>}
     </div>
   )
