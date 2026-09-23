@@ -47,6 +47,12 @@ verify_jwt = false
 [functions.send-trial-reminders]
 verify_jwt = false
 
+# GYM-359 — alerte Slack des ventes qui échouent, appelée par pg_cron (net.http_post avec
+# X-Internal-Secret, sans JWT) → JWT désactivé, comme les autres crons. L'authentification
+# réelle est la comparaison X-Internal-Secret faite en tête de la fonction.
+[functions.send-payment-alerts]
+verify_jwt = false
+
 # GYM-334 — pré-notification SEPA, appelée par pg_cron (net.http_post avec
 # X-Internal-Secret, sans JWT) → JWT désactivé, comme les autres crons. L'authentification
 # réelle est la comparaison X-Internal-Secret faite en tête de la fonction.
