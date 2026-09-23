@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, Platform } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, CreditCard, Calendar, Star } from 'lucide-react-native'
+import * as Sentry from '@sentry/react-native'
 import { supabase } from '../../lib/supabase'
 import { tryEdgeInvoke } from '../../lib/edgeInvoke'
 import { captureEvent } from '../../lib/analytics'
@@ -169,7 +170,24 @@ export default function SubscriptionScreen() {
   // GYM-336 — la formule choisie, en attente de la demande d'exécution anticipée. `null`
   // = aucune feuille ouverte. Elle porte le plan ENTIER et non son id : la feuille affiche
   // le nom et le prix de ce que le membre est en train d'accepter.
+  /**
+   * La formule affichée dans la feuille de consentement.
+   *
+   * ⚠️ 23/09 — ELLE N'EST PLUS REMISE À `null` POUR FERMER LA FEUILLE. La feuille reste
+   * MONTÉE et c'est `sheetVisible` qui la ferme : un démontage conditionnel supprime la
+   * `Modal` sans que UIKit joue le dismiss, et emporte avec elle tout contrôleur qu'elle
+   * présente. `pendingPlan` n'est libérée qu'une fois la fermeture CONSTATÉE.
+   */
   const [pendingPlan, setPendingPlan] = useState<GymPlan | null>(null)
+  /** Pilote la `Modal`. `false` déclenche un vrai dismiss, donc `onDismissed`. */
+  const [sheetVisible, setSheetVisible] = useState(false)
+  /**
+   * 🔴 LA FORMULE DONT L'ACHAT ATTEND LA FERMETURE DE LA FEUILLE.
+   *
+   * C'est tout le correctif du 23/09 : on ne présente Safari qu'une fois la feuille
+   * RÉELLEMENT partie de l'écran. `null` = rien en attente.
+   */
+  const [checkoutApresFermeture, setCheckoutApresFermeture] = useState<GymPlan | null>(null)
 
   const loadSubscription = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -299,11 +317,63 @@ export default function SubscriptionScreen() {
       return
     }
     setPendingPlan(plan)
+    setSheetVisible(true)
   }, [payingId, gymId, t])
 
   // GYM-336 — appelé UNIQUEMENT par la feuille, donc uniquement case cochée : le CTA y est
   // verrouillé tant qu'elle ne l'est pas. `earlyPerformanceConsent: true` n'est pas une
   // valeur de commodité — c'est la transcription de ce que le membre vient de faire.
+  /**
+   * `runCheckout` est défini plus bas (il dépend de tout le reste) et `apresFermeture` doit
+   * pouvoir l'appeler. Un ref plutôt qu'un réordonnancement : déplacer `runCheckout`
+   * au-dessus l'obligerait à déclarer ses propres dépendances en avance, et c'est
+   * exactement le genre de remaniement qu'on ne fait pas dans un correctif urgent.
+   */
+  const runCheckoutRef = useRef<((plan: GymPlan) => Promise<void>) | null>(null)
+
+  /**
+   * 🔴 LE DÉPART EST DONNÉ PAR UIKIT, PAS PAR UN MINUTEUR.
+   *
+   * Appelé par `Modal.onDismiss` : la feuille a FINI de partir de l'écran. C'est le seul
+   * instant où présenter Safari ne risque pas de le voir emporté par un démontage.
+   *
+   * ⚠️ `pendingPlan` n'est libérée qu'ICI, une fois la fermeture constatée — la libérer
+   * plus tôt démonterait la `Modal` au lieu de la fermer, et rien ne se déclencherait.
+   */
+  const apresFermeture = useCallback(() => {
+    if (filetRef.current) { clearTimeout(filetRef.current); filetRef.current = null }
+    const plan = checkoutApresFermeture
+    setPendingPlan(null)
+    setCheckoutApresFermeture(null)
+    if (plan) void runCheckoutRef.current?.(plan)
+  }, [checkoutApresFermeture])
+
+  /**
+   * FILET — et ce n'est PAS le mécanisme, c'est son assurance.
+   *
+   * Le départ reste donné par `onDismiss`. Mais si ce signal ne venait jamais (version de
+   * React Native, cas non prévu), le membre resterait devant un écran qui ne fait rien —
+   * c'est-à-dire le défaut qu'on corrige, sous une autre forme. Au bout de deux secondes,
+   * on enchaîne quand même ET on le DIT à Sentry : si ce filet se déclenche un jour, on le
+   * saura, au lieu de croire que `onDismiss` fonctionne.
+   */
+  const filetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const armerLeFilet = useCallback(() => {
+    if (filetRef.current) clearTimeout(filetRef.current)
+    filetRef.current = setTimeout(() => {
+      filetRef.current = null
+      Sentry.captureMessage('PurchaseConsentSheet: onDismiss jamais reçu — filet de 2 s déclenché', {
+        level: 'error',
+        tags: { checkout_screen: 'profile_subscription', platform: Platform.OS },
+      })
+      apresFermeture()
+    }, 2000)
+  }, [apresFermeture])
+
+  // Le filet ne survit pas à l'écran : un minuteur qui tire après le démontage appellerait
+  // des setState sur un composant disparu.
+  useEffect(() => () => { if (filetRef.current) clearTimeout(filetRef.current) }, [])
+
   const runCheckout = useCallback(async (plan: GymPlan) => {
     if (!gymId) return
     setPayingId(plan.id)
@@ -315,60 +385,34 @@ export default function SubscriptionScreen() {
           : ({ ok: false, code: 'UNAUTHORIZED' } as const)
 
       if (result.ok) {
-        // GYM-96 — NAVIGATION PROPRIÉTAIRE (one-time) : on monte l'écran de vérification
-        // AVANT d'ouvrir le navigateur, pour que son poll + son filet AppState soient armés
-        // quel que soit le mode de retour (deep link, fermeture manuelle du navigateur, retour
-        // app). Le deep link n'est plus qu'un raccourci. On passe le payment_id Mollie (connu
-        // ici) ; l'écran poll `payments` par mollie_payment_id à défaut du row id du deep link.
-        // Récurrent : pas de ligne `payments` à poller → on garde le comportement existant.
-        // ⚠️ LA FEUILLE SE FERME AVANT LA NAVIGATION ET AVANT LE NAVIGATEUR. La laisser
-        // ouverte superposerait une modale à l'écran de vérification, et le membre
-        // reviendrait du checkout Mollie sur une case à cocher déjà honorée.
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 🔴 22/09 — L'ORDRE EST INVERSÉ, ET C'EST LE CŒUR DU CORRECTIF
+        // 🔴 23/09 — RIEN NE BOUGE TANT QUE LE NAVIGATEUR EST À L'ÉCRAN
         // ═══════════════════════════════════════════════════════════════════════════════
-        // CE QUI ÉTAIT ÉCRIT ICI, dans CET ordre et dans LE MÊME TIC :
-        //     setPendingPlan(null)        → démonte la modale de consentement
-        //     router.push('/payment/success')  → navigue
-        //     openCheckout(url)           → présente le navigateur
+        // CE QU'ON A ESSAYÉ EN 1.2.2, ET POURQUOI ÇA A ÉCHOUÉ. La version précédente
+        // démontait la feuille et poussait l'écran de vérification depuis `onPresented`,
+        // c'est-à-dire 400 ms APRÈS la présentation. Mesuré en TestFlight (build 27) :
+        // paiement créé, « Vérification… » affiché — donc le rappel est bien parti, donc
+        // Safari ÉTAIT présenté — et la page Mollie jamais vue.
         //
-        // Les trois au même instant. Or `WebBrowserSession.open()` fait
-        // `currentViewController?.present(...)` — et ce `?` avale SILENCIEUSEMENT le cas où
-        // il n'y a pas de contrôleur présentable, ce qui est exactement l'état d'une
-        // hiérarchie en train de démonter une modale et de pousser un écran.
+        // La feuille de consentement est la vue QUI PRÉSENTE Safari. UIKit dismisse un
+        // contrôleur présenté AVEC son présentateur : la cascade n'avait pas été
+        // supprimée, seulement décalée de 400 ms.
         //
-        // 🔴 ET LES DONNÉES DE PRODUCTION DÉSIGNENT CET ÉCRAN. Les 9 échecs des 21–22/09
-        // viennent tous d'ici (packs de 10 crédits, abonnement 12 mois) ; les 2 achats qui
-        // ont RÉUSSI viennent de `PaymentRequiredSheet`, qui ne démonte rien et ne navigue
-        // pas avant de présenter.
-        //
-        // ⚠️ L'INTENTION DE GYM-96 EST CONSERVÉE, PAS ABANDONNÉE. L'écran de vérification
-        // doit être monté pour que son poll et son filet AppState soient armés quel que
-        // soit le mode de retour — il l'est désormais DANS `onPresented`, c'est-à-dire dès
-        // que la page Mollie est à l'écran, et non plus avant qu'elle n'essaie de s'y
-        // mettre. Le poll démarre donc toujours, simplement un tic plus tard.
-        let monte = false
-        const outcome = await openCheckout(
-          result.checkoutUrl,
-          { screen: 'profile_subscription', paymentId: result.paymentId, planId: plan.id },
-          () => {
-            monte = true
-            setPendingPlan(null)
-            if (plan.billingType === 'one_time' && result.paymentId) {
-              router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
-            }
-          },
-        )
+        // ⚠️ ON N'APPELLE DONC PLUS RIEN PENDANT LA PRÉSENTATION. La feuille est déjà
+        // fermée (c'est `onDismissed` qui a appelé cette fonction), et la navigation
+        // n'a lieu qu'au RETOUR de la promesse — sur iOS, à la fermeture du navigateur.
+        // C'est le seul instant où naviguer ne peut rien casser : il n'y a plus rien à
+        // l'écran à casser.
+        const outcome = await openCheckout(result.checkoutUrl, {
+          screen: 'profile_subscription',
+          paymentId: result.paymentId,
+          planId: plan.id,
+        })
 
         if (!outcome.presented) {
-          // 🔴 LE MEMBRE DOIT L'APPRENDRE, ET POUVOIR RÉESSAYER. Il restait jusqu'ici devant
-          // un écran de vérification qui tournait cinq minutes pour rien. `openCheckout` a
-          // déjà réessayé une fois : arrivé ici, ce n'est plus un accident ponctuel.
-          setPendingPlan(null)
           // ⚠️ « RÉESSAYER » RELANCE LE MÊME ACHAT. Redemander au membre quelle formule il
           // voulait, après un échec qui n'est pas de son fait, serait le punir deux fois.
           // ⚠️ ET LE MESSAGE NE DIT PAS « erreur » : rien n'a été débité, rien n'est perdu.
-          // Il dit ce qui s'est passé — la page ne s'est pas ouverte — et ce qu'on propose.
           Alert.alert(
             t('payments.checkout_not_opened_title'),
             t('payments.checkout_not_opened_message'),
@@ -377,31 +421,35 @@ export default function SubscriptionScreen() {
               { text: t('payments.retry'), onPress: () => { void runCheckout(plan) } },
             ],
           )
-        } else if (!monte) {
-          // Ceinture : la page s'est présentée mais le rappel n'est pas parti (cas
-          // théorique — Android résout aussitôt). On monte l'écran de vérification quand
-          // même, pour ne pas perdre le poll.
-          setPendingPlan(null)
-          if (plan.billingType === 'one_time' && result.paymentId) {
-            router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
-          }
+          return
+        }
+
+        // 🔴 L'INTENTION DE GYM-96 EST TENUE AUTREMENT, ET ELLE EST TENUE. L'écran de
+        // vérification devait être monté pour que son poll et son filet AppState soient
+        // armés quel que soit le mode de retour. Il l'est ici — au retour de la promesse,
+        // QUEL QUE SOIT LE TYPE ('cancel' comme 'dismiss'). Un membre qui referme sans
+        // payer atterrit donc sur le même écran qu'un membre qui a payé : c'est voulu,
+        // puisque c'est précisément le cas où l'on ne sait pas encore lequel des deux
+        // c'était. Le poll tranche.
+        if (plan.billingType === 'one_time' && result.paymentId) {
+          router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }
         return
       }
-      // Échec : la feuille se ferme aussi — le message d'erreur porte sur l'achat, pas sur
-      // le consentement, et le membre doit pouvoir relire les formules derrière l'alerte.
-      setPendingPlan(null)
       const info = mapPaymentError(result.code)
       if (info.refetch) refetch()
       Alert.alert(t('payments.error_title'), t(info.messageKey))
     } catch (err) {
       console.error('[Payment] threw:', err)
-      setPendingPlan(null)
       Alert.alert(t('payments.error_title'), t('payments.errors.FALLBACK'))
     } finally {
       setPayingId(null)
     }
   }, [gymId, userId, refetch, t, router])
+
+  // Le ref suit la dernière version de la fonction — sans quoi `apresFermeture` appellerait
+  // une fermeture (closure) figée sur un `gymId` ou un `userId` périmés.
+  runCheckoutRef.current = runCheckout
 
   // GYM-94 — règles d'achat :
   //  - one_time (cumul LIBRE) : toujours achetable, SAUF abonnement actif (accès illimité).
@@ -653,9 +701,16 @@ export default function SubscriptionScreen() {
       {/* GYM-336 — la feuille de consentement. Montée hors du ScrollView (c'est une modale)
           et rendue conditionnellement : `pendingPlan` non nul est la seule façon de
           l'ouvrir, et `runCheckout` la seule chose qu'elle puisse déclencher. */}
+      {/* 🔴 23/09 — LA FEUILLE RESTE MONTÉE PENDANT SA FERMETURE.
+          Elle était rendue conditionnellement (`{pendingPlan && …}`) : mettre `pendingPlan`
+          à `null` SUPPRIMAIT la `Modal` au lieu de la fermer. UIKit ne jouait donc aucun
+          dismiss, `onDismiss` ne partait jamais — et tout contrôleur présenté par cette vue,
+          c'est-à-dire Safari, disparaissait avec elle sans que personne ne l'apprenne.
+          Désormais `visible` la ferme, `onDismissed` dit quand c'est fait, et `pendingPlan`
+          n'est libérée qu'à ce moment-là. */}
       {pendingPlan && (
         <PurchaseConsentSheet
-          visible
+          visible={sheetVisible}
           plan={{
             name: pendingPlan.name,
             priceCents: pendingPlan.priceCents,
@@ -663,8 +718,29 @@ export default function SubscriptionScreen() {
             billingType: pendingPlan.billingType,
           }}
           busy={payingId === pendingPlan.id}
-          onCancel={() => setPendingPlan(null)}
-          onConfirm={() => runCheckout(pendingPlan)}
+          onCancel={() => { setCheckoutApresFermeture(null); setSheetVisible(false) }}
+          onConfirm={() => {
+            // ⚠️ ON NE LANCE RIEN ICI (iOS). On demande la fermeture, et c'est
+            // `onDismissed` — donc UIKit — qui donnera le départ. C'est la différence
+            // entre « attendre que la modale soit fermée » et « espérer qu'elle le soit ».
+            //
+            // ⚠️ ANDROID N'A PAS `onDismiss`, et n'en a pas besoin : le navigateur y est une
+            // ACTIVITÉ séparée, pas un contrôleur présenté par une vue — rien ne peut
+            // l'emporter en disparaissant. On enchaîne donc directement, ce qui préserve
+            // le comportement Android EXISTANT plutôt que d'attendre un signal qui ne
+            // viendrait jamais.
+            if (Platform.OS === 'android') {
+              const plan = pendingPlan
+              setSheetVisible(false)
+              setPendingPlan(null)
+              void runCheckout(plan)
+              return
+            }
+            setCheckoutApresFermeture(pendingPlan)
+            setSheetVisible(false)
+            armerLeFilet()
+          }}
+          onDismissed={apresFermeture}
         />
       )}
     </SafeAreaView>
