@@ -377,6 +377,29 @@ const config = {
       output: 'single' as const,
     },
     plugins: [
+      // ═════════════════════════════════════════════════════════════════════════════════
+      // 🔴 XCODE 27 — LA CIBLE DE DÉPLOIEMENT VIENT DU DÉPÔT, PLUS DU GABARIT
+      // ═════════════════════════════════════════════════════════════════════════════════
+      // Xcode 27 n'accepte qu'une cible entre 15.0 et 27.0, et refuse de compiler sinon.
+      // `ios/` étant régénéré à chaque `prebuild` (et par `eas build --local`), un
+      // correctif à la main ne survit pas : le réglage doit être DÉCLARÉ.
+      //
+      // ⚠️ 15.1, ET CE N'EST PAS UN CHOIX ARBITRAIRE. C'est EXACTEMENT la valeur déjà en
+      // vigueur, vérifiée sur le projet généré plutôt que supposée :
+      //   · le Podfile du SDK 54 lit `podfile_properties['ios.deploymentTarget'] || '15.1'` ;
+      //   · `min_ios_version_supported` de React Native 0.81 rend '15.1' ;
+      //   · le projet Xcode de l'app porte déjà `IPHONEOS_DEPLOYMENT_TARGET = 15.1` (×4).
+      // Déclarer 15.1 ÉCRIT donc ce qui était déjà calculé : les builds EAS distants — la
+      // chaîne qui produit nos binaires publiés — ne changent pas d'un octet.
+      //
+      // ⚠️ ET AUCUN MEMBRE N'EST PERDU, pour la même raison : les binaires publiés ciblent
+      // déjà iOS 15.1. On ne relève rien, on FIGE. iOS 15 couvre l'iPhone 6s et au-delà.
+      ['expo-build-properties', { ios: { deploymentTarget: '15.1' } }],
+      // ⚠️ ET CE GREFFON EST INDISPENSABLE — la ligne ci-dessus ne suffit PAS, mesuré :
+      // trois BUNDLES DE RESSOURCES (RNCAsyncStorage_resources, RNSVGFilters, le bundle de
+      // confidentialité de Sentry) gardent la cible de leur podspec, et rien ne les relève.
+      // Voir l'en-tête du greffon pour le relevé complet.
+      ['./plugins/withPodsDeploymentTarget', { deploymentTarget: '15.1' }],
       'expo-router',
       'expo-secure-store',
       'expo-apple-authentication',
