@@ -181,13 +181,41 @@ export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }:
 
 interface SheetProps extends BodyProps {
   visible: boolean
+  /**
+   * 🔴 23/09 — APPELÉ QUAND LA FEUILLE EST RÉELLEMENT PARTIE DE L'ÉCRAN (iOS).
+   *
+   * C'est `Modal.onDismiss` de React Native, transmis tel quel : il se déclenche APRÈS que
+   * UIKit a terminé le dismiss, pas au changement d'état React. C'est la seule façon de
+   * savoir que plus rien ne va disparaître — et donc le seul moment où l'on peut présenter
+   * Safari sans qu'un démontage l'emporte avec lui.
+   *
+   * ⚠️ iOS UNIQUEMENT. React Native n'appelle pas `onDismiss` sur Android : l'appelant doit
+   * prévoir son propre chemin (cf. `subscription.tsx`). Ce n'est pas une lacune à
+   * contourner — sur Android le navigateur est une ACTIVITÉ séparée, pas un contrôleur
+   * présenté par une vue : il n'y a rien à faire disparaître sous lui.
+   */
+  onDismissed?: () => void
 }
 
-/** Mise en modale du Body, pour les écrans qui n'ont pas déjà une feuille ouverte. */
-export function PurchaseConsentSheet({ visible, ...body }: SheetProps) {
+/**
+ * Mise en modale du Body, pour les écrans qui n'ont pas déjà une feuille ouverte.
+ *
+ * 🔴 CE COMPOSANT DOIT RESTER MONTÉ PENDANT SA FERMETURE. L'appelant pilote `visible`, il
+ * ne doit PAS le démonter conditionnellement : un démontage supprime la `Modal` sans que
+ * UIKit joue le dismiss — `onDismiss` ne part jamais, et un contrôleur présenté par cette
+ * vue (Safari) disparaît avec elle, sans prévenir personne. C'est exactement le défaut du
+ * 23/09.
+ */
+export function PurchaseConsentSheet({ visible, onDismissed, ...body }: SheetProps) {
   const { tokens } = useTheme()
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={body.onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={body.onCancel}
+      onDismiss={onDismissed}
+    >
       <View className="flex-1 justify-end bg-black/50">
         {/* `bg-black/50` : un voile à 50 % n'est nommé par aucun jeton — même choix que
             PaymentRequiredSheet, dont cette feuille est le pendant. */}

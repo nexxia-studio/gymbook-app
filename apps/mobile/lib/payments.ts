@@ -420,19 +420,26 @@ async function tenter(url: string): Promise<Tentative> {
  * Dans TOUS les cas la ligne `payments` existe et `checkout_url` est stockée — le lien
  * Mollie a été obtenu, la page n'a jamais été réglée, le paiement a expiré.
  *
- * Trois défenses, dans cet ordre :
+ * Deux défenses :
  *   ① `dismissBrowser()` AVANT chaque présentation — désarme un verrou hérité ;
- *   ② `onPresented` prévient l'appelant DÈS que la page est à l'écran, pour qu'il ne
- *      navigue et ne démonte RIEN dans le même tic que la présentation ;
- *   ③ un échec de PRÉSENTATION est réessayé UNE fois. Un navigateur qui ne s'affiche pas
+ *   ② un échec de PRÉSENTATION est réessayé UNE fois. Un navigateur qui ne s'affiche pas
  *      n'est pas un membre qui renonce — les confondre, c'est perdre la vente.
  *
- * ⚠️ `onPresented` NE PEUT PAS ATTENDRE LA PROMESSE. Sur iOS, `openBrowserAsync` ne résout
- * qu'à la FERMETURE du navigateur : attendre pour savoir si la page s'est ouverte
- * reviendrait à attendre la fin du paiement. On infère donc la présentation au passage du
- * seuil — si la promesse n'a pas résolu après {@link PRESENTATION_FLOOR_MS}, c'est qu'il y
- * a bien quelque chose à l'écran. C'est la même heuristique que `presented`, prise dans
- * l'autre sens, et elle se falsifie de la même façon.
+ * ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+ * ║  🔴 23/09 — `onPresented` A ÉTÉ RETIRÉ. IL ÉTAIT LA CAUSE, PAS LE REMÈDE.            ║
+ * ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+ * La 1.2.2 (build 27) prévenait l'appelant au passage du seuil, pour qu'il démonte et
+ * navigue « après » la présentation. MESURÉ EN TESTFLIGHT le 23/09 : le paiement est créé,
+ * l'écran « Vérification… » s'affiche — donc le rappel EST parti, donc la page ÉTAIT
+ * présentée — et la page Mollie n'est jamais vue.
+ *
+ * Ce rappel déclenchait le démontage de la feuille de consentement, c'est-à-dire de la vue
+ * QUI PRÉSENTE Safari. UIKit dismisse un contrôleur présenté avec son présentateur : on
+ * n'avait pas supprimé la cascade, on l'avait décalée de 400 ms.
+ *
+ * ⚠️ IL N'Y A DONC PLUS DE RAPPEL DU TOUT. L'appelant n'apprend le sort du navigateur
+ * qu'au RETOUR de cette promesse — sur iOS, à la fermeture. C'est le seul instant où
+ * naviguer ne peut rien casser, puisqu'il n'y a plus rien à l'écran à casser.
  *
  * ⚠️ NE LÈVE JAMAIS. Un échec d'ouverture est une information à rendre, pas une exception
  * à propager.
@@ -440,16 +447,7 @@ async function tenter(url: string): Promise<Tentative> {
 export async function openCheckout(
   url: string,
   ctx: CheckoutContext,
-  /** Appelé AU PLUS UNE FOIS, dès que la page est à l'écran. C'est là qu'on navigue. */
-  onPresented?: () => void,
 ): Promise<CheckoutOpenOutcome> {
-  let prevenu = false
-  const prevenir = () => {
-    if (prevenu) return
-    prevenu = true
-    try { onPresented?.() } catch (e) { Sentry.captureException(e) }
-  }
-
   const tentatives: Tentative[] = []
 
   for (let essai = 1; essai <= 2; essai++) {
@@ -459,16 +457,10 @@ export async function openCheckout(
     // d'Emma — une session fraîche échouait AUSSI.
     await desarmerLeVerrou()
 
-    // ② Le minuteur qui prévient l'appelant. Armé AVANT la présentation, annulé si la
-    // promesse résout avant lui (ce qui signifie justement qu'il n'y a rien à l'écran).
-    const minuteur = setTimeout(prevenir, PRESENTATION_FLOOR_MS)
     const t = await tenter(url)
-    clearTimeout(minuteur)
     tentatives.push(t)
 
     if (t.presented) {
-      // Android résout aussitôt avec 'opened' : le minuteur n'a pas eu le temps de partir.
-      prevenir()
       journaliser(ctx, tentatives, true)
       return { presented: true, type: t.type, elapsedMs: t.elapsedMs, attempts: essai, detail: t.detail }
     }
