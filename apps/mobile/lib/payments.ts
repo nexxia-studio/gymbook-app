@@ -7,7 +7,7 @@
 // `early_performance_consent_version`. LE CLIENT N'ENVOIE QU'UNE INTENTION : c'est le
 // serveur qui date la demande et l'écrit dans `payments`. Voir
 // supabase/functions/_shared/early-performance.ts.
-import * as WebBrowser from 'expo-web-browser'
+import * as Linking from 'expo-linking'
 import { Platform } from 'react-native'
 // GYM-352 — un navigateur qui ne s'ouvre pas est une panne : elle doit alerter, au même
 // titre que les échecs d'infrastructure de GYM-270. Ce n'est pas un refus métier.
@@ -250,104 +250,76 @@ export async function startSubscriptionCheckout(
 }
 
 // ╔═══════════════════════════════════════════════════════════════════════════════════════╗
-// ║  GYM-352 — openCheckout DIT enfin ce qui s'est passé                                  ║
+// ║  🔴 GYM-369 — LE CHECKOUT S'OUVRE DANS LE NAVIGATEUR DU SYSTÈME, PAS DANS UNE VUE    ║
 // ╚═══════════════════════════════════════════════════════════════════════════════════════╝
 //
-// LE DÉFAUT. Cette fonction était `Promise<void>` et JETAIT le résultat de
-// `openBrowserAsync`. L'app était donc structurellement incapable de savoir si le
-// navigateur s'était affiché. Constaté en recette le 17/09, DEUX FOIS, par deux chemins
-// différents (profile/subscription.tsx à 15h34, PaymentRequiredSheet à 16h03) : paiement
-// créé chez Mollie, `checkout_url` valide, écran « Vérification… » affiché — et la page de
-// paiement jamais ouverte. Aucune exception, aucun événement Sentry : rien à lire.
+// CE QUE MOLLIE PRESCRIT, ET QUI TRANCHE TROIS SEMAINES D'HYPOTHÈSES
+// (docs.mollie.com/docs/accepting-payments-in-your-app, étape 3) :
 //
-// ⚠️ QUATRIÈME CAS DE LA SEMAINE DU MÊME MOTIF : un `catch` qui avale (GYM-337), un
-// `update` qu'on ne lit pas (GYM-337), un `tsc` qui ne vérifie rien (GYM-350), un résultat
-// qu'on jette (ici). Le motif n'est pas l'erreur : c'est le RETOUR NON LU.
+//   « Do this in the native browser of the device and NOT in an in-app browser view,
+//     since the operating systems will reject opening the bank apps from these views. »
 //
-// ⚠️ CE LOT NE CORRIGE PAS LA CAUSE — il la rend mesurable. La piste retenue (présenter le
-// navigateur pendant une transition de navigation) ne doit pas être « corrigée » avant
-// d'être mesurée : l'écran de vérification est monté AVANT le navigateur délibérément
-// (GYM-96), pour que le poll démarre quel que soit le mode de retour.
+// 🔴 CE N'EST PAS UNE PRÉFÉRENCE D'ERGONOMIE, C'EST UNE CONTRAINTE DU SYSTÈME. Une vue
+// intégrée — `SFSafariViewController` comme `ASWebAuthenticationSession` — ne peut pas
+// ouvrir une application bancaire. `openAuthSessionAsync` n'aurait donc RIEN réglé : c'est
+// encore une vue intégrée. Et en Belgique, BANCONTACT ouvre l'app bancaire.
+//
+// ⚠️ CE N'EST PAS THÉORIQUE : mesuré le 24/09 à 20 h 37 sur la production, un paiement
+// d'une membre réelle est `open` chez Mollie avec `method: "bancontact"` et un lien
+// `_links.mobileAppCheckout` de schéma `bepgenapp://`. Le premier paiement Bancontact vit
+// déjà — dans une vue intégrée, il était condamné.
+//
+// CE QUE LA PRODUCTION A MESURÉ EN FACE (24/09 au soir) :
+//   · payé DANS SAFARI      → Mollie redirige, iOS honore le lien universel, l'app s'ouvre,
+//                             crédit + facture + email arrivent. Idem à l'annulation.
+//   · payé DANS L'APP (1.2.2) → la page Mollie reste affichée ; il faut toucher « Terminé ».
+//   · François Quoilin, membre réel : 5 tentatives sur 3 jours, 170 €, dont une en 1.2.2.
+//     Sa trace PostHog le montre de retour dans l'app 8 s après, naviguant dans 3 écrans :
+//     IL N'A JAMAIS VU LA PAGE MOLLIE.
+//
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// 🔴 CE QUI DISPARAÎT AVEC LA VUE INTÉGRÉE, ET POURQUOI C'EST UN GAIN
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// `Linking.openURL` ne rend RIEN sur le paiement : l'app passe en arrière-plan, il n'y a
+// plus ni promesse de fermeture, ni `type`, ni durée. Tout l'appareillage de GYM-352
+// tombe avec la vue qu'il mesurait :
+//
+//   · LE SEUIL DE 400 ms — SUPPRIMÉ, et c'est le plus important. C'était une heuristique
+//     (« un 'cancel' rendu trop vite = jamais présenté »), et elle a MASQUÉ l'échec de
+//     François : la vue s'affichait bel et bien, elle affichait juste autre chose que la
+//     page Mollie. Une mesure qui déclare « présenté » ce que le membre n'a jamais vu ne
+//     mesure pas ce qu'elle prétend.
+//   · LE VERROU 'locked' ET SON DÉSARMEMENT (`dismissBrowser`) — SANS OBJET : il n'y a plus
+//     de session `WebBrowser` à verrouiller. Le code est retiré, pas neutralisé : un appel
+//     de fermeture d'un navigateur qu'on n'ouvre plus ne se comprendrait plus dans six mois.
+//   · LE RÉESSAI UNIQUE — SANS OBJET : il rattrapait un échec de PRÉSENTATION. Ici, si le
+//     système refuse l'URL, il la refusera à l'identique au second appel.
+//
+// ⚠️ CE QUI RESTE, ET QUI EST DÉSORMAIS LE SEUL FAIT : la résolution de `Linking.openURL`
+// est un accusé de réception DU SYSTÈME — il a accepté de passer la main. Ce n'est pas une
+// déduction, c'est un retour d'API. C'est à cet instant, et à aucun autre, qu'on sait que
+// le membre est parti payer.
+//
+// ⚠️ CE QU'ON NE SAIT TOUJOURS PAS, ET QU'IL FAUT DIRE : qu'il a VU la page, qu'il a payé,
+// qu'il est revenu. Aucune de ces trois choses n'est observable d'ici — elles le sont par le
+// poll de `app/payment/success.tsx` et par le webhook. C'est pour cela que l'écran de
+// vérification doit être monté AVANT que l'app passe en arrière-plan.
 
-/** Ce que `openBrowserAsync` a réellement fait. */
+/** Ce que le système a fait de l'URL de paiement. */
 export interface CheckoutOpenOutcome {
   /**
-   * INFÉRÉ, pas rapporté — voir `PRESENTATION_FLOOR_MS`. Les champs bruts ci-dessous
-   * restent la mesure ; celui-ci n'est qu'une lecture commode pour l'appelant.
-   */
-  presented: boolean
-  /**
-   * Brut, tel que le module le rend : 'opened' | 'cancel' | 'dismiss' | 'locked' | 'threw'.
+   * Le système a accepté d'ouvrir l'URL et l'app va passer en arrière-plan.
    *
-   * ⚠️ 'locked' N'EST PAS DANS LES TYPES PUBLICS d'expo-web-browser — il est dans le code
-   * natif (ios/WebBrowserModule.swift). Voir `LOCKED` ci-dessous : c'est le cas le plus
-   * probable des deux échecs du 17/09.
+   * ⚠️ CE N'EST PAS « le membre a payé », ni même « le membre a vu la page ». C'est le seul
+   * fait dont cette couche dispose, et le nom le dit : la main a été PASSÉE.
    */
+  handedOff: boolean
+  /** 'opened' | 'unsupported' | 'threw' — brut, tel qu'on l'a observé. */
   type: string
-  /** Brut : millisecondes écoulées. LE signal discriminant sur iOS. */
+  /** Millisecondes écoulées. Journalisé, jamais interprété : plus aucun seuil n'en dépend. */
   elapsedMs: number
-  /** 1 ou 2 — un échec de présentation est réessayé UNE fois (correctif du 22/09). */
-  attempts: number
   detail?: string
 }
-
-/**
- * 🔴 POURQUOI LE DÉLAI, ET PAS SEULEMENT LE TYPE.
- *
- * Les deux plateformes ne résolvent PAS au même moment :
- *   · Android — `openBrowserAsync` résout AUSSITÔT, avec `type: 'opened'`.
- *   · iOS     — elle résout à la FERMETURE du navigateur, avec 'cancel' (le membre l'a
- *               fermé) ou 'dismiss' (fermeture programmatique).
- *
- * Sur iOS, un 'cancel' est donc NORMAL après un vrai affichage. Ce qui ne l'est pas, c'est
- * un 'cancel' rendu instantanément : personne ne peut ouvrir et fermer une page en moins
- * d'une demi-seconde — l'animation de présentation dure à elle seule ~300 ms. Une
- * résolution immédiate signifie que la présentation n'a pas eu lieu.
- *
- * ⚠️ SEUIL HEURISTIQUE, ASSUMÉ COMME TEL. C'est pourquoi `type` et `elapsedMs` sont
- * journalisés BRUTS et rendus à l'appelant : si le seuil se révèle mal placé, la mesure
- * reste lisible et le diagnostic ne dépend pas de lui.
- */
-const PRESENTATION_FLOOR_MS = 400
-
-/**
- * 🔴 'locked' — LE CAS QUE LA SIGNATURE TYPESCRIPT NE DIT PAS, ET QUI EXPLIQUE UN ÉCHEC
- * DÉFINITIF.
- *
- * Dans `expo-web-browser/ios/WebBrowserModule.swift` :
- *
- *     if vcDidPresent { currentWebBrowserSession = nil; vcDidPresent = false }
- *     guard currentWebBrowserSession == nil else {
- *       promise.resolve(["type": "locked"])   // résout AUSSITÔT, sans rien présenter
- *       return
- *     }
- *
- * `vcDidPresent` n'est posé que dans le complétion de `present(...)`, et la session n'est
- * remise à nil que là ou à la fermeture du navigateur. Si une présentation n'aboutit
- * JAMAIS — `WebBrowserSession.open()` fait `currentViewController?.present(...)`, et ce
- * `?` avale silencieusement le cas où `UIApplication.shared.keyWindow` est nil — alors :
- *
- *   · `didPresent` ne part jamais → `vcDidPresent` reste false ;
- *   · le rappel de session ne part jamais → `currentWebBrowserSession` reste non nul ;
- *   · TOUS les appels suivants rendent 'locked', instantanément, jusqu'au redémarrage.
- *
- * C'est la seule hypothèse qui explique que DEUX chemins différents, à 29 minutes
- * d'intervalle, échouent à l'identique sans lever quoi que ce soit.
- *
- * 🔴 22/09 — ON NE PEUT PLUS ATTENDRE LA MESURE. Ce commentaire disait « non corrigé
- * délibérément : le journal dira 'locked' dès le prochain essai, et c'est cette mesure qui
- * doit décider ». L'argument était bon — et il est mort de deux façons :
- *
- *   · le journal n'est JAMAIS parti : l'instrumentation du 17/09 n'est pas dans la 1.2.1
- *     (bump de version le 16/09, instrumentation le 17/09 — vérifié sur l'historique) ;
- *   · pendant ce temps, 9 achats ont échoué en deux jours, ~600 € non encaissés.
- *
- * Attendre une mesure qui ne peut pas arriver, c'est ne rien attendre du tout. Le correctif
- * couvre donc TOUTES les hypothèses à la fois — verrou hérité, cascade de présentation,
- * échec ponctuel — parce qu'un aller-retour de revue Apple par hypothèse coûterait des
- * semaines de ventes. `desarmerLeVerrou()` ci-dessous est la réponse à celle-ci.
- */
-const LOCKED = 'locked'
 
 /**
  * D'où vient l'achat, et sur quoi il porte. ⚠️ CE N'EST PAS DÉCORATIF : sans l'écran
@@ -363,173 +335,88 @@ export interface CheckoutContext {
   planId?: string | null
 }
 
-/** Une tentative, telle que le module l'a rendue. */
-interface Tentative {
-  type: string
-  elapsedMs: number
-  presented: boolean
-  detail?: string
-}
-
-/**
- * Déverrouille une session fantôme avant de présenter.
- *
- * 🔴 C'EST LE POINT 1 DU CORRECTIF. `dismissBrowser()` sur un contrôleur non présenté
- * appelle quand même sa complétion — donc `finish`, donc la remise à `nil` de
- * `currentWebBrowserSession`. Un verrou hérité d'une session précédente est ainsi désarmé
- * AVANT qu'il ne fasse échouer l'ouverture.
- *
- * ⚠️ iOS SEULEMENT, ET ELLE NE DOIT JAMAIS LEVER. `dismissBrowser` n'existe pas sur
- * Android, et sur iOS elle rejette quand il n'y a rien à fermer — c'est-à-dire dans le cas
- * NORMAL. Une exception ici empêcherait le paiement qu'on essaie de sauver.
- */
-async function desarmerLeVerrou(): Promise<void> {
-  if (Platform.OS !== 'ios') return
-  try {
-    await WebBrowser.dismissBrowser()
-  } catch {
-    // Rien à fermer : c'est le cas normal, et ce n'est pas une erreur.
-  }
-}
-
-/** Une seule tentative de présentation, mesurée. */
-async function tenter(url: string): Promise<Tentative> {
-  const startedAt = Date.now()
-  try {
-    const res = await WebBrowser.openBrowserAsync(url)
-    const elapsedMs = Date.now() - startedAt
-    const type = String(res?.type ?? 'unknown')
-    const presented = type !== LOCKED && (type === 'opened' || elapsedMs >= PRESENTATION_FLOOR_MS)
-    return { type, elapsedMs, presented }
-  } catch (e) {
-    return {
-      type: 'threw',
-      elapsedMs: Date.now() - startedAt,
-      presented: false,
-      detail: e instanceof Error ? e.message : String(e),
-    }
-  }
-}
-
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════════════╗
- * ║  OUVRE LA PAGE MOLLIE — ET SURVIT AUX TROIS FAÇONS DONT ELLE NE S'OUVRAIT PAS        ║
+ * ║  OUVRE LA PAGE MOLLIE DANS LE NAVIGATEUR DU SYSTÈME                                  ║
  * ╚═══════════════════════════════════════════════════════════════════════════════════════╝
  *
- * 🔴 CE QUE LA PRODUCTION A MESURÉ (21–22/09) : 9 échecs, 3 membres, ~600 € non encaissés.
- * Dans TOUS les cas la ligne `payments` existe et `checkout_url` est stockée — le lien
- * Mollie a été obtenu, la page n'a jamais été réglée, le paiement a expiré.
+ * ⚠️ NE LÈVE JAMAIS. Un refus d'ouverture est une information à rendre, pas une exception à
+ * propager — l'appelant doit pouvoir le DIRE au membre, et c'est tout ce qu'il peut faire.
  *
- * Deux défenses :
- *   ① `dismissBrowser()` AVANT chaque présentation — désarme un verrou hérité ;
- *   ② un échec de PRÉSENTATION est réessayé UNE fois. Un navigateur qui ne s'affiche pas
- *      n'est pas un membre qui renonce — les confondre, c'est perdre la vente.
- *
- * ╔═══════════════════════════════════════════════════════════════════════════════════════╗
- * ║  🔴 23/09 — `onPresented` A ÉTÉ RETIRÉ. IL ÉTAIT LA CAUSE, PAS LE REMÈDE.            ║
- * ╚═══════════════════════════════════════════════════════════════════════════════════════╝
- * La 1.2.2 (build 27) prévenait l'appelant au passage du seuil, pour qu'il démonte et
- * navigue « après » la présentation. MESURÉ EN TESTFLIGHT le 23/09 : le paiement est créé,
- * l'écran « Vérification… » s'affiche — donc le rappel EST parti, donc la page ÉTAIT
- * présentée — et la page Mollie n'est jamais vue.
- *
- * Ce rappel déclenchait le démontage de la feuille de consentement, c'est-à-dire de la vue
- * QUI PRÉSENTE Safari. UIKit dismisse un contrôleur présenté avec son présentateur : on
- * n'avait pas supprimé la cascade, on l'avait décalée de 400 ms.
- *
- * ⚠️ IL N'Y A DONC PLUS DE RAPPEL DU TOUT. L'appelant n'apprend le sort du navigateur
- * qu'au RETOUR de cette promesse — sur iOS, à la fermeture. C'est le seul instant où
- * naviguer ne peut rien casser, puisqu'il n'y a plus rien à l'écran à casser.
- *
- * ⚠️ NE LÈVE JAMAIS. Un échec d'ouverture est une information à rendre, pas une exception
- * à propager.
+ * ⚠️ AUCUN `canOpenURL` PRÉALABLE, ET C'EST DÉLIBÉRÉ. Sur Android, `canOpenURL` dépend des
+ * requêtes de paquets déclarées au manifeste : il peut répondre `false` pour un `https`
+ * parfaitement ouvrable. Un test qui refuse un paiement ouvrable serait pire que l'absence
+ * de test. On tente, et on lit ce que le système répond.
  */
 export async function openCheckout(
   url: string,
   ctx: CheckoutContext,
 ): Promise<CheckoutOpenOutcome> {
-  const tentatives: Tentative[] = []
-
-  for (let essai = 1; essai <= 2; essai++) {
-    // ① Le verrou est désarmé avant CHAQUE essai, pas seulement avant le second : le
-    // verrou peut être hérité d'une session précédente de l'app, donc présent dès le
-    // premier achat. C'est ce qu'implique l'écart de deux heures entre les essais
-    // d'Emma — une session fraîche échouait AUSSI.
-    await desarmerLeVerrou()
-
-    const t = await tenter(url)
-    tentatives.push(t)
-
-    if (t.presented) {
-      journaliser(ctx, tentatives, true)
-      return { presented: true, type: t.type, elapsedMs: t.elapsedMs, attempts: essai, detail: t.detail }
+  const debut = Date.now()
+  try {
+    await Linking.openURL(url)
+    const elapsedMs = Date.now() - debut
+    // Le cas nominal ne fait AUCUN événement Sentry — un achat qui part n'est pas une
+    // anomalie, et 76 paiements réussis noieraient les quelques-uns qui échouent. Il laisse
+    // une MIETTE : si une erreur survient ensuite, la trace montrera que la main était bien
+    // passée, et à quelle heure. Une miette ne crée pas d'issue et ne coûte rien.
+    Sentry.addBreadcrumb({
+      category: 'checkout',
+      level: 'info',
+      message: `openCheckout: main passée au navigateur du système (${ctx.screen})`,
+      data: { payment_id: ctx.paymentId ?? null, plan_id: ctx.planId ?? null, elapsed_ms: elapsedMs, platform: Platform.OS },
+    })
+    return { handedOff: true, type: 'opened', elapsedMs }
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
+    const outcome: CheckoutOpenOutcome = {
+      handedOff: false,
+      // `openURL` rejette aussi bien quand AUCUNE app ne sait ouvrir l'URL que sur une
+      // erreur interne. On ne prétend pas distinguer : le détail brut est joint.
+      type: 'threw',
+      elapsedMs: Date.now() - debut,
+      detail,
     }
-
-    // ③ Un seul réessai, et seulement sur un échec de PRÉSENTATION.
-    //
-    // ⚠️ `threw` N'EST PAS RÉESSAYÉ. Une exception vient d'une URL invalide ou d'un module
-    // absent : recommencer donnerait la même exception, et ouvrirait deux fois la porte à
-    // un comportement qu'on ne comprend pas.
-    if (essai === 1 && t.type !== 'threw') continue
-    break
-  }
-
-  const derniere = tentatives[tentatives.length - 1]
-  journaliser(ctx, tentatives, false)
-  return {
-    presented: false,
-    type: derniere.type,
-    elapsedMs: derniere.elapsedMs,
-    attempts: tentatives.length,
-    detail: derniere.detail,
+    journaliserEchec(ctx, outcome)
+    return outcome
   }
 }
 
 /**
- * 🔴 SENTRY, PAS `console.log` — C'EST LE POINT 4, ET C'EST CE QUI NOUS A MANQUÉ.
+ * 🔴 SENTRY, PAS `console.log` — C'EST CE QUI NOUS A MANQUÉ LE 22/09.
  *
  * L'instrumentation de GYM-352 écrivait dans la console. Antoine a cherché `[openCheckout]`
- * dans Sentry le 22/09 : aucun résultat — et pour DEUX raisons, dont une qu'il faut dire.
- * La console n'est pas capturée, c'est vrai ; mais surtout **cette instrumentation n'est pas
- * dans la 1.2.1** : le relevé git le montre (bump 1.2.0 → 1.2.1 le 16/09, instrumentation le
- * 17/09). L'absence d'événement ne prouvait donc rien du tout.
+ * dans Sentry : aucun résultat — et pour DEUX raisons, dont une qu'il faut dire. La console
+ * n'est pas capturée, c'est vrai ; mais surtout cette instrumentation n'était pas dans la
+ * 1.2.1. L'absence d'événement ne prouvait donc rien du tout.
  *
- * ⚠️ `captureMessage` ET NON `captureException` POUR LE SUCCÈS : un achat qui marche n'est
- * pas une erreur, et le noyer dans les issues rendrait le tableau illisible. On envoie un
- * message de niveau `info` sur le succès APRÈS un réessai (l'information qui compte : le
- * correctif a rattrapé une vente) et `error` sur l'échec définitif.
+ * ⚠️ IL N'Y A PLUS QU'UN SEUL ÉVÉNEMENT, ET C'EST VOULU. GYM-352 en émettait aussi un pour
+ * le succès après réessai — il n'y a plus de réessai, et le succès du premier coup n'a
+ * jamais rien eu à raconter. Ce qui reste est le seul fait anormal que cette couche puisse
+ * encore constater : le système a REFUSÉ l'URL de paiement.
  */
-function journaliser(ctx: CheckoutContext, tentatives: Tentative[], reussi: boolean): void {
-  const resume = tentatives
-    .map((t, i) => `#${i + 1} type=${t.type} ms=${t.elapsedMs}${t.detail ? ` detail=${t.detail}` : ''}`)
-    .join(' | ')
-
-  // Un succès du PREMIER coup est le cas normal : il n'a rien à raconter.
-  if (reussi && tentatives.length === 1) return
-
+function journaliserEchec(ctx: CheckoutContext, outcome: CheckoutOpenOutcome): void {
   Sentry.captureMessage(
-    reussi
-      ? `openCheckout: page présentée au ${tentatives.length}ᵉ essai (${ctx.screen})`
-      : `openCheckout: page JAMAIS présentée après ${tentatives.length} essai(s) (${ctx.screen})`,
+    `openCheckout: le système a refusé d'ouvrir l'URL de paiement (${ctx.screen})`,
     {
-      level: reussi ? 'info' : 'error',
+      level: 'error',
       tags: {
         // Des ÉTIQUETTES, parce qu'elles se filtrent et se comptent dans Sentry — un
         // message libre ne se compte pas.
         checkout_screen: ctx.screen,
-        checkout_result: reussi ? 'presented' : 'never_presented',
-        checkout_last_type: tentatives[tentatives.length - 1].type,
+        checkout_result: 'not_handed_off',
+        checkout_last_type: outcome.type,
         platform: Platform.OS,
       },
       extra: {
         payment_id: ctx.paymentId ?? null,
         plan_id: ctx.planId ?? null,
-        attempts: tentatives.length,
-        tentatives: resume,
+        elapsed_ms: outcome.elapsedMs,
+        detail: outcome.detail ?? null,
       },
     },
   )
 
   // La console reste, pour le débogage local. Elle ne remplace rien.
-  console.log(`[openCheckout] screen=${ctx.screen} payment=${ctx.paymentId ?? '-'} ${resume}`)
+  console.log(`[openCheckout] REFUS screen=${ctx.screen} payment=${ctx.paymentId ?? '-'} type=${outcome.type} detail=${outcome.detail ?? '-'}`)
 }

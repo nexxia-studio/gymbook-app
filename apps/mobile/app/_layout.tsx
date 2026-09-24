@@ -6,6 +6,7 @@ import { useFonts, BarlowCondensed_900Black } from '@expo-google-fonts/barlow-co
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans'
 import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
+import * as Linking from 'expo-linking'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { PostHogProvider } from 'posthog-react-native'
@@ -19,6 +20,8 @@ import { reconcileActiveGym, activeGymNeedsRetry } from '../lib/activeGymSession
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import { LegalAcceptanceGate } from '../components/legal/LegalAcceptanceGate'
+import { DeepLinkReplay } from '../components/DeepLinkReplay'
+import { memoriserLienEntrant } from '../lib/pendingDeepLink'
 import '../lib/i18n'
 import '../global.css'
 
@@ -263,12 +266,46 @@ function RootLayout() {
     return () => sub.remove()
   }, [sessionUserId])
 
+  // ── 🔴 GYM-371 — MÉMORISER LE LIEN D'ARRIVÉE AVANT TOUTE GARDE ────────────────────
+  //
+  // MESURÉ : app fermée, lien universel touché → l'app s'ouvre sur l'ACCUEIL. Le lien
+  // n'est pas mal routé, il est PERDU : `LegalAcceptanceGate` ne monte pas `<Slot />` tant
+  // que le consentement n'est pas résolu, donc expo-router résout l'URL initiale alors
+  // qu'aucune route n'existe encore.
+  //
+  // ⚠️ CET EFFET EST ICI, AU-DESSUS DE LA PORTE, PARCE QUE C'EST LE SEUL ENDROIT QUI TOURNE
+  // QUELLE QUE SOIT LA PORTE. Il ne monte rien et ne navigue nulle part : il se souvient.
+  // C'est `DeepLinkReplay`, monté SOUS la porte, qui rejoue — donc jamais avant qu'elle
+  // s'ouvre. Le lien attend son tour, il ne la contourne pas.
+  //
+  // ⚠️ L'ÉCOUTEUR `url` N'EST PAS UN DOUBLON DE `getInitialURL`. Le premier couvre le
+  // démarrage à froid ; le second couvre le lien reçu PENDANT que la porte est fermée —
+  // une mise à jour des conditions en cours de session, par exemple. Les deux passent par
+  // `memoriserLienEntrant`, qui ne retient rien quand la porte est ouverte : là,
+  // expo-router fait déjà le travail.
+  useEffect(() => {
+    void Linking.getInitialURL().then(memoriserLienEntrant).catch(() => {
+      // Une URL initiale illisible n'est pas un motif d'empêcher l'app de démarrer.
+    })
+    const sub = Linking.addEventListener('url', ({ url }) => memoriserLienEntrant(url))
+    return () => sub.remove()
+  }, [])
+
   const initialize = useAuthStore((s) => s.initialize)
   const userId = useAuthStore((s) => s.user?.id ?? null)
   const loadFavorites = useBookingStore((s) => s.loadFavorites)
 
+  // 🔴 GYM-371 — ON RETIENT QUE L'AUTH A FINI, PARCE QUE PERSONNE NE LE DISAIT.
+  //
+  // Le magasin d'auth mobile n'expose AUCUN drapeau d'initialisation (`isLoading` ne couvre
+  // que la connexion et l'inscription). Sans ce point d'arrivée, `DeepLinkReplay` ne peut
+  // pas distinguer « pas de session » de « session pas encore lue » — et rejouerait un
+  // retour de paiement sur un écran qui interrogerait une ligne qu'il n'a pas le droit de
+  // lire. `finally` et non `then` : une initialisation en échec est RÉSOLUE elle aussi,
+  // et laisser le lien en suspens pour toujours serait pire que de le rejouer sans session.
+  const [authResolue, setAuthResolue] = useState(false)
   useEffect(() => {
-    initialize()
+    void initialize().finally(() => setAuthResolue(true))
   }, [initialize])
 
   // Hydrate recurring favorites on app mount and whenever the user changes
@@ -327,6 +364,10 @@ function RootLayout() {
             Placée SOUS BrandThemeProvider : l'écran est brandé par la salle comme le reste. */}
         <BrandThemeProvider slug={brandSlug}>
           <LegalAcceptanceGate>
+            {/* 🔴 GYM-371 — FRÈRE de `<Slot />`, et SOUS la porte : il n'existe qu'une fois
+                le consentement résolu. Il rejoue alors le lien mémorisé plus haut — et lui
+                seul navigue. La porte reste la seule chose qui décide. */}
+            <DeepLinkReplay pret={authResolue} />
             <Slot />
           </LegalAcceptanceGate>
         </BrandThemeProvider>
