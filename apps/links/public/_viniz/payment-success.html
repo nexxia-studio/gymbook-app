@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paiement reçu — Viniz</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      ╔═════════════════════════════════════════════════════════════════════════════════╗
+      ║  🔴 24/09 — CETTE PAGE N'EXISTAIT PAS : UN PAIEMENT RÉUSSI RENDAIT UN 404       ║
+      ╚═════════════════════════════════════════════════════════════════════════════════╝
+
+      LE LOT demandait « le même traitement pour la page Viniz, SI ELLE EXISTE ». Elle
+      n'existait pas — et l'absence était pire que le défaut à corriger :
+      `vercel.json` renvoyait `/:slug/payment-success` vers `_viniz/404.html`. Toute salle
+      autre que Dopamine aurait donc affiché « Cette page n'existe pas » à un membre QUI
+      VENAIT DE PAYER, et dont le compte était déjà crédité.
+
+      ⚠️ CE N'EST PAS ENCORE ARRIVÉ EN PRODUCTION, et c'est vérifiable : la seule chose qui
+      fabrique cette URL est `apps/mobile/lib/gymUrls.ts` (`buildPaymentReturnUrl`), donc
+      l'app mobile ; et la seule app publiée à ce jour est celle de Dopamine, qui a ses
+      propres fichiers sous /dopamine/. Le défaut est LATENT : il se déclenche le jour où
+      l'app Viniz sort, c'est-à-dire au premier paiement de la première salle de Jeff.
+
+      ─────────────────────────────────────────────────────────────────────────────────
+      CE QUE FAIT LA PAGE
+
+      Même traitement que /dopamine/payment-success : elle TENTE `viniz://payment/success`
+      dès le chargement, sans attendre un clic, en conservant la query (`id` arme le poll de
+      l'écran de vérification), et elle garde le bouton en repli VISIBLE.
+
+      POURQUOI il faut tenter : le checkout Mollie est présenté par l'app dans un
+      SFSafariViewController, et iOS n'honore pas un lien universel quand la navigation a
+      lieu dans le navigateur intégré présenté par l'app qui revendique ce lien. La page est
+      donc TOUJOURS rendue sur ce chemin, contrairement à ce qu'affirmaient les commentaires
+      d'origine. Mesuré en production le 24/09 sur Dopamine.
+
+      ⚠️ `viniz` EST BIEN LE SCHÉMA DE L'APP WHITE-LABEL — app.config.ts:597, variante
+      `EXPO_PUBLIC_APP_VARIANT=viniz`. (Le commentaire de _viniz/confirm.html affirme encore
+      que cette app n'a « ni scheme, ni fiche de store » : c'était vrai le 07/09, ça ne
+      l'est plus pour le scheme. La fiche de store, elle, n'existe toujours pas — d'où
+      l'absence de lien d'installation ici.)
+
+      ⚠️ LA VARIANTE STAGING PORTE `viniz-staging` ET N'EST PAS COUVERTE. Elle n'a
+      délibérément aucun `associatedDomains` (app.config.ts:550) et n'est pas ce que ce
+      schéma ouvre. Sur un téléphone de recette, le retour se fait par « Terminé ». On ne
+      met pas deux schémas dans une page statique pour deviner lequel est installé : la
+      tentative ratée du mauvais schéma coûterait exactement le geste qu'on veut supprimer.
+
+      ⚠️ PAGE GÉNÉRIQUE, SERVIE POUR TOUS LES SLUGS. Elle ne porte donc PAS le nom ni la
+      marque de la salle : le slug est dans le chemin, mais le nom commercial, lui,
+      demanderait un appel réseau sur un site statique — et une page de retour de paiement
+      ne doit dépendre de rien. Habillage Viniz neutre, comme _viniz/404.html.
+
+      🔴 LE MEMBRE EST DÉJÀ CRÉDITÉ QUAND IL LIT CETTE PAGE : le crédit vient du webhook
+      Mollie, pas de ce retour. Le texte le dit en premier, et pas en note de bas de page —
+      en production, un membre a cru son paiement échoué alors qu'il était crédité.
+    -->
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center;
+        justify-content: center; padding: 24px;
+        /* Violet Ink — le fond de la marque, comme _viniz/404.html. */
+        background: #2D1B69; color: #F3F0FF;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        text-align: center;
+      }
+      .card { max-width: 420px; width: 100%; padding: 40px 28px; }
+      /* Mot-marque en TEXTE, même raison qu'en 404 : une image est une requête de plus,
+         sur une page qui doit s'afficher même quand le réseau est mauvais. Le lime ne va
+         que sur fond sombre ; le Violet Ink en est un (contraste 8,01:1, GYM-262). */
+      .logo {
+        font-family: "Arial Black", Arial, sans-serif; color: #C8FF3D;
+        font-size: 26px; letter-spacing: 3px; margin-bottom: 28px;
+      }
+      h1 { font-size: 22px; margin: 0 0 12px; color: #F3F0FF; }
+      p { font-size: 15px; line-height: 1.6; color: #C8C2E6; margin: 0 0 24px; }
+      .done { color: #C8FF3D; font-weight: 700; }
+      .btn {
+        display: inline-block; background: #C8FF3D; color: #2D1B69; font-weight: 700;
+        text-decoration: none; padding: 14px 28px; border-radius: 12px; font-size: 15px;
+      }
+      .hint { margin-top: 20px; font-size: 12px; color: #9A8FD0; margin-bottom: 0; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo">ViNiZ</div>
+      <h1>Paiement reçu</h1>
+      <p>
+        <span class="done">Tes séances sont déjà créditées.</span> Le paiement est
+        enregistré et ton compte est à jour : tu n'as plus rien à faire ici.
+      </p>
+      <a id="openApp" class="btn" href="#">Revenir à l'application</a>
+      <p class="hint">
+        Si rien ne se passe, touche « Terminé » en haut à gauche pour retrouver l'app.
+        Ton paiement reste enregistré dans tous les cas.
+      </p>
+    </main>
+
+    <script>
+      // Schéma de l'app white-label (app.config.ts → variante `viniz`, e.scheme = 'viniz').
+      var APP_SCHEME_BASE = 'viniz://payment/success'
+
+      // Query repassée TELLE QUELLE : `id` (ajouté par create-payment) arme le poll de
+      // l'écran de vérification ; `source` et `slot_id` portent la reprise de réservation.
+      var DEST = APP_SCHEME_BASE + window.location.search
+
+      // Repli visible, posé AVANT la tentative.
+      document.getElementById('openApp').setAttribute('href', DEST)
+
+      // ⚠️ APRÈS LE PREMIER RENDU (double rAF, ~16 ms) : une tentative de schéma peut
+      // échouer bruyamment quand l'app est absente — Android remplace alors la page par
+      // ERR_UNKNOWN_URL_SCHEME. Le membre aura au moins lu que ses séances sont créditées.
+      // Ce cas reste théorique ici : on n'atteint cette page qu'au retour d'un checkout
+      // lancé DEPUIS l'app.
+      var dejaTente = false
+      function tenterOuvertureApp() {
+        if (dejaTente) return
+        dejaTente = true
+        window.location.href = DEST
+      }
+
+      // Le rAF laisse la page se peindre, mais il n'est JAMAIS la seule condition.
+      // 🔴 MESURÉ AU BANC (24/09, Chrome) : une page MASQUÉE ne reçoit AUCUN rAF —
+      // `requestAnimationFrame` n'y est pas throttlé, il ne part pas du tout. Une tentative
+      // qui n'en dépendrait que ne partirait jamais sur un onglet d'arrière-plan. Le
+      // minuteur est donc le filet, et le drapeau garantit une tentative et une seule.
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(tenterOuvertureApp)
+        })
+      }
+      setTimeout(tenterOuvertureApp, 120)
+    </script>
+  </body>
+</html>
