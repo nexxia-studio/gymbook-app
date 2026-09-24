@@ -19,6 +19,7 @@ garantir les deux invariants du ticket, **par construction et non par vigilance*
 | `/studio-kama/reset-password` | ❌ non | rewrite → relais générique |
 | `/studio-kama/confirm` | ❌ non | rewrite → relais de confirmation (GYM-320) |
 | `/studio-kama/bookings` | ❌ non | rewrite → 404 Viniz |
+| `/studio-kama/payment-success` | ❌ non | rewrite → **page de retour de paiement Viniz** (24/09) |
 
 ⚠️ **`:slug` capture aussi `dopamine`** — et c'est sans conséquence, précisément parce que
 les fichiers de Dopamine existent et gagnent avant tout rewrite. Ne PAS « corriger » cela
@@ -47,7 +48,7 @@ couvre 100 % du trafic réel.
 | `/<autre-slug>/bookings` | **404 nu (79 o)** | 200 · 404 Viniz |
 | `/<autre-slug>/confirm-waitlist` | **404 nu (79 o)** | 200 · 404 Viniz |
 | `/<autre-slug>/delete-account` | **404 nu (79 o)** | 200 · 404 Viniz |
-| `/<autre-slug>/payment-success` | **404 nu (79 o)** | 200 · 404 Viniz |
+| `/<autre-slug>/payment-success` | 200 · **404 Viniz** — « Cette page n'existe pas » après un paiement RÉUSSI | 200 · **page de retour de paiement Viniz** (24/09) |
 | `/<autre-slug>/<inconnu>` | 404 nu | **404 nu** (voir alternative ci-dessus) |
 
 ## Vérification
@@ -77,3 +78,21 @@ segments. Aucun émetteur ne produit cette forme — `gymUrls.ts` écrit toujour
 `GYM_SLUG` en repli — et la couvrir demanderait soit une seconde règle, soit l'attrape-tout
 qui appartient à **GYM-322**. Une ligne suffirait le jour où on le veut :
 `{ "source": "/confirm", "destination": "/_viniz/confirm.html" }`.
+
+
+## 24/09 — `/:slug/payment-success` ne rend plus un 404
+
+🔴 **Ce chemin renvoyait vers `_viniz/404.html`.** Pour toute salle autre que Dopamine, un
+membre qui venait de payer — et dont le compte était **déjà crédité** par le webhook Mollie —
+lisait « Cette page n'existe pas ». GYM-287 l'avait rangé avec `bookings`, `confirm-waitlist`
+et `delete-account`, c'est-à-dire avec les pages **non fonctionnelles** : c'était juste tant
+qu'aucune autre salle n'avait d'app, et faux dès qu'une en a une.
+
+⚠️ **Le défaut était LATENT, pas actif** : la seule chose qui fabrique cette URL est
+`apps/mobile/lib/gymUrls.ts` (`buildPaymentReturnUrl`), donc l'app mobile — et la seule app
+publiée à ce jour est celle de Dopamine, servie par ses propres fichiers sous `/dopamine/`.
+Il se déclenche au premier paiement passé depuis l'app Viniz.
+
+La nouvelle page (`_viniz/payment-success.html`) fait la même chose que celle de Dopamine :
+elle tente `viniz://payment/success` au chargement, garde la query, et laisse le bouton en
+repli visible. Elle reste **générique** — servie pour tous les slugs, sans nom de salle.

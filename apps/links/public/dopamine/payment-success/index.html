@@ -6,30 +6,74 @@
     <title>Paiement reçu — Dopamine</title>
     <meta name="robots" content="noindex" />
     <!--
-      Page payment-success (Universal Links infra — GYM-158, correctif GYM-207).
+      Page payment-success (Universal Links infra — GYM-158, correctifs GYM-207 puis 24/09).
 
-      DOUBLE RÔLE :
-      1. CIBLE Universal Link (iPhone, app installée, build ≥ 15) : iOS intercepte
-         https://links.viniz.app/dopamine/payment-success AVANT le chargement de la page
-         (AASA paths /dopamine/* + Associated Domains) et ouvre l'écran natif de
-         vérification, qui poll le paiement. La page n'est alors PAS rendue.
-      2. FALLBACK (Android / desktop / app absente / UL non actif) : la page se charge et
-         propose le retour vers l'app.
+      ╔═════════════════════════════════════════════════════════════════════════════════╗
+      ║  🔴 24/09 — CE COMMENTAIRE AFFIRMAIT UNE CHOSE FAUSSE, ET ELLE COÛTAIT UN GESTE ║
+      ╚═════════════════════════════════════════════════════════════════════════════════╝
 
+      CE QU'IL DISAIT : « CIBLE Universal Link : iOS intercepte l'URL AVANT le chargement
+      et ouvre l'écran natif. La page n'est alors PAS rendue. » — présenté comme le cas 1,
+      le cas normal sur iPhone.
+
+      CE QUI SE PASSE VRAIMENT, mesuré en production le 24/09 (1.2.2, iPhone) : le paiement
+      aboutit — email, facture et crédit reçus PENDANT l'attente — et cette page reste
+      affichée dans le navigateur intégré. Le membre doit toucher « Terminé », en haut à
+      gauche, pour revenir à l'app et voir son écran de félicitations.
+
+      POURQUOI. Le checkout Mollie est présenté par l'app elle-même, dans un
+      SFSafariViewController (`WebBrowser.openBrowserAsync`, apps/mobile/lib/payments.ts).
+      iOS n'honore PAS un lien universel quand la navigation a lieu dans le navigateur
+      intégré présenté par l'app qui revendique ce lien : l'appariement existe bien (AASA
+      + `associatedDomains`, app.config.ts:321), il n'est simplement pas consulté sur ce
+      chemin. Le « cas 1 » ne se produit donc JAMAIS ici. Il reste vrai ailleurs — un lien
+      touché dans Mail ou dans Safari ouvre bien l'app, et c'est pourquoi le défaut a pu
+      passer inaperçu : la mécanique marche partout, sauf exactement là où le paiement
+      l'emprunte.
+
+      ⚠️ SECONDE RAISON, INDÉPENDANTE ET MOINS CERTAINE. Mollie revient par une redirection
+      HTTP, pas par un lien touché. Or un lien universel se déclenche sur un GESTE. Même
+      hors du navigateur intégré, rien ne garantit qu'une redirection l'armerait. Les deux
+      raisons se cumulent ; la première suffit à elle seule et est celle qu'on a mesurée.
+
+      ─────────────────────────────────────────────────────────────────────────────────
+      CE QUE FAIT LA PAGE DEPUIS LE 24/09
+
+      Elle TENTE le schéma `dopamine://payment/success` dès le chargement, sans attendre un
+      clic, en conservant la query (`id` arme le poll de l'écran de vérification). C'est
+      l'idiome déjà employé par ses voisines /bookings et /confirm-waitlist.
+
+      ⚠️ ET LE BOUTON RESTE, en repli VISIBLE. La tentative automatique échoue en silence —
+      aucun événement, aucun message : si elle ne passe pas, la seule chose qui distingue
+      une page utile d'une page morte est ce bouton.
+
+      ⚠️ CE QUE JE N'AI PAS PU TRANCHER. Le commentaire précédent affirmait que le
+      navigateur intégré BLOQUE les schémas custom. C'était vrai des premières versions de
+      SFSafariViewController ; ça ne l'est plus de façon générale, et rien dans ce dépôt ne
+      permet d'en décider — il faut un iPhone. On livre quand même : l'échec est silencieux,
+      le bouton demeure, et le membre n'est jamais moins bien loti qu'avant.
+
+      🔴 ET MÊME SI LE SCHÉMA PASSE, IL N'EST PEUT-ÊTRE PAS SUFFISANT. Ouvrir l'app depuis
+      le navigateur intégré ne DÉMONTE pas ce navigateur : l'app peut recevoir le lien et
+      naviguer DERRIÈRE la page. Le retour visible sans geste appartient probablement à
+      `openAuthSessionAsync` (ASWebAuthenticationSession), qui se referme d'elle-même sur
+      l'adresse de retour déclarée — c'est du mobile, donc un autre lot. Voir la PR.
+
+      ⚠️ ANDROID N'A JAMAIS EU DE LIEN UNIVERSEL DU TOUT : ni `assetlinks.json` dans ce
+      site, ni `intentFilters` dans app.config.ts. Cette page y a toujours été le seul
+      retour possible, et la tentative automatique y est un gain net.
+
+      ─────────────────────────────────────────────────────────────────────────────────
       POURQUOI CETTE PAGE REMPLACE gymbook-app.vercel.app/payment/success (GYM-207) :
       l'ancienne page portait DEUX boutons morts, constatés en production après un
-      paiement pourtant réussi.
-       · « Retourner dans l'app » pointait sur `dopamine://…` : le checkout Mollie
-         s'ouvre dans un navigateur in-app (SFSafariViewController), qui BLOQUE les
-         schémas custom. Ici la redirection est un Universal Link https, qu'iOS honore.
-       · « Fermer cette fenêtre » appelait window.close(), SANS EFFET sur un onglet que
-         le script n'a pas ouvert — restriction navigateur, pas un bug. Le bouton est
-         RETIRÉ plutôt que laissé inerte : un bouton qui ne fait rien fait douter le
-         membre de son paiement.
+      paiement pourtant réussi. « Fermer cette fenêtre » appelait window.close(), SANS
+      EFFET sur un onglet que le script n'a pas ouvert — restriction navigateur, pas un
+      bug. Le bouton est RETIRÉ plutôt que laissé inerte : un bouton qui ne fait rien fait
+      douter le membre de son paiement.
 
-      ⚠️ Le membre n'a RIEN à faire pour être crédité : le crédit vient du webhook Mollie,
-      pas de cette page. Le texte le dit explicitement — en production, le crédit était
-      déjà accordé pendant que le membre croyait son paiement échoué.
+      ⚠️ LE MEMBRE N'A RIEN À FAIRE POUR ÊTRE CRÉDITÉ : le crédit vient du webhook Mollie,
+      pas de cette page ni de ce retour. Le texte le dit en toutes lettres — en production,
+      un membre a cru son paiement échoué alors qu'il était DÉJÀ crédité.
 
       Site STATIQUE pur (pas de build, pas d'injection d'env) : la constante ci-dessous
       est unique et documentée, à tenir alignée par le cockpit.
@@ -66,6 +110,9 @@
       }
       h1 { font-size: 22px; margin: 0 0 12px; color: #F5F4F0; }
       p { font-size: 15px; line-height: 1.6; color: #9A9890; margin: 0 0 24px; }
+      /* La phrase qui rassure ne doit pas se lire comme une note de bas de page : c'est
+         elle qui empêche un membre crédité de croire son paiement perdu. */
+      .done { color: #C8FF3D; font-weight: 700; }
       .btn {
         display: inline-block;
         background: #C8FF3D;
@@ -84,25 +131,58 @@
       <div class="logo">DOPAMINE</div>
       <h1>Paiement reçu</h1>
       <p>
-        Ton paiement est enregistré. Tes séances sont créditées automatiquement,
-        tu n'as rien à faire — ouvre l'app pour voir ta confirmation.
+        <span class="done">Tes séances sont déjà créditées.</span> Le paiement est
+        enregistré et ton compte est à jour : tu n'as plus rien à faire ici.
       </p>
-      <a id="openApp" class="btn" href="#">Ouvrir l'app Dopamine</a>
-      <p class="hint">Si rien ne se passe, rouvre l'app depuis ton écran d'accueil.</p>
+      <a id="openApp" class="btn" href="#">Revenir à l'app Dopamine</a>
+      <p class="hint">
+        Si rien ne se passe, touche « Terminé » en haut à gauche pour retrouver l'app.
+        Ton paiement reste enregistré dans tous les cas.
+      </p>
     </main>
 
     <script>
-      // Schéma custom de l'app (app.config.ts → scheme: 'dopamine'). Utilisé UNIQUEMENT
-      // dans ce fallback : on n'y arrive que si l'Universal Link n'a pas été intercepté,
-      // donc hors du navigateur in-app qui le bloquerait.
+      // Schéma custom de l'app (app.config.ts → scheme: 'dopamine').
       var APP_SCHEME_BASE = 'dopamine://payment/success'
 
-      // On repasse la query telle quelle : `id` (ajouté par create-payment) est la clé
-      // qui arme le poll de l'écran de vérification. Sans elle, l'écran ne peut rien
-      // interroger et bascule directement en « en cours de traitement ».
-      document
-        .getElementById('openApp')
-        .setAttribute('href', APP_SCHEME_BASE + window.location.search)
+      // On repasse la query TELLE QUELLE : `id` (ajouté par create-payment) est la clé qui
+      // arme le poll de l'écran de vérification. Sans elle, l'écran ne peut rien interroger
+      // et bascule directement en « en cours de traitement » — le membre verrait une
+      // attente là où tout est déjà réglé.
+      var DEST = APP_SCHEME_BASE + window.location.search
+
+      // Le repli visible, posé AVANT la tentative : si la ligne suivante fait disparaître
+      // la page d'une façon ou d'une autre, le bouton aura déjà son adresse.
+      document.getElementById('openApp').setAttribute('href', DEST)
+
+      // ⚠️ APRÈS LE PREMIER RENDU — c'est le seul rôle de ce double rAF, et ce n'est PAS
+      // une attente de clic : une image de plus, ~16 ms. Une tentative de schéma peut
+      // échouer BRUYAMMENT (Android sans l'app : Chrome remplace la page par
+      // ERR_UNKNOWN_URL_SCHEME). Dans ce cas, le membre aura au moins vu « Paiement reçu »
+      // et la phrase qui dit que ses séances sont créditées.
+      //
+      // ⚠️ Ce cas est quasi impossible ICI : on n'atteint cette page qu'au retour d'un
+      // checkout LANCÉ DEPUIS L'APP (l'URL est fabriquée par apps/mobile/lib/gymUrls.ts),
+      // donc l'app est installée par construction. Le garde-fou coûte deux lignes ; le
+      // membre qui verrait une page d'erreur après avoir payé en coûterait plus.
+      var dejaTente = false
+      function tenterOuvertureApp() {
+        if (dejaTente) return
+        dejaTente = true
+        window.location.href = DEST
+      }
+
+      // Le rAF laisse la page se peindre, mais il n'est JAMAIS la seule condition.
+      // 🔴 MESURÉ AU BANC (24/09, Chrome) : une page MASQUÉE ne reçoit AUCUN rAF —
+      // `requestAnimationFrame` n'y est pas throttlé, il ne part pas du tout. Une tentative
+      // qui n'en dépendrait que ne partirait jamais sur un onglet d'arrière-plan. Le
+      // minuteur est donc le filet, et le drapeau garantit une tentative et une seule.
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(tenterOuvertureApp)
+        })
+      }
+      setTimeout(tenterOuvertureApp, 120)
     </script>
   </body>
 </html>
