@@ -16,6 +16,6 @@
     { "source": "/:slug/bookings", "destination": "/_viniz/404.html" },
     { "source": "/:slug/confirm-waitlist", "destination": "/_viniz/404.html" },
     { "source": "/:slug/delete-account", "destination": "/_viniz/404.html" },
-    { "source": "/:slug/payment-success", "destination": "/_viniz/404.html" }
+    { "source": "/:slug/payment-success", "destination": "/_viniz/payment-success.html" }
   ]
 }
