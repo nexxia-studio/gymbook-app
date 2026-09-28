@@ -220,3 +220,52 @@ export function missingLegalFields(gym: Partial<Record<
     return !v || v.trim() === ''
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// 🔴 GYM-363b — DIRE « NUMÉRO DE TVA », PAS `vat_number`
+// ─────────────────────────────────────────────────────────────────────────────────────
+/**
+ * LE DÉFAUT, constaté par Antoine le 28/09 sur « Ubud Flow Studio ». L'étape 7 affichait :
+ *
+ *     « Il manque encore : legal_name, vat_number, legal_address, legal_postal_code,
+ *       legal_city, email de contact. »
+ *
+ * Cinq noms de colonnes, et UN SEUL mot traduit. Cette signature dit tout de la cause :
+ * les clés i18n avaient été écrites pour les noms du FRONT (`field_legalName`, camelCase,
+ * hérités de `REQUIRED_LEGAL_FIELDS`), et GYM-363 a fait basculer la source vers la
+ * fonction SQL `gym_legal_identity_missing`, qui rend des noms de COLONNES (`legal_name`,
+ * snake_case). Seul `email` s'écrit pareil des deux côtés — d'où le seul mot traduit.
+ *
+ * ⚠️ LA SOURCE DE VÉRITÉ NE BOUGE PAS. C'est toujours la fonction SQL qui dit ce qui
+ * manque ; cette table ne fait que TRADUIRE ce qu'elle nomme. Un champ que le serveur
+ * ajouterait sans entrée ici s'afficherait sous son nom de colonne — laid, mais jamais
+ * faux, et jamais muet.
+ *
+ * ⚠️ UNE SEULE TABLE POUR LES TROIS ÉCRANS : l'étape 7 de l'assistant, le bandeau de
+ * Réglages → Infos légales, et la carte Mollie. Cette dernière portait en plus sa PROPRE
+ * table de libellés, en français dur dans le composant — elle n'était donc même pas
+ * traduisible. Trois listes pour la même question, c'était deux de trop.
+ */
+export const LEGAL_FIELD_LABEL_KEYS: Record<string, string> = {
+  legal_name: 'settings.legal.field_legal_name',
+  vat_number: 'settings.legal.field_vat_number',
+  legal_address: 'settings.legal.field_legal_address',
+  legal_postal_code: 'settings.legal.field_legal_postal_code',
+  legal_city: 'settings.legal.field_legal_city',
+  email: 'settings.legal.field_email',
+  // La septième exigence, conditionnelle : le serveur la réclame dès que la salle est en
+  // franchise de TVA. Elle n'avait AUCUN libellé nulle part — elle se serait affichée
+  // `vat_exempt_mention` le jour où une salle cocherait la case.
+  vat_exempt_mention: 'settings.legal.field_vat_exempt_mention',
+}
+
+/**
+ * Clé i18n d'un champ rendu par `gym_legal_identity_missing`.
+ *
+ * ⚠️ L'APPELANT DOIT PASSER `{ defaultValue: champ }` À `t()`. Un champ inconnu rend alors
+ * son nom de colonne : c'est moche, et c'est très exactement ce qu'on veut — une liste qui
+ * se vide silencieusement serait pire qu'une liste laide.
+ */
+export function legalFieldLabelKey(champ: string): string {
+  return LEGAL_FIELD_LABEL_KEYS[champ] ?? champ
+}

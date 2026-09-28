@@ -18,11 +18,11 @@
       "incomplete_title": "Je algemene verkoopvoorwaarden zijn onvolledig",
       "incomplete_body": "Ontbrekende velden verschijnen als \"[à compléter par la salle]\" in de voorwaarden die je leden lezen. Vul hieronder je juridische identiteit in.",
       "incomplete_fields": "Aan te vullen: {{fields}}",
-      "field_legalName": "maatschappelijke naam",
-      "field_vatNumber": "ondernemings-/btw-nummer",
-      "field_legalAddress": "straat maatschappelijke zetel",
-      "field_legalPostalCode": "postcode zetel",
-      "field_legalCity": "gemeente zetel",
+      "field_legal_name": "maatschappelijke naam",
+      "field_vat_number": "ondernemings-/btw-nummer",
+      "field_legal_address": "straat maatschappelijke zetel",
+      "field_legal_postal_code": "postcode zetel",
+      "field_legal_city": "gemeente zetel",
       "field_email": "contact-e-mail"
     }
   },

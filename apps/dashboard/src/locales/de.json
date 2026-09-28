@@ -18,11 +18,11 @@
       "incomplete_title": "Deine Verkaufsbedingungen sind unvollständig",
       "incomplete_body": "Fehlende Felder erscheinen als \"[à compléter par la salle]\" in den Bedingungen, die deine Mitglieder lesen. Trage unten deine rechtliche Identität ein.",
       "incomplete_fields": "Zu ergänzen: {{fields}}",
-      "field_legalName": "Firmenname",
-      "field_vatNumber": "Unternehmens-/USt-Nummer",
-      "field_legalAddress": "Straße des Firmensitzes",
-      "field_legalPostalCode": "PLZ des Sitzes",
-      "field_legalCity": "Gemeinde des Sitzes",
+      "field_legal_name": "Firmenname",
+      "field_vat_number": "Unternehmens-/USt-Nummer",
+      "field_legal_address": "Straße des Firmensitzes",
+      "field_legal_postal_code": "PLZ des Sitzes",
+      "field_legal_city": "Gemeinde des Sitzes",
       "field_email": "Kontakt-E-Mail"
     }
   },
