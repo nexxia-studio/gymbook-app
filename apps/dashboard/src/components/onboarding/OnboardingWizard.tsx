@@ -5,9 +5,18 @@
 //  · L'étape courante est la valeur DB `onboarding_step` (CHECK 1..5 en base) — pas un
 //    compteur local. Le wizard reprend donc où le gérant s'était arrêté, y compris après
 //    une reconnexion. (Sous réserve de la persistance : cf. lib/onboarding.ts.)
-//  · CHAQUE étape est passable. Un onboarding qui retient son utilisateur en otage est un
-//    onboarding qu'on referme et qu'on ne rouvre jamais. « Passer » avance sans rien faire,
-//    « plus tard » ferme le wizard SANS perdre l'étape.
+//  · CHAQUE étape est passable — SAUF LA SEPTIÈME. Un onboarding qui retient son
+//    utilisateur en otage est un onboarding qu'on referme et qu'on ne rouvre jamais.
+//    « Passer » avance sans rien faire, « plus tard » ferme le wizard SANS perdre l'étape.
+//
+//    🔴 GYM-363 — L'EXCEPTION, ET POURQUOI ELLE EST JUSTE. L'identité légale ne peut pas
+//    être passée : une salle qui la saute TERMINE son installation et se croit prête,
+//    alors que `create-payment` refusera toutes ses ventes. Mesuré le 28/09 : The Pulse Box
+//    et Iner Studio, les deux seules salles créées en libre-service, ont leurs six champs
+//    vides et l'ignorent. Passer cette étape, ce n'est pas remettre à plus tard, c'est
+//    livrer une salle qui ne vend pas.
+//    ⚠️ « Plus tard » RESTE, lui : le gérant peut fermer l'assistant et revenir. Ce qu'il
+//    ne peut pas faire, c'est le TERMINER. La nuance est tout l'arbitrage.
 //  · Les étapes 2 à 5 ne dupliquent AUCUN formulaire existant : elles renvoient vers
 //    l'écran qui sait déjà le faire (Planning, Réglages, Membres). Recopier ces
 //    formulaires ici, c'est créer une seconde vérité qui divergera.
@@ -24,7 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   X, Check, ArrowRight, Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus,
-  PartyPopper, Sparkles, CheckCircle2,
+  PartyPopper, Sparkles, CheckCircle2, Scale, ReceiptText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 // GYM-285 — le champ couleur et la palette suggérée sont désormais PARTAGÉS avec la page
@@ -50,8 +59,19 @@ import { proposerPaletteDepuisLogo } from '@/lib/logoColorsFromImage'
 import type { PaletteProposee } from '@/lib/logoColors'
 // 22/09 — l'encart qui dit l'essai SANS mentir sur le plan souscrit.
 import { TrialPlanNotice } from '@/components/subscription/TrialPlanNotice'
+// 🔴 GYM-363 — L'ÉTAPE 7 NE RÉÉCRIT NI FORMULAIRE, NI VALIDATION, NI RÈGLE :
+//   · `useGymLegal`            — le MÊME hook que Réglages → Infos légales : même
+//                                normalisation '' → NULL, même détection d'un UPDATE
+//                                bloqué par RLS, même liste blanche de colonnes ;
+//   · `LegalIdentityFields`    — les champs, avec les libellés `settings.legal.*` de
+//                                l'onglet existant ;
+//   · `useLegalIdentityStatus` — la règle, lue au SERVEUR (gym_legal_identity_missing),
+//                                celle-là même dont le cockpit tire son indicateur.
+import { useGymLegal, EMPTY_GYM_LEGAL, type GymLegal } from '@/hooks/useGymLegal'
+import { useLegalIdentityStatus } from '@/hooks/useLegalIdentityStatus'
+import { LegalIdentityFields } from '@/components/settings/LegalIdentityFields'
 
-const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus] as const
+const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus, Scale] as const
 
 export function OnboardingWizard() {
   const { t } = useTranslation()
@@ -81,6 +101,15 @@ export function OnboardingWizard() {
   // rendu en cascade). `gym?.id` peut être null au premier rendu — on retombe alors sur
   // « déjà vu » et le calcul est refait dès que la salle arrive, via la clé du composant.
   const [welcomeDone, setWelcomeDone] = useState(false)
+
+  // ── Étape 7 — identité légale (GYM-363) ──
+  // Le formulaire est le GymLegal de Réglages, chargé par le MÊME hook. `legalStatus` dit
+  // ce que le SERVEUR juge manquant ; on ne recalcule rien ici.
+  const { legal, save: saveLegal } = useGymLegal()
+  const legalStatus = useLegalIdentityStatus()
+  const [legalForm, setLegalForm] = useState<GymLegal>(EMPTY_GYM_LEGAL)
+  const [savingLegal, setSavingLegal] = useState(false)
+  useEffect(() => { if (legal) setLegalForm(legal) }, [legal])
 
   // Étape 1 — marque de la salle.
   const [logoUrl, setLogoUrl] = useState('')
@@ -207,6 +236,41 @@ export function OnboardingWizard() {
     }
     addToast(t('onboarding.step1.saved'))
     await handleAdvance()
+  }
+
+  function setLegalField<K extends keyof GymLegal>(key: K, value: GymLegal[K]) {
+    setLegalForm((f) => ({ ...f, [key]: value }))
+  }
+
+  /**
+   * 🔴 ON ENREGISTRE, PUIS ON REDEMANDE AU SERVEUR. On n'avance JAMAIS parce que le
+   * formulaire a l'air rempli : c'est `gym_legal_identity_missing` qui tranche, comme pour
+   * le cockpit. Un champ rempli d'espaces, une écriture refusée par RLS, une règle qui
+   * gagne un septième champ — les trois se voient ici et nulle part ailleurs.
+   *
+   * ⚠️ C'est la MÊME discipline que les étapes 2 à 6 : l'étape se franchit parce que la
+   * CHOSE EXISTE, jamais parce qu'on a cliqué.
+   */
+  async function handleSaveLegal() {
+    setSavingLegal(true)
+    const result = await saveLegal(legalForm)
+    if (result.error) {
+      setSavingLegal(false)
+      addToast(
+        t(result.error === 'forbidden' ? 'settings.legal.save_forbidden' : 'settings.legal.save_error'),
+        'warning',
+      )
+      return
+    }
+    const restants = await legalStatus.refresh()
+    setSavingLegal(false)
+    if (restants !== null && restants.length === 0) {
+      addToast(t('onboarding.step7.saved'))
+      await handleFinish()
+      return
+    }
+    // Enregistré, mais le serveur veut encore quelque chose : on le DIT, on ne referme pas.
+    addToast(t('onboarding.step7.still_missing'), 'warning')
   }
 
   // ── Écran de félicitations ──
@@ -448,8 +512,74 @@ export function OnboardingWizard() {
         </div>
       )}
 
-      {/* ── Étapes 2 à 5 : renvoi vers l'écran qui sait déjà faire. ── */}
-      {step !== 1 && (
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          🔴 ÉTAPE 7 — L'IDENTITÉ LÉGALE. LA SEULE QU'ON NE PEUT PAS PASSER.
+          ══════════════════════════════════════════════════════════════════════════════
+          Elle est SUR PLACE, comme l'étape 1 : renvoyer vers Réglages pour six champs
+          coûterait un aller, un retour, et l'occasion d'abandonner — et c'est déjà le
+          défaut qu'on corrige, puisque l'onglet existe et que personne n'y va.
+
+          ⚠️ MAIS ELLE N'EST PAS UNE COPIE DE CET ONGLET : mêmes champs, mêmes libellés,
+          même hook d'écriture, même règle serveur. Ce qui change, c'est le CADRE — ici on
+          ne montre que ce qui est exigé, et on dit pourquoi. */}
+      {step === 7 && (
+        <div className="mt-5 flex flex-col gap-4">
+          {/* ── LE POURQUOI, AVANT LE REFUS ──────────────────────────────────────────
+              🔴 « Champs obligatoires » n'explique rien et se subit. Ce bloc dit ce que
+              ces informations DEVIENNENT : le bloc émetteur des factures que ses membres
+              recevront, et la condition pour encaisser. Un gérant qui comprend remplit ;
+              un gérant qui subit s'en va. */}
+          <div className="rounded-xl border border-[#E8E6E0] bg-[#F5F4F0] px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <ReceiptText className="mt-0.5 h-4 w-4 shrink-0 text-accent-dim" />
+              <div>
+                <p className="font-body text-sm font-semibold text-dark">
+                  {t('onboarding.step7.why_title')}
+                </p>
+                <p className="mt-1 font-body text-xs leading-5 text-dark/60">
+                  {t('onboarding.step7.why_body')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Ce que le SERVEUR attend encore. ⚠️ `missing === null` = on ne sait pas
+              encore : on n'affiche alors ni « c'est bon », ni la liste. Annoncer l'un ou
+              l'autre sans savoir serait pire que de se taire. */}
+          {legalStatus.complete && (
+            <div className="flex items-center gap-2 rounded-xl bg-accent-dim/10 px-4 py-2.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-accent-dim" />
+              <p className="font-body text-sm font-semibold text-dark/70">
+                {t('onboarding.step7.complete')}
+              </p>
+            </div>
+          )}
+          {legalStatus.missing !== null && legalStatus.missing.length > 0 && (
+            <p className="font-body text-xs font-medium text-amber-900">
+              {t('onboarding.step7.missing', {
+                fields: legalStatus.missing
+                  .map((f) => t(`settings.legal.field_${f}`, { defaultValue: f }))
+                  .join(', '),
+              })}
+            </p>
+          )}
+
+          <LegalIdentityFields form={legalForm} set={setLegalField} missing={legalStatus.missing} />
+
+          <Button onClick={handleSaveLegal} isLoading={savingLegal} className="w-full">
+            <Check className="h-4 w-4" />
+            {t('onboarding.step7.submit')}
+          </Button>
+
+          {/* Où retrouver ces champs ensuite — pour que la saisie ne ressemble pas à une
+              porte à sens unique. Le gérant change son numéro de TVA quand il veut, sans
+              nous. */}
+          <p className="font-body text-xs text-dark/40">{t('onboarding.step7.editable_later')}</p>
+        </div>
+      )}
+
+      {/* ── Étapes 2 à 6 : renvoi vers l'écran qui sait déjà faire. ── */}
+      {step !== 1 && step !== 7 && (
         <div className="mt-5 flex flex-col gap-3">
           {/* L'objectif est déjà atteint : on le DIT, plutôt que de proposer une action que
               le gérant vient de faire. Il ne reste qu'à confirmer. */}
@@ -518,13 +648,23 @@ export function OnboardingWizard() {
         >
           {t('onboarding.later')}
         </button>
-        <button
-          type="button"
-          onClick={isLast ? handleFinish : handleAdvance}
-          className="font-body text-sm font-semibold text-dark/60 transition-colors hover:text-dark"
-        >
-          {isLast ? t('onboarding.finish') : t('onboarding.skip')}
-        </button>
+        {/* 🔴 GYM-363 — PAS DE « PASSER » NI DE « TERMINER » À L'ÉTAPE 7, et c'est la
+            seule exception du wizard. Terminer sans identité légale livrerait une salle
+            qui se croit prête et dont toutes les ventes seront refusées. Le bouton
+            d'enregistrement de l'étape est la SEULE sortie par l'avant ; « plus tard »,
+            à gauche, reste ouvert — on ne prend personne en otage, on refuse seulement
+            de déclarer terminé ce qui ne l'est pas. */}
+        {step !== 7 ? (
+          <button
+            type="button"
+            onClick={isLast ? handleFinish : handleAdvance}
+            className="font-body text-sm font-semibold text-dark/60 transition-colors hover:text-dark"
+          >
+            {isLast ? t('onboarding.finish') : t('onboarding.skip')}
+          </button>
+        ) : (
+          <span className="font-body text-xs text-dark/30">{t('onboarding.step7.required_hint')}</span>
+        )}
       </div>
     </Shell>
   )

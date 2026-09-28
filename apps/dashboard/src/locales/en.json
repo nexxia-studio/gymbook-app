@@ -1548,7 +1548,20 @@
       "cta": "Let's go"
     },
     "return_hint": "Come back to setup when you're done.",
-    "return_cta": "Resume setup"
+    "return_cta": "Resume setup",
+    "step7": {
+      "title": "Your billing details",
+      "description": "The last step — and the one without which you cannot get paid.",
+      "why_title": "These details appear on your members' invoices",
+      "why_body": "Every payment generates an invoice in your organisation's name: without these details it would be incomplete, and you cannot get paid. They are never shown to other gyms.",
+      "submit": "Save and finish",
+      "saved": "Your setup is complete.",
+      "complete": "Your billing details are complete.",
+      "missing": "Still missing: {{fields}}.",
+      "still_missing": "Saved, but something is still missing — see the list above.",
+      "required_hint": "This step cannot be skipped",
+      "editable_later": "You can change them any time in Settings → Gym → Legal & billing details."
+    }
   },
   "legal": {
     "draft_title": "Draft version — pending legal review",
