@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CreditCard, Check, AlertCircle, AlertTriangle, Loader2, Unlink, RefreshCw, FileWarning } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { invokeEdge } from '@/lib/edgeInvoke'
-import { useGymLegal } from '@/hooks/useGymLegal'
-import { missingLegalFields } from '@/lib/gymLegalIdentity'
+import { useLegalIdentityStatus } from '@/hooks/useLegalIdentityStatus'
 
 interface Connection {
   connected: boolean
@@ -77,14 +76,18 @@ async function resolveErrorMessage(error: unknown, data: unknown): Promise<strin
 }
 
 export function MollieConnectCard() {
-  // 🔴 GYM-121 — MÊME RÈGLE QUE LE SERVEUR, LUE ICI POUR LE DIRE PLUS TÔT.
-  // `missingLegalFields` est la liste de GYM-265, celle-là même que la fonction SQL
-  // `gym_legal_identity_missing` porte côté serveur. L'interface ne DÉCIDE rien — la
-  // frontière reste create-payment / create-subscription — elle évite seulement au gérant
-  // de découvrir le refus par un membre qui n'arrive pas à payer.
-  const { legal } = useGymLegal()
-  const legalMissing = legal ? missingLegalFields(legal) : []
-  const legalIncomplete = legal !== null && legalMissing.length > 0
+  // 🔴 GYM-121 — MÊME RÈGLE QUE LE SERVEUR, LUE ICI POUR LE DIRE PLUS TÔT. L'interface ne
+  // DÉCIDE rien — la frontière reste create-payment / create-subscription — elle évite
+  // seulement au gérant de découvrir le refus par un membre qui n'arrive pas à payer.
+  //
+  // ⚠️ GYM-363 — CE COMMENTAIRE AFFIRMAIT QUE `missingLegalFields` ÉTAIT « CELLE-LÀ MÊME »
+  // QUE LA FONCTION SQL. C'ÉTAIT FAUX : la liste du front en compte six, le serveur sept —
+  // il exige en plus `vat_exempt_mention` quand la salle est en franchise de TVA. On
+  // interroge donc la fonction SQL directement, et l'affirmation redevient vraie parce
+  // qu'il n'y a plus qu'une liste.
+  const legalStatus = useLegalIdentityStatus()
+  const legalMissing = legalStatus.missing ?? []
+  const legalIncomplete = legalStatus.missing !== null && legalMissing.length > 0
 
   const [connection, setConnection] = useState<Connection | null>(null)
   const [isLoading, setIsLoading] = useState(true)

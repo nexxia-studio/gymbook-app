@@ -63,14 +63,21 @@ export interface OnboardingProgress {
 }
 
 /**
- * Bornes du CHECK en base (nexxia_gyms_onboarding_step_check : 1 ≤ step ≤ 6).
+ * Bornes du CHECK en base (nexxia_gyms_onboarding_step_check : 1 ≤ step ≤ 7).
  *
  * ⚠️ Trois endroits doivent rester d'accord — la colonne (CHECK), le RPC
- * set_gym_onboarding_progress (bornes 1..6) et cette constante. Migration de référence :
- * supabase/migrations/20260823120000_gym248_onboarding_step_6.sql.
+ * set_gym_onboarding_progress (bornes 1..7) et cette constante.
+ *
+ * 🔴 GYM-363 — 6 → 7, ET LES TROIS ONT BOUGÉ ENSEMBLE. L'étape « identité légale »
+ * s'ajoute à la fin du parcours ; élargir ici sans élargir la colonne et le RPC aurait
+ * produit le pire des résultats : le RPC lève `22003`, `saveOnboardingProgress` rend
+ * 'failed', et la progression LOCALE avance quand même. Le gérant croirait avoir terminé
+ * son installation pendant que la base dirait le contraire.
+ * Migrations de référence : 20260823120000_gym248_onboarding_step_6.sql, puis
+ * 20260928160000_gym363_onboarding_step_7.sql.
  */
 export const ONBOARDING_FIRST_STEP = 1
-export const ONBOARDING_LAST_STEP = 6
+export const ONBOARDING_LAST_STEP = 7
 
 export function clampStep(step: number): number {
   if (!Number.isFinite(step)) return ONBOARDING_FIRST_STEP

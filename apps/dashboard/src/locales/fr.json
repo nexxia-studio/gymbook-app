@@ -1548,7 +1548,20 @@
       "cta": "C'est parti"
     },
     "return_hint": "Reviens à la configuration quand c'est fait.",
-    "return_cta": "Reprendre la configuration"
+    "return_cta": "Reprendre la configuration",
+    "step7": {
+      "title": "Tes informations de facturation",
+      "description": "La dernière étape, et celle sans laquelle tu ne peux pas encaisser.",
+      "why_title": "Ces informations apparaissent sur les factures de tes membres",
+      "why_body": "Chaque paiement génère une facture au nom de ta structure : sans ces informations, elle serait incomplète et tu ne peux pas encaisser. Elles ne sont jamais montrées aux autres salles.",
+      "submit": "Enregistrer et terminer",
+      "saved": "Ton installation est terminée.",
+      "complete": "Tes informations de facturation sont complètes.",
+      "missing": "Il manque encore : {{fields}}.",
+      "still_missing": "C'est enregistré, mais il manque encore quelque chose — voir la liste ci-dessus.",
+      "required_hint": "Cette étape ne peut pas être passée",
+      "editable_later": "Tu pourras les modifier quand tu veux dans Réglages → Salle → Infos légales et facturation."
+    }
   },
   "legal": {
     "draft_title": "Version provisoire — en attente de validation juridique",
