@@ -70,6 +70,7 @@ import { TrialPlanNotice } from '@/components/subscription/TrialPlanNotice'
 import { useGymLegal, EMPTY_GYM_LEGAL, type GymLegal } from '@/hooks/useGymLegal'
 import { useLegalIdentityStatus } from '@/hooks/useLegalIdentityStatus'
 import { LegalIdentityFields } from '@/components/settings/LegalIdentityFields'
+import { legalFieldLabelKey } from '@/lib/gymLegalIdentity'
 
 const STEP_ICONS = [Palette, Dumbbell, UserCog, CalendarPlus, ShieldAlert, UserPlus, Scale] as const
 
@@ -557,8 +558,12 @@ export function OnboardingWizard() {
           {legalStatus.missing !== null && legalStatus.missing.length > 0 && (
             <p className="font-body text-xs font-medium text-amber-900">
               {t('onboarding.step7.missing', {
+                // 🔴 GYM-363b — DES MOTS, PAS DES NOMS DE COLONNES. La liste affichait
+                // « legal_name, vat_number, … » : la source de vérité reste la fonction
+                // SQL, c'est l'AFFICHAGE qui traduit, via la table partagée par les trois
+                // écrans qui posent la même question.
                 fields: legalStatus.missing
-                  .map((f) => t(`settings.legal.field_${f}`, { defaultValue: f }))
+                  .map((f) => t(legalFieldLabelKey(f), { defaultValue: f }))
                   .join(', '),
               })}
             </p>

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CreditCard, Check, AlertCircle, AlertTriangle, Loader2, Unlink, RefreshCw, FileWarning } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { invokeEdge } from '@/lib/edgeInvoke'
 import { useLegalIdentityStatus } from '@/hooks/useLegalIdentityStatus'
+import { legalFieldLabelKey } from '@/lib/gymLegalIdentity'
 
 interface Connection {
   connected: boolean
@@ -33,15 +35,6 @@ interface Connection {
 // La règle rend des noms de COLONNES (`legal_postal_code`) : c'est ce qu'il faut pour un
 // journal ou une charge utile, ce n'est pas ce qu'on montre à un gérant. Sans cette table,
 // l'écran le plus important du parcours d'encaissement lui parlerait en schéma de base.
-const LEGAL_FIELD_LABELS: Record<string, string> = {
-  legalName: 'Raison sociale',
-  vatNumber: "Numéro d'entreprise / TVA",
-  legalAddress: 'Adresse du siège',
-  legalPostalCode: 'Code postal du siège',
-  legalCity: 'Commune du siège',
-  email: 'Email de contact',
-}
-
 // GYM-85 : mapping des codes d'erreur backend → message FR visible.
 const ERROR_MESSAGES: Record<string, string> = {
   GYM_LEGAL_IDENTITY_INCOMPLETE:
@@ -76,6 +69,10 @@ async function resolveErrorMessage(error: unknown, data: unknown): Promise<strin
 }
 
 export function MollieConnectCard() {
+  // ⚠️ `t` N'EST AJOUTÉ QUE POUR LA LISTE DES CHAMPS MANQUANTS. Le reste de cette carte est
+  // en français dur depuis GYM-85 ; le traduire est un autre lot, et le faire à moitié ici
+  // laisserait un écran mi-traduit, ce qui se lit plus mal qu'un écran qui ne l'est pas.
+  const { t } = useTranslation()
   // 🔴 GYM-121 — MÊME RÈGLE QUE LE SERVEUR, LUE ICI POUR LE DIRE PLUS TÔT. L'interface ne
   // DÉCIDE rien — la frontière reste create-payment / create-subscription — elle évite
   // seulement au gérant de découvrir le refus par un membre qui n'arrive pas à payer.
@@ -243,7 +240,12 @@ export function MollieConnectCard() {
           </p>
           <ul className="mb-4 list-disc pl-5 font-body text-xs text-dark">
             {legalMissing.map((f) => (
-              <li key={f}>{LEGAL_FIELD_LABELS[f] ?? f}</li>
+              /* 🔴 GYM-363b — CETTE CARTE PORTAIT SA PROPRE TABLE DE LIBELLÉS, en
+                 français DUR dans le composant : elle n'était même pas traduisible, et
+                 ses clés étaient celles du front (`legalName`) quand la liste vient
+                 désormais du serveur (`legal_name`) — elle n'affichait donc plus rien de
+                 lisible. Même table que les deux autres écrans. */
+              <li key={f}>{t(legalFieldLabelKey(f), { defaultValue: f })}</li>
             ))}
           </ul>
           {/* ⚠️ `/settings` NU, SANS ANCRE DE SECTION — vérifié : `Settings.tsx` n'a aucun

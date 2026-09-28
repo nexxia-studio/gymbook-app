@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useGymLegal, EMPTY_GYM_LEGAL, type GymLegal } from '@/hooks/useGymLegal'
 import { useLegalIdentityStatus } from '@/hooks/useLegalIdentityStatus'
+import { legalFieldLabelKey } from '@/lib/gymLegalIdentity'
 import { useToastStore } from '@/hooks/useToast'
 
 /**
@@ -104,7 +105,10 @@ export function LegalBillingCard() {
           </p>
           <p className="mt-1.5 font-body text-xs font-medium text-amber-900">
             {t('settings.legal.incomplete_fields', {
-              fields: missing.map((f) => t(`settings.legal.field_${f}`)).join(', '),
+              // GYM-363b — même table que l'assistant et la carte Mollie. Sans
+              // `defaultValue`, un champ inconnu affichait ici la CLÉ i18n brute —
+              // `settings.legal.field_legal_name` — soit pire encore que le nom de colonne.
+              fields: missing.map((f) => t(legalFieldLabelKey(f), { defaultValue: f })).join(', '),
             })}
           </p>
         </div>
