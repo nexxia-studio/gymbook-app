@@ -386,30 +386,24 @@ export default function SubscriptionScreen() {
 
       if (result.ok) {
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 🔴 23/09 — RIEN NE BOUGE TANT QUE LE NAVIGATEUR EST À L'ÉCRAN
+        // 🔴 GYM-369 — LA CONTRAINTE D'ORDRE MEURT AVEC LA VUE INTÉGRÉE
         // ═══════════════════════════════════════════════════════════════════════════════
-        // CE QU'ON A ESSAYÉ EN 1.2.2, ET POURQUOI ÇA A ÉCHOUÉ. La version précédente
-        // démontait la feuille et poussait l'écran de vérification depuis `onPresented`,
-        // c'est-à-dire 400 ms APRÈS la présentation. Mesuré en TestFlight (build 27) :
-        // paiement créé, « Vérification… » affiché — donc le rappel est bien parti, donc
-        // Safari ÉTAIT présenté — et la page Mollie jamais vue.
+        // CE QUI IMPOSAIT L'ORDRE JUSQU'ICI. La feuille de consentement était la vue QUI
+        // PRÉSENTAIT Safari ; UIKit dismisse un contrôleur présenté AVEC son présentateur,
+        // donc tout démontage emportait la page Mollie. La 1.2.2 n'avait pas supprimé cette
+        // cascade, elle l'avait décalée de 400 ms.
         //
-        // La feuille de consentement est la vue QUI PRÉSENTE Safari. UIKit dismisse un
-        // contrôleur présenté AVEC son présentateur : la cascade n'avait pas été
-        // supprimée, seulement décalée de 400 ms.
-        //
-        // ⚠️ ON N'APPELLE DONC PLUS RIEN PENDANT LA PRÉSENTATION. La feuille est déjà
-        // fermée (c'est `onDismissed` qui a appelé cette fonction), et la navigation
-        // n'a lieu qu'au RETOUR de la promesse — sur iOS, à la fermeture du navigateur.
-        // C'est le seul instant où naviguer ne peut rien casser : il n'y a plus rien à
-        // l'écran à casser.
+        // ⚠️ AVEC `Linking.openURL`, LA CIBLE EST UNE AUTRE APPLICATION. Rien de ce que cet
+        // écran démonte ou pousse ne peut plus l'atteindre : le navigateur du système n'est
+        // pas présenté par nous, il ne nous appartient pas. La contrainte n'est pas
+        // contournée, elle n'a plus d'objet.
         const outcome = await openCheckout(result.checkoutUrl, {
           screen: 'profile_subscription',
           paymentId: result.paymentId,
           planId: plan.id,
         })
 
-        if (!outcome.presented) {
+        if (!outcome.handedOff) {
           // ⚠️ « RÉESSAYER » RELANCE LE MÊME ACHAT. Redemander au membre quelle formule il
           // voulait, après un échec qui n'est pas de son fait, serait le punir deux fois.
           // ⚠️ ET LE MESSAGE NE DIT PAS « erreur » : rien n'a été débité, rien n'est perdu.
@@ -424,13 +418,20 @@ export default function SubscriptionScreen() {
           return
         }
 
-        // 🔴 L'INTENTION DE GYM-96 EST TENUE AUTREMENT, ET ELLE EST TENUE. L'écran de
-        // vérification devait être monté pour que son poll et son filet AppState soient
-        // armés quel que soit le mode de retour. Il l'est ici — au retour de la promesse,
-        // QUEL QUE SOIT LE TYPE ('cancel' comme 'dismiss'). Un membre qui referme sans
-        // payer atterrit donc sur le même écran qu'un membre qui a payé : c'est voulu,
+        // 🔴 L'ÉCRAN DE VÉRIFICATION EST MONTÉ MAINTENANT, ET « MAINTENANT » A CHANGÉ DE
+        // SENS. Avec la vue intégrée, cette ligne s'exécutait à la FERMETURE du navigateur,
+        // parce que c'est là que la promesse résolvait. `Linking.openURL` résout en
+        // quelques millisecondes, AVANT que l'app passe en arrière-plan : l'écran est donc
+        // monté, son poll et son filet `AppState` armés, pendant que le membre paie.
+        //
+        // ⚠️ C'EST CE QUI REND LE RETOUR INDIFFÉRENT AU CHEMIN EMPRUNTÉ — lien universel
+        // honoré, schéma personnalisé tenté par la page de retour (GYM-368), ou simple
+        // retour manuel par le sélecteur d'apps. Dans les trois cas l'écran est déjà là et
+        // le poll a déjà tourné. C'est l'intention de GYM-96, enfin tenue au bon instant.
+        //
+        // ⚠️ Un membre qui revient SANS avoir payé atterrit sur le même écran : c'est voulu,
         // puisque c'est précisément le cas où l'on ne sait pas encore lequel des deux
-        // c'était. Le poll tranche.
+        // c'était. Le poll tranche, et le message de fin distingue déjà les trois issues.
         if (plan.billingType === 'one_time' && result.paymentId) {
           router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }

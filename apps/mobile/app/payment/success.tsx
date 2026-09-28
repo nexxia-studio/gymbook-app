@@ -71,12 +71,21 @@ export default function PaymentSuccess() {
   const router = useRouter()
   // GYM-352 — `checkout_opened: '0'` signalait que le navigateur ne s'était pas affiché.
   //
-  // ⚠️ 22/09 — PLUS AUCUN APPELANT NE LE POSE, et le param est CONSERVÉ quand même. Le
-  // correctif a inversé l'ordre : cet écran n'est monté que DEPUIS `onPresented`,
-  // c'est-à-dire une fois la page Mollie à l'écran — le cas « monté puis pas ouvert » ne
-  // peut donc plus se produire par ce chemin. Le lire coûte une ligne et couvre un lien
-  // profond ancien ou un appelant futur ; le retirer obligerait à re-décider quoi faire
-  // d'un paramètre qui arriverait quand même.
+  // ⚠️ 22/09 — PLUS AUCUN APPELANT NE LE POSE, et le param est CONSERVÉ quand même : il
+  // couvre un lien profond ancien ; le retirer obligerait à re-décider quoi faire d'un
+  // paramètre qui arriverait quand même.
+  //
+  // 🔴 GYM-369 — LA JUSTIFICATION D'HIER ÉTAIT FAUSSE, ET LA CORRIGER IMPORTE. Elle disait
+  // « cet écran n'est monté que DEPUIS `onPresented`, donc la page Mollie est à l'écran ».
+  // `onPresented` a été RETIRÉ le 23/09 (il était la cause de la cascade, pas le remède),
+  // et cet écran est désormais monté dès que le SYSTÈME a pris la main sur l'URL — ce qui
+  // ne dit rien de ce que le membre voit ensuite.
+  //
+  // ⚠️ C'EST PRÉCISÉMENT POURQUOI LE PARAMÈTRE NE SERT PLUS À RIEN : il n'existe plus
+  // aucune mesure côté app capable de distinguer « ouvert » de « pas ouvert ». Le seul
+  // signal qui reste est un FAIT SERVEUR — le statut de la ligne — et c'est `not_finalized`
+  // qui le porte, plus bas. Une heuristique en moins n'est pas une mesure en moins : celle
+  // de GYM-352 déclarait « présenté » ce que François n'a jamais vu.
   const params = useLocalSearchParams<{ id?: string; mollie_id?: string; slot_id?: string; source?: string; returnTo?: string; checkout_opened?: string }>()
   const isDropInRetry = params.source === 'drop_in' && !!params.slot_id
 

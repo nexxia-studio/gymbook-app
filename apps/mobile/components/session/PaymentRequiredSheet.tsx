@@ -204,27 +204,30 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         }
       }, 2000)
 
-      // GYM-352 — LE RÉSULTAT EST LU. Ce chemin échoue à l'identique de celui de
+      // GYM-352 — LE RÉSULTAT EST LU. Ce chemin échouait à l'identique de celui de
       // profile/subscription.tsx (constaté le 17/09 à 16h03) alors qu'il ne démonte aucune
-      // modale et ne navigue pas : la cause est en aval, commune aux deux.
+      // modale et ne navigue pas : la cause était en aval, commune aux deux — la vue
+      // intégrée elle-même (GYM-369).
       //
-      // ⚠️ TOUJOURS PAS `await` — volontairement. Sur iOS, `openBrowserAsync` ne résout
-      // qu'à la FERMETURE du navigateur : attendre ici suspendrait la fonction pendant tout
-      // le paiement, alors que le poll des crédits doit tourner PENDANT. On lit le résultat
-      // à part, quand il arrive.
-      // ⚠️ CET ÉCRAN EST CELUI QUI MARCHE, ET ON N'Y TOUCHE PAS À L'ORDRE. Les deux achats
-      // qui ont RÉUSSI les 21–22/09 (Séance d'essai 15 €, One-Shot 20 €) viennent d'ici :
-      // la feuille reste montée, rien ne navigue, rien ne se démonte avant la présentation.
-      // Il reçoit seulement le contexte de journalisation et les deux défenses internes
-      // (désarmement du verrou, réessai unique) — aucune inversion n'est nécessaire.
+      // 🔴 GYM-369 — SEUL LE NOM DU VERDICT CHANGE ICI, ET RIEN D'AUTRE. `presented` («la
+      // vue s'est affichée») n'a plus de sens quand la page part dans le navigateur du
+      // système : ce qu'on sait désormais est `handedOff`, «le système a pris la main».
+      // L'ordre des opérations de cette feuille n'est PAS touché — c'est elle qui marchait,
+      // et les deux achats réussis des 21–22/09 en viennent.
+      //
+      // ⚠️ TOUJOURS PAS `await`, et la raison a changé. Avant : sur iOS `openBrowserAsync`
+      // ne résolvait qu'à la FERMETURE du navigateur. Désormais `Linking.openURL` résout en
+      // quelques millisecondes — attendre ne coûterait presque rien. On ne le fait pas
+      // quand même, pour que le poll des crédits démarre sans dépendre d'un aller-retour
+      // système, si court soit-il.
       void openCheckout(result.checkoutUrl, {
         screen: 'payment_required_sheet',
         paymentId: result.paymentId,
         planId: dropInPlan.id,
       }).then((outcome) => {
-        if (outcome.presented) return
-        // Le navigateur ne s'est pas affiché : inutile de faire patienter le membre soixante
-        // secondes devant un poll de crédits qui ne verra jamais rien.
+        if (outcome.handedOff) return
+        // Le système a refusé l'URL : inutile de faire patienter le membre cinq minutes
+        // devant un poll de crédits qui ne verra jamais rien.
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
         setIsLoadingDropIn(false)
         setStep('options')
