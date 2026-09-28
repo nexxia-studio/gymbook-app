@@ -26,7 +26,7 @@ export interface OnboardingState {
   /** Le wizard doit-il s'afficher ? (salle chargée, onboarding non terminé, non masqué) */
   isOpen: boolean
   /**
-   * Objectifs atteints, par étape (2..5). Sert à annoncer « c'est fait » plutôt que de
+   * Objectifs atteints, par étape (2..7). Sert à annoncer « c'est fait » plutôt que de
    * proposer une action que le gérant vient d'accomplir.
    *
    * 🔴 CE COMMENTAIRE DISAIT « PAS DE `refresh()` EXPOSÉ », et l'argument était bon TANT
@@ -78,10 +78,19 @@ export interface OnboardingState {
  *   6 · au moins un membre .................... profiles role='member', deleted_at NULL
  *                                                (le gérant est gym_admin : il ne se
  *                                                compte pas lui-même)
+ *   7 · l'identité légale est complète ........ gym_legal_identity_missing() rend un
+ *                                                tableau VIDE (GYM-363)
  *
  * L'étape 1 (identité visuelle) n'a pas d'objet à détecter — des couleurs par défaut sont
  * indiscernables de couleurs choisies. Elle garde donc sa validation explicite : le bouton
  * enregistre ET avance, ou le gérant la passe.
+ *
+ * 🔴 GYM-363 — L'ÉTAPE 7 NE DÉFINIT AUCUNE RÈGLE, ELLE INTERROGE CELLE QUI EXISTE.
+ * `gym_legal_identity_missing` est la MÊME fonction que lit `gym_legal_identity_complete`,
+ * donc le cockpit, donc l'indicateur « identité légale » par salle. Recopier ici la liste
+ * des six champs aurait fait diverger l'assistant du serveur au premier ajout — et cette
+ * divergence existe DÉJÀ ailleurs : la liste du front oublie `vat_exempt_mention`, que le
+ * serveur exige dès que la salle est en franchise de TVA.
  */
 async function detectSatisfiedSteps(gymId: string): Promise<Record<number, boolean>> {
   const countOf = async (
@@ -109,16 +118,24 @@ async function detectSatisfiedSteps(gymId: string): Promise<Record<number, boole
     .eq('role', 'member')
     .is('deleted_at', null)
 
+  // GYM-363 — l'identité légale, telle que LE SERVEUR la juge. ⚠️ Une erreur de lecture
+  // n'est PAS « complète » : même règle que les comptages ci-dessus, dans le doute l'étape
+  // reste ouverte. Marquer franchi sans savoir laisserait une salle terminer son
+  // installation sans pouvoir encaisser — précisément le défaut qu'on corrige.
+  const { data: legalMissing, error: legalError } =
+    await supabase.rpc('gym_legal_identity_missing', { p_gym_id: gymId })
+
   return {
     2: activities,
     3: coaches,
     4: slots,
     5: noshow,
     6: !membersError && (members ?? 0) > 0,
+    7: !legalError && Array.isArray(legalMissing) && legalMissing.length === 0,
   }
 }
 
-/** Première étape (parmi 2..5) dont l'objectif n'est PAS atteint. 6 = toutes atteintes. */
+/** Première étape (parmi 2..7) dont l'objectif n'est PAS atteint. 8 = toutes atteintes. */
 function firstUnsatisfied(satisfied: Record<number, boolean>): number {
   for (let n = 2; n <= ONBOARDING_LAST_STEP; n++) {
     if (!satisfied[n]) return n

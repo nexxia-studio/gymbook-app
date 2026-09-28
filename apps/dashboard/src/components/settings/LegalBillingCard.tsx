@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useGymLegal, EMPTY_GYM_LEGAL, type GymLegal } from '@/hooks/useGymLegal'
-import { missingLegalFields } from '@/lib/gymLegalIdentity'
+import { useLegalIdentityStatus } from '@/hooks/useLegalIdentityStatus'
 import { useToastStore } from '@/hooks/useToast'
 
 /**
@@ -29,6 +29,7 @@ import { useToastStore } from '@/hooks/useToast'
 export function LegalBillingCard() {
   const { t } = useTranslation()
   const { legal, save } = useGymLegal()
+  const legalStatus = useLegalIdentityStatus()
   const addToast = useToastStore((s) => s.addToast)
 
   const [form, setForm] = useState<GymLegal>(EMPTY_GYM_LEGAL)
@@ -59,15 +60,25 @@ export function LegalBillingCard() {
       addToast(t('settings.legal.save_error'), 'warning')
       return
     }
+    // La règle est au serveur : après écriture, on la redemande plutôt que de la déduire.
+    await legalStatus.refresh()
     addToast(t('settings.legal.saved'))
   }
 
   const dirty = legal !== null && JSON.stringify(form) !== JSON.stringify(legal)
 
-  // ⚠️ CALCULÉ SUR L'ÉTAT ENREGISTRÉ (`legal`), PAS SUR LE FORMULAIRE. Le bandeau décrit ce
-  // que les membres LISENT en ce moment sur la page publique ; le baser sur `form` le
-  // ferait disparaître dès la première frappe, avant que quoi que ce soit soit enregistré.
-  const missing = legal ? missingLegalFields(legal) : []
+  // ⚠️ CALCULÉ SUR L'ÉTAT ENREGISTRÉ, PAS SUR LE FORMULAIRE. Le bandeau décrit ce que les
+  // membres LISENT en ce moment sur la page publique ; le baser sur `form` le ferait
+  // disparaître dès la première frappe, avant que quoi que ce soit soit enregistré.
+  //
+  // 🔴 GYM-363 — LA LISTE VIENT DÉSORMAIS DU SERVEUR, et ce n'est pas un raffinement.
+  // `missingLegalFields` en porte SIX ; `gym_legal_identity_missing`, celle qui décide
+  // vraiment — et dont le cockpit tire son indicateur — en porte SEPT : elle exige
+  // `vat_exempt_mention` dès que la salle est en franchise de TVA. Une salle en franchise
+  // sans mention lisait donc ici que tout était en ordre pendant que le serveur lui
+  // refusait l'encaissement. Aucune salle n'est aujourd'hui dans ce cas (vérifié en
+  // production le 28/09) : le défaut était réel et pas encore rencontré.
+  const missing = legalStatus.missing ?? []
 
   return (
     <section className="rounded-2xl border border-[#E8E6E0] bg-card p-6">
