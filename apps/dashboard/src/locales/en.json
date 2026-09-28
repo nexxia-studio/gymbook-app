@@ -857,12 +857,13 @@
       "incomplete_title": "Your terms of sale are incomplete",
       "incomplete_body": "Missing fields are shown as \"[to be completed by the gym]\" in the terms your members read. Fill in your legal identity below.",
       "incomplete_fields": "To complete: {{fields}}",
-      "field_legalName": "legal name",
-      "field_vatNumber": "company / VAT number",
-      "field_legalAddress": "registered office street",
-      "field_legalPostalCode": "registered office postcode",
-      "field_legalCity": "registered office city",
-      "field_email": "contact email"
+      "field_legal_name": "legal name",
+      "field_vat_number": "VAT number",
+      "field_legal_address": "registered address",
+      "field_legal_postal_code": "registered postcode",
+      "field_legal_city": "registered city",
+      "field_email": "contact email",
+      "field_vat_exempt_mention": "VAT exemption notice"
     },
     "noshow": {
       "title": "No-show policy",
@@ -900,7 +901,8 @@
       "late_cancel_label": "Cancellation window (hours)",
       "late_cancel_helper": "A cancellation less than N hours before the class is treated as an absence: the credit is lost and the scale below applies.",
       "preview_late_cancel_one": "This scale also applies to cancellations made less than {{count}} hour before the class: the session is not re-credited.",
-      "preview_late_cancel_other": "This scale also applies to cancellations made less than {{count}} hours before the class: the session is not re-credited."
+      "preview_late_cancel_other": "This scale also applies to cancellations made less than {{count}} hours before the class: the session is not re-credited.",
+      "confirm_defaults": "Confirm this policy"
     },
     "opening_hours": {
       "title": "Opening hours",

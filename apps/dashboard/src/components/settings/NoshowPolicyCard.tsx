@@ -15,7 +15,7 @@ type FieldErrors = Partial<Record<keyof NoshowRules, string>>
  */
 export function NoshowPolicyCard() {
   const { t } = useTranslation()
-  const { rules, save } = useNoshowRules()
+  const { exists, rules, save } = useNoshowRules()
   const addToast = useToastStore((s) => s.addToast)
 
   const [form, setForm] = useState<NoshowRules>(DEFAULT_NOSHOW_RULES)
@@ -72,6 +72,30 @@ export function NoshowPolicyCard() {
   }
 
   const dirty = rules !== null && JSON.stringify(form) !== JSON.stringify(rules)
+
+  /**
+   * ╔═══════════════════════════════════════════════════════════════════════════════════╗
+   * ║  🔴 GYM-363b — « NE RIEN CHANGER » NE DOIT PAS VOULOIR DIRE « NE RIEN POUVOIR     ║
+   * ║  ENREGISTRER ». C'ÉTAIT LE BLOCAGE DE L'ÉTAPE 5.                                  ║
+   * ╚═══════════════════════════════════════════════════════════════════════════════════╝
+   *
+   * LE DÉFAUT, reproduit deux fois par Antoine le 28/09 sur « Ubud Flow Studio ». Le
+   * bouton valait `disabled={!dirty || saving}`. Or, tant qu'aucune ligne `noshow_rules`
+   * n'existe, le formulaire affiche `DEFAULT_NOSHOW_RULES` — et `rules` vaut la même
+   * chose. Un gérant qui ACCEPTE la politique par défaut a donc `form === rules`,
+   * `dirty === false`, et un bouton grisé POUR TOUJOURS. Aucune ligne n'est créée,
+   * l'assistant ne voit jamais son objet, et l'étape 5 ne se valide pas. Il a dû la sauter.
+   *
+   * ⚠️ RIEN N'ÉCHOUAIT EN SILENCE, ET AUCUNE VALEUR MODIFIÉE N'ÉTAIT EXIGÉE PAR DESSEIN :
+   * le garde `dirty` a été écrit pour un formulaire qui MODIFIE une ligne existante, et il
+   * est faux pour un formulaire qui doit la CRÉER. C'est le cas le plus fréquent — accepter
+   * les valeurs par défaut — qui était le seul bloqué.
+   *
+   * `exists === false` → il reste quelque chose à écrire, même à l'identique.
+   * `exists === null`  → on ne sait pas encore : on n'active pas, la lecture arrive.
+   */
+  const aCreer = exists === false
+  const peutEnregistrer = (dirty || aCreer) && !saving
 
   /**
    * Simulation des premiers paliers, dans le MÊME ordre d'évaluation que le serveur :
@@ -225,8 +249,11 @@ export function NoshowPolicyCard() {
       )}
 
       <div className="mt-6">
-        <Button onClick={handleSave} disabled={!dirty || saving}>
-          {t('settings.noshow.save')}
+        <Button onClick={handleSave} disabled={!peutEnregistrer}>
+          {/* Le libellé dit ce que le geste FAIT. « Enregistrer » sur un formulaire qu'on
+              n'a pas touché n'invite à rien ; « confirmer cette politique » dit au gérant
+              qu'accepter les valeurs proposées est une décision, et qu'elle compte. */}
+          {aCreer ? t('settings.noshow.confirm_defaults') : t('settings.noshow.save')}
         </Button>
       </div>
     </section>

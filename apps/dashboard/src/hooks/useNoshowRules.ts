@@ -55,6 +55,17 @@ export const DEFAULT_NOSHOW_RULES: NoshowRules = {
 export function useNoshowRules() {
   const gym = useGymStore((s) => s.gym)
   const [rules, setRules] = useState<NoshowRules | null>(null)
+  /**
+   * 🔴 GYM-363b — LA SALLE A-T-ELLE UNE LIGNE, OU LIT-ELLE LES VALEURS DE REPLI ?
+   *
+   * La distinction n'existait pas, et c'est ce qui bloquait l'étape 5 de l'assistant :
+   * `rules` valait `DEFAULT_NOSHOW_RULES` aussi bien pour une salle qui n'a rien enregistré
+   * que pour une salle qui aurait enregistré exactement ces valeurs. Le formulaire ne
+   * pouvait donc pas savoir qu'il devait encore CRÉER quelque chose.
+   *
+   * `null` = on ne sait pas encore (lecture en cours, ou en échec).
+   */
+  const [exists, setExists] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   const load = useCallback(async () => {
@@ -72,8 +83,10 @@ export function useNoshowRules() {
     // formulaire vide, et le premier enregistrement créera la ligne.
     if (!data) {
       setRules(DEFAULT_NOSHOW_RULES)
+      setExists(false)
       return
     }
+    setExists(true)
     setRules({
       lateCancelHours: data.late_cancel_hours ?? DEFAULT_NOSHOW_RULES.lateCancelHours,
       warning1At: data.warning_1_at ?? DEFAULT_NOSHOW_RULES.warning1At,
@@ -130,8 +143,11 @@ export function useNoshowRules() {
     // Un écrit bloqué par RLS ne lève pas d'erreur : il porte sur 0 ligne (leçon GYM-180).
     if (!data || data.length === 0) return { error: 'forbidden' }
     setRules(next)
+    // L'upsert vient de créer la ligne si elle manquait : le formulaire n'a plus rien à
+    // créer, et son bouton retrouve la règle normale (n'enregistrer que ce qui a changé).
+    setExists(true)
     return {}
   }, [gym?.id])
 
-  return { rules, isLoading, save, reload: load }
+  return { rules, exists, isLoading, save, reload: load }
 }
