@@ -57,6 +57,9 @@ export interface BookingIntent {
   /**
    * Paiement associé, quand il est connu (id Mollie rendu par create-payment).
    *
+   * ⚠️ ÉCRIT PAR `attacherPaiementBookingIntent` (GYM-374 — il ne l'était nulle part).
+   * Sans lui, la fiche du cours conclut « achat non finalisé ».
+   *
    * ⚠️ IL SERT À EFFACER L'INTENTION SUR UN ÉCHEC TERMINAL. Un paiement abandonné,
    * refusé ou expiré ne doit pas laisser derrière lui une proposition de réservation qui
    * ressurgirait plus tard sans que le membre comprenne d'où elle sort.
@@ -88,6 +91,34 @@ export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt'
   } catch {
     // Best-effort : l'achat doit pouvoir se poursuivre même si le disque refuse d'écrire.
     // Le `slot_id` de l'URL de retour reste alors le second signal — voir lib/gymUrls.ts.
+  }
+}
+
+/**
+ * GYM-374 — RATTACHE le paiement à l'intention en cours, dès que create-payment (ou
+ * create-subscription) a rendu son id Mollie. Appelée par les DEUX chemins d'achat :
+ * `PaymentRequiredSheet` (séance à l'unité) et `profile/subscription.tsx` (formules).
+ *
+ * 🔴 LE CHAMP EXISTAIT, IL N'ÉTAIT JAMAIS ÉCRIT. Sans lui, la fiche du cours ne pouvait
+ * décider que sur la PRÉSENCE de l'intention — or elle est posée AVANT l'achat. Un membre
+ * parti sans payer était traité comme un membre qui venait de payer : « ton paiement est
+ * bien enregistré », écran bloqué (constaté le 12/10 chez Dopamine).
+ *
+ * ⚠️ NE CRÉE JAMAIS D'INTENTION. Sans intention valide, il n'y a pas de cours à rattacher :
+ * un achat lancé depuis le profil reste un achat, pas une réservation en attente.
+ * ⚠️ PASSE PAR `lireBookingIntent`, donc par `estValide` : une intention périmée est
+ * effacée au passage, jamais ressuscitée par un `paymentId` tout neuf.
+ * ⚠️ `createdAt` EST CONSERVÉ : le plafond absolu court depuis le choix du cours.
+ */
+export async function attacherPaiementBookingIntent(paymentId: string | undefined): Promise<void> {
+  if (!paymentId) return
+  try {
+    const intent = await lireBookingIntent()
+    if (!intent) return
+    await AsyncStorage.setItem(CLE, JSON.stringify({ ...intent, paymentId }))
+  } catch {
+    // Best-effort : l'achat part quand même. Sans `paymentId`, la fiche du cours dira
+    // « achat non finalisé » et rouvrira la feuille — elle ne mentira pas.
   }
 }
 

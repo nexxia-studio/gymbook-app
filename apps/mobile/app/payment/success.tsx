@@ -9,6 +9,8 @@ import { supabase } from '../../lib/supabase'
 import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/subscription'
 import { lireBookingIntent, effacerBookingIntent, type BookingIntent } from '../../lib/bookingIntent'
 import { captureEvent } from '../../lib/analytics'
+import { TERMINAL_FAILURE } from '../../lib/paymentStatus'
+import { requetePaiement } from '../../lib/paymentLookup'
 import { useAuthStore } from '../../stores/useAuthStore'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
 import { runNetworkSafe } from '../../lib/networkError'
@@ -43,7 +45,8 @@ const POLL_INTERVAL_MS = 2500
 // observée, avec de la marge.
 const GLOBAL_TIMEOUT_MS = 300_000 // 5 min
 // Statuts terminaux d'échec (Mollie → colonne payments.status via webhook).
-const TERMINAL_FAILURE = new Set(['failed', 'canceled', 'cancelled', 'expired'])
+// GYM-374 — DÉPLACÉ dans lib/paymentStatus.ts : la fiche du cours le lit aussi, et deux
+// définitions du même prédicat finiraient par diverger.
 
 type ClassicStatus = 'polling' | 'success' | 'failed' | 'timeout'
 
@@ -347,17 +350,18 @@ function ClassicPaymentScreen({
   const poll = useCallback(async () => {
     if (settledRef.current) return
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
-    let query = supabase
-      .from('payments')
+    // GYM-374 — la clé de recherche vit dans lib/paymentLookup.ts, partagée avec la fiche
+    // du cours ; les colonnes restent celles de cet écran.
+    const query = requetePaiement(
+      { rowId, mollieId },
       // 🔴 GYM-294 — `gym_id` RAMENÉ POUR LE GARDE. La policy de `payments` est
       // `member_id = auth.uid()` — SANS clause de salle : contrairement à `time_slots`,
       // elle autorise donc bien la lecture d'un paiement d'une AUTRE salle du membre.
       // Défaut LATENT aujourd'hui (mesuré : 0 membre a des paiements dans plusieurs
       // salles), mais la policy l'autorise, et c'est la policy qui fait foi.
-      .select('id, gym_id, status, plan_name, amount, currency, credits_granted')
-    if (rowId) query = query.eq('id', rowId)
-    else if (mollieId) query = query.eq('mollie_payment_id', mollieId)
-    else return
+      'id, gym_id, status, plan_name, amount, currency, credits_granted',
+    )
+    if (!query) return
     // ⚠️ UNE COUPURE N'INTERROMPT PAS LE POLL : on repassera au tick suivant, et le
     // timeout global reste le seul juge de l'abandon. Un refus SERVEUR, lui, est relancé
     // par `runNetworkSafe` et remonte comme avant — le taire masquerait un vrai problème.
@@ -369,7 +373,9 @@ function ClassicPaymentScreen({
       return
     }
     setOffline(false)
-    const { data } = res.data
+    // GYM-374 — colonnes passées en variable à `requetePaiement` : le typage de
+    // supabase-js ne les infère plus, la forme de la ligne est donc déclarée ici.
+    const data = res.data.data as unknown as (Payment & { gym_id?: string }) | null
     if (!data || settledRef.current) return
     // GYM-294 — la salle du paiement, pour le garde partagé. `null` tant qu'on ne sait pas.
     setGymDuPaiement((data as { gym_id?: string }).gym_id ?? null)

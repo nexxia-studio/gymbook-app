@@ -38,6 +38,10 @@ import {
   effacerBookingIntent,
   porteSurCeCreneau,
 } from '../../lib/bookingIntent'
+// GYM-374 — au retour, on décide sur le statut RÉEL du paiement, plus sur la présence de
+// l'intention. Prédicat et lecture PARTAGÉS avec app/payment/success.tsx, pas recopiés.
+import { issueDuRetour } from '../../lib/paymentStatus'
+import { lireStatutPaiement } from '../../lib/paymentLookup'
 import { CrossGymInterstitial } from '../../components/gym/CrossGymInterstitial'
 import { raiseNotMemberNotice } from '../../lib/activeGymSession'
 
@@ -326,6 +330,20 @@ export default function SessionDetail() {
     }, [slotId, rafraichirDroits]),
   )
 
+  // GYM-352 / GYM-374 — pose l'intention PUIS ouvre la feuille d'achat. Un seul chemin pour
+  // le premier achat et pour sa reprise : l'intention reposée ÉCRASE l'ancienne, et avec
+  // elle un `paymentId` mort — le prochain achat rattachera le sien.
+  //
+  // ⚠️ `await` AVANT d'ouvrir la feuille : si l'écriture disque est lente, elle doit avoir
+  // eu lieu avant que le membre ne puisse partir acheter.
+  const reprendreAchat = useCallback(async () => {
+    if (gymId && slotData.startsAt) {
+      await poserBookingIntent({ slotId, gymId, startsAt: slotData.startsAt })
+      setIntentionArmee(true)
+    }
+    setPaymentRequiredVisible(true)
+  }, [slotId, gymId, slotData.startsAt])
+
   const handleBook = useCallback(async () => {
     console.log('[Booking] handleBook called, slotId:', slotId)
     setLoading(true)
@@ -365,18 +383,72 @@ export default function SessionDetail() {
       // 2 min 33 s, GYM-207), le serveur rend PAYMENT_REQUIRED — et l'app lui rouvrirait
       // la feuille d'achat. On lui ferait payer deux fois le même cours.
       //
-      // L'intention est CONSERVÉE : elle n'a pas été honorée, le membre va réessayer.
+      // ╔═══════════════════════════════════════════════════════════════════════════════╗
+      // ║  🔴 GYM-374 — MAIS L'INTENTION NE PROUVE PAS LE PAIEMENT                      ║
+      // ╚═══════════════════════════════════════════════════════════════════════════════╝
+      //
+      // Ce garde concluait « il revient du paiement » sur la SEULE présence de l'intention
+      // — or elle est posée AVANT l'achat, juste en dessous. Le 12/10, un membre de Dopamine
+      // parti sans payer a lu « Ton paiement est bien enregistré… Ton cours est gardé » :
+      // paiement `expired`, 0 crédit, 0 place gardée, et un écran bloqué sur « Confirmer ».
+      // L'app bloquait exactement la personne qu'elle devait aider à payer.
+      //
+      // On décide désormais sur le statut RÉEL, lu par le `paymentId` que les deux chemins
+      // d'achat rattachent à l'intention (lib/bookingIntent.ts). Relu SUR LE DISQUE ici, pas
+      // pris dans l'état du composant : il a pu être écrit après la dernière reprise.
       if (intentionArmee) {
-        Alert.alert(t('session.intent_pending_title'), t('session.intent_pending_message'))
-        rafraichirDroits()
-        return
+        setLoading(true)
+        const intent = await lireBookingIntent()
+        const enCours = porteSurCeCreneau(intent, slotId) ? intent : null
+        const statut = enCours?.paymentId ? await lireStatutPaiement(enCours.paymentId) : null
+        setLoading(false)
+
+        if (enCours) {
+          const issue = issueDuRetour(enCours.paymentId, statut)
+
+          // `paid` — le crédit arrive VRAIMENT. Le message d'origine est vrai : inchangé.
+          // L'intention est CONSERVÉE : elle n'a pas été honorée, le membre va réessayer.
+          if (issue === 'paye') {
+            Alert.alert(t('session.intent_pending_title'), t('session.intent_pending_message'))
+            rafraichirDroits()
+            return
+          }
+
+          // `pending`/`open`, ou statut illisible — ON N'AFFIRME RIEN. Le webhook seul met
+          // ce statut à jour : « vient de payer » et « parti sans payer » sont
+          // indiscernables pendant la latence. Message au conditionnel, et une SORTIE
+          // EXPLICITE : c'est elle qui débloque l'écran. Le membre qui vient de payer n'a
+          // rien à faire ; la feuille ne se rouvre que sur SON geste, jamais d'office.
+          if (issue === 'ambigu') {
+            Alert.alert(t('session.intent_unsure_title'), t('session.intent_unsure_message'), [
+              { text: t('session.intent_unsure_wait'), style: 'cancel', onPress: () => rafraichirDroits() },
+              { text: t('session.intent_resume_purchase'), onPress: () => { void reprendreAchat() } },
+            ])
+            return
+          }
+
+          // Jamais atteint le paiement, ou paiement mort (failed / canceled / expired) :
+          // l'intention de CET achat est effacée — elle ne doit pas survivre à un paiement
+          // mort (GYM-352) — et le bouton redevient « Réserver ». La feuille rouvre sur le
+          // geste du membre ; `reprendreAchat` repose une intention neuve, sans paiement.
+          //
+          // ⚠️ PAS D'OUVERTURE DE LA FEUILLE EN MÊME TEMPS QUE L'ALERTE : sur iOS, une
+          // alerte et une modale présentées dans le même tour se disputent la présentation
+          // et l'une des deux est perdue. Le bouton de l'alerte ouvre la feuille.
+          await effacerBookingIntent()
+          setIntentionArmee(false)
+          Alert.alert(t('session.intent_unfinished_title'), t('session.intent_unfinished_message'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('session.intent_unfinished_resume'), onPress: () => { void reprendreAchat() } },
+          ])
+          return
+        }
+        // L'intention a disparu entre-temps (périmée, effacée par `estValide`, ou par
+        // l'écran de vérification sur un échec) : c'est un achat ordinaire, on continue.
+        setIntentionArmee(false)
       }
 
-      if (gymId && slotData.startsAt) {
-        await poserBookingIntent({ slotId, gymId, startsAt: slotData.startsAt })
-        setIntentionArmee(true)
-      }
-      setPaymentRequiredVisible(true)
+      await reprendreAchat()
       return
     }
     // 🔴 GYM-276 — LE DÉFAUT OBSERVÉ EN TEST : réseau coupé, le bouton ne faisait RIEN.
@@ -404,7 +476,7 @@ export default function SessionDetail() {
     setBookedCount((c) => c + 1)
     setBookingState('confirmed')
     setBookingModalVisible(true)
-  }, [slotId, gymId, slotData.startsAt, createBooking, intentionArmee, rafraichirDroits, t])
+  }, [slotId, createBooking, intentionArmee, rafraichirDroits, reprendreAchat, t])
 
   const handleCancel = useCallback(async () => {
     // 🔴 GYM-276 — `cancelBooking` LÈVE (EdgeError) et RIEN ne l'attrapait : hors ligne,

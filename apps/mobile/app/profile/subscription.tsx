@@ -23,6 +23,7 @@ import {
   isSubscriptionCompleted,
 } from '../../lib/subscription'
 import { PurchaseConsentSheet } from '../../components/payments/PurchaseConsentSheet'
+import { attacherPaiementBookingIntent } from '../../lib/bookingIntent'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 
@@ -397,6 +398,10 @@ export default function SubscriptionScreen() {
         // écran démonte ou pousse ne peut plus l'atteindre : le navigateur du système n'est
         // pas présenté par nous, il ne nous appartient pas. La contrainte n'est pas
         // contournée, elle n'a plus d'objet.
+        // 🔴 GYM-374 — RATTACHÉ AVANT DE PARTIR, comme dans la feuille de la séance à
+        // l'unité. Ne crée rien si le membre n'arrive pas d'un cours (pas d'intention) ;
+        // sinon la fiche du cours saura, au retour, quel paiement interroger.
+        await attacherPaiementBookingIntent(result.paymentId)
         const outcome = await openCheckout(result.checkoutUrl, {
           screen: 'profile_subscription',
           paymentId: result.paymentId,
