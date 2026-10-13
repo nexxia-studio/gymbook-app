@@ -9,6 +9,10 @@
 //   node scripts/verify-intention-sans-paiement.mjs --falsifier  → réinjecte la règle
 //       d'avant (« intention présente ⇒ il a payé ») et DOIT échouer (exit 1). Un contrôle
 //       qui passe aussi sur le code fautif ne prouve rien.
+//   … --falsifier=ouverture-inerte → GYM-374b : la fiche ne relit plus rien à l'ouverture
+//       (le comportement d'avant) ; DOIT échouer.
+//   … --falsifier=ouverture-zelee  → la fiche efface sur TOUT statut, `open` compris ;
+//       DOIT échouer — c'est le garde-fou anti double paiement qui mord.
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -16,7 +20,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const FALSIFIER = process.argv.includes('--falsifier')
+const ARG = process.argv.find((a) => a.startsWith('--falsifier'))
+const FALSIFIER = ARG ? (ARG.split('=')[1] ?? 'retour') : null
 const out = mkdtempSync(join(tmpdir(), 'gym374-'))
 let echecs = 0
 const verifier = (nom, ok, detail = '') => {
@@ -41,10 +46,26 @@ try {
   `)
   const intentJs = join(out, 'bookingIntent.js')
   writeFileSync(intentJs, readFileSync(intentJs, 'utf8')
-    .replace(`'@react-native-async-storage/async-storage'`, `'./stub-storage.js'`))
+    .replace(`'@react-native-async-storage/async-storage'`, `'./stub-storage.js'`)
+    // ESM sous Node exige l'extension ; Metro et tsc s'en passent dans l'app.
+    .replace(`'./paymentStatus'`, `'./paymentStatus.js'`))
 
   const statusJs = join(out, 'paymentStatus.js')
-  if (FALSIFIER) {
+  const remplacer = (fichier, motif, par) => {
+    const src = readFileSync(fichier, 'utf8')
+    const patched = src.replace(motif, par)
+    if (patched === src) throw new Error(`falsification : motif introuvable (${motif})`)
+    writeFileSync(fichier, patched)
+  }
+  if (FALSIFIER === 'ouverture-inerte') {
+    remplacer(intentJs, /export async function effacerSiPaiementMort\([^)]*\) \{/, '$&\n    return false;')
+    console.log('⚠️  MODE FALSIFICATION — ouverture inerte (avant GYM-374b), le contrôle DOIT échouer\n')
+  }
+  if (FALSIFIER === 'ouverture-zelee') {
+    remplacer(intentJs, /if \(!paiementMort\(intent\.paymentId, statut\)\)/, 'if (false)')
+    console.log('⚠️  MODE FALSIFICATION — ouverture zélée (efface sur tout statut), le contrôle DOIT échouer\n')
+  }
+  if (FALSIFIER === 'retour') {
     // La règle d'avant GYM-374 : l'intention présente suffisait à conclure « il a payé ».
     const src = readFileSync(statusJs, 'utf8')
     const patched = src.replace(/export function issueDuRetour\([^)]*\) \{/, '$&\n    return \'paye\';')
@@ -114,6 +135,55 @@ try {
   i = await bi.lireBookingIntent()
   verifier('reprise de l\'achat : l\'intention reposée n\'emporte pas le paymentId mort', i && i.paymentId === undefined)
 
+  // ── ③b GYM-374b — FICHE OUVERTE, AUCUN TAP ──────────────────────────────────────────
+  // Rejoue le `useFocusEffect` de la fiche : lire l'intention, l'armer si elle porte sur ce
+  // créneau, puis `effacerSiPaiementMort` avec un statut simulé. « Bouton Réserver » ⇔
+  // l'intention n'est plus armée (`intentionArmee ? confirm_booking : …`, l. ~819).
+  console.log('\n— Fiche ouverte, aucun tap (GYM-374b) —')
+  const ouvrirLaFiche = async (statutServeur, { avantEffacement } = {}) => {
+    const intent = await bi.lireBookingIntent()
+    let armee = bi.porteSurCeCreneau(intent, SLOT)
+    let appelsStatut = 0
+    if (armee) {
+      const effacee = await bi.effacerSiPaiementMort(intent, async () => {
+        appelsStatut++
+        if (avantEffacement) await avantEffacement()
+        return statutServeur
+      })
+      if (effacee) armee = false
+    }
+    return { bouton: armee ? 'CONFIRMER MA RÉSERVATION' : 'RÉSERVER', appelsStatut }
+  }
+  const armer = async (paymentId) => {
+    await bi.__resetBookingIntent()
+    await bi.poserBookingIntent({ slotId: SLOT, gymId: 'dopamine', startsAt: demain })
+    if (paymentId) await bi.attacherPaiementBookingIntent(paymentId)
+  }
+
+  await armer('tr_viktor')
+  let f = await ouvrirLaFiche('expired')
+  verifier('cas de l\'incident : fiche ouverte, paiement `expired`, aucun tap ⇒ bouton RÉSERVER', f.bouton === 'RÉSERVER', f.bouton)
+  verifier('… et l\'intention est effacée du disque', (await bi.lireBookingIntent()) === null)
+  for (const st of ['failed', 'canceled', 'cancelled']) {
+    await armer('tr_x'); f = await ouvrirLaFiche(st)
+    verifier(`\`${st}\` à l'ouverture ⇒ RÉSERVER`, f.bouton === 'RÉSERVER', f.bouton)
+  }
+  for (const st of ['open', 'pending', 'paid', null]) {
+    await armer('tr_x'); f = await ouvrirLaFiche(st)
+    const garde = (await bi.lireBookingIntent())?.paymentId === 'tr_x'
+    verifier(`\`${st}\` à l'ouverture ⇒ RIEN : bouton CONFIRMER, intention intacte`, f.bouton === 'CONFIRMER MA RÉSERVATION' && garde, f.bouton)
+  }
+  await armer(undefined); f = await ouvrirLaFiche('expired')
+  verifier('pas de paymentId ⇒ aucune lecture de statut, rien d\'effacé à l\'ouverture',
+    f.appelsStatut === 0 && f.bouton === 'CONFIRMER MA RÉSERVATION', `${f.appelsStatut} lecture(s)`)
+  // Course : le membre reprend son achat pendant la lecture du statut → intention NEUVE.
+  await armer('tr_mort')
+  f = await ouvrirLaFiche('expired', {
+    avantEffacement: () => bi.poserBookingIntent({ slotId: SLOT, gymId: 'dopamine', startsAt: demain }),
+  })
+  const neuve = await bi.lireBookingIntent()
+  verifier('course : une intention neuve posée pendant la lecture n\'est PAS effacée', !!neuve && neuve.paymentId === undefined)
+
   // ── ④ LE CÂBLAGE : la fiche ne dit plus « crédit en route » hors du cas `paye` ────────
   console.log('\n— Câblage —')
   const fiche = readFileSync(join(ROOT, 'app/session/[id].tsx'), 'utf8')
@@ -124,6 +194,14 @@ try {
   verifier('les deux chemins d\'achat rattachent le paiement',
     /attacherPaiementBookingIntent\(result\.paymentId\)/.test(readFileSync(join(ROOT, 'components/session/PaymentRequiredSheet.tsx'), 'utf8'))
     && /attacherPaiementBookingIntent\(result\.paymentId\)/.test(readFileSync(join(ROOT, 'app/profile/subscription.tsx'), 'utf8')))
+  const focus = fiche.slice(fiche.indexOf('useFocusEffect('), fiche.indexOf('const reprendreAchat'))
+  verifier('le useFocusEffect de la fiche appelle effacerSiPaiementMort avec lireStatutPaiement, puis désarme',
+    /effacerSiPaiementMort\(intent, lireStatutPaiement\)/.test(focus) && /setIntentionArmee\(false\)/.test(focus))
+  verifier('… dans le même passage que rafraichirDroits()', focus.indexOf('rafraichirDroits()') !== -1
+    && focus.indexOf('rafraichirDroits()') < focus.indexOf('effacerSiPaiementMort('))
+  verifier('… et n\'ouvre JAMAIS la feuille d\'achat (aucun geste du membre à l\'ouverture)',
+    !/setPaymentRequiredVisible|reprendreAchat\(/.test(focus))
+  verifier('le libellé du bouton dépend bien de intentionArmee', /intentionArmee\s*\?\s*t\('session\.confirm_booking'\)/.test(fiche))
   const succes = readFileSync(join(ROOT, 'app/payment/success.tsx'), 'utf8')
   verifier('un seul TERMINAL_FAILURE dans le dépôt mobile (success.tsx l\'importe)',
     !/const TERMINAL_FAILURE/.test(succes) && /from '\.\.\/\.\.\/lib\/paymentStatus'/.test(succes))
@@ -138,6 +216,19 @@ try {
   const manqueFr = [...en].filter((k) => !fr.has(k))
   verifier('fr ⊆ en et en ⊆ fr', !manqueEn.length && !manqueFr.length,
     `${fr.size} clés fr, ${en.size} clés en${manqueEn.length ? ` ; absentes en : ${manqueEn.join(', ')}` : ''}${manqueFr.length ? ` ; absentes fr : ${manqueFr.join(', ')}` : ''}`)
+  // GYM-374b — plus aucune promesse « cours gardé » : rien n'est réservé avant le geste.
+  const frJ = JSON.parse(readFileSync(join(ROOT, 'locales/fr.json'), 'utf8'))
+  const enJ = JSON.parse(readFileSync(join(ROOT, 'locales/en.json'), 'utf8'))
+  const textes = [
+    ['fr session.intent_pending_message', frJ.session.intent_pending_message, /n'est pas encore réservée/],
+    ['en session.intent_pending_message', enJ.session.intent_pending_message, /isn't booked yet/],
+    ['fr payment_required.errors.not_confirmed', frJ.payment_required.errors.not_confirmed, /n'est pas encore réservée/],
+    ['en payment_required.errors.not_confirmed', enJ.payment_required.errors.not_confirmed, /isn't booked yet/],
+  ]
+  for (const [nom, txt, dit] of textes) {
+    verifier(`${nom} : ne promet plus un cours gardé, dit qu'il faut confirmer`,
+      !!txt && !/gardé|is kept/i.test(txt) && dit.test(txt))
+  }
   const utilisees = [...fiche.matchAll(/t\('(session\.intent_[a-z_]+)'\)/g)].map((m) => m[1])
   verifier('toutes les clés employées par la fiche existent dans les deux langues',
     utilisees.every((k) => fr.has(k) && en.has(k)), [...new Set(utilisees)].join(', '))

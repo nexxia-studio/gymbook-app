@@ -32,7 +32,7 @@ export type IssueRetour = 'non_finalise' | 'paye' | 'ambigu'
 export function issueDuRetour(paymentId: string | undefined, statut: string | null): IssueRetour {
   if (!paymentId) return 'non_finalise'
   if (statut === 'paid') return 'paye'
-  if (statut !== null && TERMINAL_FAILURE.has(statut)) return 'non_finalise'
+  if (paiementMort(paymentId, statut)) return 'non_finalise'
   // 🔴 `pending`/`open` EST AMBIGU, ET IL FAUT L'ASSUMER. `payments.status` n'est mis à jour
   // QUE par le webhook Mollie : « il vient de payer, le webhook n'est pas arrivé » et « il
   // est parti sans payer » portent le MÊME statut pendant la fenêtre de latence (jusqu'à
@@ -42,4 +42,16 @@ export function issueDuRetour(paymentId: string | undefined, statut: string | nu
   // rouvrir d'office la feuille d'achat à quelqu'un qui a peut-être payé, c'est risquer
   // le double paiement que le garde-fou de GYM-352 existe pour empêcher.
   return 'ambigu'
+}
+
+/**
+ * GYM-374b — Le paiement rattaché à l'intention est-il MORT (failed / canceled / expired) ?
+ *
+ * C'est le SEUL cas où la fiche du cours agit d'elle-même, à l'ouverture, sans attendre
+ * de geste : un fait serveur terminal, posé par le webhook, qui ne reviendra pas. Tout le
+ * reste — pas de `paymentId`, `pending`/`open`, inconnu — rend `false` : l'ambiguïté se
+ * tranche par le membre, jamais par l'app.
+ */
+export function paiementMort(paymentId: string | undefined, statut: string | null): boolean {
+  return !!paymentId && statut !== null && TERMINAL_FAILURE.has(statut)
 }

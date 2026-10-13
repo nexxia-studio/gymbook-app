@@ -37,6 +37,7 @@ import {
   lireBookingIntent,
   effacerBookingIntent,
   porteSurCeCreneau,
+  effacerSiPaiementMort,
 } from '../../lib/bookingIntent'
 // GYM-374 — au retour, on décide sur le statut RÉEL du paiement, plus sur la présence de
 // l'intention. Prédicat et lecture PARTAGÉS avec app/payment/success.tsx, pas recopiés.
@@ -318,13 +319,27 @@ export default function SessionDetail() {
   useFocusEffect(
     useCallback(() => {
       let vivant = true
-      void lireBookingIntent().then((intent) => {
+      void lireBookingIntent().then(async (intent) => {
         if (!vivant) return
         const armee = porteSurCeCreneau(intent, slotId)
         setIntentionArmee(armee)
+        if (!armee || !intent) return
         // Le crédit vient d'arriver pendant que le membre était sur le navigateur : on
         // relit ses droits, sinon la ligne « tu as X » afficherait l'état d'avant l'achat.
-        if (armee) rafraichirDroits()
+        rafraichirDroits()
+        // 🔴 GYM-374b — ET LE STATUT DU PAIEMENT, DANS LE MÊME PASSAGE. Le membre de
+        // l'incident n'avait rien tapé : il a LU « Confirmer ma réservation » sur un
+        // paiement expiré. Un paiement mort efface l'intention ici, et le bouton revient à
+        // « Réserver » sans attendre de geste.
+        //
+        // ⚠️ LANCÉE EN MÊME TEMPS QUE `rafraichirDroits()`, PAS APRÈS : ce sont deux
+        // requêtes (le hook des droits lit `member_credits`/`member_subscriptions`, celle-ci
+        // `payments`), mais elles partent ensemble et l'écran n'attend pas plus longtemps.
+        //
+        // ⚠️ `pending`/`open`/inconnu : RIEN. Le bouton garde son libellé, aucune feuille ne
+        // s'ouvre — c'est la sortie « Je n'ai pas payé », au tap, qui tranche.
+        const effacee = await effacerSiPaiementMort(intent, lireStatutPaiement)
+        if (effacee && vivant) setIntentionArmee(false)
       })
       return () => { vivant = false }
     }, [slotId, rafraichirDroits]),
