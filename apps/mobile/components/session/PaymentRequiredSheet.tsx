@@ -16,6 +16,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/subscription'
 import { useGymPlans } from '../../hooks/useGymPlans'
 import { PurchaseConsentBody } from '../payments/PurchaseConsentSheet'
+import { attacherPaiementBookingIntent } from '../../lib/bookingIntent'
 import {
   formatPrice,
   mapPaymentError,
@@ -134,6 +135,11 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         Alert.alert(t('common.error'), t(info.messageKey))
         return
       }
+
+      // 🔴 GYM-374 — LE PAIEMENT EST RATTACHÉ À L'INTENTION AVANT QUE LE MEMBRE PARTE.
+      // `await` : quelques millisecondes de disque, et la garantie qu'au retour la fiche du
+      // cours sait QUEL paiement interroger — sans lui, elle ne peut que deviner.
+      await attacherPaiementBookingIntent(result.paymentId)
 
       // ╔═══════════════════════════════════════════════════════════════════════════════╗
       // ║  🔴 GYM-352 — CE POLL DURAIT 60 s POUR UN CRÉDIT QUI MET 2 min 33 s          ║
