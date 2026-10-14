@@ -27,6 +27,7 @@
 // dépôt a déjà un module d'intention persistée — en inventer un second dialecte pour la
 // même idée serait le genre d'écart qui finit par diverger.
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { paiementMort } from './paymentStatus'
 
 const CLE = 'viniz.booking_intent'
 
@@ -56,6 +57,9 @@ export interface BookingIntent {
   createdAt: number
   /**
    * Paiement associé, quand il est connu (id Mollie rendu par create-payment).
+   *
+   * ⚠️ ÉCRIT PAR `attacherPaiementBookingIntent` (GYM-374 — il ne l'était nulle part).
+   * Sans lui, la fiche du cours conclut « achat non finalisé ».
    *
    * ⚠️ IL SERT À EFFACER L'INTENTION SUR UN ÉCHEC TERMINAL. Un paiement abandonné,
    * refusé ou expiré ne doit pas laisser derrière lui une proposition de réservation qui
@@ -89,6 +93,66 @@ export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt'
     // Best-effort : l'achat doit pouvoir se poursuivre même si le disque refuse d'écrire.
     // Le `slot_id` de l'URL de retour reste alors le second signal — voir lib/gymUrls.ts.
   }
+}
+
+/**
+ * GYM-374 — RATTACHE le paiement à l'intention en cours, dès que create-payment (ou
+ * create-subscription) a rendu son id Mollie. Appelée par les DEUX chemins d'achat :
+ * `PaymentRequiredSheet` (séance à l'unité) et `profile/subscription.tsx` (formules).
+ *
+ * 🔴 LE CHAMP EXISTAIT, IL N'ÉTAIT JAMAIS ÉCRIT. Sans lui, la fiche du cours ne pouvait
+ * décider que sur la PRÉSENCE de l'intention — or elle est posée AVANT l'achat. Un membre
+ * parti sans payer était traité comme un membre qui venait de payer : « ton paiement est
+ * bien enregistré », écran bloqué (constaté le 12/10 chez Dopamine).
+ *
+ * ⚠️ NE CRÉE JAMAIS D'INTENTION. Sans intention valide, il n'y a pas de cours à rattacher :
+ * un achat lancé depuis le profil reste un achat, pas une réservation en attente.
+ * ⚠️ PASSE PAR `lireBookingIntent`, donc par `estValide` : une intention périmée est
+ * effacée au passage, jamais ressuscitée par un `paymentId` tout neuf.
+ * ⚠️ `createdAt` EST CONSERVÉ : le plafond absolu court depuis le choix du cours.
+ */
+export async function attacherPaiementBookingIntent(paymentId: string | undefined): Promise<void> {
+  if (!paymentId) return
+  try {
+    const intent = await lireBookingIntent()
+    if (!intent) return
+    await AsyncStorage.setItem(CLE, JSON.stringify({ ...intent, paymentId }))
+  } catch {
+    // Best-effort : l'achat part quand même. Sans `paymentId`, la fiche du cours dira
+    // « achat non finalisé » et rouvrira la feuille — elle ne mentira pas.
+  }
+}
+
+/**
+ * GYM-374b — À L'OUVERTURE DE LA FICHE : efface l'intention si son paiement est MORT.
+ * Rend `true` si elle a été effacée — la fiche repasse alors le bouton à « Réserver ».
+ *
+ * 🔴 LE SYMPTÔME RAPPORTÉ N'EST PAS UN TAP, C'EST UNE LECTURE. Le membre n'avait rien
+ * tapé : il a LU « Confirmer ma réservation » et en a conclu que son cours était pris.
+ * Ne corriger qu'au tap laissait l'écran mentir jusqu'au geste suivant.
+ *
+ * ⚠️ N'AGIT QUE SUR UN ÉCHEC TERMINAL (`paiementMort`). `pending`/`open`, l'inconnu, ou
+ * l'absence de `paymentId` ne touchent à RIEN : le bouton garde son libellé et c'est la
+ * sortie explicite « Je n'ai pas payé » qui tranche, au tap. Rien ne s'ouvre ici.
+ *
+ * ⚠️ RELIT LE DISQUE AVANT D'EFFACER : pendant la lecture du statut, le membre a pu
+ * reprendre son achat et poser une intention neuve. On n'efface que celle qui porte
+ * ENCORE le paiement mort — jamais la nouvelle.
+ *
+ * `lireStatut` est injecté (la fiche passe `lireStatutPaiement`) : ce module reste sans
+ * dépendance réseau, et le script de vérification le rejoue tel quel.
+ */
+export async function effacerSiPaiementMort(
+  intent: BookingIntent,
+  lireStatut: (paymentId: string) => Promise<string | null>,
+): Promise<boolean> {
+  if (!intent.paymentId) return false
+  const statut = await lireStatut(intent.paymentId)
+  if (!paiementMort(intent.paymentId, statut)) return false
+  const encore = await lireBookingIntent()
+  if (!encore || encore.paymentId !== intent.paymentId) return false
+  await effacerBookingIntent()
+  return true
 }
 
 /**

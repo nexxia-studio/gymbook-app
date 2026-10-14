@@ -291,7 +291,7 @@
       "no_gym": "Gym not found",
       "checkout_failed": "Payment could not start. Try again.",
       "no_plan": "Drop-in plan unavailable.",
-      "not_confirmed": "The credit hasn't arrived yet — this can take two to three minutes. Your class is kept: come back to its page to confirm as soon as the credit is there.",
+      "not_confirmed": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: come back to the class page to confirm as soon as the credit is there.",
       "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again."
     }
   },
@@ -339,7 +339,14 @@
     "intent_full_waitlist": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll have {{minutes}} minutes to confirm. Your credit stays intact.",
     "intent_full_waitlist_nodelay": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll be notified and given time to confirm. Your credit stays intact.",
     "intent_pending_title": "Credit on its way",
-    "intent_pending_message": "Your payment is registered, but the credit hasn't arrived yet — this can take two to three minutes. Your class is kept: try again in a moment."
+    "intent_pending_message": "Your payment is registered, but the credit hasn't arrived yet — this can take two to three minutes. Your spot isn't booked yet: come back and confirm your booking in a moment.",
+    "intent_unsure_title": "Checking your payment",
+    "intent_unsure_message": "If you've just paid, your credit should arrive within two to three minutes: try again in a moment. If you didn't finish paying, you can pick up your purchase now.",
+    "intent_unsure_wait": "Try again later",
+    "intent_resume_purchase": "I didn't pay — resume purchase",
+    "intent_unfinished_resume": "Resume my purchase",
+    "intent_unfinished_title": "Purchase not completed",
+    "intent_unfinished_message": "Your purchase wasn't completed: nothing was charged and your spot isn't booked. Resume your purchase to book this class."
   },
   "bookings": {
     "title": "My classes",

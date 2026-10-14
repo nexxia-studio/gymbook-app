@@ -291,7 +291,7 @@
       "no_gym": "Gym introuvable",
       "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
       "no_plan": "Formule à la séance indisponible.",
-      "not_confirmed": "Le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ton cours est gardé : reviens sur sa fiche pour confirmer dès que le crédit est là.",
+      "not_confirmed": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens sur la fiche du cours pour confirmer dès que le crédit est là.",
       "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie."
     }
   },
@@ -339,7 +339,14 @@
     "intent_full_waitlist": "Ce cours s'est rempli pendant ton paiement. Tu peux t'inscrire sur la liste d'attente : si une place se libère, tu auras {{minutes}} minutes pour confirmer. Ton crédit reste entier.",
     "intent_full_waitlist_nodelay": "Ce cours s'est rempli pendant ton paiement. Tu peux t'inscrire sur la liste d'attente : si une place se libère, tu seras prévenu et tu auras un délai pour confirmer. Ton crédit reste entier.",
     "intent_pending_title": "Crédit en route",
-    "intent_pending_message": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ton cours est gardé : réessaie dans un instant."
+    "intent_pending_message": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens confirmer ta réservation dans un instant.",
+    "intent_unsure_title": "Paiement en cours de vérification",
+    "intent_unsure_message": "Si tu viens de payer, ton crédit devrait arriver d'ici deux à trois minutes : réessaie dans un instant. Si tu n'as pas terminé ton paiement, tu peux le reprendre maintenant.",
+    "intent_unsure_wait": "Réessayer plus tard",
+    "intent_resume_purchase": "Je n'ai pas payé — reprendre l'achat",
+    "intent_unfinished_resume": "Reprendre mon achat",
+    "intent_unfinished_title": "Achat non finalisé",
+    "intent_unfinished_message": "Ton achat n'a pas été finalisé : rien n'a été débité et ta place n'est pas réservée. Reprends ton achat pour réserver ce cours."
   },
   "bookings": {
     "title": "Mes cours",
