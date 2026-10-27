@@ -122,6 +122,12 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
                   <div>
                     <p className="font-body text-xs text-muted">{t('planning.coach')}</p>
                     <p className="font-body text-sm font-medium text-dark">{slot.coach.name}</p>
+                    {/* GYM-376 — dit ce que vivent les membres, et ce qu'il reste à faire. */}
+                    {slot.coach.active === false && (
+                      <p className="mt-1 rounded-lg bg-orange-50 px-2 py-1.5 font-body text-xs text-orange-700">
+                        {t('planning.status.coach_inactive_hint')}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div>

@@ -166,9 +166,39 @@ export default function Settings() {
     setCoachCreateOpen(false)
     addToast(t('coaches.toast_created'))
   }
-  function handleCoachEdit(data: CoachFormData) {
+  async function handleCoachEdit(data: CoachFormData) {
     if (!editCoach) return
-    updateCoach(editCoach.id, data)
+    const target = editCoach
+
+    // GYM-376 — 🔴 CE CHEMIN DÉSACTIVAIT SANS RIEN DIRE. Le bouton « Désactiver » de la
+    // carte avertissait déjà (handleCoachToggle, ci-dessous) ; décocher « Actif » dans la
+    // fiche du coach, non. Deux chemins pour le même geste, un seul garde-fou.
+    //
+    // ⚠️ La fiche reste OUVERTE pendant l'avertissement (les deux sont des <dialog>
+    // natifs, le second s'empile au-dessus) : « Annuler » rend la main au gérant sans
+    // perdre ce qu'il a saisi.
+    if (target.active && !data.active) {
+      const futureCount = await getCoachFutureSlots(target.id)
+      if (futureCount > 0) {
+        setConfirmModal({
+          open: true,
+          title: t('coaches.toggle_confirm_title'),
+          message: t('coaches.toggle_confirm_message', { name: target.firstName, count: futureCount }),
+          confirmLabel: t('coaches.toggle_confirm_button'),
+          confirmColor: 'orange',
+          onConfirm: async () => {
+            await updateCoach(target.id, data)
+            setConfirmModal((p) => ({ ...p, open: false }))
+            setEditCoach(null)
+            addToast(t('coaches.toast_updated'))
+          },
+          onCancel: () => setConfirmModal((p) => ({ ...p, open: false })),
+        })
+        return
+      }
+    }
+
+    updateCoach(target.id, data)
     setEditCoach(null)
     addToast(t('coaches.toast_updated'))
   }

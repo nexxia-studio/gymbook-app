@@ -324,7 +324,9 @@
       "cancelled": "Annulé",
       "in_progress": "En cours",
       "suspended": "Suspendu",
-      "coach_unavailable": "Coach indisponible"
+      "coach_unavailable": "Coach indisponible",
+      "coach_inactive": "Coach désactivé",
+      "coach_inactive_hint": "Ce coach est désactivé, mais le cours reste visible et réservable par les membres. Attribue-lui un autre coach, ou annule-le."
     },
     "days_short": {
       "mon": "LUN",
@@ -451,7 +453,8 @@
       "capacity_min": "Minimum 1 place",
       "capacity_max": "Maximum 50 places",
       "coach_overlap": "Ce coach a déjà un créneau à cette heure",
-      "recurrence_empty": "Cette récurrence ne produit aucun cours. Vérifiez la fréquence et la fin."
+      "recurrence_empty": "Cette récurrence ne produit aucun cours. Vérifiez la fréquence et la fin.",
+      "coach_inactive": "Ce coach est désactivé. Choisis un coach actif."
     },
     "suggested_times": "Horaires suggérés",
     "no_coach_needed": "Cette activité est en accès libre : aucun coach à désigner.",
@@ -469,7 +472,8 @@
       "monthly_weekday": "Chaque mois (même jour de semaine)",
       "custom_weekdays": "Personnalisé (jours de la semaine)"
     },
-    "toast_update_failed": "La modification n'a pas pu être enregistrée. Réessaie."
+    "toast_update_failed": "La modification n'a pas pu être enregistrée. Réessaie.",
+    "coach_inactive_option": "{{name}} (désactivé)"
   },
   "series": {
     "counting": "Calcul en cours…",
@@ -1043,9 +1047,9 @@
     "toast_deleted": "Coach supprimé",
     "toast_activated": "Coach activé",
     "toast_deactivated": "Coach désactivé",
-    "toggle_confirm_title": "Desactiver ce coach ?",
-    "toggle_confirm_message": "{{name}} a {{count}} seance(s) future(s). Elles seront marquees 'Coach indisponible'.",
-    "toggle_confirm_button": "Desactiver quand meme",
+    "toggle_confirm_title": "Désactiver ce coach ?",
+    "toggle_confirm_message": "{{name}} a encore {{count}} cours à venir. Ils resteront visibles et réservables par les membres : pense à leur attribuer un autre coach dans le planning.",
+    "toggle_confirm_button": "Désactiver quand même",
     "validation": {
       "first_name_required": "Le prénom est requis"
     }
