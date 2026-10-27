@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 // GYM-248 — les sites viennent de gym_sites de LA salle, plus d'un littéral mono-client.
@@ -76,6 +76,11 @@ export default function Settings() {
 
   const [coachCreateOpen, setCoachCreateOpen] = useState(false)
   const [editCoach, setEditCoach] = useState<CoachItem | null>(null)
+  // GYM-376 — la fiche ouverte À L'INSTANT T, lisible après un `await`. La variable
+  // d'état capturée par le handler serait celle du clic, pas celle du retour réseau.
+  const editCoachRef = useRef<CoachItem | null>(null)
+  useEffect(() => { editCoachRef.current = editCoach }, [editCoach])
+  const coachEditPendingRef = useRef(false)
   const [deleteCoachTarget, setDeleteCoachTarget] = useState<CoachItem | null>(null)
 
   // Confirm modal state
@@ -166,9 +171,51 @@ export default function Settings() {
     setCoachCreateOpen(false)
     addToast(t('coaches.toast_created'))
   }
-  function handleCoachEdit(data: CoachFormData) {
+  async function handleCoachEdit(data: CoachFormData) {
     if (!editCoach) return
-    updateCoach(editCoach.id, data)
+    const target = editCoach
+
+    // GYM-376 — 🔴 CE CHEMIN DÉSACTIVAIT SANS RIEN DIRE. Le bouton « Désactiver » de la
+    // carte avertissait déjà (handleCoachToggle, ci-dessous) ; décocher « Actif » dans la
+    // fiche du coach, non. Deux chemins pour le même geste, un seul garde-fou.
+    //
+    // ⚠️ La fiche reste OUVERTE pendant l'avertissement (les deux sont des <dialog>
+    // natifs, le second s'empile au-dessus) : « Annuler » rend la main au gérant sans
+    // perdre ce qu'il a saisi.
+    if (target.active && !data.active) {
+      // ⚠️ Double clic sur « Enregistrer » pendant le comptage : un seul passage.
+      if (coachEditPendingRef.current) return
+      coachEditPendingRef.current = true
+      let futureCount: number
+      try {
+        futureCount = await getCoachFutureSlots(target.id)
+      } finally {
+        coachEditPendingRef.current = false
+      }
+      // ⚠️ La fiche a pu être fermée pendant le comptage (X, Échap). Ouvrir l'avertissement
+      // quand même ferait enregistrer, sur « Désactiver quand même », une saisie que le
+      // gérant venait d'abandonner.
+      if (editCoachRef.current?.id !== target.id) return
+      if (futureCount > 0) {
+        setConfirmModal({
+          open: true,
+          title: t('coaches.toggle_confirm_title'),
+          message: t('coaches.toggle_confirm_message', { name: target.firstName, count: futureCount }),
+          confirmLabel: t('coaches.toggle_confirm_button'),
+          confirmColor: 'orange',
+          onConfirm: async () => {
+            await updateCoach(target.id, data)
+            setConfirmModal((p) => ({ ...p, open: false }))
+            setEditCoach(null)
+            addToast(t('coaches.toast_updated'))
+          },
+          onCancel: () => setConfirmModal((p) => ({ ...p, open: false })),
+        })
+        return
+      }
+    }
+
+    updateCoach(target.id, data)
     setEditCoach(null)
     addToast(t('coaches.toast_updated'))
   }

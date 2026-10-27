@@ -86,7 +86,10 @@ export function useCoaches() {
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', id)
       .gt('starts_at', new Date().toISOString())
-      .neq('status', 'cancelled')
+      // GYM-376 — les cours PRÉVUS, et eux seuls. `neq('cancelled')` comptait aussi les
+      // créneaux `deleted` : l'avertissement de désactivation pouvait annoncer des cours
+      // qui n'existent plus, voire apparaître pour rien.
+      .eq('status', 'scheduled')
     return count ?? 0
   }, [])
 

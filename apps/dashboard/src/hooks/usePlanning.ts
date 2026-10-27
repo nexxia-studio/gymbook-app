@@ -326,7 +326,11 @@ export function usePlanning() {
       // renseignée depuis /settings, et le formulaire de créneau ne pouvait pas la lire :
       // cinquième occurrence du motif (GYM-216, 220, 224, 228).
       supabase.from('activities').select('id, name, color, duration_min, default_capacity, requires_coach, hidden_in_planning').eq('gym_id', gymId).order('sort_order'),
-      supabase.from('coaches').select('id, name').eq('gym_id', gymId).order('sort_order'),
+      // GYM-376 — `active` est lu pour que le formulaire de créneau puisse ÉCARTER les
+      // coachs désactivés. La liste, elle, reste complète : les filtres du planning doivent
+      // pouvoir retrouver les cours encore portés par un coach désactivé, pour les
+      // réattribuer. Filtrer ici aurait aussi caché ceux-là.
+      supabase.from('coaches').select('id, name, active').eq('gym_id', gymId).order('sort_order'),
     ])
     setActivitiesList((actRes.data ?? []).map((a) => ({
       id: a.id, name: a.name, color: a.color ?? '#4ECDC4', durationMin: a.duration_min,
@@ -339,7 +343,7 @@ export function usePlanning() {
     // Masquées par défaut. Le gérant peut les réafficher — son choix n'écrase pas le
     // réglage, il ne vaut que pour la session en cours.
     setHiddenActivityIds((prev) => prev ?? (actRes.data ?? []).filter((a) => a.hidden_in_planning).map((a) => a.id))
-    setCoachesList((coachRes.data ?? []).map((c) => ({ id: c.id, name: c.name })))
+    setCoachesList((coachRes.data ?? []).map((c) => ({ id: c.id, name: c.name, active: c.active ?? true })))
   }, [gymId])
 
   useEffect(() => { fetchSlots() }, [fetchSlots])

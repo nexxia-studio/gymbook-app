@@ -324,7 +324,9 @@
       "cancelled": "Cancelled",
       "in_progress": "In progress",
       "suspended": "Suspended",
-      "coach_unavailable": "Coach unavailable"
+      "coach_unavailable": "Coach unavailable",
+      "coach_inactive": "Coach deactivated",
+      "coach_inactive_hint": "This coach is deactivated, but the session is still visible and bookable by members. Assign another coach, or cancel it."
     },
     "days_short": {
       "mon": "MON",
@@ -451,7 +453,8 @@
       "capacity_min": "Minimum 1 spot",
       "capacity_max": "Maximum 50 spots",
       "coach_overlap": "This coach already has a slot at this time",
-      "recurrence_empty": "This recurrence produces no classes. Check the frequency and end date."
+      "recurrence_empty": "This recurrence produces no classes. Check the frequency and end date.",
+      "coach_inactive": "This coach is deactivated. Pick an active coach."
     },
     "suggested_times": "Suggested times",
     "no_coach_needed": "This activity is open access — no coach to assign.",
@@ -469,7 +472,8 @@
       "monthly_weekday": "Every month (same weekday)",
       "custom_weekdays": "Custom (days of week)"
     },
-    "toast_update_failed": "The change could not be saved. Try again."
+    "toast_update_failed": "The change could not be saved. Try again.",
+    "coach_inactive_option": "{{name}} (deactivated)"
   },
   "series": {
     "counting": "Calculating…",
@@ -1044,7 +1048,7 @@
     "toast_activated": "Coach activated",
     "toast_deactivated": "Coach deactivated",
     "toggle_confirm_title": "Deactivate this coach?",
-    "toggle_confirm_message": "{{name}} has {{count}} future session(s). They will be marked 'Coach unavailable'.",
+    "toggle_confirm_message": "{{name}} still has {{count}} upcoming session(s). They will stay visible and bookable by members: remember to assign another coach in the planning.",
     "toggle_confirm_button": "Deactivate anyway",
     "validation": {
       "first_name_required": "First name is required"
