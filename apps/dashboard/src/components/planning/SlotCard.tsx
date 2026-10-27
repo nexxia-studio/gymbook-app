@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCheck } from 'lucide-react'
 import type { TimeSlot, DisplayStatus } from '@/types/planning'
-import { getDisplayStatus, hasAttendanceMarked } from '@/types/planning'
+import { getDisplayStatus, hasAttendanceMarked, needsCoachReassignment } from '@/types/planning'
 import { fillPercent, isOverbooked } from '@/lib/capacity'
 
 interface SlotCardProps {
@@ -35,7 +35,6 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
   // membre. Le 27/10, Nico a annulé le cours vide en croyant l'autre déjà annulé : 3
   // membres étaient inscrits sur celui qu'il voyait gelé. Le planning doit dire ce que
   // vivent les membres : le cours a lieu, il faut seulement lui trouver un coach.
-  const isCoachUnavailable = slot.coach.active === false
   const isFrozen = isActivitySuspended
 
   // GYM-174 — marqueur discret "Pointé" : au moins une réservation a un statut ≠ confirmed.
@@ -74,7 +73,7 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
           {!compact && slot.coach.name && (
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
           )}
-          {isCoachUnavailable && !isActivitySuspended && (
+          {needsCoachReassignment(slot) && (
             <span
               title={t('planning.status.coach_inactive_hint')}
               className={`mt-0.5 inline-flex max-w-full items-center rounded bg-orange-500 px-1 py-0.5 font-semibold text-white ${compact ? 'text-[7px]' : 'text-[8px]'}`}

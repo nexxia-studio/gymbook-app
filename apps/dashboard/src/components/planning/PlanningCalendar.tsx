@@ -16,7 +16,7 @@ import listPlugin from '@fullcalendar/list'
 import { fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { getDisplayStatus, type TimeSlot, type DisplayStatus } from '@/types/planning'
+import { getDisplayStatus, needsCoachReassignment, type TimeSlot, type DisplayStatus } from '@/types/planning'
 import { fillPercent, isOverbooked } from '@/lib/capacity'
 
 export type CalendarView = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
@@ -80,7 +80,6 @@ function EventContent({ slot, t }: { slot: TimeSlot; t: (key: string) => string 
   // GYM-376 — un coach désactivé ne gèle plus le créneau : cf. SlotCard pour l'incident.
   // Ce rendu-ci est celui de la vue SEMAINE, la plus utilisée ; corriger la seule carte
   // aurait laissé l'écran principal tel quel.
-  const isCoachUnavailable = slot.coach.active === false
   const isFrozen = isActivitySuspended
 
   return (
@@ -107,7 +106,7 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
           {slot.coach.name && (
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
           )}
-          {isCoachUnavailable && !isActivitySuspended && (
+          {needsCoachReassignment(slot) && (
             <span
               title={t('planning.status.coach_inactive_hint')}
               className="mt-0.5 inline-flex max-w-full items-center rounded bg-orange-500 px-1 py-0.5 text-[8px] font-semibold text-white"

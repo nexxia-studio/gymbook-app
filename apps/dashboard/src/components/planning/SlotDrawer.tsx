@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Pencil, Trash2, XCircle, UserPlus } from 'lucide-react'
 import type { TimeSlot, DisplayStatus, AttendanceStatus } from '@/types/planning'
-import { getDisplayStatus, canTrackAttendance, canBookFutureSlot } from '@/types/planning'
+import { getDisplayStatus, canTrackAttendance, canBookFutureSlot, needsCoachReassignment } from '@/types/planning'
 import { Button } from '@/components/ui/Button'
 import { AttendanceSection } from '@/components/planning/AttendanceSection'
 import type { MarkAttendanceResult, MemberSearchResult } from '@/hooks/usePlanning'
@@ -123,7 +123,7 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
                     <p className="font-body text-xs text-muted">{t('planning.coach')}</p>
                     <p className="font-body text-sm font-medium text-dark">{slot.coach.name}</p>
                     {/* GYM-376 — dit ce que vivent les membres, et ce qu'il reste à faire. */}
-                    {slot.coach.active === false && (
+                    {needsCoachReassignment(slot) && (
                       <p className="mt-1 rounded-lg bg-orange-50 px-2 py-1.5 font-body text-xs text-orange-700">
                         {t('planning.status.coach_inactive_hint')}
                       </p>
