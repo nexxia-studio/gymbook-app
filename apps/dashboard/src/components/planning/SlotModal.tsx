@@ -190,6 +190,37 @@ export function SlotModal({
   // reste celui par défaut, on ne relâche jamais la règle par accident.
   const needsCoach = selectedActivity?.requiresCoach ?? true
 
+  // GYM-376 — UN COACH DÉSACTIVÉ NE PEUT PAS ÊTRE AFFECTÉ À UN CRÉNEAU.
+  //
+  // Incident Dopamine du 27/10 : un coach désactivé depuis des mois a été choisi dans
+  // cette liste. Ses cours sont restés réservables par les membres, pendant que le
+  // planning les affichait comme gelés — le gérant les a pris pour des cours annulés.
+  //
+  // La liste des coachs fait foi. Le coach porté par le créneau édité ne sert que de
+  // repli, quand il est ABSENT de la liste (pas encore chargée) : s'il y figure, c'est
+  // elle qui sait s'il a été réactivé depuis le chargement du créneau.
+  const isCoachInactive = (id: string) => {
+    const listed = coaches.find((c) => c.id === id)
+    if (listed) return listed.active === false
+    return !!editSlot && editSlot.coach.id === id && editSlot.coach.active === false
+  }
+  const selectableCoaches = coaches.filter((c) => c.active !== false)
+
+  // ⚠️ CE QUI EST REFUSÉ, C'EST L'AFFECTATION — pas le créneau qui porte déjà ce coach.
+  // Un gérant qui décale l'heure ou change la capacité d'un tel cours doit pouvoir le
+  // faire sans être forcé de changer de coach : une salle qui n'a plus d'autre coach
+  // actif ne pourrait sinon plus rien modifier, sinon annuler. Le badge du planning,
+  // lui, continue de pousser à réattribuer.
+  const keepsCurrentCoach = !!editSlot && form.coachId === editSlot.coach.id
+
+  // ⚠️ CAS LIMITE : en édition, le coach actuel du créneau peut être désactivé. Il n'est
+  // plus dans la liste, et un <select> contrôlé dont la valeur n'a pas d'option
+  // s'afficherait vide — le gérant croirait le créneau sans coach. On l'affiche donc,
+  // marqué « (désactivé) » et non resélectionnable une fois quitté.
+  const currentInactiveCoach = editSlot && keepsCurrentCoach && isCoachInactive(editSlot.coach.id)
+    ? editSlot.coach
+    : null
+
   function handleActivityChange(id: string) {
     const act = activities.find((a) => a.id === id)
     // ⚠️ RÉAGIT AU CHANGEMENT D'ACTIVITÉ, pas seulement à l'ouverture de la modale. Passer
@@ -245,6 +276,9 @@ export function SlotModal({
     if (!form.activityId) e.activityId = t('slots.validation.activity_required')
     // GYM-229 — exigence portée par l'activité, plus par le formulaire.
     if (needsCoach && !form.coachId) e.coachId = t('slots.validation.coach_required')
+    // GYM-376 — refusé à l'enregistrement pour toute NOUVELLE affectation, création
+    // comme édition. Garder le coach déjà porté par le créneau reste permis (cf. plus haut).
+    else if (needsCoach && form.coachId && !keepsCurrentCoach && isCoachInactive(form.coachId)) e.coachId = t('slots.validation.coach_inactive')
     if (!form.date) e.date = t('slots.validation.date_required')
     else if (form.date < todayStr()) e.date = t('slots.validation.date_past')
     if (!form.startTime) e.startTime = t('slots.validation.time_required')
@@ -327,7 +361,12 @@ export function SlotModal({
                 className={selectClass}
               >
                 <option value="">{t('slots.coach_placeholder')}</option>
-                {coaches.map((c) => (
+                {currentInactiveCoach && (
+                  <option value={currentInactiveCoach.id} disabled>
+                    {t('slots.coach_inactive_option', { name: currentInactiveCoach.name })}
+                  </option>
+                )}
+                {selectableCoaches.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

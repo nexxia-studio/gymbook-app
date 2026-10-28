@@ -115,6 +115,22 @@ export function getDisplayStatus(slot: TimeSlot): DisplayStatus {
 }
 
 /**
+ * GYM-376 — Ce créneau porte-t-il un coach désactivé QU'IL FAUT ENCORE REMPLACER ?
+ *
+ * Seulement pour un cours À VENIR et non annulé : c'est le seul cas où « le cours reste
+ * visible et réservable par les membres » est vrai. Sur un cours annulé ou passé, le
+ * badge affirmerait un fait faux — précisément le défaut que GYM-376 corrige. Un coach
+ * désactivé depuis des mois ne doit pas marquer tout son historique.
+ *
+ * Une activité suspendue a son propre gel et son propre badge : on ne superpose pas.
+ */
+export function needsCoachReassignment(slot: TimeSlot): boolean {
+  return slot.coach.active === false
+    && slot.activity.active !== false
+    && getDisplayStatus(slot) === 'scheduled'
+}
+
+/**
  * GYM-174 — Le pointage des présences est disponible pour les cours du jour ET les cours
  * passés (un pointage se corrige après coup), jamais pour un cours futur (autre jour à venir)
  * ni pour un créneau annulé. La comparaison se fait au niveau du JOUR local.

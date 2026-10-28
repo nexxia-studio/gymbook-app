@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCheck } from 'lucide-react'
 import type { TimeSlot, DisplayStatus } from '@/types/planning'
-import { getDisplayStatus, hasAttendanceMarked } from '@/types/planning'
+import { getDisplayStatus, hasAttendanceMarked, needsCoachReassignment } from '@/types/planning'
 import { fillPercent, isOverbooked } from '@/lib/capacity'
 
 interface SlotCardProps {
@@ -28,8 +28,14 @@ export function SlotCard({ slot, onClick, compact = false, style }: SlotCardProp
   const isLive = displayStatus === 'in_progress'
 
   const isActivitySuspended = slot.activity.active === false
-  const isCoachUnavailable = slot.coach.active === false
-  const isFrozen = isActivitySuspended || isCoachUnavailable
+  // GYM-376 — 🔴 UN COACH DÉSACTIVÉ NE GÈLE PLUS LE CRÉNEAU.
+  //
+  // Le gel (grisé, non cliquable, compteur d'inscrits masqué) faisait lire au gérant un
+  // cours ANNULÉ, alors que le créneau restait `scheduled` et réservable dans l'app
+  // membre. Le 27/10, Nico a annulé le cours vide en croyant l'autre déjà annulé : 3
+  // membres étaient inscrits sur celui qu'il voyait gelé. Le planning doit dire ce que
+  // vivent les membres : le cours a lieu, il faut seulement lui trouver un coach.
+  const isFrozen = isActivitySuspended
 
   // GYM-174 — marqueur discret "Pointé" : au moins une réservation a un statut ≠ confirmed.
   const isMarked = hasAttendanceMarked(slot)
@@ -66,6 +72,14 @@ Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les 
 ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
           {!compact && slot.coach.name && (
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
+          )}
+          {needsCoachReassignment(slot) && (
+            <span
+              title={t('planning.status.coach_inactive_hint')}
+              className={`mt-0.5 inline-flex max-w-full items-center rounded bg-orange-500 px-1 py-0.5 font-semibold text-white ${compact ? 'text-[7px]' : 'text-[8px]'}`}
+            >
+              <span className="truncate">{t('planning.status.coach_inactive')}</span>
+            </span>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -107,16 +121,9 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
       {/* Freeze overlay badges */}
       {isFrozen && !compact && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl">
-          {isActivitySuspended && (
-            <span className="rounded-full bg-indigo-500 px-2 py-0.5 text-[8px] font-semibold text-white shadow">
-              {t('planning.status.suspended')}
-            </span>
-          )}
-          {isCoachUnavailable && !isActivitySuspended && (
-            <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[8px] font-semibold text-white shadow">
-              {t('planning.status.coach_unavailable')}
-            </span>
-          )}
+          <span className="rounded-full bg-indigo-500 px-2 py-0.5 text-[8px] font-semibold text-white shadow">
+            {t('planning.status.suspended')}
+          </span>
         </div>
       )}
     </button>
