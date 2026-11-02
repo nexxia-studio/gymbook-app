@@ -26,6 +26,7 @@ import { EARLY_PERFORMANCE_CONSENT_VERSION } from '../constants/earlyPerformance
 // pour le pourquoi du https plutôt que du schéma `dopamine://`.
 export { buildPaymentReturnUrl as buildRedirectUrl } from './gymUrls'
 import { buildPaymentReturnUrl } from './gymUrls'
+import { poserOriginePaiement, effacerOriginePaiement } from './paymentOrigin'
 
 /** Formate un montant (en CENTIMES) selon la devise. Fallback robuste si Intl indisponible. */
 export function formatPrice(priceCents: number, currency = 'EUR'): string {
@@ -333,6 +334,12 @@ export interface CheckoutContext {
   /** `mollie_payment_id` quand il est connu (one-time). */
   paymentId?: string | null
   planId?: string | null
+  /**
+   * GYM-373 — Route où ramener le membre après un paiement RÉUSSI, persistée hors
+   * navigation (lib/paymentOrigin.ts) : les paramètres ne survivent pas au lien universel
+   * de retour. Absente = aucune origine — et l'origine précédente est EFFACÉE.
+   */
+  returnTo?: string
 }
 
 /**
@@ -352,6 +359,18 @@ export async function openCheckout(
   url: string,
   ctx: CheckoutContext,
 ): Promise<CheckoutOpenOutcome> {
+  // 🔴 GYM-373 — CHAQUE CHECKOUT DÉFINIT INTÉGRALEMENT SA PROPRE ORIGINE. Le `else` n'est
+  // pas une précaution décorative, c'est l'invariant : sans lui, l'origine laissée par un
+  // achat abandonné depuis Profil → Abonnement serait relue par le paiement SUIVANT lancé
+  // depuis un cours, et enverrait le membre sur l'écran des formules au lieu de sa séance.
+  //
+  // ⚠️ AVANT `openURL` : l'app passe en arrière-plan juste après, l'écriture doit avoir eu
+  // lieu. ⚠️ ET CE N'EST PAS UNE BRÈCHE DANS « NE LÈVE JAMAIS » : les deux fonctions
+  // avalent toute erreur de stockage (try/catch internes) — au pire, défaut Réservations.
+  // Hors du chronomètre `debut` : `elapsedMs` mesure le système, pas notre disque.
+  if (ctx.returnTo) await poserOriginePaiement(ctx.returnTo)
+  else await effacerOriginePaiement()
+
   const debut = Date.now()
   try {
     await Linking.openURL(url)

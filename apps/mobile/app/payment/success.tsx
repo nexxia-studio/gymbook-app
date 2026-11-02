@@ -10,6 +10,7 @@ import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/su
 import { lireBookingIntent, effacerBookingIntent, type BookingIntent } from '../../lib/bookingIntent'
 import { captureEvent } from '../../lib/analytics'
 import { TERMINAL_FAILURE } from '../../lib/paymentStatus'
+import { lireOriginePaiement, effacerOriginePaiement } from '../../lib/paymentOrigin'
 import { requetePaiement } from '../../lib/paymentLookup'
 import { useAuthStore } from '../../stores/useAuthStore'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
@@ -285,6 +286,16 @@ function ClassicPaymentScreen({
     void lireBookingIntent().then((i) => { if (vivant) setIntention(i) })
     return () => { vivant = false }
   }, [])
+  // 🔴 GYM-373 — L'ÉCRAN D'ORIGINE, LU HORS NAVIGATION. `returnTo` arrive par les
+  // paramètres, et le lien universel de retour les ÉCRASE (app/dopamine/payment-success.tsx
+  // ne transmet que id/source/slot_id). L'origine posée par `openCheckout` survit, elle.
+  // Même motif que l'intention juste au-dessus, à dessein.
+  const [origine, setOrigine] = useState<string | null>(null)
+  useEffect(() => {
+    let vivant = true
+    void lireOriginePaiement().then((o) => { if (vivant) setOrigine(o) })
+    return () => { vivant = false }
+  }, [])
   const [status, setStatus] = useState<ClassicStatus>('polling')
   // 🔴 GYM-294 — MÊME GARDE QUE L'ÉCRAN DE CRÉNEAU, PAS UNE SECONDE VÉRIFICATION.
   // La policy de `payments` (`member_id = auth.uid()`) n'a AUCUNE clause de salle : un
@@ -320,13 +331,36 @@ function ClassicPaymentScreen({
   // 🔴 GYM-352 — L'INTENTION PRIME SUR TOUT. Elle passe AVANT `returnTo` : un membre parti
   // d'un cours doit revenir au cours, même si l'achat a transité par l'écran des formules.
   // C'est la décision produit — il revient sur la fiche, crédit visible, bouton armé.
+  //
+  // GYM-373 — ET L'ORIGINE PERSISTÉE PASSE APRÈS `returnTo`, AVANT LE DÉFAUT. Ordre :
+  //   1. intention (GYM-352)  2. returnTo (paramètres, quand ils ont survécu)
+  //   3. origine persistée (quand le lien universel les a écrasés)  4. Réservations.
+  // `returnTo` garde la priorité sur l'origine : quand il est là, c'est le même écran, posé
+  // par le même achat — et il ne dépend d'aucune lecture disque.
   const goToSuccessDestination = useCallback(() => {
+    // Elle a servi — ou n'a plus lieu d'être : elle ne doit pas survivre au parcours. Seul
+    // point d'effacement côté lecture, quelle que soit la branche prise ci-dessous.
+    void effacerOriginePaiement()
     if (intention) {
       router.replace({ pathname: '/session/[id]', params: { id: intention.slotId } })
       return
     }
-    router.replace((returnTo ?? '/(tabs)/bookings') as never)
-  }, [router, returnTo, intention])
+    router.replace((returnTo ?? origine ?? '/(tabs)/bookings') as never)
+  }, [router, returnTo, origine, intention])
+
+  // GYM-373 B — LA SORTIE DE L'ÉTAT `unknown` (aucune clé de paiement). Le membre est
+  // renvoyé là d'où il a lancé l'achat — en pratique Profil → Abonnement, où il peut CONSTATER
+  // lui-même si l'abonnement est actif, ce que cet écran ne sait pas faire.
+  //
+  // ⚠️ PAS `goToSuccessDestination` : cet état n'est pas un succès. L'intention de réservation
+  // n'y prend PAS la priorité — renvoyer sur la fiche d'un cours un membre dont on ignore
+  // s'il a payé, c'est lui présenter « Confirmer ma réservation » sur une supposition.
+  // ⚠️ Et l'origine n'est PAS effacée ici : `paymentOrigin.ts` garde un seul point
+  // d'effacement côté lecture ; le prochain `openCheckout` l'écrase ou l'efface de toute façon.
+  const destinationSansCle = origine ?? '/(tabs)/bookings'
+  const goToUnknownDestination = useCallback(() => {
+    router.replace(destinationSansCle as never)
+  }, [router, destinationSansCle])
 
   // QA-06 : bouton Fermer FONCTIONNEL. Coupe le poll résiduel puis revient à l'écran
   // précédent (ou, si ouvert par deep link sans historique, atterrit sur Réservations).
@@ -447,32 +481,45 @@ function ClassicPaymentScreen({
   // Le 17/09, c'était FAUX : le navigateur ne s'était jamais ouvert, aucun paiement n'avait
   // eu lieu, et on disait au membre d'attendre un crédit qui ne viendrait jamais.
   //
-  // TROIS SITUATIONS, ET ELLES N'APPELLENT PAS LA MÊME PHRASE :
+  // QUATRE SITUATIONS, ET ELLES N'APPELLENT PAS LA MÊME PHRASE :
   //
+  //   · unknown      — AUCUNE clé de paiement (ni `id`, ni `mollie_id`) : l'app n'a rien à
+  //                    interroger et ne sait RIEN. Testé EN PREMIER (GYM-373 ⑤).
   //   · not_opened   — la page de paiement ne s'est pas ouverte. L'app le SAIT désormais
   //                    (GYM-352, param `checkout_opened=0`). Rien n'a été débité.
   //   · not_finalized— la ligne existe mais n'a jamais quitté `pending`/`open` : le membre
   //                    n'a pas terminé le paiement chez Mollie. Rien n'a été débité.
-  //   · awaiting     — tout le reste. C'est le SEUL cas où « ton paiement est enregistré,
-  //                    tu n'as rien à faire » est vrai : le webhook tarde (constat du 04/08,
-  //                    crédit reçu en 2 min 33 s), et c'est pour lui que le plafond est à 5 min.
+  //   · awaiting     — une clé existe et la ligne n'est ni ouverte ni terminale. C'est le
+  //                    SEUL cas où « ton paiement est enregistré, tu n'as rien à faire » est
+  //                    défendable : le webhook tarde (constat du 04/08, crédit reçu en
+  //                    2 min 33 s), et c'est pour lui que le plafond est à 5 min.
+  //
+  // 🔴 GYM-373 ⑤ — CE COMMENTAIRE AFFIRMAIT UNE GARANTIE QUE LE CODE NE TENAIT PAS. À trois
+  // branches, « tout le reste » incluait l'écran SANS CLÉ : `checkoutOpened` undefined,
+  // `payment` null → `awaiting` → « ton paiement est bien enregistré » à un membre dont
+  // l'app ignore tout, y compris s'il a payé. Le défaut de GYM-374, à un second endroit :
+  // une phrase de certitude posée sur une absence d'information. Et ce n'est pas un cas
+  // exotique — create-subscription ne pose pas `id=` dans sa redirectUrl (vérifié sur
+  // l'instance prod) : c'est le retour NORMAL d'un abonnement, en attendant GYM-375.
   //
   // ⚠️ DEUX SIGNAUX INDÉPENDANTS, ET C'EST VOULU. `checkout_opened` repose sur l'heuristique
   // de délai de `openCheckout` ; le statut de la ligne, lui, est un fait serveur. Si
   // l'heuristique se trompe, `not_finalized` rattrape le cas — le membre n'est jamais
   // renvoyé au message « rien à faire » alors qu'il lui reste tout à faire.
-  const timeoutKind: 'not_opened' | 'not_finalized' | 'awaiting' =
-    checkoutOpened === '0'
-      ? 'not_opened'
-      : payment && (payment.status === 'pending' || payment.status === 'open')
-        ? 'not_finalized'
-        : 'awaiting'
+  const timeoutKind: 'unknown' | 'not_opened' | 'not_finalized' | 'awaiting' =
+    !rowId && !mollieId
+      ? 'unknown'
+      : checkoutOpened === '0'
+        ? 'not_opened'
+        : payment && (payment.status === 'pending' || payment.status === 'open')
+          ? 'not_finalized'
+          : 'awaiting'
 
   // Cycle de poll : démarre AU MONTAGE (navigation propriétaire ou deep link), immédiat +
   // intervalle, borné par un timeout global ~2 min.
   useEffect(() => {
     if (!rowId && !mollieId) {
-      // Aucune clé de paiement → on ne peut pas poller : état « en cours de traitement ».
+      // Aucune clé de paiement → on ne peut pas poller : état `unknown` (GYM-373 ⑤).
       settledRef.current = true
       setStatus('timeout')
       return
@@ -631,6 +678,7 @@ function ClassicPaymentScreen({
 
         {status === 'timeout' && (
           <>
+            {/* `unknown` prend ⚠️ : un sablier promettrait une attente qui aboutit. */}
             <Text style={{ fontSize: 64, marginBottom: 16 }}>{timeoutKind === 'awaiting' ? '⏳' : '⚠️'}</Text>
             <Text style={titleStyle}>{t(`payment.${timeoutKind}_title`)}</Text>
             <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
@@ -644,13 +692,19 @@ function ClassicPaymentScreen({
                 <Text style={ctaLabel}>{t('payment.check_again')}</Text>
               </Pressable>
             )}
+            {/* GYM-373 B — ⚠️ LE LIBELLÉ SUIT LA DESTINATION. Repointer le bouton sans
+                changer son texte recréerait un bouton qui dit une chose et en fait une autre. */}
             <Pressable
-              onPress={goToBookings}
+              onPress={timeoutKind === 'unknown' ? goToUnknownDestination : goToBookings}
               className={`w-full items-center rounded-xl border py-4 ${rowId || mollieId ? 'mt-3' : 'mt-10'}`}
               style={{ borderColor: tokens.border }}
             >
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onSurface }}>
-                {t('payment.go_to_bookings')}
+                {t(
+                  timeoutKind === 'unknown' && destinationSansCle === '/profile/subscription'
+                    ? 'payment.go_to_subscription'
+                    : 'payment.go_to_bookings',
+                )}
               </Text>
             </Pressable>
           </>
