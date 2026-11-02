@@ -3,6 +3,7 @@ import { useRouter, usePathname } from 'expo-router'
 import * as Linking from 'expo-linking'
 import * as Sentry from '@sentry/react-native'
 import { ouvrirLaPorte, refermerLaPorte } from '../lib/pendingDeepLink'
+import { cibleDepuisUrlAnalysee } from '../lib/deepLinkTarget'
 
 /**
  * 🔴 GYM-371 — REJOUE LE LIEN D'ARRIVÉE, UNE FOIS LA PORTE OUVERTE.
@@ -68,39 +69,15 @@ export function DeepLinkReplay({ pret }: { pret: boolean }) {
 }
 
 /**
- * Traduit une URL entrante en route.
- *
- * ⚠️ AUCUNE TABLE DE ROUTES ICI, ET C'EST VOLONTAIRE. Les chemins de nos liens sont DÉJÀ
- * les chemins de l'app : `dopamine://payment/success` → `/payment/success`,
- * `https://links.viniz.app/dopamine/payment-success` → `/dopamine/payment-success` (le
- * fichier existe), `…/<autre-salle>/payment-success` → `/[gymSlug]/[screen]`, qui résout la
- * salle. En recopier une seconde table ici garantirait qu'un jour les deux divergent.
+ * Traduit une URL entrante en route. La décision vit dans `lib/deepLinkTarget.ts` (GYM-371 :
+ * schéma personnalisé → le premier segment est dans `hostname`), pour être éprouvée hors RN.
  */
 function cibleDepuisUrl(url: string): { pathname: string; params: Record<string, string> } | null {
-  let parsed: ReturnType<typeof Linking.parse>
   try {
-    parsed = Linking.parse(url)
+    return cibleDepuisUrlAnalysee(Linking.parse(url))
   } catch {
     return null
   }
-
-  const chemin = (parsed.path ?? '').replace(/^\/+|\/+$/g, '')
-  if (!chemin) return null
-
-  // ⚠️ ON N'ACCEPTE QUE NOS PROPRES LIENS. Le système ne nous en livrera pas d'autres — nos
-  // schémas et notre domaine sont les seuls déclarés — mais une garde qui ne coûte rien sur
-  // le chemin de l'argent vaut mieux qu'une confiance qu'on ne peut pas vérifier.
-  const schemeApp = parsed.scheme && !/^https?$/i.test(parsed.scheme)
-  const hoteConnu = parsed.hostname === 'links.viniz.app'
-  if (!schemeApp && !hoteConnu) return null
-
-  const params: Record<string, string> = {}
-  for (const [cle, valeur] of Object.entries(parsed.queryParams ?? {})) {
-    if (typeof valeur === 'string') params[cle] = valeur
-    else if (Array.isArray(valeur) && typeof valeur[0] === 'string') params[cle] = valeur[0]
-  }
-
-  return { pathname: `/${chemin}`, params }
 }
 
 /** La forme d'une URL, sans son contenu : schéma, hôte, chemin, et les NOMS des paramètres. */
