@@ -291,7 +291,41 @@ const config = {
     // ⚠️ LE PLANCHER ANDROID COMPTE POUR DE BON. Le Play Store a la 1.2.1 EN EXAMEN : son
     // versionCode 10 est déposé, donc brûlé, qu'il soit publié ou non — exactement comme
     // un buildNumber téléversé chez Apple.
-    version: '1.2.2',
+    //
+    // 1.2.3 — PATCH. Contenu ENTIÈREMENT CORRECTIF, et entièrement sur le chemin de l'argent :
+    // le retour de paiement. Même critère que les blocs 1.2.1 et 1.2.2 — rien de nouveau que
+    // le membre puisse faire, seulement ce que l'app lui dit et où elle le ramène.
+    //
+    //  · GYM-369 — le checkout part dans le NAVIGATEUR DU SYSTÈME : la vue intégrée ne peut
+    //    pas ouvrir une app bancaire.
+    //  · 🔴 GYM-374 / 374b — « Ton paiement est bien enregistré » à quelqu'un qui n'a jamais
+    //    payé, et « Ton cours est gardé » alors que rien n'est réservé avant son geste. La
+    //    fiche décide désormais sur le statut réel du paiement, dès l'ouverture.
+    //  · 🔴 GYM-373 — le retour ramène à l'écran d'origine (Profil → Abonnement), et l'écran
+    //    de retour SANS clé de paiement ne prétend plus que le paiement est enregistré.
+    //  · GYM-371 — `dopamine://payment/success` ouvrait `+not-found` par-dessus le bon écran.
+    //  · Xcode 27 — la cible de déploiement iOS vient du dépôt. Pas un correctif membre :
+    //    c'est ce qui permet de construire ce binaire.
+    //
+    // ⚠️ GYM-352b (« Safari était présenté par une vue qui disparaissait », cd8db05) N'EST
+    // PAS dans cette liste, et ce n'est pas un oubli. Vérifié sur `eas build:list` plutôt que
+    // supposé : il est DÉJÀ dans le build iOS 28 (1.2.2, commit df23a3b du 23/09). Il est
+    // en revanche NOUVEAU pour Android : aucun build Android 1.2.2 n'existe — le dernier
+    // build Android de production est la 1.2.1 (versionCode 10, commit 275d18d).
+    //
+    // ⚠️ LE STATUT DE PUBLICATION DE LA 1.2.2 N'EST PAS VÉRIFIÉ ICI : aucun accès App Store
+    // Connect ni Play Console depuis ce poste. Contrairement au bloc 1.2.2, ce bloc ne
+    // l'affirme donc pas — le saut à 1.2.3 est une décision, pas une déduction.
+    //
+    // 🔴 COMPTEURS DISTANTS LUS AVANT CE COMMIT (02/11), PAS DÉDUITS :
+    //     eas build:version:get --platform ios     --profile production → 28
+    //     eas build:version:get --platform android --profile production → 10
+    // Le prochain build doit donc porter buildNumber ≥ 29 (iOS) et versionCode ≥ 11
+    // (Android). `autoIncrement: true` s'en charge — ces nombres ne sont PAS déclarés ici,
+    // et conformément à tous les blocs précédents aucun n'est annoncé : seul le PLANCHER
+    // l'est. ⚠️ Le plancher iOS a avancé de DEUX depuis le bloc 1.2.2 (27 et 28, tous deux
+    // en 1.2.2) ; le plancher Android, lui, n'a pas bougé.
+    version: '1.2.3',
     orientation: 'portrait' as const,
     icon: './assets/icon-dopamine.png',
     userInterfaceStyle: 'automatic' as const,
