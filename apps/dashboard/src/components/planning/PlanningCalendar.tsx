@@ -16,7 +16,7 @@ import listPlugin from '@fullcalendar/list'
 import { fromZonedTime } from 'date-fns-tz'
 import { supabase } from '@/lib/supabase'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { getDisplayStatus, type TimeSlot, type DisplayStatus } from '@/types/planning'
+import { getDisplayStatus, needsCoachReassignment, type TimeSlot, type DisplayStatus } from '@/types/planning'
 import { fillPercent, isOverbooked } from '@/lib/capacity'
 
 export type CalendarView = 'timeGridDay' | 'timeGridWeek' | 'dayGridMonth'
@@ -77,8 +77,10 @@ function EventContent({ slot, t }: { slot: TimeSlot; t: (key: string) => string 
   const displayStatus = getDisplayStatus(slot)
   const isLive = displayStatus === 'in_progress'
   const isActivitySuspended = slot.activity.active === false
-  const isCoachUnavailable = slot.coach.active === false
-  const isFrozen = isActivitySuspended || isCoachUnavailable
+  // GYM-376 — un coach désactivé ne gèle plus le créneau : cf. SlotCard pour l'incident.
+  // Ce rendu-ci est celui de la vue SEMAINE, la plus utilisée ; corriger la seule carte
+  // aurait laissé l'écran principal tel quel.
+  const isFrozen = isActivitySuspended
 
   return (
     <div
@@ -103,6 +105,14 @@ Le test porte sur la PRÉSENCE du coach, pas sur activity.requiresCoach — les 
 ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
           {slot.coach.name && (
             <p className="mt-0.5 truncate font-body text-[10px] text-muted">{slot.coach.name}</p>
+          )}
+          {needsCoachReassignment(slot) && (
+            <span
+              title={t('planning.status.coach_inactive_hint')}
+              className="mt-0.5 inline-flex max-w-full items-center rounded bg-orange-500 px-1 py-0.5 text-[8px] font-semibold text-white"
+            >
+              <span className="truncate">{t('planning.status.coach_inactive')}</span>
+            </span>
           )}
         </div>
         {displayStatus !== 'scheduled' && !isFrozen && (
@@ -131,15 +141,9 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
 
       {isFrozen && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl">
-          {isActivitySuspended ? (
-            <span className="rounded-full bg-indigo-500 px-2 py-0.5 text-[8px] font-semibold text-white shadow">
-              {t('planning.status.suspended')}
-            </span>
-          ) : (
-            <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[8px] font-semibold text-white shadow">
-              {t('planning.status.coach_unavailable')}
-            </span>
-          )}
+          <span className="rounded-full bg-indigo-500 px-2 py-0.5 text-[8px] font-semibold text-white shadow">
+            {t('planning.status.suspended')}
+          </span>
         </div>
       )}
     </div>
@@ -213,7 +217,8 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
 
   const events: EventInput[] = useMemo(() => {
     const mapped: EventInput[] = slots.map((slot) => {
-      const isFrozen = slot.activity.active === false || slot.coach.active === false
+      // GYM-376 — seule l'activité suspendue bloque encore le glisser-déposer.
+      const isFrozen = slot.activity.active === false
       return {
         id: slot.id,
         // slot.date / startTime / endTime are already in the gym timezone (Brussels),
