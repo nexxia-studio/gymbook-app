@@ -44,7 +44,10 @@ const CLE = 'viniz.booking_intent'
  *     validité proposeraient un cours déjà commencé, que le serveur refuse (SLOT_PAST).
  * Le créneau porte sa propre date de péremption : c'est elle qui fait foi.
  */
-const PLAFOND_MS = 24 * 60 * 60 * 1000
+// GYM-373 — EXPORTÉ pour `lib/paymentOrigin.ts`, qui suit la même politique : un second
+// chiffre pour la même question (« combien de temps un retour de paiement reste-t-il
+// crédible ? ») finirait par diverger.
+export const PLAFOND_MS = 24 * 60 * 60 * 1000
 
 export interface BookingIntent {
   /** Le créneau que le membre voulait réserver. */

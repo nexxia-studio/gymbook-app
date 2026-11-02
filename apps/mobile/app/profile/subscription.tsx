@@ -406,6 +406,10 @@ export default function SubscriptionScreen() {
           screen: 'profile_subscription',
           paymentId: result.paymentId,
           planId: plan.id,
+          // 🔴 GYM-373 — SANS CONDITION SUR `billingType` : un abonnement doit ramener ici
+          // autant qu'une carte (perte 2). Persisté par `openCheckout`, il survit au lien
+          // universel de retour, qui écrase les paramètres (perte 1).
+          returnTo: '/profile/subscription',
         })
 
         if (!outcome.handedOff) {
