@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, Platform } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, CreditCard, Calendar, Star } from 'lucide-react-native'
@@ -23,7 +23,8 @@ import {
   isSubscriptionCompleted,
 } from '../../lib/subscription'
 import { PurchaseConsentSheet } from '../../components/payments/PurchaseConsentSheet'
-import { attacherPaiementBookingIntent } from '../../lib/bookingIntent'
+import { attacherPaiementBookingIntent, lireBookingIntent, porteSurCeCreneau } from '../../lib/bookingIntent'
+import { formatTime, toLocalTime } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 
@@ -163,6 +164,45 @@ export default function SubscriptionScreen() {
   const gymId = useAuthStore((s) => s.gym_id)
   const userId = useAuthStore((s) => s.user?.id)
   const { creditPlans, unlimitedPlans, loading: plansLoading, error: plansError, refetch } = useGymPlans()
+
+  // ╔═════════════════════════════════════════════════════════════════════════════════════╗
+  // ║  🔴 GYM-379 (décision d'Antoine, 09/11) — ACHAT DEPUIS UN COURS = ACHAT + RÉSERVATION║
+  // ╚═════════════════════════════════════════════════════════════════════════════════════╝
+  //
+  // Ouvert par « Payer cette séance » → abonnement / carnet (`depuis_cours` = le créneau),
+  // ET l'intention de réservation porte bien sur ce créneau : l'écran l'ANNONCE (bandeau),
+  // ses boutons deviennent « S'abonner et réserver » / « Acheter et réserver », et ce geste
+  // pose l'accord (`accordReservation`). La réservation elle-même reste à la fiche du cours
+  // (lib/reservationAuto.ts) — cet écran n'en contient aucune logique.
+  //
+  // ⚠️ OUVERT SANS COURS (Profil → Abonnement) : `depuis_cours` absent, rien ne change.
+  const { depuis_cours: depuisCoursParam } = useLocalSearchParams<{ depuis_cours?: string }>()
+  const [coursVise, setCoursVise] = useState<{ slotId: string; label: string } | null>(null)
+  useEffect(() => {
+    if (!depuisCoursParam) { setCoursVise(null); return }
+    let vivant = true
+    void (async () => {
+      const intent = await lireBookingIntent()
+      if (!vivant || !porteSurCeCreneau(intent, depuisCoursParam)) return
+      const { data } = await supabase
+        .from('time_slots')
+        .select('starts_at, activities(name)')
+        .eq('id', depuisCoursParam)
+        .maybeSingle()
+      if (!vivant || !data) return
+      const act = data.activities as unknown as { name?: string } | null
+      // L'heure de la SALLE (Europe/Brussels), comme partout ailleurs dans l'app.
+      const local = toLocalTime(data.starts_at)
+      const jours = t('home.days', { returnObjects: true }) as string[]
+      const mois = t('home.months', { returnObjects: true }) as string[]
+      const quand = `${jours[local.getDay()] ?? ''} ${local.getDate()} ${mois[local.getMonth()] ?? ''} ${formatTime(data.starts_at)}`
+      setCoursVise({
+        slotId: depuisCoursParam,
+        label: t('subscription.booking_banner', { activity: act?.name ?? '', when: quand }),
+      })
+    })()
+    return () => { vivant = false }
+  }, [depuisCoursParam, t])
 
   const [activeSub, setActiveSub] = useState<ActiveSub | null>(null)
   const [activeCredits, setActiveCredits] = useState<ActiveCredits | null>(null)
@@ -401,7 +441,12 @@ export default function SubscriptionScreen() {
         // 🔴 GYM-374 — RATTACHÉ AVANT DE PARTIR, comme dans la feuille de la séance à
         // l'unité. Ne crée rien si le membre n'arrive pas d'un cours (pas d'intention) ;
         // sinon la fiche du cours saura, au retour, quel paiement interroger.
-        await attacherPaiementBookingIntent(result.paymentId)
+        // GYM-379 — DEPUIS UN COURS, « S'abonner et réserver » / « Acheter et réserver » VAUT
+        // ACCORD, pour CE paiement ; l'URL du checkout permet de le reprendre sans en créer un
+        // second. Sans cours : aucun accord (l'appel le RETIRE s'il en restait un).
+        await attacherPaiementBookingIntent(result.paymentId, coursVise
+          ? { accordReservation: true, checkoutUrl: result.checkoutUrl }
+          : {})
         const outcome = await openCheckout(result.checkoutUrl, {
           screen: 'profile_subscription',
           paymentId: result.paymentId,
@@ -441,7 +486,11 @@ export default function SubscriptionScreen() {
         // ⚠️ Un membre qui revient SANS avoir payé atterrit sur le même écran : c'est voulu,
         // puisque c'est précisément le cas où l'on ne sait pas encore lequel des deux
         // c'était. Le poll tranche, et le message de fin distingue déjà les trois issues.
-        if (plan.billingType === 'one_time' && result.paymentId) {
+        // GYM-379 — DEPUIS UN COURS, UN ABONNEMENT AUSSI : l'écran de vérification suit son
+        // premier paiement (ligne `payments` écrite par create-subscription, GYM-243) puis
+        // ramène à la fiche du cours, qui réserve. Sans cela, le retour d'un abonnement
+        // finissait ici, loin du cours.
+        if ((plan.billingType === 'one_time' || coursVise) && result.paymentId) {
           router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }
         return
@@ -455,7 +504,7 @@ export default function SubscriptionScreen() {
     } finally {
       setPayingId(null)
     }
-  }, [gymId, userId, refetch, t, router])
+  }, [gymId, userId, refetch, t, router, coursVise])
 
   // Le ref suit la dernière version de la fonction — sans quoi `apresFermeture` appellerait
   // une fermeture (closure) figée sur un `gymId` ou un `userId` périmés.
@@ -512,6 +561,12 @@ export default function SubscriptionScreen() {
       </View>
 
       <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
+        {/* GYM-379 — le cours pour lequel le membre achète, annoncé AVANT qu'il choisisse. */}
+        {coursVise && (
+          <View className="rounded-2xl px-4 py-3" style={{ backgroundColor: tokens.actionBg + '1A' }}>
+            <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>{coursVise.label}</Text>
+          </View>
+        )}
         {/* Carte crédits à l'unité */}
         {!loading && activeCredits && (
           <View className="rounded-2xl border-2 p-5" style={{ borderColor: tokens.accent, backgroundColor: tokens.surface }}>
@@ -728,6 +783,10 @@ export default function SubscriptionScreen() {
             billingType: pendingPlan.billingType,
           }}
           busy={payingId === pendingPlan.id}
+          confirmLabel={coursVise
+            ? t(pendingPlan.billingType === 'one_time' ? 'payment_required.consent.buy_and_book' : 'payment_required.consent.subscribe_and_book')
+            : undefined}
+          notice={coursVise?.label}
           onCancel={() => { setCheckoutApresFermeture(null); setSheetVisible(false) }}
           onConfirm={() => {
             // ⚠️ ON NE LANCE RIEN ICI (iOS). On demande la fermeture, et c'est

@@ -257,12 +257,15 @@
     "polling_title": "TRAITEMENT DU PAIEMENT...",
     "polling_sub": "Quelques secondes",
     "booking_title": "RÉSERVATION EN COURS...",
-    "success_title": "RÉSERVATION CONFIRMÉE !",
-    "success_sub": "À bientôt au cours",
-    "error_title": "PAIEMENT REÇU",
-    "error_sub": "Retournez sur le cours et appuyez sur Réserver pour finaliser.",
+    "success_title": "PAIEMENT REÇU",
+    "success_sub": "On réserve ton cours…",
+    "error_title": "PAIEMENT EN ATTENTE DE CONFIRMATION",
+    "error_sub": "La confirmation de la banque tarde. Reviens sur la fiche du cours : tu y verras où en est ton paiement.",
     "back_to_schedule": "Retour au planning",
-    "back_to_course": "Revenir au cours"
+    "back_to_course": "Revenir au cours",
+    "success_sub_manual": "Confirme ta réservation sur la fiche du cours.",
+    "failed_title": "PAIEMENT NON FINALISÉ",
+    "failed_sub": "Rien n'a été débité. Reviens sur la fiche du cours pour réessayer."
   },
   "payment_required": {
     "title": "Réservation impossible",
@@ -293,20 +296,25 @@
       "no_plan": "Formule à la séance indisponible.",
       "not_confirmed": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : elle le sera automatiquement dès que le crédit sera là, sur la fiche du cours.",
       "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie.",
-      "payment_not_completed": "Le paiement n'a pas été finalisé. Tu peux choisir une autre option ou réessayer."
+      "payment_not_completed": "Le paiement n'a pas été finalisé. Tu peux choisir une autre option ou réessayer.",
+      "not_confirmed_manual": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens sur la fiche du cours pour confirmer dès que le crédit est là."
     },
     "waiting": {
       "title": "Paiement en cours dans le navigateur…",
-      "hint": "Termine le paiement dans le navigateur puis reviens ici. Ton cours sera réservé dès que le paiement sera confirmé."
+      "hint": "Termine le paiement dans le navigateur puis reviens ici. Ton cours sera réservé dès que le paiement sera confirmé.",
+      "hint_manual": "Termine le paiement dans le navigateur puis reviens ici. Une fois le crédit arrivé, confirme ta réservation sur la fiche du cours."
     },
     "unfinished": {
       "title": "Paiement non finalisé ?",
       "hint": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — ton cours sera réservé dès qu'elle arrive.",
-      "resume": "Reprendre le paiement"
+      "resume": "Reprendre le paiement",
+      "hint_manual": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — confirme ensuite ta réservation sur la fiche du cours."
     },
     "consent": {
       "confirm_and_book": "Payer et réserver",
-      "booking_notice": "Ton cours sera réservé dès que le paiement sera confirmé."
+      "booking_notice": "Ton cours sera réservé dès que le paiement sera confirmé.",
+      "subscribe_and_book": "S'abonner et réserver",
+      "buy_and_book": "Acheter et réserver"
     }
   },
   "session": {
@@ -365,7 +373,8 @@
     "auto_booking_in_progress": "Tu as {{detail}} — on réserve ton cours…",
     "auto_booking_failed_title": "Réservation impossible",
     "auto_booking_failed_message": "Ce cours ne peut plus être réservé (il a commencé, a été annulé ou n'existe plus). Ton crédit reste entier : tu peux réserver un autre cours.",
-    "auto_booking_retry_message": "La réservation n'a pas pu partir. Ton crédit reste entier — appuie sur « Confirmer ma réservation » pour réessayer."
+    "auto_booking_retry_message": "La réservation n'a pas pu aboutir. Appuie sur « Confirmer ma réservation » pour réessayer.",
+    "intent_pending_message_manual": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens confirmer ta réservation dans un instant."
   },
   "bookings": {
     "title": "Mes cours",
@@ -588,7 +597,7 @@
     "not_finalized_title": "PAIEMENT NON FINALISÉ",
     "not_finalized_message": "Tu n'as pas terminé le paiement. Aucun montant n'a été débité — tu peux reprendre quand tu veux.",
     "awaiting_title": "PAIEMENT EN COURS DE TRAITEMENT",
-    "awaiting_message": "Ton paiement est bien enregistré. La confirmation de la banque tarde un peu — tes séances seront créditées automatiquement, tu n'as rien à faire.",
+    "awaiting_message": "La confirmation de la banque tarde un peu. Dès qu'elle arrive, tes séances sont créditées automatiquement — tu peux revérifier ci-dessous.",
     "unknown_title": "PAIEMENT NON CONFIRMÉ",
     "unknown_message": "On ne peut pas vérifier ce paiement depuis cet écran. Si ton paiement est passé, tes séances seront créditées d'ici quelques minutes. Si tu n'as pas terminé, rien n'a été débité.",
     "go_to_subscription": "Voir mon abonnement",
@@ -597,9 +606,12 @@
     "modal_success_body": "Ton paiement a bien été confirmé.",
     "offline_title": "Connexion perdue",
     "offline_hint": "Ton paiement n'est pas perdu — on réessaie dès que la connexion revient.",
-    "intent_success_title": "ON RÉSERVE TON COURS",
-    "intent_success_body": "Ton crédit est bien là. Ton cours se réserve sur sa fiche — tu y verras la confirmation.",
-    "intent_go_to_course": "Voir mon cours"
+    "intent_success_title": "PAIEMENT REÇU — ON RÉSERVE TON COURS",
+    "intent_success_body": "Ton cours se réserve sur sa fiche — tu y verras la confirmation.",
+    "intent_go_to_course": "Voir mon cours",
+    "intent_success_title_manual": "PAIEMENT REÇU",
+    "intent_success_body_manual": "Ta place n'est pas encore prise : confirme ta réservation sur la fiche du cours dès que ton crédit apparaît.",
+    "intent_go_to_course_manual": "Confirmer ma réservation"
   },
   "payments": {
     "title": "Historique des paiements",
@@ -751,7 +763,8 @@
     "credits_generic_name": "Crédits séances",
     "unavailable_unlimited_active": "Accès illimité déjà actif",
     "current_subscription": "Abonnement en cours",
-    "upsell_unavailable": "Bientôt disponible"
+    "upsell_unavailable": "Bientôt disponible",
+    "booking_banner": "Ton cours {{activity}} · {{when}} sera réservé dès le paiement confirmé"
   },
   "preferences": {
     "title": "Préférences",

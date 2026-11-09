@@ -86,3 +86,33 @@ export function issueAuPremierPlan(statut: string | null): IssueAuPremierPlan {
   if (NON_FINALISE.has(statut)) return 'proposer_reprise'
   return 'attendre'
 }
+
+/**
+ * 🔴 GYM-379 (relecture du 09/11) — UN NOUVEAU PAIEMENT PEUT-IL ÊTRE PROPOSÉ ?
+ *
+ * Seulement s'il n'y a pas de paiement précédent, ou si le précédent est MORT (failed /
+ * canceled / expired). `open`, `pending`, `paid` et l'inconnu ferment la porte : le membre
+ * a peut-être payé (webhook en retard), et lui rouvrir « Payer cette séance », c'est l'exposer
+ * au double débit. Sur `open`, on propose de reprendre le MÊME checkout.
+ */
+export function nouveauPaiementAutorise(paymentIdPrecedent: string | null | undefined, statut: string | null): boolean {
+  if (!paymentIdPrecedent) return true
+  return statut !== null && TERMINAL_FAILURE.has(statut)
+}
+
+/**
+ * GYM-379 — LA FEUILLE « PAYER CETTE SÉANCE » ARRIVE AU BOUT DE SES 5 MINUTES (ou se rouvre
+ * sur un paiement précédent). Où va-t-elle, au vu de `payments.status` ?
+ *
+ *   · options        — échec terminal : un nouveau paiement peut être proposé ;
+ *   · non_finalise   — `open` / `pending` / inconnu : « Paiement non finalisé ? »
+ *                      (Reprendre / Annuler). JAMAIS les options : le précédent vit encore ;
+ *   · paye           — `paid` : le crédit tarde. On ne propose rien à payer, on le dit.
+ */
+export type IssueFinAttente = 'options' | 'non_finalise' | 'paye'
+
+export function issueFinAttente(statut: string | null): IssueFinAttente {
+  if (statut === 'paid') return 'paye'
+  if (statut !== null && TERMINAL_FAILURE.has(statut)) return 'options'
+  return 'non_finalise'
+}

@@ -79,6 +79,12 @@ export interface BookingIntent {
    * GYM-352 a retirée — la fiche garde alors « Confirmer ma réservation ».
    */
   accordReservation?: boolean
+  /**
+   * GYM-379 (relecture du 09/11) — l'URL du checkout Mollie de `paymentId`. C'est elle que
+   * « Reprendre le paiement » rouvre, y compris après que l'app a été tuée : sans elle, la
+   * seule reprise possible serait un SECOND paiement.
+   */
+  checkoutUrl?: string
 }
 
 /** Une intention est-elle encore bonne à proposer ? */
@@ -126,7 +132,7 @@ export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt'
  */
 export async function attacherPaiementBookingIntent(
   paymentId: string | undefined,
-  options: { accordReservation?: boolean } = {},
+  options: { accordReservation?: boolean; checkoutUrl?: string } = {},
 ): Promise<void> {
   if (!paymentId) return
   try {
@@ -137,6 +143,7 @@ export async function attacherPaiementBookingIntent(
       ...intent,
       paymentId,
       accordReservation: options.accordReservation === true || undefined,
+      checkoutUrl: options.checkoutUrl,
     }))
   } catch {
     // Best-effort : l'achat part quand même. Sans `paymentId`, la fiche du cours dira

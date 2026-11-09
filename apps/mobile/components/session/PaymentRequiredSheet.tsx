@@ -18,7 +18,7 @@ import { useGymPlans } from '../../hooks/useGymPlans'
 import { PurchaseConsentBody } from '../payments/PurchaseConsentSheet'
 import { attacherPaiementBookingIntent } from '../../lib/bookingIntent'
 import { lireStatutPaiement } from '../../lib/paymentLookup'
-import { issueAuPremierPlan } from '../../lib/paymentStatus'
+import { issueAuPremierPlan, issueFinAttente } from '../../lib/paymentStatus'
 import {
   formatPrice,
   mapPaymentError,
@@ -34,9 +34,15 @@ interface PaymentRequiredSheetProps {
   // GYM-108 — 'waitlist' quand le créneau est plein : le 402 vient d'une tentative de
   // « rejoindre la liste d'attente » sans crédit/abo. Adapte le titre/sous-titre, mêmes CTA.
   context?: 'book' | 'waitlist'
+  /**
+   * 🔴 GYM-379 (relecture) — le paiement que le membre avait déjà lancé pour ce cours, quand
+   * il rouvre la feuille. Tant qu'il n'est pas MORT (failed / canceled / expired), la feuille
+   * ne propose AUCUN nouveau paiement : elle propose de reprendre celui-là.
+   */
+  paiementPrecedent?: { paymentId: string; checkoutUrl?: string; accord: boolean } | null
 }
 
-export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book' }: PaymentRequiredSheetProps) {
+export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book', paiementPrecedent = null }: PaymentRequiredSheetProps) {
   const { t } = useTranslation()
   const { tokens } = useTheme()
   const router = useRouter()
@@ -56,6 +62,16 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // GYM-379 (compléments du 09/11) — l'URL du MÊME checkout, pour « Reprendre le paiement »
   // sans créer de second paiement.
   const checkoutUrlRef = useRef<string | null>(null)
+  // GYM-379 (relecture) — le paiement en cours porte-t-il l'ACCORD du membre (« Payer et
+  // réserver ») ? C'est la seule condition sous laquelle un texte annonce une réservation
+  // automatique. Sur un cours complet (`waitlist`), ou pour un paiement repris d'ailleurs
+  // sans accord, les textes disent « confirme ta réservation sur la fiche du cours ».
+  // ⚠️ UN `ref` : la boucle (`setInterval`) le relit à son dernier tour, longtemps après.
+  const accordRef = useRef(false)
+  // 🔴 GYM-379 (relecture) — L'ÉCOUTE DU RETOUR EST POSÉE AVANT `openCheckout`. Posée après
+  // (quand l'étape `waiting` s'affichait), elle ratait sur Android l'événement `active`
+  // parti pendant que le JS reprenait : le membre revenait sur une attente muette.
+  const retourRef = useRef<{ remove: () => void } | null>(null)
   // GYM-336 — la feuille a désormais DEUX ÉTAPES. Le drop-in est un achat à distance : il
   // doit recueillir la demande d'exécution anticipée comme n'importe quel autre.
   //
@@ -77,7 +93,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // staging : « Canceled » chez la banque n'envoie AUCUN webhook, le paiement reste `open`
   // ~17 min. Au retour, le statut seul ne dit donc pas « annulé » : on POSE LA QUESTION, et
   // la vérification du droit continue derrière.
-  const [step, setStep] = useState<'options' | 'consent' | 'waiting' | 'unfinished'>('options')
+  //
+  // ET `verification` : la feuille rouvre sur un paiement précédent, dont on relit le statut
+  // AVANT de montrer quoi que ce soit — les options n'apparaissent que s'il est mort.
+  const [step, setStep] = useState<'options' | 'consent' | 'waiting' | 'unfinished' | 'verification'>('options')
 
   // Plans dérivés de gym_plans (fini les prix en dur)
   const dropInPlan = creditPlans
@@ -99,6 +118,8 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   const arreterAttente = useCallback(() => {
     annuleRef.current = true
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    retourRef.current?.remove()
+    retourRef.current = null
   }, [])
 
   useEffect(() => arreterAttente, [arreterAttente])
@@ -115,64 +136,91 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     onClose()
   }, [arreterAttente, onClose])
 
-  // GYM-379 — RETOUR DU NAVIGATEUR. Au passage au premier plan, on relit le statut du
-  // paiement (`issueAuPremierPlan`) :
+  // GYM-379 — CE QUE DIT LE STATUT DU PAIEMENT, LU EN BASE (`issueAuPremierPlan`) :
   //   · échec TERMINAL (expiré, refusé) → plus rien à attendre, retour aux options ;
   //   · `open`/`pending` → « Paiement non finalisé ? » : reprendre le MÊME checkout, ou
   //     annuler. La boucle de vérification continue derrière ;
   //   · `paid`/inconnu → on attend : c'est la boucle qui voit le droit et rend la main.
-  //
-  // ⚠️ UNE LECTURE AUSSI À L'ENTRÉE EN ATTENTE, si l'app est déjà au premier plan. L'étape
-  // `waiting` est posée quand `openCheckout` résout ; sur Android le JS peut reprendre APRÈS
-  // le retour du navigateur, et l'événement `active` serait parti avant l'écoute.
-  // 🔴 MAIS CETTE LECTURE-LÀ N'AGIT QUE SUR UN ÉCHEC TERMINAL. Sur iOS, `openURL` peut
-  // résoudre AVANT que l'app passe en arrière-plan : le paiement tout juste créé est `open`,
-  // et « Paiement non finalisé ? » s'afficherait pendant que le membre est sur Mollie.
-  useEffect(() => {
-    if (step !== 'waiting') return
-    const verifier = (auRetour: boolean) => {
-      const paymentId = paymentIdRef.current
-      if (!paymentId) return
-      void lireStatutPaiement(paymentId).then((statut) => {
-        if (annuleRef.current) return
-        const issue = issueAuPremierPlan(statut)
-        if (issue === 'abandonner') {
-          arreterAttente()
-          setStep('options')
-          setDropInError(t('payment_required.errors.payment_not_completed'))
-          return
-        }
-        // La boucle CONTINUE : si le paiement passe à `paid` pendant que le membre lit la
-        // question, elle verra le droit et la fiche réservera (lib/reservationAuto.ts).
-        if (issue === 'proposer_reprise' && auRetour && checkoutUrlRef.current) setStep('unfinished')
-      })
-    }
-    if (AppState.currentState === 'active') verifier(false)
-    const sub = AppState.addEventListener('change', (etat) => {
-      if (etat === 'active') verifier(true)
+  const verifierStatut = useCallback(() => {
+    const paymentId = paymentIdRef.current
+    if (!paymentId) return
+    void lireStatutPaiement(paymentId).then((statut) => {
+      if (annuleRef.current) return
+      const issue = issueAuPremierPlan(statut)
+      if (issue === 'abandonner') {
+        arreterAttente()
+        setStep('options')
+        setDropInError(t('payment_required.errors.payment_not_completed'))
+        return
+      }
+      if (issue === 'proposer_reprise') { setStep('unfinished'); return }
+      // `paid` lu pendant la question : on repasse à l'attente, la boucle verra le droit.
+      if (statut === 'paid') setStep((e) => (e === 'unfinished' ? 'waiting' : e))
     })
-    return () => sub.remove()
-  }, [step, arreterAttente, t])
+  }, [arreterAttente, t])
 
-  // ⚠️ RETOUR À L'ÉTAPE DES OPTIONS À CHAQUE OUVERTURE. Sans cela, un membre qui ferme la
-  // feuille sur l'étape de consentement la rouvrirait dessus, sans avoir rechoisi son
-  // achat. (La case elle-même se remet à zéro dans PurchaseConsentBody, qui est démonté
-  // avec l'étape — les deux garanties sont indépendantes, et c'est voulu.)
+  // 🔴 GYM-379 (relecture) — POSÉE AVANT D'OUVRIR MOLLIE, retirée par `arreterAttente`.
+  const ecouterLeRetour = useCallback(() => {
+    retourRef.current?.remove()
+    retourRef.current = AppState.addEventListener('change', (etat) => {
+      if (etat === 'active') verifierStatut()
+    })
+  }, [verifierStatut])
+
+  // ⚠️ RETOUR À L'ÉTAPE DES OPTIONS À CHAQUE OUVERTURE — SAUF PAIEMENT PRÉCÉDENT VIVANT.
+  // Sans cela, un membre qui ferme la feuille sur l'étape de consentement la rouvrirait
+  // dessus, sans avoir rechoisi son achat. (La case elle-même se remet à zéro dans
+  // PurchaseConsentBody, qui est démonté avec l'étape — les deux garanties sont
+  // indépendantes, et c'est voulu.)
+  //
+  // 🔴 GYM-379 (relecture) — JAMAIS « PAYER CETTE SÉANCE » TANT QUE LE PRÉCÉDENT EST `open`.
+  // La feuille rouvre sur `verification`, relit le statut, et ne montre les options que
+  // s'il est mort (`issueFinAttente`). `open` → « non finalisé » ; `paid` → l'attente.
   useEffect(() => {
-    if (visible) {
-      setStep('options')
-      setDropInError(null)
-    } else {
+    if (!visible) {
       // GYM-379 — fermée par le parent (crédit détecté → `onClose`) ou par le membre : plus
       // aucune boucle ne doit tourner derrière une feuille invisible.
       arreterAttente()
+      return
     }
+    setDropInError(null)
+    // Le paiement de CETTE feuille d'abord (elle est restée montée), sinon celui de la fiche.
+    if (!paymentIdRef.current && paiementPrecedent) {
+      paymentIdRef.current = paiementPrecedent.paymentId
+      checkoutUrlRef.current = paiementPrecedent.checkoutUrl ?? null
+      accordRef.current = paiementPrecedent.accord
+    }
+    const paymentId = paymentIdRef.current
+    if (!paymentId) { setStep('options'); return }
+    setStep('verification')
+    let vivant = true
+    void lireStatutPaiement(paymentId).then((statut) => {
+      if (!vivant) return
+      const issue = issueFinAttente(statut)
+      if (issue === 'options') {
+        paymentIdRef.current = null
+        checkoutUrlRef.current = null
+        setStep('options')
+        return
+      }
+      annuleRef.current = false
+      if (issue === 'paye') { setStep('waiting'); lancerVerificationRef.current?.(); return }
+      setStep('unfinished')
+      lancerVerificationRef.current?.()
+    })
+    return () => { vivant = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, arreterAttente])
 
   // GYM-94 QA — les CTA abonnement/carnet ouvrent la page des FORMULES, pas l'historique.
+  // GYM-379 (09/11) — DEPUIS UN COURS, l'écran des formules le SAIT (`depuis_cours`) : il
+  // annonce la réservation et ses boutons deviennent « S'abonner et réserver » / « Acheter et
+  // réserver ». Sur un cours COMPLET, pas de paramètre : rien ne se réserve d'office.
   const goToSubscription = () => {
     onClose()
-    router.push('/profile/subscription')
+    router.push(context === 'book' && slotId
+      ? { pathname: '/profile/subscription', params: { depuis_cours: slotId } }
+      : '/profile/subscription')
   }
 
   // GYM-336 — les gardes restent AVANT la case : faire cocher un consentement pour un
@@ -230,6 +278,12 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         clearInterval(pollRef.current!)
         pollRef.current = null
         setIsLoadingDropIn(false)
+        // Le droit est là : ce paiement a rempli son office. Une prochaine ouverture de la
+        // feuille ne doit pas le relire comme « précédent » et bloquer un nouvel achat.
+        paymentIdRef.current = null
+        checkoutUrlRef.current = null
+        retourRef.current?.remove()
+        retourRef.current = null
         // On rend la main à la fiche du cours : c'est ELLE, et elle seule, qui réserve
         // (lib/reservationAuto.ts — décision produit du 09/11, « Payer et réserver »,
         // qui revient sur la « réservation explicite » de GYM-352). Un seul endroit
@@ -241,14 +295,33 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         clearInterval(pollRef.current!)
         pollRef.current = null
         setIsLoadingDropIn(false)
-        // L'intention survit : le message dit d'attendre, pas que c'est perdu.
-        // GYM-379 — et il est désormais VISIBLE : il était posé pendant que le membre
-        // était encore sur l'étape de consentement, où ce message n'est pas rendu.
-        setStep('options')
-        setDropInError(t('payment_required.errors.not_confirmed'))
+        // 🔴 GYM-379 (relecture) — LA FIN DU PLAFOND NE ROUVRE PLUS LES OPTIONS D'OFFICE.
+        // Elle rendait « Payer cette séance » à un membre dont le paiement était encore
+        // `open` — peut-être passé, webhook en retard. On relit le statut d'abord :
+        //   · mort → les options, un nouveau paiement est possible ;
+        //   · `open`/`pending`/inconnu → on reste sur « non finalisé » (Reprendre / Annuler) ;
+        //   · `paid` → le crédit tarde : on le dit, et rien n'est proposé à payer.
+        const paymentId = paymentIdRef.current
+        const statut = paymentId ? await lireStatutPaiement(paymentId) : null
+        if (annuleRef.current) return
+        const issue = issueFinAttente(statut)
+        if (issue === 'options') {
+          setStep('options')
+          setDropInError(t('payment_required.errors.payment_not_completed'))
+          return
+        }
+        if (issue === 'paye') {
+          setStep('waiting')
+          setDropInError(t(accordRef.current ? 'payment_required.errors.not_confirmed' : 'payment_required.errors.not_confirmed_manual'))
+          return
+        }
+        setStep('unfinished')
       }
     }, 2000)
   }
+  // Le `useEffect` d'ouverture est déclaré plus haut : il appelle la version courante.
+  const lancerVerificationRef = useRef<(() => void) | null>(null)
+  lancerVerificationRef.current = lancerVerification
 
   // Appelé UNIQUEMENT depuis PurchaseConsentBody, dont le CTA est verrouillé tant que la
   // case est vide : `earlyPerformanceConsent: true` transcrit un geste réel du membre.
@@ -257,6 +330,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     annuleRef.current = false
     paymentIdRef.current = null
     checkoutUrlRef.current = null
+    accordRef.current = context === 'book'
     setIsLoadingDropIn(true)
     setDropInError(null)
     try {
@@ -286,7 +360,12 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       // cours sait QUEL paiement interroger — sans lui, elle ne peut que deviner.
       // GYM-379 — et l'ACCORD du membre : il vient de taper « Payer et réserver ». Sur un
       // cours complet (`waitlist`), le CTA ne promet pas de réservation : pas d'accord.
-      await attacherPaiementBookingIntent(result.paymentId, { accordReservation: context === 'book' })
+      // ⚠️ ET L'URL DU CHECKOUT : « Reprendre le paiement » doit pouvoir rouvrir CE paiement
+      // même après que l'app a été tuée — sinon la seule reprise serait un second paiement.
+      await attacherPaiementBookingIntent(result.paymentId, {
+        accordReservation: context === 'book',
+        checkoutUrl: result.checkoutUrl,
+      })
       paymentIdRef.current = result.paymentId ?? null
       checkoutUrlRef.current = result.checkoutUrl
 
@@ -315,6 +394,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       // son cours à la reprise de l'écran ou au prochain lancement. Le poll est devenu un
       // confort — il évite d'attendre — et non plus la condition de tout le parcours.
       lancerVerification()
+      ecouterLeRetour()
 
       // GYM-352 — LE RÉSULTAT EST LU. Ce chemin échouait à l'identique de celui de
       // profile/subscription.tsx (constaté le 17/09 à 16h03) alors qu'il ne démonte aucune
@@ -345,6 +425,12 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
           // resté faux mais `pollRef` est nul : on ne rouvre pas une attente terminée.
           setIsLoadingDropIn(false)
           if (pollRef.current) setStep('waiting')
+          // 🔴 GYM-379 (relecture) — LECTURE EXPLICITE DU STATUT, JUSTE APRÈS LA RÉSOLUTION.
+          // Sur Android, `openURL` peut résoudre APRÈS le retour du navigateur : l'événement
+          // `active` est alors déjà passé. `open` ici = « non finalisé ». (Sur iOS, elle peut
+          // tomber pendant que le membre est encore sur Mollie : l'étape change sous Safari,
+          // et la lecture du retour la remet à jour.)
+          if (pollRef.current) verifierStatut()
           return
         }
         // Le système a refusé l'URL : inutile de faire patienter le membre cinq minutes
@@ -368,19 +454,21 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // payé, c'est Mollie qui le lui dit.
   const reprendrePaiement = () => {
     const url = checkoutUrlRef.current
-    if (!url || !dropInPlan) return
+    if (!url) return
     annuleRef.current = false
     setDropInError(null)
     setStep('waiting')
     lancerVerification()
+    ecouterLeRetour()
     void openCheckout(url, {
       screen: 'payment_required_sheet',
       paymentId: paymentIdRef.current ?? undefined,
-      planId: dropInPlan.id,
+      planId: dropInPlan?.id,
     }).then((outcome) => {
-      if (annuleRef.current || outcome.handedOff) return
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-      setStep('options')
+      if (annuleRef.current) return
+      if (outcome.handedOff) { verifierStatut(); return }
+      // ⚠️ PAS LES OPTIONS : le paiement précédent vit encore. On reste sur la question.
+      setStep('unfinished')
       setDropInError(t('payment_required.errors.checkout_not_opened'))
     })
   }
@@ -396,7 +484,13 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       <View className="flex-1 justify-end bg-black/50">
         {/* `bg-black/50` reste : un voile à 50 % n'est nommé par aucun jeton. */}
         <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
-          {step === 'unfinished' ? (
+          {step === 'verification' ? (
+            // GYM-379 (relecture) — le statut du paiement précédent est relu : rien n'est
+            // proposé tant qu'on ne sait pas s'il vit encore.
+            <View className="items-center py-6">
+              <ActivityIndicator color={tokens.accentDim} />
+            </View>
+          ) : step === 'unfinished' ? (
             // 🔴 GYM-379 — UNE QUESTION, PAS UN VERDICT. `open` au retour, c'est le plus
             // souvent une annulation chez la banque (aucun webhook) — mais ce peut être un
             // paiement passé dont le webhook tarde. La vérification continue derrière.
@@ -405,18 +499,25 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 {t('payment_required.unfinished.title')}
               </Text>
               <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
-                {t('payment_required.unfinished.hint')}
+                {t(accordRef.current ? 'payment_required.unfinished.hint' : 'payment_required.unfinished.hint_manual')}
               </Text>
-              <TouchableOpacity
-                onPress={reprendrePaiement}
-                activeOpacity={0.8}
-                style={{ backgroundColor: tokens.actionBg }}
-                className="mt-6 w-full items-center rounded-2xl px-4 py-4"
-              >
-                <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onAction }}>
-                  {t('payment_required.unfinished.resume')}
-                </Text>
-              </TouchableOpacity>
+              {dropInError && (
+                <Text className="mt-3 text-center font-dmsans text-sm" style={{ color: SEMANTIC.danger }}>{dropInError}</Text>
+              )}
+              {/* Sans l'URL du checkout (intention d'une version antérieure), pas de reprise
+                  possible — et surtout pas de second paiement : il reste « Annuler ». */}
+              {checkoutUrlRef.current && (
+                <TouchableOpacity
+                  onPress={reprendrePaiement}
+                  activeOpacity={0.8}
+                  style={{ backgroundColor: tokens.actionBg }}
+                  className="mt-6 w-full items-center rounded-2xl px-4 py-4"
+                >
+                  <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onAction }}>
+                    {t('payment_required.unfinished.resume')}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {/* ⚠️ JAMAIS `disabled`, comme sur l'attente. L'intention est conservée. */}
               <TouchableOpacity onPress={fermer} activeOpacity={0.7} className="mt-2 w-full items-center py-3">
                 <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('common.cancel')}</Text>
@@ -431,8 +532,11 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 {t('payment_required.waiting.title')}
               </Text>
               <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
-                {t('payment_required.waiting.hint')}
+                {t(accordRef.current ? 'payment_required.waiting.hint' : 'payment_required.waiting.hint_manual')}
               </Text>
+              {dropInError && (
+                <Text className="mt-3 text-center font-dmsans text-sm" style={{ color: tokens.onSurface }}>{dropInError}</Text>
+              )}
               {/* ⚠️ JAMAIS `disabled` : c'est la sortie que GYM-379 rend au membre. */}
               <TouchableOpacity onPress={fermer} activeOpacity={0.7} className="mt-6 w-full items-center py-3">
                 <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('common.cancel')}</Text>

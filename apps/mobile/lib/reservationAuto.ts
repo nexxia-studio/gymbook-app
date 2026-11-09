@@ -17,6 +17,15 @@
 // l'import.)
 import { estValide, porteSurCeCreneau, type BookingIntent } from './bookingIntent'
 
+/**
+ * Le statut LU EN BASE pour un paiement donné (`payments.status`, via `lireStatutPaiement`).
+ * Il porte son `paymentId` : un statut lu pour un autre paiement ne vaut rien ici.
+ */
+export interface StatutLu {
+  paymentId: string
+  statut: string | null
+}
+
 export interface EntreeReservationAuto {
   /** L'intention connue de la fiche (`null` = aucune). */
   intent: BookingIntent | null
@@ -27,6 +36,15 @@ export interface EntreeReservationAuto {
    * les MÊMES prédicats que le serveur et que la boucle de la feuille.
    */
   droitPresent: boolean
+  /**
+   * 🔴 GYM-379 (relecture du 09/11) — LE STATUT DU PAIEMENT DE L'ACCORD, LU EN BASE.
+   *
+   * Le droit seul ne prouve pas que CE paiement est passé : un crédit posé par le gérant, un
+   * abonnement pris sur un autre appareil, un carnet ancien rendent le droit présent sans
+   * que le membre ait payé ce qu'il a accepté de voir transformé en réservation. L'accord
+   * vaut pour UN paiement ; il ne s'exécute que quand CE paiement est `paid`.
+   */
+  statutPaiement: StatutLu | null
   /** Un appel a déjà été tenté (ou est en vol) pour ce créneau : jamais deux. */
   dejaTente: boolean
   /**
@@ -40,18 +58,66 @@ export interface EntreeReservationAuto {
   coursComplet: boolean
   /** Le membre est déjà inscrit (confirmé ou en attente) sur ce créneau. */
   dejaInscrit: boolean
+  /**
+   * La fiche est l'écran au premier plan. Deux instances de la fiche coexistent après le
+   * `router.replace` de l'écran de retour de paiement : seule la visible déclenche.
+   */
+  ecranVisible: boolean
   maintenant?: number
+}
+
+/**
+ * L'intention porte-t-elle l'ACCORD du membre pour CE paiement ?
+ *
+ * C'est la seule question que posent les TEXTES : tout texte qui annonce une réservation
+ * automatique s'affiche sous cette condition, et sous elle seule. Sans accord — achat parti
+ * d'ailleurs, cours complet (liste d'attente), ancien paiement — le texte dit « confirme ta
+ * réservation sur la fiche du cours », sans promesse.
+ *
+ * @param paymentId le paiement dont parle l'écran ; absent = celui de l'intention.
+ */
+export function accordPourCePaiement(intent: BookingIntent | null, paymentId?: string | null): boolean {
+  if (!intent || intent.accordReservation !== true || !intent.paymentId) return false
+  return paymentId == null || paymentId === intent.paymentId
 }
 
 /** La fiche doit-elle appeler `createBooking(slotId)` maintenant, d'elle-même ? */
 export function doitReserverAutomatiquement(e: EntreeReservationAuto): boolean {
+  if (!e.ecranVisible) return false
   if (!e.intent || !porteSurCeCreneau(e.intent, e.slotId)) return false
   if (!estValide(e.intent, e.maintenant)) return false
-  // L'accord du membre (« Payer et réserver ») — cf. `BookingIntent.accordReservation`.
-  if (e.intent.accordReservation !== true) return false
+  // L'accord du membre (« Payer et réserver », « S'abonner et réserver »…) — pour CE paiement.
+  if (!accordPourCePaiement(e.intent)) return false
+  // ⚠️ ET CE PAIEMENT EST PAYÉ, LU EN BASE. Un statut lu pour un autre paiement ne compte pas.
+  if (!e.statutPaiement || e.statutPaiement.paymentId !== e.intent.paymentId) return false
+  if (e.statutPaiement.statut !== 'paid') return false
   if (!e.droitPresent) return false
   if (e.dejaTente || e.coursComplet || e.dejaInscrit) return false
   return true
+}
+
+// ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+// ║  🔴 UNE SEULE FICHE RÉSERVE — GARDE AU NIVEAU DU MODULE, PAS DE L'INSTANCE            ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+//
+// Un `ref` de composant ne protège que SA fiche. Or deux instances de `session/[id]`
+// coexistent après le `router.replace` de `payment/success` (la fiche d'origine reste
+// montée sous la pile) : chacune avait sa garde, et chacune pouvait appeler. La garde vit
+// donc ici, une fois par processus : créneau → promesse en vol.
+//
+// ⚠️ LA SECONDE FICHE N'APPELLE PAS ET N'AFFICHE RIEN. Elle reçoit `premier: false`,
+// attend la même promesse, puis relit l'état réel — c'est la première qui parle.
+const enVol = new Map<string, Promise<unknown>>()
+
+export function reserverUneFois<T>(
+  slotId: string,
+  appel: () => Promise<T>,
+): { premier: boolean; promesse: Promise<T> } {
+  const existante = enVol.get(slotId) as Promise<T> | undefined
+  if (existante) return { premier: false, promesse: existante }
+  const promesse = appel().finally(() => { enVol.delete(slotId) })
+  enVol.set(slotId, promesse)
+  return { premier: true, promesse }
 }
 
 /**

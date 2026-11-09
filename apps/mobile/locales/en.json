@@ -257,12 +257,15 @@
     "polling_title": "PROCESSING PAYMENT...",
     "polling_sub": "A few seconds",
     "booking_title": "BOOKING...",
-    "success_title": "BOOKING CONFIRMED!",
-    "success_sub": "See you at the class",
-    "error_title": "PAYMENT RECEIVED",
-    "error_sub": "Go back to the class and tap Book to finalize.",
+    "success_title": "PAYMENT RECEIVED",
+    "success_sub": "Booking your class…",
+    "error_title": "PAYMENT AWAITING CONFIRMATION",
+    "error_sub": "The bank confirmation is taking a while. Go back to the class page: you'll see where your payment stands.",
     "back_to_schedule": "Back to schedule",
-    "back_to_course": "Back to the class"
+    "back_to_course": "Back to the class",
+    "success_sub_manual": "Confirm your booking on the class page.",
+    "failed_title": "PAYMENT NOT COMPLETED",
+    "failed_sub": "Nothing was charged. Go back to the class page to try again."
   },
   "payment_required": {
     "title": "Booking unavailable",
@@ -293,20 +296,25 @@
       "no_plan": "Drop-in plan unavailable.",
       "not_confirmed": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: it will be booked automatically on the class page as soon as the credit arrives.",
       "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again.",
-      "payment_not_completed": "The payment wasn't completed. You can pick another option or try again."
+      "payment_not_completed": "The payment wasn't completed. You can pick another option or try again.",
+      "not_confirmed_manual": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: come back to the class page to confirm once the credit is there."
     },
     "waiting": {
       "title": "Payment in progress in the browser…",
-      "hint": "Finish the payment in your browser, then come back here. Your class will be booked as soon as the payment is confirmed."
+      "hint": "Finish the payment in your browser, then come back here. Your class will be booked as soon as the payment is confirmed.",
+      "hint_manual": "Finish the payment in your browser, then come back here. Once the credit arrives, confirm your booking on the class page."
     },
     "unfinished": {
       "title": "Payment not completed?",
       "hint": "If you cancelled or closed the page, nothing was charged: you can resume the same payment. If you just paid, confirmation can take a few minutes — your class will be booked as soon as it arrives.",
-      "resume": "Resume payment"
+      "resume": "Resume payment",
+      "hint_manual": "If you cancelled or closed the page, nothing was charged: you can resume the same payment. If you just paid, confirmation can take a few minutes — then confirm your booking on the class page."
     },
     "consent": {
       "confirm_and_book": "Pay and book",
-      "booking_notice": "Your class will be booked as soon as the payment is confirmed."
+      "booking_notice": "Your class will be booked as soon as the payment is confirmed.",
+      "subscribe_and_book": "Subscribe and book",
+      "buy_and_book": "Buy and book"
     }
   },
   "session": {
@@ -365,7 +373,8 @@
     "auto_booking_in_progress": "You have {{detail}} — booking your class…",
     "auto_booking_failed_title": "Booking not possible",
     "auto_booking_failed_message": "This class can no longer be booked (it has started, been cancelled or no longer exists). Your credit is untouched: you can book another class.",
-    "auto_booking_retry_message": "The booking couldn't go through. Your credit is untouched — tap \"Confirm my booking\" to try again."
+    "auto_booking_retry_message": "The booking couldn't go through. Tap \"Confirm my booking\" to try again.",
+    "intent_pending_message_manual": "Your payment is recorded, but the credit hasn't arrived yet — this can take two to three minutes. Your spot isn't booked yet: come back and confirm your booking in a moment."
   },
   "bookings": {
     "title": "My classes",
@@ -588,7 +597,7 @@
     "not_finalized_title": "PAYMENT NOT COMPLETED",
     "not_finalized_message": "You didn't complete the payment. Nothing was charged — you can pick it up again whenever you like.",
     "awaiting_title": "PAYMENT BEING PROCESSED",
-    "awaiting_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, there is nothing to do.",
+    "awaiting_message": "The bank confirmation is taking a little longer. As soon as it arrives, your sessions are credited automatically — you can check again below.",
     "unknown_title": "PAYMENT NOT CONFIRMED",
     "unknown_message": "We can't verify this payment from this screen. If your payment went through, your sessions will be credited within a few minutes. If you didn't complete it, nothing was charged.",
     "go_to_subscription": "View my subscription",
@@ -597,9 +606,12 @@
     "modal_success_body": "Your payment has been confirmed.",
     "offline_title": "Connection lost",
     "offline_hint": "Your payment is safe — we'll retry as soon as you're back online.",
-    "intent_success_title": "BOOKING YOUR CLASS",
-    "intent_success_body": "Your credit is here. Your class is being booked on its page — you'll see the confirmation there.",
-    "intent_go_to_course": "View my class"
+    "intent_success_title": "PAYMENT RECEIVED — BOOKING YOUR CLASS",
+    "intent_success_body": "Your class is being booked on its page — you'll see the confirmation there.",
+    "intent_go_to_course": "View my class",
+    "intent_success_title_manual": "PAYMENT RECEIVED",
+    "intent_success_body_manual": "Your spot isn't taken yet: confirm your booking on the class page as soon as your credit shows up.",
+    "intent_go_to_course_manual": "Confirm my booking"
   },
   "payments": {
     "title": "Payment history",
@@ -751,7 +763,8 @@
     "credits_generic_name": "Session credits",
     "unavailable_unlimited_active": "Unlimited access already active",
     "current_subscription": "Current subscription",
-    "upsell_unavailable": "Coming soon"
+    "upsell_unavailable": "Coming soon",
+    "booking_banner": "Your {{activity}} class · {{when}} will be booked as soon as the payment is confirmed"
   },
   "preferences": {
     "title": "Preferences",
