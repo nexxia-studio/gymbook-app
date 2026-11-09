@@ -292,7 +292,12 @@
       "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
       "no_plan": "Formule à la séance indisponible.",
       "not_confirmed": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens sur la fiche du cours pour confirmer dès que le crédit est là.",
-      "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie."
+      "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie.",
+      "payment_not_completed": "Le paiement n'a pas été finalisé. Tu peux choisir une autre option ou réessayer."
+    },
+    "waiting": {
+      "title": "Paiement en cours dans le navigateur…",
+      "hint": "Termine le paiement dans le navigateur puis reviens ici. Ta place sera réservable dès que le paiement sera confirmé."
     }
   },
   "session": {

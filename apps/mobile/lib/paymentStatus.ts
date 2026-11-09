@@ -55,3 +55,24 @@ export function issueDuRetour(paymentId: string | undefined, statut: string | nu
 export function paiementMort(paymentId: string | undefined, statut: string | null): boolean {
   return !!paymentId && statut !== null && TERMINAL_FAILURE.has(statut)
 }
+
+/**
+ * GYM-379 — Le membre revient du navigateur (AppState → active) pendant l'attente de la
+ * feuille « Payer cette séance ». Que fait la feuille, au vu de `payments.status` ?
+ *
+ *   · abandonner — failed / canceled / expired : fait serveur terminal. On arrête
+ *                  l'attente et on rend les options, avec un message neutre.
+ *   · attendre   — tout le reste. `paid` : le crédit arrive, la boucle existante le
+ *                  détectera et rendra la main à la fiche. `pending`/`open`/inconnu :
+ *                  ambigu (webhook en retard, ou navigateur fermé sans rien faire) — on
+ *                  n'affirme rien, et « Annuler » reste toujours disponible.
+ *
+ * ⚠️ MÊME RÈGLE QUE `paiementMort` : seul un échec TERMINAL fait agir l'app d'elle-même.
+ * Rouvrir les options sur `open`, c'est inviter à repayer quelqu'un qui vient peut-être
+ * de payer.
+ */
+export type IssueAuPremierPlan = 'abandonner' | 'attendre'
+
+export function issueAuPremierPlan(statut: string | null): IssueAuPremierPlan {
+  return statut !== null && TERMINAL_FAILURE.has(statut) ? 'abandonner' : 'attendre'
+}

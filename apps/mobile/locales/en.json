@@ -292,7 +292,12 @@
       "checkout_failed": "Payment could not start. Try again.",
       "no_plan": "Drop-in plan unavailable.",
       "not_confirmed": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: come back to the class page to confirm as soon as the credit is there.",
-      "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again."
+      "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again.",
+      "payment_not_completed": "The payment wasn't completed. You can pick another option or try again."
+    },
+    "waiting": {
+      "title": "Payment in progress in the browser…",
+      "hint": "Finish the payment in the browser, then come back here. You'll be able to book your spot once the payment is confirmed."
     }
   },
   "session": {

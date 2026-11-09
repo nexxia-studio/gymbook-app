@@ -2,8 +2,8 @@
 // GYM-76 — Migré sur gym_plans : plus de prix/codes en dur, create-payment v24 (plan_id UUID).
 // L'auto-retry après paiement drop-in est géré par app/payment/success.tsx (GYM-63b)
 // via le deep link dopamine://payment/success?slot_id=...&source=drop_in.
-import { useState, useEffect, useRef } from 'react'
-import { View, Text, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { View, Text, TouchableOpacity, Modal, Alert, ActivityIndicator, AppState } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { CreditCard, Calendar, Ticket } from 'lucide-react-native'
@@ -17,6 +17,8 @@ import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/su
 import { useGymPlans } from '../../hooks/useGymPlans'
 import { PurchaseConsentBody } from '../payments/PurchaseConsentSheet'
 import { attacherPaiementBookingIntent } from '../../lib/bookingIntent'
+import { lireStatutPaiement } from '../../lib/paymentLookup'
+import { issueAuPremierPlan } from '../../lib/paymentStatus'
 import {
   formatPrice,
   mapPaymentError,
@@ -44,6 +46,13 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   const [isLoadingDropIn, setIsLoadingDropIn] = useState(false)
   const [dropInError, setDropInError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // 🔴 GYM-379 — DRAPEAU D'ANNULATION, VÉRIFIÉ À CHAQUE TOUR. `clearInterval` n'arrête pas un
+  // tour DÉJÀ PARTI : ses deux requêtes sont en vol, et à leur retour il appellerait
+  // `onClose` ou poserait un message sur une feuille que le membre a quittée. Le drapeau
+  // est relu après chaque `await`. Un `ref`, pas un état : il doit être vrai IMMÉDIATEMENT.
+  const annuleRef = useRef(false)
+  // L'id Mollie du checkout en cours, pour relire son statut au retour au premier plan.
+  const paymentIdRef = useRef<string | null>(null)
   // GYM-336 — la feuille a désormais DEUX ÉTAPES. Le drop-in est un achat à distance : il
   // doit recueillir la demande d'exécution anticipée comme n'importe quel autre.
   //
@@ -52,7 +61,15 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // voient qu'à l'exécution — or l'app est gelée pour la QA. Le CONSENTEMENT, lui, reste
   // partagé : `PurchaseConsentBody` est le même composant que celui de la feuille montée
   // par profile/subscription.tsx, donc la même phrase, le même verrou, la même version.
-  const [step, setStep] = useState<'options' | 'consent'>('options')
+  //
+  // 🔴 GYM-379 — ET UNE TROISIÈME : `waiting`. Le membre restait sur l'étape de consentement,
+  // spinner sur « Confirmer et payer » ET « Annuler » désactivé, pendant TOUTE la boucle de
+  // vérification — jusqu'à 5 minutes, sans sortie. Deux états distincts désormais :
+  //   · `isLoadingDropIn` (busy) — CRÉATION du paiement : quelques centaines de ms, les
+  //     boutons du consentement sont verrouillés (un second tap créerait un second paiement) ;
+  //   · `waiting` — le paiement est OUVERT DANS LE NAVIGATEUR : on attend le membre, pas le
+  //     serveur. « Annuler » n'y est JAMAIS désactivé.
+  const [step, setStep] = useState<'options' | 'consent' | 'waiting'>('options')
 
   // Plans dérivés de gym_plans (fini les prix en dur)
   const dropInPlan = creditPlans
@@ -70,11 +87,54 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     ? [...monthlyPlans].sort((a, b) => a.priceCents - b.priceCents)[0]
     : null
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+  // GYM-379 — arrête la boucle, et tout tour encore en vol (cf. `annuleRef`).
+  const arreterAttente = useCallback(() => {
+    annuleRef.current = true
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }, [])
+
+  useEffect(() => arreterAttente, [arreterAttente])
+
+  // 🔴 GYM-379 — « ANNULER » ET LE RETOUR ANDROID FERMENT LA FEUILLE, BOUCLE ARRÊTÉE.
+  // ⚠️ L'INTENTION DE RÉSERVATION N'EST PAS EFFACÉE, ET C'EST VOULU. Le membre a peut-être
+  // payé quand même, dans le navigateur, juste avant d'annuler ici : l'intention porte le
+  // paymentId, et c'est elle qui permet à `app/payment/success.tsx` (GYM-373) et à la fiche
+  // du cours (GYM-374b) de décider sur le statut RÉEL. L'effacer ici, c'est perdre le cours
+  // d'un membre qui a payé.
+  const fermer = useCallback(() => {
+    arreterAttente()
+    setIsLoadingDropIn(false)
+    onClose()
+  }, [arreterAttente, onClose])
+
+  // GYM-379 — RETOUR DU NAVIGATEUR. Au passage au premier plan, on relit le statut du
+  // paiement : un échec TERMINAL (annulé sur Mollie, expiré, refusé) n'a plus rien à
+  // attendre. Tout le reste — `paid` compris — laisse la boucle existante faire son
+  // travail : c'est elle qui voit le crédit et rend la main à la fiche.
+  //
+  // ⚠️ UNE LECTURE AUSSI À L'ENTRÉE EN ATTENTE, si l'app est déjà au premier plan. L'étape
+  // `waiting` est posée quand `openCheckout` résout ; sur Android le JS peut reprendre APRÈS
+  // le retour du navigateur, et l'événement `active` serait parti avant l'écoute. Sans
+  // risque dans l'autre cas : un paiement tout juste créé est `open` → `attendre`.
+  useEffect(() => {
+    if (step !== 'waiting') return
+    const verifier = () => {
+      const paymentId = paymentIdRef.current
+      if (!paymentId) return
+      void lireStatutPaiement(paymentId).then((statut) => {
+        if (annuleRef.current) return
+        if (issueAuPremierPlan(statut) !== 'abandonner') return
+        arreterAttente()
+        setStep('options')
+        setDropInError(t('payment_required.errors.payment_not_completed'))
+      })
+    }
+    if (AppState.currentState === 'active') verifier()
+    const sub = AppState.addEventListener('change', (etat) => {
+      if (etat === 'active') verifier()
+    })
+    return () => sub.remove()
+  }, [step, arreterAttente, t])
 
   // ⚠️ RETOUR À L'ÉTAPE DES OPTIONS À CHAQUE OUVERTURE. Sans cela, un membre qui ferme la
   // feuille sur l'étape de consentement la rouvrirait dessus, sans avoir rechoisi son
@@ -84,8 +144,12 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     if (visible) {
       setStep('options')
       setDropInError(null)
+    } else {
+      // GYM-379 — fermée par le parent (crédit détecté → `onClose`) ou par le membre : plus
+      // aucune boucle ne doit tourner derrière une feuille invisible.
+      arreterAttente()
     }
-  }, [visible])
+  }, [visible, arreterAttente])
 
   // GYM-94 QA — les CTA abonnement/carnet ouvrent la page des FORMULES, pas l'historique.
   const goToSubscription = () => {
@@ -112,6 +176,8 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // case est vide : `earlyPerformanceConsent: true` transcrit un geste réel du membre.
   const runDropIn = async () => {
     if (!gymId || !slotId || !memberId || !dropInPlan) return
+    annuleRef.current = false
+    paymentIdRef.current = null
     setIsLoadingDropIn(true)
     setDropInError(null)
     try {
@@ -140,6 +206,11 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       // `await` : quelques millisecondes de disque, et la garantie qu'au retour la fiche du
       // cours sait QUEL paiement interroger — sans lui, elle ne peut que deviner.
       await attacherPaiementBookingIntent(result.paymentId)
+      paymentIdRef.current = result.paymentId ?? null
+
+      // GYM-379 — fermée pendant la création (retour Android) : on n'ouvre pas Mollie
+      // derrière le dos du membre. Le paiement créé reste `open` et expirera de lui-même.
+      if (annuleRef.current) return
 
       // ╔═══════════════════════════════════════════════════════════════════════════════╗
       // ║  🔴 GYM-352 — CE POLL DURAIT 60 s POUR UN CRÉDIT QUI MET 2 min 33 s          ║
@@ -164,6 +235,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       const MAX_TENTATIVES = 150 // 150 × 2 s = 5 min
       let pollAttempts = 0
       pollRef.current = setInterval(async () => {
+        if (annuleRef.current) return
         pollAttempts++
         // GYM-352 — ON INTERROGE LE DROIT, PAS LE CRÉDIT. Cette requête ne regardait que
         // `member_credits` : un ABONNEMENT acheté depuis cette feuille n'y apparaît jamais,
@@ -184,6 +256,9 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
           .order('starts_at', { ascending: false })
           .limit(1)
           .maybeSingle()
+
+        // GYM-379 — annulée pendant que les requêtes étaient en vol.
+        if (annuleRef.current) return
 
         const aDesCredits = !!credits && credits.length > 0
         const aUnAbonnement = !!sub && isSubscriptionActive(sub.status, sub.ends_at)
@@ -206,6 +281,9 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
           pollRef.current = null
           setIsLoadingDropIn(false)
           // L'intention survit : le message dit d'attendre, pas que c'est perdu.
+          // GYM-379 — et il est désormais VISIBLE : il était posé pendant que le membre
+          // était encore sur l'étape de consentement, où ce message n'est pas rendu.
+          setStep('options')
           setDropInError(t('payment_required.errors.not_confirmed'))
         }
       }, 2000)
@@ -231,7 +309,16 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         paymentId: result.paymentId,
         planId: dropInPlan.id,
       }).then((outcome) => {
-        if (outcome.handedOff) return
+        if (annuleRef.current) return
+        if (outcome.handedOff) {
+          // 🔴 GYM-379 — MOLLIE EST OUVERT : FIN DE « BUSY », DÉBUT DE L'ATTENTE. La boucle
+          // continue en arrière-plan ; l'écran, lui, cesse de verrouiller le membre.
+          // ⚠️ Si la boucle a déjà conclu (crédit vu, feuille fermée), `annuleRef` est
+          // resté faux mais `pollRef` est nul : on ne rouvre pas une attente terminée.
+          setIsLoadingDropIn(false)
+          if (pollRef.current) setStep('waiting')
+          return
+        }
         // Le système a refusé l'URL : inutile de faire patienter le membre cinq minutes
         // devant un poll de crédits qui ne verra jamais rien.
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -248,11 +335,27 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={fermer}>
       <View className="flex-1 justify-end bg-black/50">
         {/* `bg-black/50` reste : un voile à 50 % n'est nommé par aucun jeton. */}
         <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
-          {step === 'consent' && dropInPlan ? (
+          {step === 'waiting' ? (
+            // 🔴 GYM-379 — L'ATTENTE DIT CE QUI SE PASSE, ET RIEN DE PLUS. Aucun texte ici
+            // n'affirme un paiement réussi : la base ne le porte pas encore.
+            <View className="items-center">
+              <ActivityIndicator color={tokens.accentDim} />
+              <Text className="mt-4 text-center font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
+                {t('payment_required.waiting.title')}
+              </Text>
+              <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
+                {t('payment_required.waiting.hint')}
+              </Text>
+              {/* ⚠️ JAMAIS `disabled` : c'est la sortie que GYM-379 rend au membre. */}
+              <TouchableOpacity onPress={fermer} activeOpacity={0.7} className="mt-6 w-full items-center py-3">
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : step === 'consent' && dropInPlan ? (
             <PurchaseConsentBody
               plan={{
                 name: dropInPlan.name,
