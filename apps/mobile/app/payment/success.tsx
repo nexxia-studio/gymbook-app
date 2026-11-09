@@ -5,14 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
-// GYM-352 — même prédicat d'abonnement actif que le reste de l'app.
-import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../../lib/subscription'
 import { lireBookingIntent, effacerBookingIntent, type BookingIntent } from '../../lib/bookingIntent'
+import { accordPourCePaiement } from '../../lib/reservationAuto'
 import { captureEvent } from '../../lib/analytics'
 import { TERMINAL_FAILURE } from '../../lib/paymentStatus'
 import { lireOriginePaiement, effacerOriginePaiement } from '../../lib/paymentOrigin'
-import { requetePaiement } from '../../lib/paymentLookup'
-import { useAuthStore } from '../../stores/useAuthStore'
+import { membreConnecte, requetePaiement } from '../../lib/paymentLookup'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
 import { runNetworkSafe } from '../../lib/networkError'
 import { useTheme } from '../../lib/theme/ThemeProvider'
@@ -27,11 +25,13 @@ interface Payment {
   amount: number | string
   currency: string | null
   credits_granted: number
+  mollie_payment_id?: string | null
 }
 
 // GYM-352 — l'état 'booking' a disparu avec la réservation automatique : cet écran ne
-// réserve plus, il ramène à la fiche du cours où le membre confirme lui-même.
-type DropInStatus = 'polling' | 'success' | 'error'
+// réserve plus, il ramène à la fiche du cours — qui seule réserve (GYM-379).
+// GYM-379 (relecture) — 'failed' : paiement mort lu en base ; 'error' : plafond sans `paid`.
+type DropInStatus = 'polling' | 'success' | 'failed' | 'error'
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -97,7 +97,7 @@ export default function PaymentSuccess() {
   // GYM-63b — Mode drop-in auto-retry
   // ============================================================
   if (isDropInRetry) {
-    return <DropInRetryScreen slotId={params.slot_id!} />
+    return <DropInRetryScreen slotId={params.slot_id!} rowId={params.id} />
   }
 
   // ============================================================
@@ -106,79 +106,69 @@ export default function PaymentSuccess() {
   return <ClassicPaymentScreen rowId={params.id} mollieId={params.mollie_id} returnTo={params.returnTo} checkoutOpened={params.checkout_opened} router={router} t={t} />
 }
 
-function DropInRetryScreen({ slotId }: { slotId: string }) {
+function DropInRetryScreen({ slotId, rowId }: { slotId: string; rowId?: string }) {
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
-  const user = useAuthStore((s) => s.user)
-  const gymId = useAuthStore((s) => s.gym_id)
   const [status, setStatus] = useState<DropInStatus>('polling')
+  // GYM-379 (relecture) — le paiement porte-t-il l'accord du membre (« Payer et réserver ») ?
+  // Seule condition sous laquelle cet écran annonce « on réserve ton cours ».
+  const [accord, setAccord] = useState(false)
   const ranRef = useRef(false)
 
   useEffect(() => {
     if (ranRef.current) return
     ranRef.current = true
+    let vivant = true
+
+    const allerAuCours = () => router.replace({ pathname: '/session/[id]', params: { id: slotId } })
 
     const run = async () => {
-      if (!user || !gymId) {
-        setStatus('error')
+      // ╔═════════════════════════════════════════════════════════════════════════════╗
+      // ║  🔴 GYM-379 (relecture) — CET ÉCRAN SUIT LE PAIEMENT, PLUS LE DROIT         ║
+      // ╚═════════════════════════════════════════════════════════════════════════════╝
+      //
+      // Il guettait le crédit puis affichait « RÉSERVATION CONFIRMÉE ! » — alors qu'il ne
+      // réserve rien (GYM-352) et qu'un crédit venu d'ailleurs suffisait à le déclencher.
+      // Il lit désormais `payments.status` : « Paiement reçu » n'est dit que sur `paid` lu
+      // en base, et « Cours réservé ✅ » n'est dit que par la fiche, après réponse serveur.
+      const intent = await lireBookingIntent()
+      const mollieId = intent?.paymentId
+      if (!rowId && !mollieId) {
+        // Aucune clé : rien à suivre ici. La fiche du cours sait relire son état.
+        allerAuCours()
         return
       }
-
-      // ⚠️ GYM-352 — 5 MINUTES, comme le plafond de l'écran de vérification. C'était
-      // 15 secondes (15 × 1 s), pour un crédit mesuré à 2 min 33 s en production.
-      const MAX_TENTATIVES = 150 // 150 × 2 s = 5 min
+      const MAX_TENTATIVES = 150 // 150 × 2 s = 5 min — le plafond de GYM-207
       for (let i = 0; i < MAX_TENTATIVES; i++) {
+        if (!vivant) return
+        // GYM-379 (passe finale) — le paiement de CE membre, jamais celui d'un autre.
+        const query = requetePaiement({ rowId, mollieId }, 'status, mollie_payment_id', await membreConnecte())
+        const res = query ? await runNetworkSafe(async () => await query.maybeSingle()).catch(() => null) : null
+        const ligne = res && !res.offline
+          ? (res.data.data as { status?: string; mollie_payment_id?: string } | null)
+          : null
+        if (ligne?.status === 'paid') {
+          if (!vivant) return
+          setAccord(accordPourCePaiement(intent, ligne.mollie_payment_id ?? mollieId))
+          setStatus('success')
+          await sleep(1200)
+          if (vivant) allerAuCours()
+          return
+        }
+        if (ligne?.status && TERMINAL_FAILURE.has(ligne.status)) {
+          if (vivant) setStatus('failed')
+          return
+        }
         await sleep(2000)
-        // GYM-352 — le DROIT, pas le crédit : un abonnement ouvre le même accès
-        // (create-booking : `!activeSubscription && !creditsAvailable`).
-        const [creditsRes, subRes] = await Promise.all([
-          supabase
-            .from('member_credits')
-            .select('credits_remaining')
-            .eq('member_id', user.id)
-            .eq('gym_id', gymId)
-            .gt('credits_remaining', 0),
-          supabase
-            .from('member_subscriptions')
-            .select('status, ends_at')
-            .eq('member_id', user.id)
-            .eq('gym_id', gymId)
-            .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
-            .order('starts_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ])
-
-        const aDesCredits = (creditsRes.data?.length ?? 0) > 0
-        const aUnAbonnement = !!subRes.data && isSubscriptionActive(subRes.data.status, subRes.data.ends_at)
-        if (!aDesCredits && !aUnAbonnement) continue
-
-        // ╔═════════════════════════════════════════════════════════════════════════════╗
-        // ║  🔴 GYM-352 — CET ÉCRAN NE RÉSERVE PLUS. IL RAMÈNE AU COURS.                ║
-        // ╚═════════════════════════════════════════════════════════════════════════════╝
-        //
-        // Il appelait `create-booking` puis redirigeait vers l'onglet Réservations : le
-        // membre se retrouvait inscrit sans l'avoir confirmé. La décision produit est un
-        // geste EXPLICITE, jamais de réservation silencieuse.
-        //
-        // ⚠️ Et ce code n'a JAMAIS tourné en production : sa condition de montage exige
-        // `slot_id` dans l'URL, que `buildPaymentReturnUrl` n'a jamais émis. Il n'y a donc
-        // aucune habitude de membre à désapprendre — on corrige avant la première fois.
-        setStatus('success')
-        await sleep(1200)
-        router.replace({ pathname: '/session/[id]', params: { id: slotId } })
-        return
       }
-
-      // Le poll a expiré — mais l'intention est sur le disque : le membre retrouvera son
-      // cours en rouvrant l'app. On le ramène quand même sur la fiche, qui saura dire où
-      // en est son droit.
-      setStatus('error')
+      // Plafond atteint sans `paid` lu : on ne dit PAS « paiement reçu ».
+      if (vivant) setStatus('error')
     }
 
-    run()
-  }, [user, gymId, slotId, router])
+    void run()
+    return () => { vivant = false }
+  }, [slotId, rowId, router])
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: tokens.background }} edges={['top', 'bottom']}>
@@ -215,18 +205,18 @@ function DropInRetryScreen({ slotId }: { slotId: string }) {
               {t('payment_drop_in_retry.success_title')}
             </Text>
             <Text className="font-dmsans text-sm text-center" style={{ color: tokens.onBackground + '99' }}>
-              {t('payment_drop_in_retry.success_sub')}
+              {t(accord ? 'payment_drop_in_retry.success_sub' : 'payment_drop_in_retry.success_sub_manual')}
             </Text>
           </>
         )}
 
-        {status === 'error' && (
+        {(status === 'error' || status === 'failed') && (
           <>
             <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onBackground, textAlign: 'center', letterSpacing: 1 }}>
-              {t('payment_drop_in_retry.error_title')}
+              {t(status === 'failed' ? 'payment_drop_in_retry.failed_title' : 'payment_drop_in_retry.error_title')}
             </Text>
             <Text className="font-dmsans text-sm text-center" style={{ color: tokens.onBackground + '99' }}>
-              {t('payment_drop_in_retry.error_sub')}
+              {t(status === 'failed' ? 'payment_drop_in_retry.failed_sub' : 'payment_drop_in_retry.error_sub')}
             </Text>
             <Pressable
               onPress={() => router.replace({ pathname: '/session/[id]', params: { id: slotId } })}
@@ -281,11 +271,26 @@ function ClassicPaymentScreen({
   // Quand une intention existe, le paiement n'est pas la fin du parcours mais son AVANT-
   // DERNIÈRE étape. Le titre, le sous-titre et la destination changent tous les trois.
   const [intention, setIntention] = useState<BookingIntent | null>(null)
+  const [intentionLue, setIntentionLue] = useState(false)
   useEffect(() => {
     let vivant = true
-    void lireBookingIntent().then((i) => { if (vivant) setIntention(i) })
+    void lireBookingIntent().then((i) => { if (vivant) { setIntention(i); setIntentionLue(true) } })
     return () => { vivant = false }
   }, [])
+  // 🔴 GYM-379 (relecture) — LE RETOUR D'UN ABONNEMENT PRIS DEPUIS UN COURS. create-subscription
+  // ne pose pas `id=` dans sa redirectUrl (GYM-375) : sans clé, cet écran tombait sur
+  // `unknown` et renvoyait à Profil → Abonnement, loin du cours. Quand l'intention porte
+  // l'ACCORD du membre (« S'abonner et réserver »), son `paymentId` EST la clé : on suit ce
+  // paiement-là, et `paid` ramène à la fiche, qui réserve.
+  // ⚠️ SANS ACCORD, RIEN NE CHANGE : le chemin `unknown` de GYM-373 reste celui d'un achat
+  // fait depuis le profil.
+  const mollieCle = mollieId
+    ?? (!rowId && accordPourCePaiement(intention) ? intention?.paymentId : undefined)
+  // Pas de clé dans l'URL : on attend d'avoir lu l'intention avant de conclure `unknown`.
+  const cleTranchee = !!rowId || !!mollieId || intentionLue
+  // GYM-379 — les textes « on réserve ton cours » ne valent que pour l'accord de CE paiement.
+  const accordIci = accordPourCePaiement(intention, payment?.mollie_payment_id ?? mollieCle ?? null)
+  const cleTexte = (base: string) => (accordIci ? base : `${base}_manual`)
   // 🔴 GYM-373 — L'ÉCRAN D'ORIGINE, LU HORS NAVIGATION. `returnTo` arrive par les
   // paramètres, et le lien universel de retour les ÉCRASE (app/dopamine/payment-success.tsx
   // ne transmet que id/source/slot_id). L'origine posée par `openCheckout` survit, elle.
@@ -386,14 +391,17 @@ function ClassicPaymentScreen({
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
     // GYM-374 — la clé de recherche vit dans lib/paymentLookup.ts, partagée avec la fiche
     // du cours ; les colonnes restent celles de cet écran.
+    const memberId = await membreConnecte()
+    if (settledRef.current) return
     const query = requetePaiement(
-      { rowId, mollieId },
+      { rowId, mollieId: mollieCle },
       // 🔴 GYM-294 — `gym_id` RAMENÉ POUR LE GARDE. La policy de `payments` est
       // `member_id = auth.uid()` — SANS clause de salle : contrairement à `time_slots`,
       // elle autorise donc bien la lecture d'un paiement d'une AUTRE salle du membre.
       // Défaut LATENT aujourd'hui (mesuré : 0 membre a des paiements dans plusieurs
       // salles), mais la policy l'autorise, et c'est la policy qui fait foi.
-      'id, gym_id, status, plan_name, amount, currency, credits_granted',
+      'id, gym_id, status, plan_name, amount, currency, credits_granted, mollie_payment_id',
+      memberId,
     )
     if (!query) return
     // ⚠️ UNE COUPURE N'INTERROMPT PAS LE POLL : on repassera au tick suivant, et le
@@ -470,7 +478,7 @@ function ClassicPaymentScreen({
       captureEvent('payment_failed', { status: s })
       setStatus('failed')
     }
-  }, [rowId, mollieId, stopPolling])
+  }, [rowId, mollieCle, stopPolling])
 
   // ╔═════════════════════════════════════════════════════════════════════════════════════╗
   // ║  GYM-352 — L'ÉCRAN CESSE DE MENTIR AU BOUT DE CINQ MINUTES                          ║
@@ -507,7 +515,7 @@ function ClassicPaymentScreen({
   // l'heuristique se trompe, `not_finalized` rattrape le cas — le membre n'est jamais
   // renvoyé au message « rien à faire » alors qu'il lui reste tout à faire.
   const timeoutKind: 'unknown' | 'not_opened' | 'not_finalized' | 'awaiting' =
-    !rowId && !mollieId
+    !rowId && !mollieCle
       ? 'unknown'
       : checkoutOpened === '0'
         ? 'not_opened'
@@ -518,7 +526,9 @@ function ClassicPaymentScreen({
   // Cycle de poll : démarre AU MONTAGE (navigation propriétaire ou deep link), immédiat +
   // intervalle, borné par un timeout global ~2 min.
   useEffect(() => {
-    if (!rowId && !mollieId) {
+    // GYM-379 — sans clé dans l'URL, l'intention peut en fournir une : on l'attend.
+    if (!cleTranchee) return
+    if (!rowId && !mollieCle) {
       // Aucune clé de paiement → on ne peut pas poller : état `unknown` (GYM-373 ⑤).
       settledRef.current = true
       setStatus('timeout')
@@ -534,14 +544,14 @@ function ClassicPaymentScreen({
       }
     }, GLOBAL_TIMEOUT_MS)
     return stopPolling
-  }, [rowId, mollieId, poll, stopPolling])
+  }, [rowId, mollieCle, cleTranchee, poll, stopPolling])
 
   // GYM-207 — Relance manuelle après timeout. Le membre disposait auparavant d'un message
   // « Tire pour rafraîchir » sur un écran SANS pull-to-refresh (l'instruction visait un
   // autre écran) : le geste ne déclenchait rien. On lui donne un bouton qui, lui, relance
   // réellement le poll pour un nouveau cycle borné.
   const retryPolling = useCallback(() => {
-    if (!rowId && !mollieId) return
+    if (!rowId && !mollieCle) return
     settledRef.current = false
     setStatus('polling')
     poll()
@@ -553,7 +563,7 @@ function ClassicPaymentScreen({
         setStatus('timeout')
       }
     }, GLOBAL_TIMEOUT_MS)
-  }, [rowId, mollieId, poll, stopPolling])
+  }, [rowId, mollieCle, poll, stopPolling])
 
   // Filet QA-06 : le deep link auto depuis l'app bancaire n'est pas fiable. Quand l'app
   // repasse au premier plan (retour manuel), on re-poll IMMÉDIATEMENT.
@@ -635,7 +645,7 @@ function ClassicPaymentScreen({
             {/* GYM-352 — « PAIEMENT CONFIRMÉ » devient « IL RESTE UN GESTE » : le paiement
                 n'est pas la fin du parcours quand un cours attend d'être confirmé. */}
             <Text style={titleStyle}>
-              {t(intention ? 'payment.intent_success_title' : 'payment.success_title')}
+              {t(intention ? cleTexte('payment.intent_success_title') : 'payment.success_title')}
             </Text>
             {payment && (
               <>
@@ -649,7 +659,7 @@ function ClassicPaymentScreen({
             )}
             {intention && (
               <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onBackgroundMuted }}>
-                {t('payment.intent_success_body')}
+                {t(cleTexte('payment.intent_success_body'))}
               </Text>
             )}
             {/* ⚠️ `goToSuccessDestination`, PAS `goToBookings` : c'est lui qui connaît
@@ -657,7 +667,7 @@ function ClassicPaymentScreen({
                 l'endroit où le cours n'était pas. */}
             <Pressable onPress={goToSuccessDestination} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
               <Text style={ctaLabel}>
-                {t(intention ? 'payment.intent_go_to_course' : 'payment.go_to_bookings')}
+                {t(intention ? cleTexte('payment.intent_go_to_course') : 'payment.go_to_bookings')}
               </Text>
             </Pressable>
           </>
@@ -687,7 +697,7 @@ function ClassicPaymentScreen({
             {/* GYM-207 — relance RÉELLE, en remplacement de l'ancienne consigne
                 « Tire pour rafraîchir » qui ne correspondait à aucun geste sur cet écran.
                 Masquée s'il n'y a aucune clé de paiement à interroger. */}
-            {(rowId || mollieId) && (
+            {(rowId || mollieCle) && (
               <Pressable onPress={retryPolling} style={{ backgroundColor: tokens.actionBg }} className="mt-10 w-full items-center rounded-xl py-4">
                 <Text style={ctaLabel}>{t('payment.check_again')}</Text>
               </Pressable>
@@ -696,7 +706,7 @@ function ClassicPaymentScreen({
                 changer son texte recréerait un bouton qui dit une chose et en fait une autre. */}
             <Pressable
               onPress={timeoutKind === 'unknown' ? goToUnknownDestination : goToBookings}
-              className={`w-full items-center rounded-xl border py-4 ${rowId || mollieId ? 'mt-3' : 'mt-10'}`}
+              className={`w-full items-center rounded-xl border py-4 ${rowId || mollieCle ? 'mt-3' : 'mt-10'}`}
               style={{ borderColor: tokens.border }}
             >
               <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: tokens.onSurface }}>
@@ -723,17 +733,17 @@ function ClassicPaymentScreen({
           <View className="w-full items-center rounded-3xl p-8" style={{ backgroundColor: tokens.surface }}>
             <Text style={{ fontSize: 56, marginBottom: 12 }}>🎉</Text>
             <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 24, color: tokens.onSurface, textAlign: 'center', letterSpacing: 1 }}>
-              {t(intention ? 'payment.intent_success_title' : 'payment.modal_success_title')}
+              {t(intention ? cleTexte('payment.intent_success_title') : 'payment.modal_success_title')}
             </Text>
             <Text className="mt-3 font-dmsans text-sm text-center" style={{ color: tokens.onSurfaceSecondary }}>
-              {t(intention ? 'payment.intent_success_body' : 'payment.modal_success_body')}
+              {t(intention ? cleTexte('payment.intent_success_body') : 'payment.modal_success_body')}
             </Text>
             <Pressable
               onPress={() => { setSuccessVisible(false); goToSuccessDestination() }}
               style={{ backgroundColor: tokens.actionBg }} className="mt-8 w-full items-center rounded-xl py-4"
             >
               <Text style={ctaLabel}>
-                {t(intention ? 'payment.intent_go_to_course' : 'payment.go_to_bookings')}
+                {t(intention ? cleTexte('payment.intent_go_to_course') : 'payment.go_to_bookings')}
               </Text>
             </Pressable>
           </View>

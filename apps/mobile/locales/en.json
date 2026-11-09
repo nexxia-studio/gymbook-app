@@ -257,12 +257,15 @@
     "polling_title": "PROCESSING PAYMENT...",
     "polling_sub": "A few seconds",
     "booking_title": "BOOKING...",
-    "success_title": "BOOKING CONFIRMED!",
-    "success_sub": "See you at the class",
-    "error_title": "PAYMENT RECEIVED",
-    "error_sub": "Go back to the class and tap Book to finalize.",
+    "success_title": "PAYMENT RECEIVED",
+    "success_sub": "Booking your class…",
+    "error_title": "PAYMENT AWAITING CONFIRMATION",
+    "error_sub": "The bank confirmation is taking a while. Go back to the class page: you'll see where your payment stands.",
     "back_to_schedule": "Back to schedule",
-    "back_to_course": "Back to the class"
+    "back_to_course": "Back to the class",
+    "success_sub_manual": "Confirm your booking on the class page.",
+    "failed_title": "PAYMENT NOT COMPLETED",
+    "failed_sub": "Nothing was charged. Go back to the class page to try again."
   },
   "payment_required": {
     "title": "Booking unavailable",
@@ -291,8 +294,31 @@
       "no_gym": "Gym not found",
       "checkout_failed": "Payment could not start. Try again.",
       "no_plan": "Drop-in plan unavailable.",
-      "not_confirmed": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: come back to the class page to confirm as soon as the credit is there.",
-      "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again."
+      "not_confirmed": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: it will be booked automatically on the class page as soon as the credit arrives.",
+      "checkout_not_opened": "The payment page didn't open. Nothing was charged — please try again.",
+      "payment_not_completed": "The payment wasn't completed. You can pick another option or try again.",
+      "not_confirmed_manual": "If your payment went through, the credit is on its way — this can take two to three minutes. Your spot isn't booked yet: come back to the class page to confirm once the credit is there."
+    },
+    "waiting": {
+      "title": "Payment in progress in the browser…",
+      "hint": "Finish the payment in your browser, then come back here. Your class will be booked as soon as the payment is confirmed.",
+      "hint_manual": "Finish the payment in your browser, then come back here. Once the credit arrives, confirm your booking on the class page."
+    },
+    "unfinished": {
+      "title": "Payment not completed?",
+      "hint": "If you cancelled or closed the page, nothing was charged: you can resume the same payment. If you just paid, confirmation can take a few minutes — your class will be booked as soon as it arrives.",
+      "resume": "Resume payment",
+      "hint_manual": "If you cancelled or closed the page, nothing was charged: you can resume the same payment. If you just paid, confirmation can take a few minutes — then confirm your booking on the class page."
+    },
+    "unreadable": {
+      "title": "Couldn't check your payment",
+      "hint": "The check didn't go through (connection?). Nothing will be offered for payment until we know where your payment stands."
+    },
+    "consent": {
+      "confirm_and_book": "Pay and book",
+      "booking_notice": "Your class will be booked as soon as the payment is confirmed.",
+      "subscribe_and_book": "Subscribe and book",
+      "buy_and_book": "Buy and book"
     }
   },
   "session": {
@@ -339,14 +365,20 @@
     "intent_full_waitlist": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll have {{minutes}} minutes to confirm. Your credit stays intact.",
     "intent_full_waitlist_nodelay": "This class filled up while you were paying. You can join the waiting list: if a spot opens up, you'll be notified and given time to confirm. Your credit stays intact.",
     "intent_pending_title": "Credit on its way",
-    "intent_pending_message": "Your payment is registered, but the credit hasn't arrived yet — this can take two to three minutes. Your spot isn't booked yet: come back and confirm your booking in a moment.",
+    "intent_pending_message": "Your payment is recorded, but the credit hasn't arrived yet — this can take two to three minutes. Your spot isn't booked yet: it will be booked automatically as soon as the credit arrives, stay on this page.",
     "intent_unsure_title": "Checking your payment",
     "intent_unsure_message": "If you've just paid, your credit should arrive within two to three minutes: try again in a moment. If you didn't finish paying, you can pick up your purchase now.",
     "intent_unsure_wait": "Try again later",
     "intent_resume_purchase": "I didn't pay — resume purchase",
     "intent_unfinished_resume": "Resume my purchase",
     "intent_unfinished_title": "Purchase not completed",
-    "intent_unfinished_message": "Your purchase wasn't completed: nothing was charged and your spot isn't booked. Resume your purchase to book this class."
+    "intent_unfinished_message": "Your purchase wasn't completed: nothing was charged and your spot isn't booked. Resume your purchase to book this class.",
+    "auto_booked_title": "Class booked ✅",
+    "auto_booking_in_progress": "You have {{detail}} — booking your class…",
+    "auto_booking_failed_title": "Booking not possible",
+    "auto_booking_failed_message": "This class can no longer be booked (it has started, been cancelled or no longer exists). Your credit is untouched: you can book another class.",
+    "auto_booking_retry_message": "The booking couldn't go through. Tap \"Confirm my booking\" to try again.",
+    "intent_pending_message_manual": "Your payment is recorded, but the credit hasn't arrived yet — this can take two to three minutes. Your spot isn't booked yet: come back and confirm your booking in a moment."
   },
   "bookings": {
     "title": "My classes",
@@ -569,7 +601,7 @@
     "not_finalized_title": "PAYMENT NOT COMPLETED",
     "not_finalized_message": "You didn't complete the payment. Nothing was charged — you can pick it up again whenever you like.",
     "awaiting_title": "PAYMENT BEING PROCESSED",
-    "awaiting_message": "Your payment is registered. The bank confirmation is taking a little longer — your sessions will be credited automatically, there is nothing to do.",
+    "awaiting_message": "The bank confirmation is taking a little longer. As soon as it arrives, your sessions are credited automatically — you can check again below.",
     "unknown_title": "PAYMENT NOT CONFIRMED",
     "unknown_message": "We can't verify this payment from this screen. If your payment went through, your sessions will be credited within a few minutes. If you didn't complete it, nothing was charged.",
     "go_to_subscription": "View my subscription",
@@ -578,9 +610,12 @@
     "modal_success_body": "Your payment has been confirmed.",
     "offline_title": "Connection lost",
     "offline_hint": "Your payment is safe — we'll retry as soon as you're back online.",
-    "intent_success_title": "ONE STEP LEFT",
-    "intent_success_body": "Your credit is there. Your spot isn't booked yet — confirm your booking on the class page.",
-    "intent_go_to_course": "Confirm my booking"
+    "intent_success_title": "PAYMENT RECEIVED — BOOKING YOUR CLASS",
+    "intent_success_body": "Your class is being booked on its page — you'll see the confirmation there.",
+    "intent_go_to_course": "View my class",
+    "intent_success_title_manual": "PAYMENT RECEIVED",
+    "intent_success_body_manual": "Your spot isn't taken yet: confirm your booking on the class page as soon as your credit shows up.",
+    "intent_go_to_course_manual": "Confirm my booking"
   },
   "payments": {
     "title": "Payment history",
@@ -732,7 +767,14 @@
     "credits_generic_name": "Session credits",
     "unavailable_unlimited_active": "Unlimited access already active",
     "current_subscription": "Current subscription",
-    "upsell_unavailable": "Coming soon"
+    "upsell_unavailable": "Coming soon",
+    "booking_banner": "Your {{activity}} class · {{when}} will be booked as soon as the payment is confirmed",
+    "pending_payment_title": "Payment in progress",
+    "pending_payment_message": "A payment is in progress for your {{activity}} class · {{when}}.",
+    "pending_payment_resume": "Resume this payment",
+    "pending_payment_abandon": "Abandon it and continue",
+    "payment_check_failed_title": "Couldn't check your payment",
+    "payment_check_failed_message": "A payment may be in progress for a class. Check your connection and try again."
   },
   "preferences": {
     "title": "Preferences",
