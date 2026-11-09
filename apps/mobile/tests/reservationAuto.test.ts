@@ -23,6 +23,7 @@ function check(label: string, cond: boolean, detail = ''): void {
 
 const MAINTENANT = Date.parse('2026-11-09T10:00:00Z')
 const intent: BookingIntent = {
+  memberId: 'membre-a',
   slotId: 'slot-a',
   gymId: 'gym-1',
   startsAt: '2026-11-09T18:00:00Z',

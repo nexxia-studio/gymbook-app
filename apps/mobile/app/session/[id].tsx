@@ -52,6 +52,7 @@ import {
 // l'intention. Prédicat et lecture PARTAGÉS avec app/payment/success.tsx, pas recopiés.
 import { issueDuRetour } from '../../lib/paymentStatus'
 import { lireStatutPaiement } from '../../lib/paymentLookup'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { CrossGymInterstitial } from '../../components/gym/CrossGymInterstitial'
 import { raiseNotMemberNotice } from '../../lib/activeGymSession'
 
@@ -402,7 +403,11 @@ export default function SessionDetail() {
       // Relue sur le disque : c'est elle qui fait foi. Repli en mémoire si l'écriture a
       // échoué (best-effort) — le libellé du bouton doit suivre quand même.
       const posee = await lireBookingIntent()
-      setIntention(posee ?? { slotId, gymId, startsAt: slotData.startsAt, createdAt: Date.now() })
+      // GYM-379 (passe finale) — le repli porte le membre connecté ; sans membre, aucun.
+      const memberId = useAuthStore.getState().user?.id
+      setIntention(posee ?? (memberId
+        ? { memberId, slotId, gymId, startsAt: slotData.startsAt, createdAt: Date.now() }
+        : null))
     }
     setPaymentRequiredVisible(true)
   }, [slotId, gymId, slotData.startsAt])

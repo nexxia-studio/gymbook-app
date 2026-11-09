@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, Platform } from 'react-native'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ChevronLeft, CreditCard, Calendar, Star } from 'lucide-react-native'
@@ -23,7 +23,15 @@ import {
   isSubscriptionCompleted,
 } from '../../lib/subscription'
 import { PurchaseConsentSheet } from '../../components/payments/PurchaseConsentSheet'
-import { attacherPaiementBookingIntent, lireBookingIntent, porteSurCeCreneau } from '../../lib/bookingIntent'
+import {
+  attacherPaiementBookingIntent,
+  effacerBookingIntent,
+  lireBookingIntent,
+  porteSurCeCreneau,
+  type BookingIntent,
+} from '../../lib/bookingIntent'
+import { lireStatutPaiement } from '../../lib/paymentLookup'
+import { gardeAvantAchat } from '../../lib/paymentStatus'
 import { formatTime, toLocalTime } from '../../utils/timezone'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
@@ -178,31 +186,51 @@ export default function SubscriptionScreen() {
   // ⚠️ OUVERT SANS COURS (Profil → Abonnement) : `depuis_cours` absent, rien ne change.
   const { depuis_cours: depuisCoursParam } = useLocalSearchParams<{ depuis_cours?: string }>()
   const [coursVise, setCoursVise] = useState<{ slotId: string; label: string } | null>(null)
-  useEffect(() => {
+
+  // L'activité et l'heure d'un créneau, en heure de la SALLE (Europe/Brussels), comme
+  // partout ailleurs dans l'app. `null` si le créneau est illisible.
+  const decrireCours = useCallback(async (slotId: string): Promise<{ activity: string; when: string } | null> => {
+    const { data } = await supabase
+      .from('time_slots')
+      .select('starts_at, activities(name)')
+      .eq('id', slotId)
+      .maybeSingle()
+    if (!data) return null
+    const act = data.activities as unknown as { name?: string } | null
+    const local = toLocalTime(data.starts_at)
+    const jours = t('home.days', { returnObjects: true }) as string[]
+    const mois = t('home.months', { returnObjects: true }) as string[]
+    return {
+      activity: act?.name ?? '',
+      when: `${jours[local.getDay()] ?? ''} ${local.getDate()} ${mois[local.getMonth()] ?? ''} ${formatTime(data.starts_at)}`,
+    }
+  }, [t])
+
+  // 🔴 GYM-379 (passe finale) — LE BANDEAU EST RECALCULÉ À CHAQUE FOCUS, SUR L'INTENTION RELUE
+  // SUR DISQUE. Calculé une fois au montage, il survivait à ce qui le rendait vrai : après
+  // la réservation automatique (intention consommée), un retour arrière sur cet écran
+  // affichait encore « sera réservé » et « S'abonner et réserver » — un second achat
+  // promettait une réservation déjà faite. Intention absente, périmée, ou portant sur un
+  // autre créneau que `depuis_cours` : bandeau masqué, libellés normaux, aucun accord.
+  const recalculerCoursVise = useCallback(async (estVivant: () => boolean = () => true) => {
     if (!depuisCoursParam) { setCoursVise(null); return }
-    let vivant = true
-    void (async () => {
-      const intent = await lireBookingIntent()
-      if (!vivant || !porteSurCeCreneau(intent, depuisCoursParam)) return
-      const { data } = await supabase
-        .from('time_slots')
-        .select('starts_at, activities(name)')
-        .eq('id', depuisCoursParam)
-        .maybeSingle()
-      if (!vivant || !data) return
-      const act = data.activities as unknown as { name?: string } | null
-      // L'heure de la SALLE (Europe/Brussels), comme partout ailleurs dans l'app.
-      const local = toLocalTime(data.starts_at)
-      const jours = t('home.days', { returnObjects: true }) as string[]
-      const mois = t('home.months', { returnObjects: true }) as string[]
-      const quand = `${jours[local.getDay()] ?? ''} ${local.getDate()} ${mois[local.getMonth()] ?? ''} ${formatTime(data.starts_at)}`
-      setCoursVise({
-        slotId: depuisCoursParam,
-        label: t('subscription.booking_banner', { activity: act?.name ?? '', when: quand }),
-      })
-    })()
-    return () => { vivant = false }
-  }, [depuisCoursParam, t])
+    const intent = await lireBookingIntent()
+    if (!estVivant()) return
+    if (!porteSurCeCreneau(intent, depuisCoursParam)) { setCoursVise(null); return }
+    const cours = await decrireCours(depuisCoursParam)
+    if (!estVivant()) return
+    setCoursVise(cours
+      ? { slotId: depuisCoursParam, label: t('subscription.booking_banner', cours) }
+      : null)
+  }, [depuisCoursParam, decrireCours, t])
+
+  useFocusEffect(
+    useCallback(() => {
+      let vivant = true
+      void recalculerCoursVise(() => vivant)
+      return () => { vivant = false }
+    }, [recalculerCoursVise]),
+  )
 
   const [activeSub, setActiveSub] = useState<ActiveSub | null>(null)
   const [activeCredits, setActiveCredits] = useState<ActiveCredits | null>(null)
@@ -351,15 +379,98 @@ export default function SubscriptionScreen() {
   // c'est elle, et elle seule, qui déclenche le checkout. Le contrôle du gym_id reste ICI :
   // ouvrir une feuille de consentement pour un achat qui échouerait de toute façon ferait
   // cocher au membre une case sans objet.
-  const handleSelectPlan = useCallback((plan: GymPlan) => {
-    if (payingId) return // anti double-tap global
+  // ╔═════════════════════════════════════════════════════════════════════════════════════╗
+  // ║  🔴 GYM-379 (passe finale) — JAMAIS D'ÉCRASEMENT SILENCIEUX D'UN PAIEMENT EN COURS    ║
+  // ╚═════════════════════════════════════════════════════════════════════════════════════╝
+  //
+  // Le membre lance « Payer cette séance », ferme Mollie sans finir, puis va acheter une
+  // formule depuis Profil. L'achat rattachait SON paiement à l'intention : le `paymentId`
+  // de la séance — peut-être payée, webhook en retard — était écrasé, et avec lui l'accord
+  // de réserver. AVANT de créer quoi que ce soit, le statut du paiement de l'intention est
+  // relu (`gardeAvantAchat`) :
+  //   · `open`/`pending` → la question, avec le cours : reprendre CE paiement, ou
+  //     l'abandonner (intention effacée) et continuer ;
+  //   · `paid` → l'achat part, l'intention n'est PAS touchée (le cours se réserve d'après
+  //     le paiement déjà passé) ;
+  //   · illisible → on ne décide rien : « Impossible de vérifier ton paiement ».
+  // ⚠️ MÊME GARDE DEPUIS UN COURS (défensif) : c'est le même tap, le même écrasement.
+  const [verificationAchat, setVerificationAchat] = useState(false)
+  // L'achat qui va partir ne doit pas toucher à l'intention (`conserver`).
+  const garderIntentionRef = useRef(false)
+
+  const ouvrirConsentement = useCallback(async (plan: GymPlan, garderIntention: boolean) => {
+    garderIntentionRef.current = garderIntention
+    // Point 3 — les libellés de la feuille suivent l'intention RELUE à l'instant du tap.
+    await recalculerCoursVise()
+    setPendingPlan(plan)
+    setSheetVisible(true)
+  }, [recalculerCoursVise])
+
+  const reprendrePaiementEnCours = useCallback(async (intent: BookingIntent) => {
+    // Sans l'URL du checkout (intention d'une version antérieure), c'est la fiche du cours
+    // qui sait reprendre — jamais un second paiement d'ici.
+    if (!intent.checkoutUrl) {
+      router.push(`/session/${intent.slotId}`)
+      return
+    }
+    const outcome = await openCheckout(intent.checkoutUrl, {
+      screen: 'profile_subscription',
+      paymentId: intent.paymentId,
+    })
+    if (!outcome.handedOff) {
+      Alert.alert(t('payments.checkout_not_opened_title'), t('payments.checkout_not_opened_message'))
+    }
+  }, [router, t])
+
+  const handleSelectPlan = useCallback(async (plan: GymPlan) => {
+    if (payingId || verificationAchat) return // anti double-tap global
     if (!gymId) {
       Alert.alert(t('payments.error_title'), t('payments.errors.MISSING_FIELDS'))
       return
     }
-    setPendingPlan(plan)
-    setSheetVisible(true)
-  }, [payingId, gymId, t])
+    setVerificationAchat(true)
+    try {
+      const intent = await lireBookingIntent()
+      const statut = intent?.paymentId ? await lireStatutPaiement(intent.paymentId) : null
+      const garde = gardeAvantAchat(intent?.paymentId, statut)
+      if (garde === 'illisible') {
+        Alert.alert(t('subscription.payment_check_failed_title'), t('subscription.payment_check_failed_message'), [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.retry'), onPress: () => { void handleSelectPlanRef.current?.(plan) } },
+        ])
+        return
+      }
+      if (garde === 'paiement_en_cours' && intent) {
+        const cours = await decrireCours(intent.slotId)
+        Alert.alert(
+          t('subscription.pending_payment_title'),
+          t('subscription.pending_payment_message', cours ?? { activity: '', when: '' }),
+          [
+            { text: t('subscription.pending_payment_resume'), onPress: () => { void reprendrePaiementEnCours(intent) } },
+            {
+              text: t('subscription.pending_payment_abandon'),
+              style: 'destructive',
+              onPress: () => {
+                void (async () => {
+                  // On n'efface que CETTE intention : relue, elle doit porter encore ce paiement.
+                  const encore = await lireBookingIntent()
+                  if (encore?.paymentId === intent.paymentId) await effacerBookingIntent()
+                  await ouvrirConsentement(plan, false)
+                })()
+              },
+            },
+            { text: t('common.cancel'), style: 'cancel' },
+          ],
+        )
+        return
+      }
+      await ouvrirConsentement(plan, garde === 'conserver')
+    } finally {
+      setVerificationAchat(false)
+    }
+  }, [payingId, verificationAchat, gymId, t, decrireCours, reprendrePaiementEnCours, ouvrirConsentement])
+  const handleSelectPlanRef = useRef<((plan: GymPlan) => Promise<void>) | null>(null)
+  handleSelectPlanRef.current = handleSelectPlan
 
   // GYM-336 — appelé UNIQUEMENT par la feuille, donc uniquement case cochée : le CTA y est
   // verrouillé tant qu'elle ne l'est pas. `earlyPerformanceConsent: true` n'est pas une
@@ -444,9 +555,17 @@ export default function SubscriptionScreen() {
         // GYM-379 — DEPUIS UN COURS, « S'abonner et réserver » / « Acheter et réserver » VAUT
         // ACCORD, pour CE paiement ; l'URL du checkout permet de le reprendre sans en créer un
         // second. Sans cours : aucun accord (l'appel le RETIRE s'il en restait un).
-        await attacherPaiementBookingIntent(result.paymentId, coursVise
-          ? { accordReservation: true, checkoutUrl: result.checkoutUrl }
-          : {})
+        //
+        // 🔴 GYM-379 (passe finale) — L'ACCORD N'EST POSÉ QUE SI L'INTENTION, RELUE AU MOMENT
+        // DU RATTACHEMENT, PORTE ENCORE SUR LE COURS ANNONCÉ (`pourCreneau`). Sinon : pas
+        // d'accord, bandeau masqué. Et sur un paiement `paid` déjà rattaché (`conserver`),
+        // on ne rattache RIEN : l'écraser retirerait l'accord du cours déjà payé.
+        const accorde = garderIntentionRef.current
+          ? false
+          : await attacherPaiementBookingIntent(result.paymentId, coursVise
+            ? { accordReservation: true, checkoutUrl: result.checkoutUrl, pourCreneau: coursVise.slotId }
+            : {})
+        if (coursVise && !accorde) setCoursVise(null)
         const outcome = await openCheckout(result.checkoutUrl, {
           screen: 'profile_subscription',
           paymentId: result.paymentId,
@@ -490,7 +609,7 @@ export default function SubscriptionScreen() {
         // premier paiement (ligne `payments` écrite par create-subscription, GYM-243) puis
         // ramène à la fiche du cours, qui réserve. Sans cela, le retour d'un abonnement
         // finissait ici, loin du cours.
-        if ((plan.billingType === 'one_time' || coursVise) && result.paymentId) {
+        if ((plan.billingType === 'one_time' || accorde) && result.paymentId) {
           router.push({ pathname: '/payment/success', params: { mollie_id: result.paymentId, returnTo: '/profile/subscription' } })
         }
         return
@@ -562,11 +681,13 @@ export default function SubscriptionScreen() {
 
       <ScrollView className="flex-1" style={{ backgroundColor: tokens.page }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
         {/* GYM-379 — le cours pour lequel le membre achète, annoncé AVANT qu'il choisisse. */}
+        {/* parité:nouvel-élément:début GYM-379 — bandeau du cours visé */}
         {coursVise && (
           <View className="rounded-2xl px-4 py-3" style={{ backgroundColor: tokens.actionBg + '1A' }}>
             <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onSurface }}>{coursVise.label}</Text>
           </View>
         )}
+        {/* parité:nouvel-élément:fin */}
         {/* Carte crédits à l'unité */}
         {!loading && activeCredits && (
           <View className="rounded-2xl border-2 p-5" style={{ borderColor: tokens.accent, backgroundColor: tokens.surface }}>

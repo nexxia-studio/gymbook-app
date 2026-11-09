@@ -126,11 +126,13 @@ export function PurchaseConsentBody({ plan, busy = false, confirmLabel, notice, 
             ? t('early_performance.summary_recurring', { plan: plan.name, price })
             : t('early_performance.summary_one_time', { plan: plan.name, price })}
         </Text>
+        {/* parité:nouvel-élément:début GYM-379 — l'annonce de la réservation */}
         {notice && (
           <Text className="mt-2 font-dmsans-bold text-sm leading-6" style={{ color: tokens.onSurface }}>
             {notice}
           </Text>
         )}
+        {/* parité:nouvel-élément:fin */}
       </View>
 
       <View className="mt-4 rounded-2xl border p-4" style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}>

@@ -310,6 +310,10 @@
       "resume": "Reprendre le paiement",
       "hint_manual": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — confirme ensuite ta réservation sur la fiche du cours."
     },
+    "unreadable": {
+      "title": "Impossible de vérifier ton paiement",
+      "hint": "La vérification n'a pas abouti (connexion ?). Rien ne t'est proposé à payer tant qu'on ne sait pas où en est ton paiement."
+    },
     "consent": {
       "confirm_and_book": "Payer et réserver",
       "booking_notice": "Ton cours sera réservé dès que le paiement sera confirmé.",
@@ -764,7 +768,13 @@
     "unavailable_unlimited_active": "Accès illimité déjà actif",
     "current_subscription": "Abonnement en cours",
     "upsell_unavailable": "Bientôt disponible",
-    "booking_banner": "Ton cours {{activity}} · {{when}} sera réservé dès le paiement confirmé"
+    "booking_banner": "Ton cours {{activity}} · {{when}} sera réservé dès le paiement confirmé",
+    "pending_payment_title": "Paiement en cours",
+    "pending_payment_message": "Un paiement est en cours pour ton cours {{activity}} · {{when}}.",
+    "pending_payment_resume": "Reprendre ce paiement",
+    "pending_payment_abandon": "L'abandonner et continuer",
+    "payment_check_failed_title": "Impossible de vérifier ton paiement",
+    "payment_check_failed_message": "Un paiement est peut-être en cours pour un cours. Vérifie ta connexion et réessaie."
   },
   "preferences": {
     "title": "Préférences",

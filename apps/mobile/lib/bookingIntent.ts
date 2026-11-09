@@ -50,6 +50,13 @@ const CLE = 'viniz.booking_intent'
 export const PLAFOND_MS = 24 * 60 * 60 * 1000
 
 export interface BookingIntent {
+  /**
+   * 🔴 GYM-379 (passe finale) — LE MEMBRE QUI A POSÉ L'INTENTION. Le disque appartient à
+   * l'APPAREIL, pas au compte : sans ce champ, un second compte connecté sur le même
+   * téléphone héritait du cours — et de l'accord — du premier. Une intention d'un autre
+   * membre (ou sans membre : version antérieure) est INVALIDE, donc effacée à la lecture.
+   */
+  memberId: string
   /** Le créneau que le membre voulait réserver. */
   slotId: string
   /** La salle du créneau — l'intention ne vaut que pour elle. */
@@ -87,6 +94,27 @@ export interface BookingIntent {
   checkoutUrl?: string
 }
 
+// ╔═══════════════════════════════════════════════════════════════════════════════════════╗
+// ║  🔴 GYM-379 (passe finale) — QUI EST CONNECTÉ ? BRANCHÉ PAR `stores/useAuthStore.ts`   ║
+// ╚═══════════════════════════════════════════════════════════════════════════════════════╝
+//
+// ⚠️ INJECTÉ, PAS IMPORTÉ : ce module se charge seul sous `tsx` et dans
+// `scripts/verify-intention-sans-paiement.mjs`. Importer le store ou supabase ici casserait
+// ces deux preuves. Le store se branche à sa création, une fois par processus.
+//
+// ⚠️ NON BRANCHÉ = PERSONNE. Aucune intention n'est alors posée ni lue : mieux vaut perdre
+// une proposition que réserver le cours d'un autre.
+let lireMembreCourant: () => string | null | undefined = () => null
+
+export function brancherMembreCourant(lire: () => string | null | undefined): void {
+  lireMembreCourant = lire
+}
+
+/** L'intention appartient-elle au membre connecté ? (Absente ou anonyme : non.) */
+export function appartientAuMembre(intent: Pick<BookingIntent, 'memberId'> | null, memberId: string | null | undefined): boolean {
+  return !!intent && !!intent.memberId && !!memberId && intent.memberId === memberId
+}
+
 /** Une intention est-elle encore bonne à proposer ? */
 export function estValide(intent: BookingIntent, maintenant = Date.now()): boolean {
   // Le créneau d'abord : un cours commencé ne se réserve plus, le serveur le refuse
@@ -104,9 +132,12 @@ export function estValide(intent: BookingIntent, maintenant = Date.now()): boole
  * nouvelle intention prend la place, il n'y a rien à arbitrer. Une liste obligerait à
  * décider laquelle proposer, question à laquelle aucune réponse n'est évidente.
  */
-export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt'>): Promise<void> {
+export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt' | 'memberId'>): Promise<void> {
+  // GYM-379 (passe finale) — signée du membre connecté ; personne de connecté, rien de posé.
+  const memberId = lireMembreCourant()
+  if (!memberId) return
   try {
-    const complet: BookingIntent = { ...intent, createdAt: Date.now() }
+    const complet: BookingIntent = { ...intent, memberId, createdAt: Date.now() }
     await AsyncStorage.setItem(CLE, JSON.stringify(complet))
   } catch {
     // Best-effort : l'achat doit pouvoir se poursuivre même si le disque refuse d'écrire.
@@ -132,22 +163,36 @@ export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt'
  */
 export async function attacherPaiementBookingIntent(
   paymentId: string | undefined,
-  options: { accordReservation?: boolean; checkoutUrl?: string } = {},
-): Promise<void> {
-  if (!paymentId) return
+  options: {
+    accordReservation?: boolean
+    checkoutUrl?: string
+    /**
+     * 🔴 GYM-379 (passe finale) — LE COURS QUE L'ÉCRAN ANNONÇAIT AU MOMENT DU TAP. L'accord
+     * n'est posé que si l'intention RELUE ICI porte encore sur lui : entre l'affichage du
+     * bandeau et le tap, le membre a pu choisir un autre cours dans un autre écran. Un
+     * « S'abonner et réserver » lu pour le cours A ne vaut pas accord pour le cours B.
+     */
+    pourCreneau?: string
+  } = {},
+): Promise<boolean> {
+  if (!paymentId) return false
   try {
     const intent = await lireBookingIntent()
-    if (!intent) return
+    if (!intent) return false
+    const accord = options.accordReservation === true
+      && (options.pourCreneau === undefined || intent.slotId === options.pourCreneau)
     // GYM-379 — l'accord est POSÉ ou RETIRÉ à chaque paiement : il vaut pour CE paiement-là.
     await AsyncStorage.setItem(CLE, JSON.stringify({
       ...intent,
       paymentId,
-      accordReservation: options.accordReservation === true || undefined,
+      accordReservation: accord || undefined,
       checkoutUrl: options.checkoutUrl,
     }))
+    return accord
   } catch {
     // Best-effort : l'achat part quand même. Sans `paymentId`, la fiche du cours dira
     // « achat non finalisé » et rouvrira la feuille — elle ne mentira pas.
+    return false
   }
 }
 
@@ -194,7 +239,13 @@ export async function lireBookingIntent(): Promise<BookingIntent | null> {
     const brut = await AsyncStorage.getItem(CLE)
     if (!brut) return null
     const intent = JSON.parse(brut) as BookingIntent
-    if (!intent?.slotId || !intent?.gymId || !intent?.startsAt) {
+    // GYM-379 (passe finale) — PERSONNE DE CONNECTÉ (session pas encore restaurée au
+    // lancement) : on ne rend rien, MAIS ON N'EFFACE RIEN — le membre sera là dans un instant.
+    const membre = lireMembreCourant()
+    if (!membre) return null
+    // L'intention d'un AUTRE membre (ou d'avant ce champ) est effacée comme une illisible :
+    // elle ne sera jamais bonne pour personne d'autre.
+    if (!intent?.slotId || !intent?.gymId || !intent?.startsAt || !appartientAuMembre(intent, membre)) {
       await AsyncStorage.removeItem(CLE)
       return null
     }
@@ -224,12 +275,14 @@ export async function consommerBookingIntent(): Promise<BookingIntent | null> {
 /**
  * Efface l'intention.
  *
- * Appelée dans QUATRE situations, et il faut les quatre :
+ * Appelée dans CINQ situations, et il faut les cinq :
  *   · la réservation est confirmée — quel qu'en soit le créneau : le membre a obtenu ce
  *     qu'il voulait, la proposition n'a plus d'objet ;
  *   · le paiement finit en échec terminal (failed / canceled / expired) ;
  *   · le membre décline explicitement la proposition ;
- *   · le créneau est passé (traité par `estValide`, sans appel).
+ *   · le créneau est passé (traité par `estValide`, sans appel) ;
+ *   · le membre se déconnecte (`useAuthStore.signOut`, GYM-379) — l'appartenance
+ *     (`appartientAuMembre`) couvre le reste, session expirée comprise.
  */
 export async function effacerBookingIntent(): Promise<void> {
   try { await AsyncStorage.removeItem(CLE) } catch { /* best-effort */ }

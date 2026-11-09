@@ -101,18 +101,51 @@ export function nouveauPaiementAutorise(paymentIdPrecedent: string | null | unde
 }
 
 /**
- * GYM-379 — LA FEUILLE « PAYER CETTE SÉANCE » ARRIVE AU BOUT DE SES 5 MINUTES (ou se rouvre
- * sur un paiement précédent). Où va-t-elle, au vu de `payments.status` ?
+ * GYM-379 — LA FEUILLE « PAYER CETTE SÉANCE » ARRIVE AU BOUT DE SES 5 MINUTES, se rouvre
+ * sur un paiement précédent, ou le membre tape « Reprendre le paiement ». Où va-t-elle, au
+ * vu de `payments.status` ?
  *
  *   · options        — échec terminal : un nouveau paiement peut être proposé ;
- *   · non_finalise   — `open` / `pending` / inconnu : « Paiement non finalisé ? »
- *                      (Reprendre / Annuler). JAMAIS les options : le précédent vit encore ;
- *   · paye           — `paid` : le crédit tarde. On ne propose rien à payer, on le dit.
+ *   · non_finalise   — `open` / `pending`, ET EUX SEULS : « Paiement non finalisé ? »
+ *                      (Reprendre / Annuler) ; au tap sur « Reprendre », le checkout rouvre ;
+ *   · paye           — `paid` : le crédit tarde. On ne propose rien à payer, on le dit ;
+ *   · illisible      — `null` (hors ligne, ligne introuvable) ou statut inconnu :
+ *                      « Impossible de vérifier ton paiement » (Réessayer / Annuler).
+ *
+ * 🔴 GYM-379 (passe finale) — L'INCONNU N'EST PLUS « NON FINALISÉ ». Il menait à
+ * « Reprendre », donc à rouvrir un checkout dont on ne savait rien — peut-être déjà payé,
+ * peut-être expiré. On ne propose ni de payer ni de reprendre ce qu'on n'a pas pu lire.
  */
-export type IssueFinAttente = 'options' | 'non_finalise' | 'paye'
+export type IssueFinAttente = 'options' | 'non_finalise' | 'paye' | 'illisible'
 
 export function issueFinAttente(statut: string | null): IssueFinAttente {
   if (statut === 'paid') return 'paye'
   if (statut !== null && TERMINAL_FAILURE.has(statut)) return 'options'
-  return 'non_finalise'
+  if (statut !== null && NON_FINALISE.has(statut)) return 'non_finalise'
+  return 'illisible'
+}
+
+/**
+ * 🔴 GYM-379 (passe finale) — AVANT DE CRÉER UN PAIEMENT DEPUIS PROFIL → ABONNEMENT, que
+ * faire de l'intention de réservation en cours et de son paiement ?
+ *
+ *   · libre             — pas de paiement rattaché, ou paiement mort : l'achat part, et
+ *                         se rattache à l'intention comme avant (GYM-374) ;
+ *   · paiement_en_cours — `open` / `pending` : « Un paiement est en cours pour ton cours… »,
+ *                         Reprendre ce paiement / L'abandonner et continuer. JAMAIS
+ *                         d'écrasement silencieux : le membre a peut-être payé ;
+ *   · conserver         — `paid` : le cours se réserve d'après CE paiement. L'achat part,
+ *                         mais NE TOUCHE PAS à l'intention — l'écraser retirerait l'accord
+ *                         et le cours payé ne se réserverait plus ;
+ *   · illisible         — statut illisible : on ne décide rien sur une lecture ratée.
+ */
+export type GardeAchat = 'libre' | 'paiement_en_cours' | 'conserver' | 'illisible'
+
+export function gardeAvantAchat(paymentId: string | null | undefined, statut: string | null): GardeAchat {
+  if (!paymentId) return 'libre'
+  if (statut === null) return 'illisible'
+  if (TERMINAL_FAILURE.has(statut)) return 'libre'
+  if (NON_FINALISE.has(statut)) return 'paiement_en_cours'
+  if (statut === 'paid') return 'conserver'
+  return 'illisible'
 }

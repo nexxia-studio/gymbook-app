@@ -310,6 +310,10 @@
       "resume": "Resume payment",
       "hint_manual": "If you cancelled or closed the page, nothing was charged: you can resume the same payment. If you just paid, confirmation can take a few minutes — then confirm your booking on the class page."
     },
+    "unreadable": {
+      "title": "Couldn't check your payment",
+      "hint": "The check didn't go through (connection?). Nothing will be offered for payment until we know where your payment stands."
+    },
     "consent": {
       "confirm_and_book": "Pay and book",
       "booking_notice": "Your class will be booked as soon as the payment is confirmed.",
@@ -764,7 +768,13 @@
     "unavailable_unlimited_active": "Unlimited access already active",
     "current_subscription": "Current subscription",
     "upsell_unavailable": "Coming soon",
-    "booking_banner": "Your {{activity}} class · {{when}} will be booked as soon as the payment is confirmed"
+    "booking_banner": "Your {{activity}} class · {{when}} will be booked as soon as the payment is confirmed",
+    "pending_payment_title": "Payment in progress",
+    "pending_payment_message": "A payment is in progress for your {{activity}} class · {{when}}.",
+    "pending_payment_resume": "Resume this payment",
+    "pending_payment_abandon": "Abandon it and continue",
+    "payment_check_failed_title": "Couldn't check your payment",
+    "payment_check_failed_message": "A payment may be in progress for a class. Check your connection and try again."
   },
   "preferences": {
     "title": "Preferences",

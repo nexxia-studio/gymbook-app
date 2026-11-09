@@ -6,6 +6,7 @@ import { captureEvent, identifyUser, resetAnalytics, setAnalyticsGym } from '../
 import { GYM_MODE, FIXED_GYM_ID } from '../lib/gymResolver'
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { buildMemberSignupConfirmUrl } from '../lib/gymUrls'
+import { brancherMembreCourant, effacerBookingIntent } from '../lib/bookingIntent'
 
 // GYM-289 — 🔴 LA SEULE RÈGLE DE REMPLISSAGE DE `gym_id`. Elle ne vit qu'ici.
 //
@@ -220,6 +221,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       // Continue even if signOut fails
     }
+    // 🔴 GYM-379 (passe finale) — L'INTENTION DE RÉSERVATION PART AVEC LA SESSION. Elle vit
+    // sur le disque de l'APPAREIL : le compte suivant la retrouvait, avec l'accord de
+    // réserver du précédent. (L'appartenance — `memberId` — couvre aussi la session expirée,
+    // qui ne passe pas par ici.)
+    await effacerBookingIntent()
     // ═══════════════════════════════════════════════════════════════════════════════
     // 🔴 GYM-312b — LE CHOIX DE SALLE SURVIT À LA DÉCONNEXION. LA PURGE EST RETIRÉE.
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -345,3 +351,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     })
   },
 }))
+
+// GYM-379 (passe finale) — l'intention de réservation est signée du membre connecté, lu ICI
+// (lib/bookingIntent.ts ne peut pas importer ce store : il se charge seul dans ses preuves).
+brancherMembreCourant(() => useAuthStore.getState().user?.id ?? null)

@@ -96,7 +96,11 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   //
   // ET `verification` : la feuille rouvre sur un paiement précédent, dont on relit le statut
   // AVANT de montrer quoi que ce soit — les options n'apparaissent que s'il est mort.
-  const [step, setStep] = useState<'options' | 'consent' | 'waiting' | 'unfinished' | 'verification'>('options')
+  //
+  // 🔴 GYM-379 (passe finale) — ET `illisible` : « Impossible de vérifier ton paiement »
+  // (Réessayer / Annuler). Une lecture ratée (hors ligne, ligne introuvable) menait à
+  // « non finalisé », donc à « Reprendre » — rouvrir un checkout dont on ne savait rien.
+  const [step, setStep] = useState<'options' | 'consent' | 'waiting' | 'unfinished' | 'verification' | 'illisible'>('options')
 
   // Plans dérivés de gym_plans (fini les prix en dur)
   const dropInPlan = creditPlans
@@ -190,25 +194,10 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       checkoutUrlRef.current = paiementPrecedent.checkoutUrl ?? null
       accordRef.current = paiementPrecedent.accord
     }
-    const paymentId = paymentIdRef.current
-    if (!paymentId) { setStep('options'); return }
-    setStep('verification')
-    let vivant = true
-    void lireStatutPaiement(paymentId).then((statut) => {
-      if (!vivant) return
-      const issue = issueFinAttente(statut)
-      if (issue === 'options') {
-        paymentIdRef.current = null
-        checkoutUrlRef.current = null
-        setStep('options')
-        return
-      }
-      annuleRef.current = false
-      if (issue === 'paye') { setStep('waiting'); lancerVerificationRef.current?.(); return }
-      setStep('unfinished')
-      lancerVerificationRef.current?.()
-    })
-    return () => { vivant = false }
+    if (!paymentIdRef.current) { setStep('options'); return }
+    const lecture = { vivant: true }
+    relireEtOrienterRef.current?.(lecture)
+    return () => { lecture.vivant = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, arreterAttente])
 
@@ -299,7 +288,8 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         // Elle rendait « Payer cette séance » à un membre dont le paiement était encore
         // `open` — peut-être passé, webhook en retard. On relit le statut d'abord :
         //   · mort → les options, un nouveau paiement est possible ;
-        //   · `open`/`pending`/inconnu → on reste sur « non finalisé » (Reprendre / Annuler) ;
+        //   · `open`/`pending` → on reste sur « non finalisé » (Reprendre / Annuler) ;
+        //   · illisible → « Impossible de vérifier ton paiement » (Réessayer / Annuler) ;
         //   · `paid` → le crédit tarde : on le dit, et rien n'est proposé à payer.
         const paymentId = paymentIdRef.current
         const statut = paymentId ? await lireStatutPaiement(paymentId) : null
@@ -315,13 +305,40 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
           setDropInError(t(accordRef.current ? 'payment_required.errors.not_confirmed' : 'payment_required.errors.not_confirmed_manual'))
           return
         }
-        setStep('unfinished')
+        // GYM-379 (passe finale) — illisible : on ne propose pas de reprendre l'inconnu.
+        setStep(issue === 'illisible' ? 'illisible' : 'unfinished')
       }
     }, 2000)
   }
+  // GYM-379 — RELIT LE STATUT DU PAIEMENT PRÉCÉDENT ET ORIENTE LA FEUILLE (`issueFinAttente`).
+  // Appelée à l'ouverture sur un paiement précédent, et par « Réessayer » sur `illisible`.
+  //   · mort → les options, un nouveau paiement est possible ;
+  //   · `open`/`pending` → « non finalisé » (Reprendre / Annuler), vérification relancée ;
+  //   · `paid` → l'attente : le droit arrive, la fiche réservera ;
+  //   · illisible → « Impossible de vérifier ton paiement ». Ni payer, ni reprendre.
+  const relireEtOrienter = (lecture: { vivant: boolean } = { vivant: true }) => {
+    const paymentId = paymentIdRef.current
+    if (!paymentId) { setStep('options'); return }
+    setDropInError(null)
+    setStep('verification')
+    void lireStatutPaiement(paymentId).then((statut) => {
+      if (!lecture.vivant) return
+      const issue = issueFinAttente(statut)
+      if (issue === 'options') {
+        paymentIdRef.current = null
+        checkoutUrlRef.current = null
+        setStep('options')
+        return
+      }
+      if (issue === 'illisible') { setStep('illisible'); return }
+      annuleRef.current = false
+      setStep(issue === 'paye' ? 'waiting' : 'unfinished')
+      lancerVerification()
+    })
+  }
   // Le `useEffect` d'ouverture est déclaré plus haut : il appelle la version courante.
-  const lancerVerificationRef = useRef<(() => void) | null>(null)
-  lancerVerificationRef.current = lancerVerification
+  const relireEtOrienterRef = useRef<((lecture?: { vivant: boolean }) => void) | null>(null)
+  relireEtOrienterRef.current = relireEtOrienter
 
   // Appelé UNIQUEMENT depuis PurchaseConsentBody, dont le CTA est verrouillé tant que la
   // case est vide : `earlyPerformanceConsent: true` transcrit un geste réel du membre.
@@ -450,13 +467,31 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
 
   // 🔴 GYM-379 — « REPRENDRE LE PAIEMENT » ROUVRE LE MÊME CHECKOUT. Aucun appel à
   // create-payment : un second paiement, c'est la porte ouverte au double débit pour un
-  // membre dont le premier est peut-être passé (webhook en retard). Sur un checkout déjà
-  // payé, c'est Mollie qui le lui dit.
-  const reprendrePaiement = () => {
+  // membre dont le premier est peut-être passé (webhook en retard).
+  //
+  // 🔴 GYM-379 (passe finale) — ET LE STATUT EST RELU AU TAP. La question « non finalisé ? »
+  // a pu rester affichée longtemps : le paiement a pu passer (`paid` → on attend, la fiche
+  // réserve), mourir (→ les options), ou devenir illisible. Le checkout ne rouvre que sur
+  // `open`/`pending`, relu à l'instant.
+  const reprendrePaiement = async () => {
     const url = checkoutUrlRef.current
-    if (!url) return
-    annuleRef.current = false
+    const paymentId = paymentIdRef.current
+    if (!url || !paymentId) return
     setDropInError(null)
+    setStep('verification')
+    const statut = await lireStatutPaiement(paymentId)
+    const issue = issueFinAttente(statut)
+    if (issue === 'options') {
+      arreterAttente()
+      paymentIdRef.current = null
+      checkoutUrlRef.current = null
+      setStep('options')
+      setDropInError(t('payment_required.errors.payment_not_completed'))
+      return
+    }
+    if (issue === 'illisible') { arreterAttente(); setStep('illisible'); return }
+    annuleRef.current = false
+    if (issue === 'paye') { setStep('waiting'); lancerVerification(); return }
     setStep('waiting')
     lancerVerification()
     ecouterLeRetour()
@@ -484,11 +519,36 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       <View className="flex-1 justify-end bg-black/50">
         {/* `bg-black/50` reste : un voile à 50 % n'est nommé par aucun jeton. */}
         <View className="rounded-t-3xl px-6 pb-10 pt-8" style={{ backgroundColor: tokens.surface }}>
+          {/* parité:nouvel-élément:début GYM-379 — vérification, illisible, non finalisé, attente */}
           {step === 'verification' ? (
             // GYM-379 (relecture) — le statut du paiement précédent est relu : rien n'est
             // proposé tant qu'on ne sait pas s'il vit encore.
             <View className="items-center py-6">
               <ActivityIndicator color={tokens.accentDim} />
+            </View>
+          ) : step === 'illisible' ? (
+            // 🔴 GYM-379 (passe finale) — LECTURE RATÉE : ON NE PROPOSE RIEN À PAYER NI À
+            // REPRENDRE. « Réessayer » relit le statut ; « Annuler » ferme, intention gardée.
+            <View className="items-center">
+              <Text className="text-center font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
+                {t('payment_required.unreadable.title')}
+              </Text>
+              <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
+                {t('payment_required.unreadable.hint')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => relireEtOrienter()}
+                activeOpacity={0.8}
+                style={{ backgroundColor: tokens.actionBg }}
+                className="mt-6 w-full items-center rounded-2xl px-4 py-4"
+              >
+                <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onAction }}>
+                  {t('common.retry')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={fermer} activeOpacity={0.7} className="mt-2 w-full items-center py-3">
+                <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
             </View>
           ) : step === 'unfinished' ? (
             // 🔴 GYM-379 — UNE QUESTION, PAS UN VERDICT. `open` au retour, c'est le plus
@@ -508,7 +568,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                   possible — et surtout pas de second paiement : il reste « Annuler ». */}
               {checkoutUrlRef.current && (
                 <TouchableOpacity
-                  onPress={reprendrePaiement}
+                  onPress={() => { void reprendrePaiement() }}
                   activeOpacity={0.8}
                   style={{ backgroundColor: tokens.actionBg }}
                   className="mt-6 w-full items-center rounded-2xl px-4 py-4"
@@ -542,6 +602,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 <Text className="font-dmsans text-sm" style={{ color: tokens.onBackgroundMuted }}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
+          /* parité:nouvel-élément:fin */
           ) : step === 'consent' && dropInPlan ? (
             <PurchaseConsentBody
               plan={{

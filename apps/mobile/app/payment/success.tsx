@@ -10,7 +10,7 @@ import { accordPourCePaiement } from '../../lib/reservationAuto'
 import { captureEvent } from '../../lib/analytics'
 import { TERMINAL_FAILURE } from '../../lib/paymentStatus'
 import { lireOriginePaiement, effacerOriginePaiement } from '../../lib/paymentOrigin'
-import { requetePaiement } from '../../lib/paymentLookup'
+import { membreConnecte, requetePaiement } from '../../lib/paymentLookup'
 // GYM-240 — coupure réseau vs refus serveur : deux issues distinctes.
 import { runNetworkSafe } from '../../lib/networkError'
 import { useTheme } from '../../lib/theme/ThemeProvider'
@@ -142,7 +142,8 @@ function DropInRetryScreen({ slotId, rowId }: { slotId: string; rowId?: string }
       const MAX_TENTATIVES = 150 // 150 × 2 s = 5 min — le plafond de GYM-207
       for (let i = 0; i < MAX_TENTATIVES; i++) {
         if (!vivant) return
-        const query = requetePaiement({ rowId, mollieId }, 'status, mollie_payment_id')
+        // GYM-379 (passe finale) — le paiement de CE membre, jamais celui d'un autre.
+        const query = requetePaiement({ rowId, mollieId }, 'status, mollie_payment_id', await membreConnecte())
         const res = query ? await runNetworkSafe(async () => await query.maybeSingle()).catch(() => null) : null
         const ligne = res && !res.offline
           ? (res.data.data as { status?: string; mollie_payment_id?: string } | null)
@@ -390,6 +391,8 @@ function ClassicPaymentScreen({
     // rowId prioritaire (plus précis) ; sinon on retombe sur le mollie_payment_id.
     // GYM-374 — la clé de recherche vit dans lib/paymentLookup.ts, partagée avec la fiche
     // du cours ; les colonnes restent celles de cet écran.
+    const memberId = await membreConnecte()
+    if (settledRef.current) return
     const query = requetePaiement(
       { rowId, mollieId: mollieCle },
       // 🔴 GYM-294 — `gym_id` RAMENÉ POUR LE GARDE. La policy de `payments` est
@@ -398,6 +401,7 @@ function ClassicPaymentScreen({
       // Défaut LATENT aujourd'hui (mesuré : 0 membre a des paiements dans plusieurs
       // salles), mais la policy l'autorise, et c'est la policy qui fait foi.
       'id, gym_id, status, plan_name, amount, currency, credits_granted, mollie_payment_id',
+      memberId,
     )
     if (!query) return
     // ⚠️ UNE COUPURE N'INTERROMPT PAS LE POLL : on repassera au tick suivant, et le
