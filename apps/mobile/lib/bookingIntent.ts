@@ -69,6 +69,16 @@ export interface BookingIntent {
    * ressurgirait plus tard sans que le membre comprenne d'où elle sort.
    */
   paymentId?: string
+  /**
+   * 🔴 GYM-379 (09/11) — LE MEMBRE A TAPÉ « PAYER ET RÉSERVER ». C'est ce geste, et lui
+   * seul, qui autorise la fiche à réserver d'elle-même (lib/reservationAuto.ts).
+   *
+   * ⚠️ ABSENT sur un achat de formule ou de carnet parti du même cours vers Profil →
+   * Abonnement : là, le membre a confirmé « Confirmer et payer », sans rien dire du cours.
+   * Réserver d'office après cet achat-là serait exactement la réservation silencieuse que
+   * GYM-352 a retirée — la fiche garde alors « Confirmer ma réservation ».
+   */
+  accordReservation?: boolean
 }
 
 /** Une intention est-elle encore bonne à proposer ? */
@@ -114,12 +124,20 @@ export async function poserBookingIntent(intent: Omit<BookingIntent, 'createdAt'
  * effacée au passage, jamais ressuscitée par un `paymentId` tout neuf.
  * ⚠️ `createdAt` EST CONSERVÉ : le plafond absolu court depuis le choix du cours.
  */
-export async function attacherPaiementBookingIntent(paymentId: string | undefined): Promise<void> {
+export async function attacherPaiementBookingIntent(
+  paymentId: string | undefined,
+  options: { accordReservation?: boolean } = {},
+): Promise<void> {
   if (!paymentId) return
   try {
     const intent = await lireBookingIntent()
     if (!intent) return
-    await AsyncStorage.setItem(CLE, JSON.stringify({ ...intent, paymentId }))
+    // GYM-379 — l'accord est POSÉ ou RETIRÉ à chaque paiement : il vaut pour CE paiement-là.
+    await AsyncStorage.setItem(CLE, JSON.stringify({
+      ...intent,
+      paymentId,
+      accordReservation: options.accordReservation === true || undefined,
+    }))
   } catch {
     // Best-effort : l'achat part quand même. Sans `paymentId`, la fiche du cours dira
     // « achat non finalisé » et rouvrira la feuille — elle ne mentira pas.

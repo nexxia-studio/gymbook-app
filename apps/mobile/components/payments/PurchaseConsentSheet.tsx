@@ -54,11 +54,24 @@ interface BodyProps {
   plan: PurchaseConsentPlan
   /** Le paiement est en cours de lancement : verrouille les deux boutons. */
   busy?: boolean
+  /**
+   * GYM-379 — libellé du CTA, « Payer et réserver » pour la feuille ouverte depuis un cours.
+   * Absent : `early_performance.confirm`, inchangé (chemin Profil → Abonnement).
+   */
+  confirmLabel?: string
+  /**
+   * GYM-379 — phrase sous le récapitulatif : « ton cours sera réservé dès le paiement
+   * confirmé ». C'est elle qui fait du tap un accord à la réservation qui suit.
+   * ⚠️ HORS DE LA CASE, À DESSEIN : le libellé de la case est VERSIONNÉ
+   * (EARLY_PERFORMANCE_CONSENT_VERSION) et porte la seule demande d'exécution anticipée.
+   * Y mêler la réservation changerait le texte prouvé sans changer son numéro.
+   */
+  notice?: string
   onCancel: () => void
   onConfirm: () => void
 }
 
-export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }: BodyProps) {
+export function PurchaseConsentBody({ plan, busy = false, confirmLabel, notice, onCancel, onConfirm }: BodyProps) {
   const { t } = useTranslation()
   const { tokens } = useTheme()
   const router = useRouter()
@@ -113,6 +126,11 @@ export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }:
             ? t('early_performance.summary_recurring', { plan: plan.name, price })
             : t('early_performance.summary_one_time', { plan: plan.name, price })}
         </Text>
+        {notice && (
+          <Text className="mt-2 font-dmsans-bold text-sm leading-6" style={{ color: tokens.onSurface }}>
+            {notice}
+          </Text>
+        )}
       </View>
 
       <View className="mt-4 rounded-2xl border p-4" style={{ borderColor: tokens.border, backgroundColor: tokens.surface }}>
@@ -166,7 +184,7 @@ export function PurchaseConsentBody({ plan, busy = false, onCancel, onConfirm }:
       >
         {busy && <ActivityIndicator color={tokens.onAction} />}
         <Text className="font-dmsans-bold text-sm" style={{ color: tokens.onAction }}>
-          {t('early_performance.confirm')}
+          {confirmLabel ?? t('early_performance.confirm')}
         </Text>
       </TouchableOpacity>
 

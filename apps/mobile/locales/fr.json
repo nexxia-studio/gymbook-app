@@ -291,13 +291,22 @@
       "no_gym": "Gym introuvable",
       "checkout_failed": "Le paiement n'a pas pu démarrer. Réessayez.",
       "no_plan": "Formule à la séance indisponible.",
-      "not_confirmed": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens sur la fiche du cours pour confirmer dès que le crédit est là.",
+      "not_confirmed": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : elle le sera automatiquement dès que le crédit sera là, sur la fiche du cours.",
       "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie.",
       "payment_not_completed": "Le paiement n'a pas été finalisé. Tu peux choisir une autre option ou réessayer."
     },
     "waiting": {
       "title": "Paiement en cours dans le navigateur…",
-      "hint": "Termine le paiement dans le navigateur puis reviens ici. Ta place sera réservable dès que le paiement sera confirmé."
+      "hint": "Termine le paiement dans le navigateur puis reviens ici. Ton cours sera réservé dès que le paiement sera confirmé."
+    },
+    "unfinished": {
+      "title": "Paiement non finalisé ?",
+      "hint": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — ton cours sera réservé dès qu'elle arrive.",
+      "resume": "Reprendre le paiement"
+    },
+    "consent": {
+      "confirm_and_book": "Payer et réserver",
+      "booking_notice": "Ton cours sera réservé dès que le paiement sera confirmé."
     }
   },
   "session": {
@@ -344,14 +353,19 @@
     "intent_full_waitlist": "Ce cours s'est rempli pendant ton paiement. Tu peux t'inscrire sur la liste d'attente : si une place se libère, tu auras {{minutes}} minutes pour confirmer. Ton crédit reste entier.",
     "intent_full_waitlist_nodelay": "Ce cours s'est rempli pendant ton paiement. Tu peux t'inscrire sur la liste d'attente : si une place se libère, tu seras prévenu et tu auras un délai pour confirmer. Ton crédit reste entier.",
     "intent_pending_title": "Crédit en route",
-    "intent_pending_message": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens confirmer ta réservation dans un instant.",
+    "intent_pending_message": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : elle le sera automatiquement dès que le crédit arrive, reste sur cette fiche.",
     "intent_unsure_title": "Paiement en cours de vérification",
     "intent_unsure_message": "Si tu viens de payer, ton crédit devrait arriver d'ici deux à trois minutes : réessaie dans un instant. Si tu n'as pas terminé ton paiement, tu peux le reprendre maintenant.",
     "intent_unsure_wait": "Réessayer plus tard",
     "intent_resume_purchase": "Je n'ai pas payé — reprendre l'achat",
     "intent_unfinished_resume": "Reprendre mon achat",
     "intent_unfinished_title": "Achat non finalisé",
-    "intent_unfinished_message": "Ton achat n'a pas été finalisé : rien n'a été débité et ta place n'est pas réservée. Reprends ton achat pour réserver ce cours."
+    "intent_unfinished_message": "Ton achat n'a pas été finalisé : rien n'a été débité et ta place n'est pas réservée. Reprends ton achat pour réserver ce cours.",
+    "auto_booked_title": "Cours réservé ✅",
+    "auto_booking_in_progress": "Tu as {{detail}} — on réserve ton cours…",
+    "auto_booking_failed_title": "Réservation impossible",
+    "auto_booking_failed_message": "Ce cours ne peut plus être réservé (il a commencé, a été annulé ou n'existe plus). Ton crédit reste entier : tu peux réserver un autre cours.",
+    "auto_booking_retry_message": "La réservation n'a pas pu partir. Ton crédit reste entier — appuie sur « Confirmer ma réservation » pour réessayer."
   },
   "bookings": {
     "title": "Mes cours",
@@ -583,9 +597,9 @@
     "modal_success_body": "Ton paiement a bien été confirmé.",
     "offline_title": "Connexion perdue",
     "offline_hint": "Ton paiement n'est pas perdu — on réessaie dès que la connexion revient.",
-    "intent_success_title": "IL RESTE UN GESTE",
-    "intent_success_body": "Ton crédit est bien là. Ta place n'est pas encore prise — confirme ta réservation sur la fiche du cours.",
-    "intent_go_to_course": "Confirmer ma réservation"
+    "intent_success_title": "ON RÉSERVE TON COURS",
+    "intent_success_body": "Ton crédit est bien là. Ton cours se réserve sur sa fiche — tu y verras la confirmation.",
+    "intent_go_to_course": "Voir mon cours"
   },
   "payments": {
     "title": "Historique des paiements",

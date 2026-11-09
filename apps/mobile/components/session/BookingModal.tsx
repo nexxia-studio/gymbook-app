@@ -12,11 +12,13 @@ interface BookingModalProps {
   date: string
   time: string
   waitlistPosition?: number | null
+  /** GYM-379 — titre d'une réservation CONFIRMÉE, quand l'appelant en dit plus (« Cours réservé ✅ »). */
+  confirmedTitle?: string
   onViewBookings: () => void
   onClose: () => void
 }
 
-export function BookingModal({ visible, activity, date, time, waitlistPosition, onViewBookings, onClose }: BookingModalProps) {
+export function BookingModal({ visible, activity, date, time, waitlistPosition, confirmedTitle, onViewBookings, onClose }: BookingModalProps) {
   const { t } = useTranslation()
   const { tokens } = useTheme()
   const scale = useSharedValue(0)
@@ -53,7 +55,7 @@ export function BookingModal({ visible, activity, date, time, waitlistPosition, 
             <Text className="mt-4 font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
               {isWaitlist
                 ? t('session.waitlist_joined')
-                : t('session.booking_confirmed')}
+                : confirmedTitle ?? t('session.booking_confirmed')}
             </Text>
 
             <Text className="mt-2 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>

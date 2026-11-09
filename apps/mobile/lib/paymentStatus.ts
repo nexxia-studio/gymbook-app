@@ -60,19 +60,29 @@ export function paiementMort(paymentId: string | undefined, statut: string | nul
  * GYM-379 — Le membre revient du navigateur (AppState → active) pendant l'attente de la
  * feuille « Payer cette séance ». Que fait la feuille, au vu de `payments.status` ?
  *
- *   · abandonner — failed / canceled / expired : fait serveur terminal. On arrête
- *                  l'attente et on rend les options, avec un message neutre.
- *   · attendre   — tout le reste. `paid` : le crédit arrive, la boucle existante le
- *                  détectera et rendra la main à la fiche. `pending`/`open`/inconnu :
- *                  ambigu (webhook en retard, ou navigateur fermé sans rien faire) — on
- *                  n'affirme rien, et « Annuler » reste toujours disponible.
+ *   · abandonner        — failed / canceled / expired : fait serveur terminal. On arrête
+ *                         l'attente et on rend les options, avec un message neutre.
+ *   · proposer_reprise  — `open` / `pending` : « Paiement non finalisé ? ». On propose de
+ *                         ROUVRIR LE MÊME checkout, jamais d'en créer un second.
+ *   · attendre          — `paid` (la boucle verra le droit) ou inconnu (lecture impossible) :
+ *                         on n'affirme rien, « Annuler » reste disponible.
  *
- * ⚠️ MÊME RÈGLE QUE `paiementMort` : seul un échec TERMINAL fait agir l'app d'elle-même.
- * Rouvrir les options sur `open`, c'est inviter à repayer quelqu'un qui vient peut-être
- * de payer.
+ * 🔴 MESURÉ EN STAGING LE 09/11 : « Canceled » chez la banque (KBC via Mollie) n'envoie
+ * AUCUN webhook. Le paiement reste `open` et ne passe `expired` qu'environ 17 min plus tard.
+ * `abandonner` ne couvre donc presque jamais l'annulation réelle : c'est `open` qui la porte.
+ *
+ * ⚠️ `open` RESTE AMBIGU — il vient peut-être de payer et le webhook tarde. D'où la
+ * question, et la REPRISE DU MÊME checkout : sur un paiement déjà payé, Mollie le dit, et
+ * le membre ne peut pas payer deux fois. Rouvrir les OPTIONS ici, au contraire, créerait un
+ * second paiement.
  */
-export type IssueAuPremierPlan = 'abandonner' | 'attendre'
+export type IssueAuPremierPlan = 'abandonner' | 'proposer_reprise' | 'attendre'
+
+const NON_FINALISE = new Set(['open', 'pending'])
 
 export function issueAuPremierPlan(statut: string | null): IssueAuPremierPlan {
-  return statut !== null && TERMINAL_FAILURE.has(statut) ? 'abandonner' : 'attendre'
+  if (statut === null) return 'attendre'
+  if (TERMINAL_FAILURE.has(statut)) return 'abandonner'
+  if (NON_FINALISE.has(statut)) return 'proposer_reprise'
+  return 'attendre'
 }

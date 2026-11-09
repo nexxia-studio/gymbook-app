@@ -192,11 +192,11 @@ try {
   verifier('« Crédit en route » n\'est émis que sous `issue === \'paye\'`',
     pending.length === 1 && /issue === 'paye'/.test(avantPending))
   verifier('les deux chemins d\'achat rattachent le paiement',
-    /attacherPaiementBookingIntent\(result\.paymentId\)/.test(readFileSync(join(ROOT, 'components/session/PaymentRequiredSheet.tsx'), 'utf8'))
-    && /attacherPaiementBookingIntent\(result\.paymentId\)/.test(readFileSync(join(ROOT, 'app/profile/subscription.tsx'), 'utf8')))
+    /attacherPaiementBookingIntent\(result\.paymentId[,)]/.test(readFileSync(join(ROOT, 'components/session/PaymentRequiredSheet.tsx'), 'utf8'))
+    && /attacherPaiementBookingIntent\(result\.paymentId[,)]/.test(readFileSync(join(ROOT, 'app/profile/subscription.tsx'), 'utf8')))
   const focus = fiche.slice(fiche.indexOf('useFocusEffect('), fiche.indexOf('const reprendreAchat'))
   verifier('le useFocusEffect de la fiche appelle effacerSiPaiementMort avec lireStatutPaiement, puis désarme',
-    /effacerSiPaiementMort\(intent, lireStatutPaiement\)/.test(focus) && /setIntentionArmee\(false\)/.test(focus))
+    /effacerSiPaiementMort\(intent, lireStatutPaiement\)/.test(focus) && /setIntentionArmee\(false\)|setIntention\(null\)/.test(focus))
   verifier('… dans le même passage que rafraichirDroits()', focus.indexOf('rafraichirDroits()') !== -1
     && focus.indexOf('rafraichirDroits()') < focus.indexOf('effacerSiPaiementMort('))
   verifier('… et n\'ouvre JAMAIS la feuille d\'achat (aucun geste du membre à l\'ouverture)',

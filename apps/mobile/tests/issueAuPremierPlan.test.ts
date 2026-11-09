@@ -9,7 +9,8 @@
 //
 // CE QU'IL PROTÈGE : la feuille « Payer cette séance » rend les options d'achat au membre
 // quand il revient du navigateur SANS avoir payé — mais JAMAIS sur un statut ambigu.
-// Rouvrir l'achat sur `open`, c'est inviter à repayer quelqu'un dont le webhook tarde.
+// Rouvrir l'achat sur `open`, c'est inviter à repayer quelqu'un dont le webhook tarde : sur
+// `open`, on propose de reprendre le MÊME checkout (compléments du 09/11).
 import { issueAuPremierPlan } from '../lib/paymentStatus'
 
 let failures = 0
@@ -30,11 +31,12 @@ console.log('\nCAS 2 — payé : on laisse la boucle existante voir le crédit')
   check('paid → attendre', issue === 'attendre', issue)
 }
 
-console.log('\nCAS 3 — ambigu : navigateur fermé sans rien faire, ou webhook en retard')
+console.log('\nCAS 3 — non finalisé : annulé chez la banque (aucun webhook), navigateur fermé, ou webhook en retard')
 for (const statut of ['open', 'pending']) {
   const issue = issueAuPremierPlan(statut)
-  // 🔴 LE POINT DU BANC : rouvrir les options ici exposerait au double paiement.
-  check(`${statut} → attendre`, issue === 'attendre', issue)
+  // 🔴 LE POINT DU BANC : jamais `abandonner` (rouvrir les options exposerait au double
+  // paiement) — on propose la reprise du MÊME checkout.
+  check(`${statut} → proposer_reprise`, issue === 'proposer_reprise', issue)
 }
 
 console.log('\nCAS 4 — inconnu : ligne introuvable ou lecture hors ligne')
