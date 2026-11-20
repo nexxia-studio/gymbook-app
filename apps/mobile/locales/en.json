@@ -85,7 +85,6 @@
     "last_name_placeholder": "Doe",
     "phone": "Phone",
     "phone_placeholder": "+32 470 00 00 00",
-    "phone_optional": "Optional",
     "forgot_password": "Forgot your password?",
     "forgot_password_title": "Forgot password",
     "forgot_password_subtitle": "Enter your email to receive a reset link.",
@@ -552,6 +551,12 @@
       "email": "Email",
       "phone": "Phone",
       "phone_placeholder": "+32 470 00 00 00",
+      "phone_check": "Check your number: add the country code (e.g. +32 470 12 34 56).",
+      "contact_email": "Contact email",
+      "contact_email_placeholder": "name@example.com",
+      "contact_email_helper": "Optional. The address the gym can write to. Your sign-in email does not change.",
+      "contact_email_invalid": "This email address is not valid.",
+      "contact_email_error": "Your profile is saved, but not your contact email. Please try again in a moment.",
       "birth_date": "Date of birth",
       "birth_date_placeholder": "DD/MM/YYYY",
       "birth_date_invalid": "Expected format: DD/MM/YYYY",
@@ -677,6 +682,25 @@
   "notifications": {
     "channel_default_name": "Bookings and reminders",
     "channel_default_description": "Freed-up spots, class reminders, confirmations and absence warnings."
+  },
+  "profile_completion": {
+    "title": "Complete your profile",
+    "explanation": "{{gym}} needs your number to reach you (gym access during Open Gym, cancelled class…). Only the gym's team can see it.",
+    "phone_label": "Your phone number",
+    "contact_email_label": "Your contact email (recommended)",
+    "contact_email_placeholder": "name@example.com",
+    "contact_email_helper": "Optional. You signed in with an address hidden by Apple: give an address you read so the gym can write to you.",
+    "contact_email_invalid": "This email address is not valid.",
+    "submit": "Save and continue",
+    "save_failed_network": "We couldn't save your number: check your connection and try again.",
+    "save_failed": "We couldn't save your number right now. Please try again in a moment.",
+    "sign_out": "Sign out"
+  },
+  "phone_validation": {
+    "vide": "Enter your phone number.",
+    "invalide": "This number is not valid. Example: +32 470 12 34 56.",
+    "indicatif_requis": "Add the country code. Example: +32 470 12 34 56.",
+    "trop_court": "This number is too short. Check it, country code included."
   },
   "legal_gate": {
     "title_first": "Terms and conditions",

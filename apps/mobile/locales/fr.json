@@ -85,7 +85,6 @@
     "last_name_placeholder": "Dupont",
     "phone": "Téléphone",
     "phone_placeholder": "+32 470 00 00 00",
-    "phone_optional": "Optionnel",
     "forgot_password": "Mot de passe oublié ?",
     "forgot_password_title": "Mot de passe oublié",
     "forgot_password_subtitle": "Entrez votre email pour recevoir un lien de réinitialisation.",
@@ -552,6 +551,12 @@
       "email": "Email",
       "phone": "Téléphone",
       "phone_placeholder": "+32 470 00 00 00",
+      "phone_check": "Vérifie ton numéro : ajoute l'indicatif du pays (ex. +32 470 12 34 56).",
+      "contact_email": "Email de contact",
+      "contact_email_placeholder": "prenom@exemple.com",
+      "contact_email_helper": "Facultatif. L'adresse où la salle peut t'écrire. Ton email de connexion ne change pas.",
+      "contact_email_invalid": "Cette adresse email n'est pas valide.",
+      "contact_email_error": "Ton profil est enregistré, mais pas ton email de contact. Réessaie dans un instant.",
       "birth_date": "Date de naissance",
       "birth_date_placeholder": "JJ/MM/AAAA",
       "birth_date_invalid": "Format attendu : JJ/MM/AAAA",
@@ -677,6 +682,25 @@
   "notifications": {
     "channel_default_name": "Réservations et rappels",
     "channel_default_description": "Places libérées, rappels de cours, confirmations et avertissements d'absence."
+  },
+  "profile_completion": {
+    "title": "Complète ton profil",
+    "explanation": "{{gym}} a besoin de ton numéro pour te joindre (accès à la salle en Open Gym, cours annulé…). Il n'est visible que par l'équipe de la salle.",
+    "phone_label": "Ton numéro de téléphone",
+    "contact_email_label": "Ton email de contact (recommandé)",
+    "contact_email_placeholder": "prenom@exemple.com",
+    "contact_email_helper": "Facultatif. Tu es connecté avec une adresse masquée par Apple : donne une adresse que tu lis pour que la salle puisse t'écrire.",
+    "contact_email_invalid": "Cette adresse email n'est pas valide.",
+    "submit": "Enregistrer et continuer",
+    "save_failed_network": "Impossible d'enregistrer ton numéro : vérifie ta connexion et réessaie.",
+    "save_failed": "Impossible d'enregistrer ton numéro pour le moment. Réessaie dans un instant.",
+    "sign_out": "Se déconnecter"
+  },
+  "phone_validation": {
+    "vide": "Indique ton numéro de téléphone.",
+    "invalide": "Ce numéro n'est pas valide. Exemple : +32 470 12 34 56.",
+    "indicatif_requis": "Ajoute l'indicatif du pays. Exemple : +32 470 12 34 56.",
+    "trop_court": "Ce numéro est trop court. Vérifie-le, indicatif compris."
   },
   "legal_gate": {
     "title_first": "Conditions générales",

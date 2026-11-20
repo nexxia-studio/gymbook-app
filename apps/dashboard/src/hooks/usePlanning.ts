@@ -44,6 +44,7 @@ interface DbMember {
   first_name: string | null
   last_name: string | null
   email: string | null
+  phone: string | null
   noshow_count: number | null
   avatar_url: string | null
   deleted_at: string | null
@@ -110,6 +111,7 @@ function mapSlot(row: DbSlot, tz: string): TimeSlot {
         firstName: b.member?.first_name ?? '',
         lastName: b.member?.last_name ?? '',
         email: b.member?.email ?? '',
+        phone: b.member?.phone ?? null,
         noshowCount: b.member?.noshow_count ?? 0,
         avatarUrl: b.member?.avatar_url ?? undefined,
         status: (b.status as AttendanceStatus) ?? 'confirmed',
@@ -300,7 +302,7 @@ export function usePlanning() {
           coaches(id, name, active),
           bookings(
             id, member_id, status,
-            member:profiles(id, first_name, last_name, email, noshow_count, avatar_url, deleted_at)
+            member:profiles(id, first_name, last_name, email, phone, noshow_count, avatar_url, deleted_at)
           )
         `)
         .eq('gym_id', gymId)

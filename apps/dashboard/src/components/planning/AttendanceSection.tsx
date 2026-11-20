@@ -280,6 +280,12 @@ export function AttendanceSection({ slot, onMark, onWalkIn, searchMembers, onOpe
                 </div>
                 <div className="min-w-0 flex-1">
                   <span className="block truncate font-body text-sm font-medium text-dark">{fullName}</span>
+                  {/* GYM-387 — le numéro, pour joindre l'inscrit (Open Gym). */}
+                  {m.phone && (
+                    <a href={`tel:${m.phone}`} className="block truncate font-body text-xs text-muted hover:underline">
+                      {m.phone}
+                    </a>
+                  )}
                   {isSaving ? (
                     <span className="inline-flex items-center gap-1 font-body text-[10px] font-medium text-muted">
                       <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />

@@ -196,7 +196,15 @@ ne coïncident pas (un créneau posé avant la bascule garde le sien). */}
                                 initials
                               )}
                             </div>
-                            <span className="flex-1 font-body text-sm text-dark">{fullName}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-body text-sm text-dark">{fullName}</span>
+                              {/* GYM-387 — le numéro, pour joindre l'inscrit (Open Gym). */}
+                              {member.phone && (
+                                <a href={`tel:${member.phone}`} className="block truncate font-body text-xs text-muted hover:underline">
+                                  {member.phone}
+                                </a>
+                              )}
+                            </span>
                             {member.noshowCount > 0 && (
                               <span className="rounded-md bg-red-50 px-1.5 py-0.5 font-body text-[10px] font-semibold text-red-500">
                                 {t('planning.noshow_count', { count: member.noshowCount })}
