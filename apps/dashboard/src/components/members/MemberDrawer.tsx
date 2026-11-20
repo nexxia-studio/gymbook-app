@@ -16,6 +16,7 @@ import { AdjustCreditsModal } from '@/components/members/AdjustCreditsModal'
 import { SellPlanModal } from '@/components/members/SellPlanModal'
 import type { Member } from '@/hooks/useMembers'
 import { invokeEdge } from '@/lib/edgeInvoke'
+import { displayEmail, isAppleRelayEmail } from '@/lib/memberContact'
 
 interface MemberDrawerProps {
   member: Member | null
@@ -223,7 +224,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const attachedLiftIds = new Set(penalties.map((p) => p.lift?.id).filter(Boolean))
   const orphanLifts = lifts.filter((l) => !attachedLiftIds.has(l.id))
 
-  const fullName = `${identity.firstName} ${identity.lastName}`.trim() || (member?.email ?? '')
+  const fullName = `${identity.firstName} ${identity.lastName}`.trim() || (member ? displayEmail(member) ?? t('members.email_hidden_apple') : '')
   const initials = `${identity.firstName.charAt(0)}${identity.lastName.charAt(0)}`.toUpperCase() || '?'
 
   return (
@@ -269,7 +270,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                 )}
                 <div className="min-w-0">
                   <p className="truncate font-display text-xl font-black tracking-tight text-dark">{fullName}</p>
-                  <p className="truncate font-body text-sm text-muted">{member.email}</p>
+                  <p className="truncate font-body text-sm text-muted">{displayEmail(member) ?? t('members.email_hidden_apple')}</p>
                 </div>
               </div>
 
@@ -333,7 +334,18 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
               ) : (
                 <>
                   <div className="mt-5 flex flex-col gap-3">
-                    <Row Icon={Mail} label={t('member_drawer.email')} value={member.email} muted title={t('member_drawer.email_readonly')} />
+                    {/* GYM-387 — l'email de contact s'il existe ; l'email de connexion reste
+                        visible en dessous, sauf quand c'est une adresse relais Apple. */}
+                    {member.contactEmail?.trim() && (
+                      <Row Icon={Mail} label={t('member_drawer.contact_email')} value={member.contactEmail.trim()} />
+                    )}
+                    <Row
+                      Icon={Mail}
+                      label={t(member.contactEmail?.trim() ? 'member_drawer.login_email' : 'member_drawer.email')}
+                      value={isAppleRelayEmail(member.email) ? t('members.email_hidden_apple') : member.email}
+                      muted
+                      title={t('member_drawer.email_readonly')}
+                    />
                     <Row Icon={Phone} label={t('member_drawer.phone')} value={identity.phone || '—'} />
                     {identity.accessBadgeCode && (
                       <Row Icon={ScanLine} label={t('member_drawer.badge_code')} value={identity.accessBadgeCode} />

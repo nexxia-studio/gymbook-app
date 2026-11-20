@@ -21,6 +21,12 @@ export interface ClubIdentity {
   address: string
   /** Email de contact direct du Club — vide en attente (le support passe par Viniz). */
   email: string
+  /**
+   * GYM-387 — pays de la salle du build (code ISO). Sert d'indicatif téléphonique par
+   * défaut à l'INSCRIPTION, où le membre n'est pas connecté : `nexxia_gyms.country` n'est
+   * lisible que par un membre de la salle (RLS), donc pas encore par lui.
+   */
+  country: string
 }
 
 export const CLUB_IDENTITY: ClubIdentity = {
@@ -30,4 +36,5 @@ export const CLUB_IDENTITY: ClubIdentity = {
   vat: '',
   address: '',
   email: '',
+  country: 'BE',
 }

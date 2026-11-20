@@ -69,6 +69,8 @@ export interface SlotMember {
   firstName: string
   lastName: string
   email: string
+  /** GYM-387 — pour joindre un inscrit (Open Gym, cours annulé). */
+  phone: string | null
   noshowCount: number
   avatarUrl?: string
   // GYM-174 — statut de pointage courant de la réservation.

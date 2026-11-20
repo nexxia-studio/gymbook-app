@@ -15,6 +15,7 @@ import { PlanLimitBanner } from '@/components/subscription/PlanLimitBanner'
 import { PlanLimitModal } from '@/components/subscription/PlanLimitModal'
 import { useEffectivePlan } from '@/hooks/useEffectivePlan'
 import type { MemberPlan } from '@/lib/subscription'
+import { displayEmail, hasPhone } from '@/lib/memberContact'
 import { useGymAdminActions } from '@/hooks/useGymAdminActions'
 import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
@@ -242,8 +243,9 @@ function MemberCard({ member, onSelect, onLiftSuspension, onSendPush }: {
           {initials}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-body text-sm font-semibold text-dark">{fullName || member.email}</p>
-          <p className="truncate font-body text-xs text-muted">{member.email}</p>
+          <p className="truncate font-body text-sm font-semibold text-dark">{fullName || displayEmail(member) || t('members.email_hidden_apple')}</p>
+          <p className="truncate font-body text-xs text-muted">{displayEmail(member) ?? t('members.email_hidden_apple')}</p>
+          <p className="truncate font-body text-xs text-muted">{hasPhone(member) ? member.phone : t('members.phone_missing')}</p>
         </div>
         {/* Zone tactile du menu : le doigt, pas la souris. */}
         <div className="-mr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -340,8 +342,8 @@ function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
   onLiftSuspension: () => void
   onSendPush: () => void
 }) {
-  // `t` a disparu d'ici avec le menu d'actions, extrait dans MemberActionsMenu : plus rien
-  // dans la ligne elle-même n'est traduit — les deux cellules d'état sont des composants.
+  // GYM-387 — `t` revient pour deux libellés : « Email masqué (Apple) » et « Téléphone manquant ».
+  const { t } = useTranslation()
   const fullName = `${member.firstName} ${member.lastName}`.trim()
   const initials = `${member.firstName.charAt(0)}${member.lastName.charAt(0)}`.toUpperCase()
   const isSuspended = member.suspendedUntil && new Date(member.suspendedUntil) > new Date()
@@ -358,8 +360,9 @@ function MemberRow({ member, onSelect, onLiftSuspension, onSendPush }: {
             {initials}
           </div>
           <div className="min-w-0">
-            <p className="truncate font-body text-sm font-medium text-dark">{fullName || member.email}</p>
-            <p className="truncate font-body text-xs text-muted">{member.email}</p>
+            <p className="truncate font-body text-sm font-medium text-dark">{fullName || displayEmail(member) || t('members.email_hidden_apple')}</p>
+            <p className="truncate font-body text-xs text-muted">{displayEmail(member) ?? t('members.email_hidden_apple')}</p>
+            <p className="truncate font-body text-xs text-muted">{hasPhone(member) ? member.phone : t('members.phone_missing')}</p>
           </div>
         </div>
       </td>
@@ -409,7 +412,7 @@ export default function Members() {
   const { t } = useTranslation()
   const addToast = useToastStore((s) => s.addToast)
   const {
-    members, totalCount, withPlanCount, noPlanCount, expiringCount, suspendedCount,
+    members, totalCount, withPlanCount, noPlanCount, expiringCount, suspendedCount, noPhoneCount,
     isLoading, search, setSearch, statusFilter, setStatusFilter, refetch,
   } = useMembers()
   const { liftSuspension, sendPush } = useGymAdminActions()
@@ -459,6 +462,7 @@ export default function Members() {
     { key: 'no_plan', label: t('members.filter_no_plan'), count: noPlanCount },
     { key: 'expiring', label: t('members.filter_expiring'), count: expiringCount },
     { key: 'suspended', label: t('members.filter_suspended'), count: suspendedCount },
+    { key: 'no_phone', label: t('members.filter_no_phone'), count: noPhoneCount },
   ]
 
   return (

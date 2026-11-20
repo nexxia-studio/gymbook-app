@@ -14,6 +14,9 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { avatarColor } from '../../lib/theme/palette'
+import { usePaysSalle } from '../../hooks/usePaysSalle'
+import { cleErreurTelephone, normaliserTelephone } from '../../lib/telephone'
+import { estEmailContactValide } from '../../lib/profilComplet'
 
 type FocusField = 'photo' | 'phone' | 'birth_date' | 'address' | 'emergency'
 
@@ -21,6 +24,7 @@ interface EditableProfile {
   firstName: string
   lastName: string
   email: string
+  contactEmail: string
   phone: string
   dateOfBirth: string
   streetName: string
@@ -83,7 +87,7 @@ export default function EditProfileScreen() {
   const refreshProfile = useAuthStore((s) => s.refreshProfile)
 
   const [form, setForm] = useState<EditableProfile>({
-    firstName: '', lastName: '', email: '', phone: '',
+    firstName: '', lastName: '', email: '', contactEmail: '', phone: '',
     dateOfBirth: '',
     streetName: '', streetNumber: '', postalCode: '', city: '',
     emergencyName: '', emergencyPhone: '',
@@ -92,7 +96,12 @@ export default function EditProfileScreen() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [errors, setErrors] = useState<{ birth?: string }>({})
+  const [errors, setErrors] = useState<{ birth?: string; phone?: string; contactEmail?: string }>({})
+  const pays = usePaysSalle()
+  // GYM-387 — `null` tant que l'email de contact n'a PAS été lu. On n'écrit jamais une
+  // colonne qu'on n'a pas réussi à lire : un champ resté vide faute de lecture effacerait
+  // sinon l'adresse du membre à l'enregistrement.
+  const [contactEmailLu, setContactEmailLu] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -104,7 +113,8 @@ export default function EditProfileScreen() {
         .eq('id', user.id)
         .single()
       if (data) {
-        setForm({
+        setForm((f) => ({
+          ...f,
           firstName: data.first_name ?? '',
           lastName: data.last_name ?? '',
           email: data.email ?? '',
@@ -117,7 +127,19 @@ export default function EditProfileScreen() {
           emergencyName: data.emergency_contact_name ?? '',
           emergencyPhone: data.emergency_contact_phone ?? '',
           avatarUrl: data.avatar_url,
-        })
+        }))
+      }
+      // GYM-387 — LUE À PART. Dans le SELECT ci-dessus, une colonne absente (migration pas
+      // encore appliquée) ferait échouer la lecture de TOUT le profil.
+      const { data: contact, error: contactErr } = await supabase
+        .from('profiles')
+        .select('contact_email')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (!contactErr && contact) {
+        const lu = contact.contact_email ?? ''
+        setContactEmailLu(lu)
+        setForm((f) => ({ ...f, contactEmail: lu }))
       }
       setLoading(false)
     })()
@@ -232,6 +254,17 @@ export default function EditProfileScreen() {
       setErrors({ birth: t('profile.edit.birth_date_invalid') })
       return
     }
+    // GYM-387 — téléphone obligatoire et normalisé ; email de contact facultatif.
+    const tel = normaliserTelephone(form.phone, pays)
+    if (!tel.ok) {
+      setErrors({ phone: t(cleErreurTelephone(tel.raison)) })
+      return
+    }
+    const contactEmail = form.contactEmail.trim()
+    if (contactEmail && !estEmailContactValide(contactEmail)) {
+      setErrors({ contactEmail: t('profile.edit.contact_email_invalid') })
+      return
+    }
     setErrors({})
     setSaving(true)
     try {
@@ -252,7 +285,7 @@ export default function EditProfileScreen() {
         .update({
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
-          phone: form.phone.trim() || null,
+          phone: tel.e164,
           date_of_birth: dbBirth,
           street_name: street || null,
           street_number: num || null,
@@ -265,6 +298,23 @@ export default function EditProfileScreen() {
         })
         .eq('id', user.id)
       if (error) throw error
+      setForm((f) => ({ ...f, phone: tel.e164 }))
+
+      // ⚠️ ÉCRITURE À PART, comme la lecture : son refus ne doit pas faire échouer le reste
+      // du profil, déjà enregistré. Elle n'a lieu que si la valeur a été LUE et a CHANGÉ.
+      if (contactEmailLu !== null && contactEmail !== contactEmailLu) {
+        const { error: contactErr } = await supabase
+          .from('profiles')
+          .update({ contact_email: contactEmail || null })
+          .eq('id', user.id)
+        if (contactErr) {
+          console.error('[saveProfile] contact_email', contactErr)
+          await refreshProfile()
+          Alert.alert(t('profile.edit.error_title'), t('profile.edit.contact_email_error'))
+          return
+        }
+        setContactEmailLu(contactEmail)
+      }
 
       await refreshProfile()
       Alert.alert(t('profile.edit.saved_title'), t('profile.edit.saved_message'), [
@@ -276,7 +326,7 @@ export default function EditProfileScreen() {
     } finally {
       setSaving(false)
     }
-  }, [form, refreshProfile, router, t])
+  }, [form, pays, contactEmailLu, refreshProfile, router, t])
 
   const initials = `${form.firstName[0] ?? ''}${form.lastName[0] ?? ''}`.toUpperCase()
   const bgColor = avatarColor(`${form.firstName} ${form.lastName}`)
@@ -374,11 +424,29 @@ export default function EditProfileScreen() {
               placeholder={t('profile.edit.phone_placeholder')}
               value={form.phone}
               onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
+              error={errors.phone}
               keyboardType="phone-pad"
               autoComplete="tel"
               editable={!loading}
               autoFocus={autoFocus('phone')}
             />
+
+            {/* parité:nouvel-élément:début — GYM-387, email de contact */}
+            {contactEmailLu !== null && (
+              <TextInput
+                label={t('profile.edit.contact_email')}
+                placeholder={t('profile.edit.contact_email_placeholder')}
+                value={form.contactEmail}
+                onChangeText={(v) => setForm((f) => ({ ...f, contactEmail: v }))}
+                error={errors.contactEmail}
+                helper={t('profile.edit.contact_email_helper')}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                editable={!loading}
+              />
+            )}
+            {/* parité:nouvel-élément:fin */}
 
             <TextInput
               label={t('profile.edit.birth_date')}
