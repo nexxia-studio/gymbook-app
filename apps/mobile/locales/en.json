@@ -551,6 +551,7 @@
       "email": "Email",
       "phone": "Phone",
       "phone_placeholder": "+32 470 00 00 00",
+      "phone_check": "Check your number: add the country code (e.g. +32 470 12 34 56).",
       "contact_email": "Contact email",
       "contact_email_placeholder": "name@example.com",
       "contact_email_helper": "Optional. The address the gym can write to. Your sign-in email does not change.",
@@ -699,7 +700,7 @@
     "vide": "Enter your phone number.",
     "invalide": "This number is not valid. Example: +32 470 12 34 56.",
     "indicatif_requis": "Add the country code. Example: +32 470 12 34 56.",
-    "trop_court": "This number is too short: at least 8 digits are required."
+    "trop_court": "This number is too short. Check it, country code included."
   },
   "legal_gate": {
     "title_first": "Terms and conditions",

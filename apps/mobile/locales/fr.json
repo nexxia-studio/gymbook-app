@@ -551,6 +551,7 @@
       "email": "Email",
       "phone": "Téléphone",
       "phone_placeholder": "+32 470 00 00 00",
+      "phone_check": "Vérifie ton numéro : ajoute l'indicatif du pays (ex. +32 470 12 34 56).",
       "contact_email": "Email de contact",
       "contact_email_placeholder": "prenom@exemple.com",
       "contact_email_helper": "Facultatif. L'adresse où la salle peut t'écrire. Ton email de connexion ne change pas.",
@@ -699,7 +700,7 @@
     "vide": "Indique ton numéro de téléphone.",
     "invalide": "Ce numéro n'est pas valide. Exemple : +32 470 12 34 56.",
     "indicatif_requis": "Ajoute l'indicatif du pays. Exemple : +32 470 12 34 56.",
-    "trop_court": "Ce numéro est trop court : il faut au moins 8 chiffres."
+    "trop_court": "Ce numéro est trop court. Vérifie-le, indicatif compris."
   },
   "legal_gate": {
     "title_first": "Conditions générales",

@@ -11,17 +11,23 @@
 export type EtatLectureProfil = 'non_charge' | 'charge' | 'erreur'
 
 export interface ProfilContact {
+  /** `profiles.role`. Seul `member` est concerné par l'obligation. */
+  role: string | null
   phone: string | null
   /** Email de CONNEXION (`profiles.email`). Jamais modifié par ce lot. */
   email: string | null
   contactEmail: string | null
 }
 
+// 🔴 SEULS LES MEMBRES. Des comptes `gym_admin` sans téléphone se connectent à l'app membre
+// (par email, en prod) : gérants, super-admins et coachs ne voient JAMAIS la porte. La
+// règle est une liste BLANCHE — un rôle inconnu ou absent ne bloque personne.
 export function doitCompleterProfil(
-  profil: Pick<ProfilContact, 'phone'> | null | undefined,
+  profil: Pick<ProfilContact, 'phone' | 'role'> | null | undefined,
   etatLecture: EtatLectureProfil,
 ): boolean {
   if (etatLecture !== 'charge' || !profil) return false
+  if (profil.role !== 'member') return false
   return !profil.phone || profil.phone.trim() === ''
 }
 

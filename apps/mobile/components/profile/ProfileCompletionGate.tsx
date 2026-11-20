@@ -1,7 +1,7 @@
 // GYM-387 — LE TÉLÉPHONE EST OBLIGATOIRE : tant que `profiles.phone` est vide, l'écran
 // « Complète ton profil » recouvre l'app. Il couvre les deux populations que le formulaire
 // d'inscription ne voit pas : les comptes Apple / Google (aucun téléphone transmis) et les
-// membres existants.
+// membres existants. Elle ne concerne QUE le rôle `member` (voir `doitCompleterProfil`).
 //
 // ─────────────────────────────────────────────────────────────────────────────────────
 // 🔴 L'ÉCRAN NE SORT QUE SUR UNE LECTURE RÉUSSIE — L'INVERSE DE LA PORTE LÉGALE
@@ -68,7 +68,7 @@ export function useLectureProfilContact(userId: string | null): LectureProfilCon
       // qui échoue — donc aucun écran — et pas le chargement du profil entier.
       const { data, error } = await supabase
         .from('profiles')
-        .select('phone, email, contact_email')
+        .select('role, phone, email, contact_email')
         .eq('id', userId)
         .maybeSingle()
       if (error) {
@@ -81,7 +81,7 @@ export function useLectureProfilContact(userId: string | null): LectureProfilCon
           pour: userId,
           etat: 'charge',
           profil: data
-            ? { phone: data.phone, email: data.email, contactEmail: data.contact_email }
+            ? { role: data.role, phone: data.phone, email: data.email, contactEmail: data.contact_email }
             : null,
         }
       }

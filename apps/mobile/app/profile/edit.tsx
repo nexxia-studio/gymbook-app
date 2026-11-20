@@ -15,7 +15,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { avatarColor } from '../../lib/theme/palette'
 import { usePaysSalle } from '../../hooks/usePaysSalle'
-import { cleErreurTelephone, normaliserTelephone } from '../../lib/telephone'
+import { cleErreurTelephone, telephonePourEnregistrement } from '../../lib/telephone'
 import { estEmailContactValide } from '../../lib/profilComplet'
 
 type FocusField = 'photo' | 'phone' | 'birth_date' | 'address' | 'emergency'
@@ -102,6 +102,11 @@ export default function EditProfileScreen() {
   // colonne qu'on n'a pas réussi à lire : un champ resté vide faute de lecture effacerait
   // sinon l'adresse du membre à l'enregistrement.
   const [contactEmailLu, setContactEmailLu] = useState<string | null>(null)
+  // 🔴 GYM-387 — LE NUMÉRO TEL QU'IL A ÉTÉ LU. Il sert à savoir si le membre a TOUCHÉ au
+  // champ : un numéro non modifié n'est ni normalisé ni réécrit (règle et cas réel :
+  // `telephonePourEnregistrement`, lib/telephone.ts). `null` = pas lu.
+  const [phoneLu, setPhoneLu] = useState<string | null>(null)
+  const telephone = telephonePourEnregistrement(form.phone, phoneLu, pays)
 
   useEffect(() => {
     (async () => {
@@ -128,6 +133,7 @@ export default function EditProfileScreen() {
           emergencyPhone: data.emergency_contact_phone ?? '',
           avatarUrl: data.avatar_url,
         }))
+        setPhoneLu(data.phone ?? '')
       }
       // GYM-387 — LUE À PART. Dans le SELECT ci-dessus, une colonne absente (migration pas
       // encore appliquée) ferait échouer la lecture de TOUT le profil.
@@ -254,9 +260,10 @@ export default function EditProfileScreen() {
       setErrors({ birth: t('profile.edit.birth_date_invalid') })
       return
     }
-    // GYM-387 — téléphone obligatoire et normalisé ; email de contact facultatif.
-    const tel = normaliserTelephone(form.phone, pays)
-    if (!tel.ok) {
+    // GYM-387 — le téléphone n'est validé et normalisé que s'il a été MODIFIÉ. Un numéro
+    // existant, même non conforme, ne bloque pas l'enregistrement des autres champs.
+    const tel = telephone
+    if (tel.type === 'refus') {
       setErrors({ phone: t(cleErreurTelephone(tel.raison)) })
       return
     }
@@ -285,7 +292,8 @@ export default function EditProfileScreen() {
         .update({
           first_name: form.firstName.trim(),
           last_name: form.lastName.trim(),
-          phone: tel.e164,
+          // ⚠️ ABSENT de l'UPDATE quand le champ n'a pas été touché.
+          ...(tel.type === 'modifie' ? { phone: tel.e164 } : {}),
           date_of_birth: dbBirth,
           street_name: street || null,
           street_number: num || null,
@@ -298,7 +306,10 @@ export default function EditProfileScreen() {
         })
         .eq('id', user.id)
       if (error) throw error
-      setForm((f) => ({ ...f, phone: tel.e164 }))
+      if (tel.type === 'modifie') {
+        setForm((f) => ({ ...f, phone: tel.e164 }))
+        setPhoneLu(tel.e164)
+      }
 
       // ⚠️ ÉCRITURE À PART, comme la lecture : son refus ne doit pas faire échouer le reste
       // du profil, déjà enregistré. Elle n'a lieu que si la valeur a été LUE et a CHANGÉ.
@@ -326,7 +337,7 @@ export default function EditProfileScreen() {
     } finally {
       setSaving(false)
     }
-  }, [form, pays, contactEmailLu, refreshProfile, router, t])
+  }, [form, telephone, contactEmailLu, refreshProfile, router, t])
 
   const initials = `${form.firstName[0] ?? ''}${form.lastName[0] ?? ''}`.toUpperCase()
   const bgColor = avatarColor(`${form.firstName} ${form.lastName}`)
@@ -425,6 +436,7 @@ export default function EditProfileScreen() {
               value={form.phone}
               onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
               error={errors.phone}
+              helper={telephone.type === 'inchange' && telephone.aVerifier ? t('profile.edit.phone_check') : undefined}
               keyboardType="phone-pad"
               autoComplete="tel"
               editable={!loading}

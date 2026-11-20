@@ -12,16 +12,23 @@ function check(label: string, cond: boolean): void {
 }
 
 console.log('doitCompleterProfil')
-check('profil lu, phone null → true', doitCompleterProfil({ phone: null }, 'charge') === true)
-check('profil lu, phone vide → true', doitCompleterProfil({ phone: '' }, 'charge') === true)
-check('profil lu, phone en espaces → true', doitCompleterProfil({ phone: '   ' }, 'charge') === true)
-check('profil lu, phone présent → false', doitCompleterProfil({ phone: '+32470123456' }, 'charge') === false)
+check('profil lu, phone null → true', doitCompleterProfil({ role: 'member', phone: null }, 'charge') === true)
+check('profil lu, phone vide → true', doitCompleterProfil({ role: 'member', phone: '' }, 'charge') === true)
+check('profil lu, phone en espaces → true', doitCompleterProfil({ role: 'member', phone: '   ' }, 'charge') === true)
+check('profil lu, phone présent → false', doitCompleterProfil({ role: 'member', phone: '+32470123456' }, 'charge') === false)
 check('profil non chargé → false', doitCompleterProfil(null, 'non_charge') === false)
 check('erreur de lecture → false', doitCompleterProfil(null, 'erreur') === false)
 // 🔴 Le cas de GYM-385 : un reste de profil SANS téléphone, mais une lecture en échec.
-check('erreur, même avec un profil sans téléphone → false', doitCompleterProfil({ phone: null }, 'erreur') === false)
-check('non chargé, même avec un profil sans téléphone → false', doitCompleterProfil({ phone: null }, 'non_charge') === false)
+check('erreur, même avec un profil sans téléphone → false', doitCompleterProfil({ role: 'member', phone: null }, 'erreur') === false)
+check('non chargé, même avec un profil sans téléphone → false', doitCompleterProfil({ role: 'member', phone: null }, 'non_charge') === false)
 check('lecture réussie mais ligne absente → false', doitCompleterProfil(null, 'charge') === false)
+
+console.log('doitCompleterProfil — rôle')
+check('gym_admin sans téléphone → false', doitCompleterProfil({ role: 'gym_admin', phone: null }, 'charge') === false)
+check('super_admin sans téléphone → false', doitCompleterProfil({ role: 'super_admin', phone: null }, 'charge') === false)
+check('coach sans téléphone → false', doitCompleterProfil({ role: 'coach', phone: null }, 'charge') === false)
+check('rôle absent → false', doitCompleterProfil({ role: null, phone: null }, 'charge') === false)
+check('member sans téléphone → true', doitCompleterProfil({ role: 'member', phone: null }, 'charge') === true)
 
 console.log('estEmailRelaisApple')
 check('adresse relais', estEmailRelaisApple('abc123@privaterelay.appleid.com') === true)
