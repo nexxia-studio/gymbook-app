@@ -184,15 +184,22 @@ export default function SubscriptionScreen() {
   // (lib/reservationAuto.ts) — cet écran n'en contient aucune logique.
   //
   // ⚠️ OUVERT SANS COURS (Profil → Abonnement) : `depuis_cours` absent, rien ne change.
-  const { depuis_cours: depuisCoursParam } = useLocalSearchParams<{ depuis_cours?: string }>()
-  const [coursVise, setCoursVise] = useState<{ slotId: string; label: string } | null>(null)
+  const { depuis_cours: depuisCoursParam, complet: completParam } = useLocalSearchParams<{ depuis_cours?: string; complet?: string }>()
+  // 🔴 GYM-379 (21/11) — `complet` : le cours visé est COMPLET. L'écran annonce alors
+  // l'inscription en liste d'attente, et ses boutons deviennent « S'abonner et rejoindre la
+  // liste d'attente » / « Acheter et rejoindre la liste d'attente ». L'accord est posé sous
+  // ce libellé (`accordContexte`).
+  // ⚠️ `complet` EST RELU SUR LE CRÉNEAU À CHAQUE FOCUS, le paramètre n'est qu'un repli si
+  // la lecture échoue : l'écran ne promet pas une réservation sur un cours qui s'est rempli
+  // depuis, ni la liste d'attente sur un cours où une place s'est libérée.
+  const [coursVise, setCoursVise] = useState<{ slotId: string; label: string; complet: boolean } | null>(null)
 
   // L'activité et l'heure d'un créneau, en heure de la SALLE (Europe/Brussels), comme
   // partout ailleurs dans l'app. `null` si le créneau est illisible.
-  const decrireCours = useCallback(async (slotId: string): Promise<{ activity: string; when: string } | null> => {
+  const decrireCours = useCallback(async (slotId: string): Promise<{ activity: string; when: string; complet: boolean } | null> => {
     const { data } = await supabase
       .from('time_slots')
-      .select('starts_at, activities(name)')
+      .select('starts_at, capacity, bookings_count, activities(name)')
       .eq('id', slotId)
       .maybeSingle()
     if (!data) return null
@@ -203,8 +210,11 @@ export default function SubscriptionScreen() {
     return {
       activity: act?.name ?? '',
       when: `${jours[local.getDay()] ?? ''} ${local.getDate()} ${mois[local.getMonth()] ?? ''} ${formatTime(data.starts_at)}`,
+      complet: typeof data.capacity === 'number'
+        ? (data.bookings_count ?? 0) >= data.capacity
+        : completParam === '1',
     }
-  }, [t])
+  }, [t, completParam])
 
   // 🔴 GYM-379 (passe finale) — LE BANDEAU EST RECALCULÉ À CHAQUE FOCUS, SUR L'INTENTION RELUE
   // SUR DISQUE. Calculé une fois au montage, il survivait à ce qui le rendait vrai : après
@@ -220,7 +230,11 @@ export default function SubscriptionScreen() {
     const cours = await decrireCours(depuisCoursParam)
     if (!estVivant()) return
     setCoursVise(cours
-      ? { slotId: depuisCoursParam, label: t('subscription.booking_banner', cours) }
+      ? {
+          slotId: depuisCoursParam,
+          complet: cours.complet,
+          label: t(cours.complet ? 'subscription.waitlist_banner' : 'subscription.booking_banner', { activity: cours.activity, when: cours.when }),
+        }
       : null)
   }, [depuisCoursParam, decrireCours, t])
 
@@ -563,7 +577,7 @@ export default function SubscriptionScreen() {
         const accorde = garderIntentionRef.current
           ? false
           : await attacherPaiementBookingIntent(result.paymentId, coursVise
-            ? { accordReservation: true, checkoutUrl: result.checkoutUrl, pourCreneau: coursVise.slotId }
+            ? { accordReservation: true, contexte: coursVise.complet ? 'waitlist' : 'book', checkoutUrl: result.checkoutUrl, pourCreneau: coursVise.slotId }
             : {})
         if (coursVise && !accorde) setCoursVise(null)
         const outcome = await openCheckout(result.checkoutUrl, {
@@ -905,7 +919,9 @@ export default function SubscriptionScreen() {
           }}
           busy={payingId === pendingPlan.id}
           confirmLabel={coursVise
-            ? t(pendingPlan.billingType === 'one_time' ? 'payment_required.consent.buy_and_book' : 'payment_required.consent.subscribe_and_book')
+            ? t(coursVise.complet
+              ? (pendingPlan.billingType === 'one_time' ? 'payment_required.consent.buy_and_waitlist' : 'payment_required.consent.subscribe_and_waitlist')
+              : (pendingPlan.billingType === 'one_time' ? 'payment_required.consent.buy_and_book' : 'payment_required.consent.subscribe_and_book'))
             : undefined}
           notice={coursVise?.label}
           onCancel={() => { setCheckoutApresFermeture(null); setSheetVisible(false) }}

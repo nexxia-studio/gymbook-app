@@ -264,7 +264,8 @@
     "back_to_course": "Revenir au cours",
     "success_sub_manual": "Confirme ta réservation sur la fiche du cours.",
     "failed_title": "PAIEMENT NON FINALISÉ",
-    "failed_sub": "Rien n'a été débité. Reviens sur la fiche du cours pour réessayer."
+    "failed_sub": "Rien n'a été débité. Reviens sur la fiche du cours pour réessayer.",
+    "success_sub_waitlist": "On t'inscrit sur la liste d'attente…"
   },
   "payment_required": {
     "title": "Réservation impossible",
@@ -296,18 +297,21 @@
       "not_confirmed": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : elle le sera automatiquement dès que le crédit sera là, sur la fiche du cours.",
       "checkout_not_opened": "La page de paiement ne s'est pas ouverte. Aucun montant n'a été débité — réessaie.",
       "payment_not_completed": "Le paiement n'a pas été finalisé. Tu peux choisir une autre option ou réessayer.",
-      "not_confirmed_manual": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens sur la fiche du cours pour confirmer dès que le crédit est là."
+      "not_confirmed_manual": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens sur la fiche du cours pour confirmer dès que le crédit est là.",
+      "not_confirmed_waitlist": "Si ton paiement est passé, le crédit arrive — cela peut prendre deux à trois minutes. Tu n'es pas encore sur la liste d'attente : tu y seras inscrit automatiquement dès que le crédit sera là, sur la fiche du cours."
     },
     "waiting": {
       "title": "Paiement en cours dans le navigateur…",
       "hint": "Termine le paiement dans le navigateur puis reviens ici. Ton cours sera réservé dès que le paiement sera confirmé.",
-      "hint_manual": "Termine le paiement dans le navigateur puis reviens ici. Une fois le crédit arrivé, confirme ta réservation sur la fiche du cours."
+      "hint_manual": "Termine le paiement dans le navigateur puis reviens ici. Une fois le crédit arrivé, confirme ta réservation sur la fiche du cours.",
+      "hint_waitlist": "Termine le paiement dans le navigateur puis reviens ici. Tu seras inscrit sur la liste d'attente dès que le paiement sera confirmé."
     },
     "unfinished": {
       "title": "Paiement non finalisé ?",
       "hint": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — ton cours sera réservé dès qu'elle arrive.",
       "resume": "Reprendre le paiement",
-      "hint_manual": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — confirme ensuite ta réservation sur la fiche du cours."
+      "hint_manual": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — confirme ensuite ta réservation sur la fiche du cours.",
+      "hint_waitlist": "Si tu as annulé ou fermé la page, rien n'a été débité : tu peux reprendre le même paiement. Si tu viens de payer, la confirmation peut prendre quelques minutes — tu seras inscrit sur la liste d'attente dès qu'elle arrive."
     },
     "unreadable": {
       "title": "Impossible de vérifier ton paiement",
@@ -317,7 +321,11 @@
       "confirm_and_book": "Payer et réserver",
       "booking_notice": "Ton cours sera réservé dès que le paiement sera confirmé.",
       "subscribe_and_book": "S'abonner et réserver",
-      "buy_and_book": "Acheter et réserver"
+      "buy_and_book": "Acheter et réserver",
+      "confirm_and_waitlist": "Payer et rejoindre la liste d'attente",
+      "waitlist_notice": "Ce cours est complet. Dès que le paiement sera confirmé, tu seras inscrit sur sa liste d'attente. Aucun crédit n'est débité tant qu'une place ne t'est pas confirmée.",
+      "subscribe_and_waitlist": "S'abonner et rejoindre la liste d'attente",
+      "buy_and_waitlist": "Acheter et rejoindre la liste d'attente"
     }
   },
   "session": {
@@ -377,7 +385,19 @@
     "auto_booking_failed_title": "Réservation impossible",
     "auto_booking_failed_message": "Ce cours ne peut plus être réservé (il a commencé, a été annulé ou n'existe plus). Ton crédit reste entier : tu peux réserver un autre cours.",
     "auto_booking_retry_message": "La réservation n'a pas pu aboutir. Appuie sur « Confirmer ma réservation » pour réessayer.",
-    "intent_pending_message_manual": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens confirmer ta réservation dans un instant."
+    "intent_pending_message_manual": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens confirmer ta réservation dans un instant.",
+    "intent_pending_message_waitlist": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Tu n'es pas encore sur la liste d'attente : tu y seras inscrit automatiquement dès que le crédit arrive, reste sur cette fiche.",
+    "already_waitlisted": "Tu es déjà sur la liste d'attente de ce cours.",
+    "auto_waitlist_in_progress": "Ce cours est complet — on t'inscrit sur la liste d'attente…",
+    "auto_waitlist_filled": "Ce cours s'est rempli : tu es sur la liste d'attente (position {{position}}).",
+    "auto_waitlist_filled_noposition": "Ce cours s'est rempli : tu es sur la liste d'attente.",
+    "auto_waitlist_full": "Ce cours est complet : tu es sur la liste d'attente (position {{position}}).",
+    "auto_waitlist_full_noposition": "Ce cours est complet : tu es sur la liste d'attente.",
+    "auto_waitlist_delay": "Si une place se libère, tu auras {{minutes}} minutes pour confirmer.",
+    "auto_waitlist_delay_unknown": "Si une place se libère, tu seras prévenu et tu auras un délai pour confirmer.",
+    "auto_waitlist_credit": "Ton crédit reste entier.",
+    "auto_waitlist_unavailable": "La liste d'attente n'est pas disponible pour ce cours : tu n'y es pas inscrit. Ton achat reste entier, tu peux réserver un autre cours.",
+    "auto_waitlist_retry_message": "L'inscription sur la liste d'attente n'a pas pu aboutir. Appuie sur « Liste d'attente » pour réessayer."
   },
   "bookings": {
     "title": "Mes cours",
@@ -620,7 +640,10 @@
     "intent_go_to_course": "Voir mon cours",
     "intent_success_title_manual": "PAIEMENT REÇU",
     "intent_success_body_manual": "Ta place n'est pas encore prise : confirme ta réservation sur la fiche du cours dès que ton crédit apparaît.",
-    "intent_go_to_course_manual": "Confirmer ma réservation"
+    "intent_go_to_course_manual": "Confirmer ma réservation",
+    "intent_success_title_waitlist": "PAIEMENT REÇU — ON T'INSCRIT SUR LA LISTE D'ATTENTE",
+    "intent_success_body_waitlist": "L'inscription se fait sur la fiche du cours — tu y verras ta position.",
+    "intent_go_to_course_waitlist": "Voir mon cours"
   },
   "payments": {
     "title": "Historique des paiements",
@@ -798,7 +821,8 @@
     "pending_payment_resume": "Reprendre ce paiement",
     "pending_payment_abandon": "L'abandonner et continuer",
     "payment_check_failed_title": "Impossible de vérifier ton paiement",
-    "payment_check_failed_message": "Un paiement est peut-être en cours pour un cours. Vérifie ta connexion et réessaie."
+    "payment_check_failed_message": "Un paiement est peut-être en cours pour un cours. Vérifie ta connexion et réessaie.",
+    "waitlist_banner": "{{activity}} · {{when}} est complet : tu seras inscrit sur la liste d'attente dès le paiement confirmé"
   },
   "preferences": {
     "title": "Préférences",

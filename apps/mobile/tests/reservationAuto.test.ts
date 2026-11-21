@@ -9,9 +9,11 @@
 import type { BookingIntent } from '../lib/bookingIntent'
 import {
   accordPourCePaiement,
-  doitReserverAutomatiquement,
+  actionApresAchat,
+  cleSelonAccord,
   issueEchecReservation,
   reserverUneFois,
+  varianteTexteAccord,
   type EntreeReservationAuto,
 } from '../lib/reservationAuto'
 
@@ -42,7 +44,9 @@ const base: EntreeReservationAuto = {
   ecranVisible: true,
   maintenant: MAINTENANT,
 }
-const decide = (patch: Partial<EntreeReservationAuto>) => doitReserverAutomatiquement({ ...base, ...patch })
+const action = (patch: Partial<EntreeReservationAuto>) => actionApresAchat({ ...base, ...patch })
+// « La fiche appelle-t-elle le serveur d'elle-même ? » — réservation OU liste d'attente.
+const decide = (patch: Partial<EntreeReservationAuto>) => action(patch) !== 'rien'
 
 console.log('\nCAS 1 — intention valide, accord, paiement payé, droit présent, jamais tenté → on réserve')
 check('séance à l\'unité → true', decide({}) === true)
@@ -67,8 +71,54 @@ check('déjà inscrit → false', decide({ dejaInscrit: true }) === false)
 // h) deux fiches ouvertes : seule celle au premier plan déclenche.
 check('fiche pas au premier plan → false', decide({ ecranVisible: false }) === false)
 
-console.log('\nCAS 3 — cours complet : JAMAIS d\'appel (le serveur inscrirait en liste d\'attente)')
-check('complet → false', decide({ coursComplet: true }) === false)
+console.log('\nCAS 3 — cours complet (décision du 21/11) : l\'achat inscrit en liste d\'attente')
+const intentListe: BookingIntent = { ...intent, accordContexte: 'waitlist' }
+check('place libre + accord → réserver', action({}) === 'reserver', action({}))
+// e) la place a été prise PENDANT le paiement : accord « Payer et réserver », cours plein.
+check('complet + accord → liste d\'attente', action({ coursComplet: true }) === 'liste_attente', action({ coursComplet: true }))
+// 🔴 Sans accord, rien ne part : la liste d'attente reste le geste du membre.
+check(
+  'complet sans accord → rien',
+  action({ coursComplet: true, intent: { ...intent, accordReservation: undefined } }) === 'rien',
+)
+// k) cours DÉJÀ complet au départ : accord « Payer et rejoindre la liste d'attente ».
+check(
+  'contexte waitlist + accord → liste d\'attente',
+  action({ coursComplet: true, intent: intentListe }) === 'liste_attente',
+)
+// La place s'est libérée entre-temps : même appel, le serveur réservera — et c'est SA
+// réponse qui est affichée (« Cours réservé ✅ »).
+check(
+  'contexte waitlist + accord, place libérée → réserver',
+  action({ coursComplet: false, intent: intentListe }) === 'reserver',
+)
+// l) même chose avec un abonnement pris depuis l'écran Abonnement.
+check(
+  'abonnement, contexte waitlist + accord → liste d\'attente',
+  action({
+    coursComplet: true,
+    intent: { ...intentListe, paymentId: 'tr_sub' },
+    statutPaiement: { paymentId: 'tr_sub', statut: 'paid' },
+  }) === 'liste_attente',
+)
+check('déjà en liste d\'attente → pas de doublon', action({ coursComplet: true, dejaInscrit: true }) === 'rien')
+check('déjà en liste d\'attente, contexte waitlist → pas de doublon', action({ coursComplet: true, dejaInscrit: true, intent: intentListe }) === 'rien')
+check('complet, appel déjà tenté → rien', action({ coursComplet: true, dejaTente: true }) === 'rien')
+check('complet, paiement pas encore payé → rien', action({ coursComplet: true, statutPaiement: { paymentId: 'tr_123', statut: 'open' } }) === 'rien')
+check('complet, accord d\'un AUTRE paiement → rien', action({ coursComplet: true, statutPaiement: { paymentId: 'tr_autre', statut: 'paid' } }) === 'rien')
+check('complet, droit absent → rien', action({ coursComplet: true, droitPresent: false }) === 'rien')
+check('complet, cours commencé → rien', action({ coursComplet: true, maintenant: Date.parse('2026-11-09T18:05:00Z') }) === 'rien')
+check('complet, fiche pas au premier plan → rien', action({ coursComplet: true, ecranVisible: false }) === 'rien')
+
+console.log('\nCAS 3b — les textes ne promettent que sous l\'accord de CE paiement')
+check('accord « réserver » → promesse de réservation', varianteTexteAccord(intent) === 'reservation')
+check('accord « liste d\'attente » → promesse d\'inscription', varianteTexteAccord(intentListe) === 'liste_attente')
+check('sans accord → aucune promesse', varianteTexteAccord({ ...intentListe, accordReservation: undefined }) === 'manuel')
+check('accord « liste d\'attente », AUTRE paiement → aucune promesse', varianteTexteAccord(intentListe, 'tr_autre') === 'manuel')
+check('sans intention → aucune promesse', varianteTexteAccord(null) === 'manuel')
+check('clé : réservation', cleSelonAccord('x.hint', 'reservation') === 'x.hint')
+check('clé : liste d\'attente', cleSelonAccord('x.hint', 'liste_attente') === 'x.hint_waitlist')
+check('clé : manuel', cleSelonAccord('x.hint', 'manuel') === 'x.hint_manual')
 
 console.log('\nCAS 4 — intention périmée')
 check('cours commencé → false', decide({ maintenant: Date.parse('2026-11-09T18:05:00Z') }) === false)
@@ -77,7 +127,7 @@ check(
   decide({ intent: { ...intent, startsAt: '2026-11-20T18:00:00Z', createdAt: MAINTENANT - 25 * 60 * 60 * 1000 } }) === false,
 )
 
-console.log('\nCAS 4b — achat SANS accord (Profil → Abonnement ouvert sans cours, ou cours complet)')
+console.log('\nCAS 4b — achat SANS accord (Profil → Abonnement ouvert sans cours)')
 // 🔴 Ce serait la réservation silencieuse de GYM-352 : le bouton manuel reste.
 check('sans accord → false', decide({ intent: { ...intent, accordReservation: undefined } }) === false)
 check('sans accord → aucun texte de promesse', accordPourCePaiement({ ...intent, accordReservation: undefined }) === false)
@@ -112,6 +162,7 @@ for (const [code, attendu] of [
   ['ALREADY_BOOKED', 'deja_inscrit'],
   ['ALREADY_WAITLISTED', 'deja_inscrit'],
   ['PAYMENT_REQUIRED', 'credit_en_route'],
+  ['WAITLIST_DISABLED', 'liste_indisponible'],
   ['NETWORK_OFFLINE', 'reessayable'],
   ['SUSPENDED', 'reessayable'],
   ['MAX_BOOKINGS_REACHED', 'reessayable'],

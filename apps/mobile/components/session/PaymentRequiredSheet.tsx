@@ -18,6 +18,7 @@ import { useGymPlans } from '../../hooks/useGymPlans'
 import { PurchaseConsentBody } from '../payments/PurchaseConsentSheet'
 import { attacherPaiementBookingIntent } from '../../lib/bookingIntent'
 import { lireStatutPaiement } from '../../lib/paymentLookup'
+import { cleSelonAccord, type VarianteTexte } from '../../lib/reservationAuto'
 import { issueAuPremierPlan, issueFinAttente } from '../../lib/paymentStatus'
 import {
   formatPrice,
@@ -39,7 +40,7 @@ interface PaymentRequiredSheetProps {
    * il rouvre la feuille. Tant qu'il n'est pas MORT (failed / canceled / expired), la feuille
    * ne propose AUCUN nouveau paiement : elle propose de reprendre celui-là.
    */
-  paiementPrecedent?: { paymentId: string; checkoutUrl?: string; accord: boolean } | null
+  paiementPrecedent?: { paymentId: string; checkoutUrl?: string; accord: boolean; contexte?: 'book' | 'waitlist' } | null
 }
 
 export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book', paiementPrecedent = null }: PaymentRequiredSheetProps) {
@@ -68,6 +69,13 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // sans accord, les textes disent « confirme ta réservation sur la fiche du cours ».
   // ⚠️ UN `ref` : la boucle (`setInterval`) le relit à son dernier tour, longtemps après.
   const accordRef = useRef(false)
+  // 🔴 GYM-379 (21/11) — L'ACCORD VAUT AUSSI SUR UN COURS COMPLET : « Payer et rejoindre la
+  // liste d'attente ». Ce `ref` retient SOUS QUEL LIBELLÉ l'accord a été donné, pour que les
+  // textes d'attente promettent la bonne chose (une réservation, ou une inscription sur la
+  // liste) — et rien du tout sans accord.
+  const contexteAccordRef = useRef<'book' | 'waitlist'>('book')
+  const variante = (): VarianteTexte =>
+    !accordRef.current ? 'manuel' : contexteAccordRef.current === 'waitlist' ? 'liste_attente' : 'reservation'
   // 🔴 GYM-379 (relecture) — L'ÉCOUTE DU RETOUR EST POSÉE AVANT `openCheckout`. Posée après
   // (quand l'étape `waiting` s'affichait), elle ratait sur Android l'événement `active`
   // parti pendant que le JS reprenait : le membre revenait sur une attente muette.
@@ -193,6 +201,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       paymentIdRef.current = paiementPrecedent.paymentId
       checkoutUrlRef.current = paiementPrecedent.checkoutUrl ?? null
       accordRef.current = paiementPrecedent.accord
+      contexteAccordRef.current = paiementPrecedent.contexte === 'waitlist' ? 'waitlist' : 'book'
     }
     if (!paymentIdRef.current) { setStep('options'); return }
     const lecture = { vivant: true }
@@ -204,11 +213,14 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   // GYM-94 QA — les CTA abonnement/carnet ouvrent la page des FORMULES, pas l'historique.
   // GYM-379 (09/11) — DEPUIS UN COURS, l'écran des formules le SAIT (`depuis_cours`) : il
   // annonce la réservation et ses boutons deviennent « S'abonner et réserver » / « Acheter et
-  // réserver ». Sur un cours COMPLET, pas de paramètre : rien ne se réserve d'office.
+  // réserver ».
+  // 🔴 GYM-379 (21/11) — ET DEPUIS UN COURS COMPLET AUSSI : l'écran annonce l'inscription en
+  // liste d'attente (« S'abonner et rejoindre la liste d'attente »). `complet` dit sous quel
+  // libellé le membre est parti ; l'écran relit lui-même le créneau.
   const goToSubscription = () => {
     onClose()
-    router.push(context === 'book' && slotId
-      ? { pathname: '/profile/subscription', params: { depuis_cours: slotId } }
+    router.push(slotId
+      ? { pathname: '/profile/subscription', params: context === 'waitlist' ? { depuis_cours: slotId, complet: '1' } : { depuis_cours: slotId } }
       : '/profile/subscription')
   }
 
@@ -302,7 +314,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
         }
         if (issue === 'paye') {
           setStep('waiting')
-          setDropInError(t(accordRef.current ? 'payment_required.errors.not_confirmed' : 'payment_required.errors.not_confirmed_manual'))
+          setDropInError(t(cleSelonAccord('payment_required.errors.not_confirmed', variante())))
           return
         }
         // GYM-379 (passe finale) — illisible : on ne propose pas de reprendre l'inconnu.
@@ -347,7 +359,9 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
     annuleRef.current = false
     paymentIdRef.current = null
     checkoutUrlRef.current = null
-    accordRef.current = context === 'book'
+    // GYM-379 (21/11) — le CTA dit ce qui suivra dans LES DEUX contextes : c'est un accord.
+    accordRef.current = true
+    contexteAccordRef.current = context
     setIsLoadingDropIn(true)
     setDropInError(null)
     try {
@@ -375,13 +389,18 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
       // 🔴 GYM-374 — LE PAIEMENT EST RATTACHÉ À L'INTENTION AVANT QUE LE MEMBRE PARTE.
       // `await` : quelques millisecondes de disque, et la garantie qu'au retour la fiche du
       // cours sait QUEL paiement interroger — sans lui, elle ne peut que deviner.
-      // GYM-379 — et l'ACCORD du membre : il vient de taper « Payer et réserver ». Sur un
-      // cours complet (`waitlist`), le CTA ne promet pas de réservation : pas d'accord.
+      // GYM-379 — et l'ACCORD du membre : il vient de taper « Payer et réserver » — ou, sur
+      // un cours complet (`waitlist`), « Payer et rejoindre la liste d'attente » (21/11).
       // ⚠️ ET L'URL DU CHECKOUT : « Reprendre le paiement » doit pouvoir rouvrir CE paiement
       // même après que l'app a été tuée — sinon la seule reprise serait un second paiement.
-      await attacherPaiementBookingIntent(result.paymentId, {
-        accordReservation: context === 'book',
+      // ⚠️ `accordRef` SUIT CE QUI A ÉTÉ RÉELLEMENT ÉCRIT : si l'accord n'a pas pu être posé
+      // (intention disparue ou portant sur un autre cours), les textes ne promettent rien.
+      accordRef.current = await attacherPaiementBookingIntent(result.paymentId, {
+        accordReservation: true,
+        contexte: context,
         checkoutUrl: result.checkoutUrl,
+        // L'accord n'est posé que si l'intention porte encore sur le cours de cette feuille.
+        pourCreneau: slotId,
       })
       paymentIdRef.current = result.paymentId ?? null
       checkoutUrlRef.current = result.checkoutUrl
@@ -509,10 +528,11 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
   }
 
   // GYM-379 — le cours est réservé dès le paiement confirmé : c'est ce que le CTA et la
-  // phrase disent, et ce que la fiche fait (lib/reservationAuto.ts). Sur un cours COMPLET
-  // (`waitlist`), la fiche ne réserve pas d'elle-même — la liste d'attente reste un second
-  // geste (GYM-352) — donc le libellé d'origine reste.
-  const reserveApresPaiement = context === 'book'
+  // phrase disent, et ce que la fiche fait (lib/reservationAuto.ts).
+  // 🔴 21/11 — SUR UN COURS COMPLET (`waitlist`), LE CTA DEVIENT « PAYER ET REJOINDRE LA
+  // LISTE D'ATTENTE » et la phrase de consentement le dit explicitement : inscription dès le
+  // paiement confirmé, aucun crédit débité tant qu'une place n'est pas confirmée.
+  const surListeAttente = context === 'waitlist'
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={fermer}>
@@ -559,7 +579,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 {t('payment_required.unfinished.title')}
               </Text>
               <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
-                {t(accordRef.current ? 'payment_required.unfinished.hint' : 'payment_required.unfinished.hint_manual')}
+                {t(cleSelonAccord('payment_required.unfinished.hint', variante()))}
               </Text>
               {dropInError && (
                 <Text className="mt-3 text-center font-dmsans text-sm" style={{ color: SEMANTIC.danger }}>{dropInError}</Text>
@@ -592,7 +612,7 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 {t('payment_required.waiting.title')}
               </Text>
               <Text className="mt-2 text-center font-dmsans text-sm leading-relaxed" style={{ color: tokens.onBackgroundMuted }}>
-                {t(accordRef.current ? 'payment_required.waiting.hint' : 'payment_required.waiting.hint_manual')}
+                {t(cleSelonAccord('payment_required.waiting.hint', variante()))}
               </Text>
               {dropInError && (
                 <Text className="mt-3 text-center font-dmsans text-sm" style={{ color: tokens.onSurface }}>{dropInError}</Text>
@@ -612,8 +632,8 @@ export function PaymentRequiredSheet({ visible, slotId, onClose, context = 'book
                 billingType: dropInPlan.billingType,
               }}
               busy={isLoadingDropIn}
-              confirmLabel={reserveApresPaiement ? t('payment_required.consent.confirm_and_book') : undefined}
-              notice={reserveApresPaiement ? t('payment_required.consent.booking_notice') : undefined}
+              confirmLabel={t(surListeAttente ? 'payment_required.consent.confirm_and_waitlist' : 'payment_required.consent.confirm_and_book')}
+              notice={t(surListeAttente ? 'payment_required.consent.waitlist_notice' : 'payment_required.consent.booking_notice')}
               onCancel={() => setStep('options')}
               onConfirm={runDropIn}
             />

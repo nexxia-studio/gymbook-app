@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
 import { supabase } from '../../lib/supabase'
 import { lireBookingIntent, effacerBookingIntent, type BookingIntent } from '../../lib/bookingIntent'
-import { accordPourCePaiement } from '../../lib/reservationAuto'
+import { accordPourCePaiement, cleSelonAccord, varianteTexteAccord, type VarianteTexte } from '../../lib/reservationAuto'
 import { captureEvent } from '../../lib/analytics'
 import { TERMINAL_FAILURE } from '../../lib/paymentStatus'
 import { lireOriginePaiement, effacerOriginePaiement } from '../../lib/paymentOrigin'
@@ -113,7 +113,8 @@ function DropInRetryScreen({ slotId, rowId }: { slotId: string; rowId?: string }
   const [status, setStatus] = useState<DropInStatus>('polling')
   // GYM-379 (relecture) — le paiement porte-t-il l'accord du membre (« Payer et réserver ») ?
   // Seule condition sous laquelle cet écran annonce « on réserve ton cours ».
-  const [accord, setAccord] = useState(false)
+  // GYM-379 (21/11) — et sous quel libellé : réservation, ou inscription en liste d'attente.
+  const [accord, setAccord] = useState<VarianteTexte>('manuel')
   const ranRef = useRef(false)
 
   useEffect(() => {
@@ -150,7 +151,7 @@ function DropInRetryScreen({ slotId, rowId }: { slotId: string; rowId?: string }
           : null
         if (ligne?.status === 'paid') {
           if (!vivant) return
-          setAccord(accordPourCePaiement(intent, ligne.mollie_payment_id ?? mollieId))
+          setAccord(varianteTexteAccord(intent, ligne.mollie_payment_id ?? mollieId))
           setStatus('success')
           await sleep(1200)
           if (vivant) allerAuCours()
@@ -205,7 +206,7 @@ function DropInRetryScreen({ slotId, rowId }: { slotId: string; rowId?: string }
               {t('payment_drop_in_retry.success_title')}
             </Text>
             <Text className="font-dmsans text-sm text-center" style={{ color: tokens.onBackground + '99' }}>
-              {t(accord ? 'payment_drop_in_retry.success_sub' : 'payment_drop_in_retry.success_sub_manual')}
+              {t(cleSelonAccord('payment_drop_in_retry.success_sub', accord))}
             </Text>
           </>
         )}
@@ -289,8 +290,9 @@ function ClassicPaymentScreen({
   // Pas de clé dans l'URL : on attend d'avoir lu l'intention avant de conclure `unknown`.
   const cleTranchee = !!rowId || !!mollieId || intentionLue
   // GYM-379 — les textes « on réserve ton cours » ne valent que pour l'accord de CE paiement.
-  const accordIci = accordPourCePaiement(intention, payment?.mollie_payment_id ?? mollieCle ?? null)
-  const cleTexte = (base: string) => (accordIci ? base : `${base}_manual`)
+  // 21/11 — et « on t'inscrit sur la liste d'attente » pour un accord donné sur un cours complet.
+  const accordIci = varianteTexteAccord(intention, payment?.mollie_payment_id ?? mollieCle ?? null)
+  const cleTexte = (base: string) => cleSelonAccord(base, accordIci)
   // 🔴 GYM-373 — L'ÉCRAN D'ORIGINE, LU HORS NAVIGATION. `returnTo` arrive par les
   // paramètres, et le lien universel de retour les ÉCRASE (app/dopamine/payment-success.tsx
   // ne transmet que id/source/slot_id). L'origine posée par `openCheckout` survit, elle.

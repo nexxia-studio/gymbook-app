@@ -6,6 +6,8 @@ import { ACTIVE_SUBSCRIPTION_STATUSES, isSubscriptionActive } from '../lib/subsc
 
 export interface SubscriptionSummary {
   isActive: boolean
+  /** GYM-379 (21/11) — un abonnement actif couvre la réservation : aucun crédit n'est en jeu. */
+  hasSubscription: boolean
   detail: string | null
 }
 
@@ -31,7 +33,7 @@ function formatShortDate(iso: string | null): string | null {
 export function useSubscriptionSummary() {
   const gymId = useActiveGymId()
   const { t } = useTranslation()
-  const [summary, setSummary] = useState<SubscriptionSummary>({ isActive: false, detail: null })
+  const [summary, setSummary] = useState<SubscriptionSummary>({ isActive: false, hasSubscription: false, detail: null })
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -91,6 +93,7 @@ export function useSubscriptionSummary() {
 
     setSummary({
       isActive: hasSubscription || hasCredits,
+      hasSubscription,
       // Formulation neutre quand il n'y a rien : « aucun abonnement » était faux pour
       // qui détient des crédits, et brutal pour qui n'a simplement encore rien pris.
       detail: parts.length > 0 ? parts.join(' · ') : null,
