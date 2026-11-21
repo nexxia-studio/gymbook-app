@@ -16,6 +16,10 @@
 // diverger. (`bookingIntent.ts` se charge sous `tsx` : AsyncStorage n'est pas appelé à
 // l'import.)
 import { estValide, porteSurCeCreneau, type BookingIntent } from './bookingIntent'
+//
+// 🔴 GYM-379 (21/11) — ET, SUR UN COURS COMPLET, ELLE INSCRIT EN LISTE D'ATTENTE. Décision
+// produit d'Antoine : l'achat fait depuis un cours déclenche l'action commencée, sans geste
+// supplémentaire. Même appel serveur, même garde anti-double, même accord.
 
 /**
  * Le statut LU EN BASE pour un paiement donné (`payments.status`, via `lireStatutPaiement`).
@@ -50,10 +54,15 @@ export interface EntreeReservationAuto {
   /**
    * Le cours est complet, d'après la dernière lecture.
    *
-   * 🔴 HORS DU CADRAGE, MAIS IMPOSÉ PAR LE SERVEUR : sur un créneau plein, `create-booking`
-   * ne refuse pas — il INSCRIT EN LISTE D'ATTENTE (`create_booking_atomic` → 'full' →
-   * `waitlist_join_atomic`). Appeler ici, ce serait inscrire le membre sur la liste sans son
-   * geste. GYM-352 en fait un SECOND GESTE explicite : on ne l'appelle donc pas.
+   * 🔴 DÉCISION PRODUIT DU 21/11, QUI REVIENT SUR « LA LISTE D'ATTENTE EST UN SECOND GESTE »
+   * (GYM-352). L'achat déclenche l'action que le membre avait commencée : place libre →
+   * réservation ; cours complet → liste d'attente. Sur un créneau plein, `create-booking`
+   * INSCRIT EN LISTE D'ATTENTE (`create_booking_atomic` → 'full' → `waitlist_join_atomic`),
+   * SANS AUCUN DÉBIT : le crédit n'est débité qu'à la confirmation d'une place libérée
+   * (confirm-waitlist). C'est le MÊME appel que le bouton « Liste d'attente ».
+   *
+   * ⚠️ Ce champ ne décide donc plus SI on appelle, seulement CE QU'ON ANNONCE pendant
+   * l'appel. Le résultat affiché, lui, vient toujours de la réponse du serveur.
    */
   coursComplet: boolean
   /** Le membre est déjà inscrit (confirmé ou en attente) sur ce créneau. */
@@ -70,9 +79,9 @@ export interface EntreeReservationAuto {
  * L'intention porte-t-elle l'ACCORD du membre pour CE paiement ?
  *
  * C'est la seule question que posent les TEXTES : tout texte qui annonce une réservation
- * automatique s'affiche sous cette condition, et sous elle seule. Sans accord — achat parti
- * d'ailleurs, cours complet (liste d'attente), ancien paiement — le texte dit « confirme ta
- * réservation sur la fiche du cours », sans promesse.
+ * ou une inscription en liste d'attente automatique s'affiche sous cette condition, et sous
+ * elle seule. Sans accord — achat parti d'ailleurs, ancien paiement — le texte dit « confirme
+ * ta réservation sur la fiche du cours », sans promesse.
  *
  * @param paymentId le paiement dont parle l'écran ; absent = celui de l'intention.
  */
@@ -81,19 +90,52 @@ export function accordPourCePaiement(intent: BookingIntent | null, paymentId?: s
   return paymentId == null || paymentId === intent.paymentId
 }
 
-/** La fiche doit-elle appeler `createBooking(slotId)` maintenant, d'elle-même ? */
-export function doitReserverAutomatiquement(e: EntreeReservationAuto): boolean {
-  if (!e.ecranVisible) return false
-  if (!e.intent || !porteSurCeCreneau(e.intent, e.slotId)) return false
-  if (!estValide(e.intent, e.maintenant)) return false
-  // L'accord du membre (« Payer et réserver », « S'abonner et réserver »…) — pour CE paiement.
-  if (!accordPourCePaiement(e.intent)) return false
+/**
+ * GYM-379 (21/11) — QUELLE PROMESSE LES TEXTES D'ATTENTE PEUVENT-ILS FAIRE ?
+ *
+ *   · reservation   — accord donné par « Payer et réserver » ;
+ *   · liste_attente — accord donné par « Payer et rejoindre la liste d'attente » ;
+ *   · manuel        — pas d'accord pour CE paiement : aucune promesse.
+ */
+export type VarianteTexte = 'reservation' | 'liste_attente' | 'manuel'
+
+export function varianteTexteAccord(intent: BookingIntent | null, paymentId?: string | null): VarianteTexte {
+  if (!accordPourCePaiement(intent, paymentId)) return 'manuel'
+  return intent?.accordContexte === 'waitlist' ? 'liste_attente' : 'reservation'
+}
+
+/** La clé i18n d'un texte de promesse : `base`, `base_waitlist` ou `base_manual`. */
+export function cleSelonAccord(base: string, variante: VarianteTexte): string {
+  if (variante === 'reservation') return base
+  return variante === 'liste_attente' ? `${base}_waitlist` : `${base}_manual`
+}
+
+/**
+ * Ce que la fiche fait d'elle-même après l'achat :
+ *   · reserver      — elle appelle `createBooking(slotId)` : une place est libre ;
+ *   · liste_attente — elle appelle LE MÊME `createBooking(slotId)` : le cours est complet,
+ *                     le serveur inscrira en liste d'attente (aucun débit) ;
+ *   · rien          — aucun appel.
+ *
+ * ⚠️ `reserver` ET `liste_attente` SONT LE MÊME APPEL. La distinction ne sert qu'à dire au
+ * membre ce qui se passe PENDANT l'appel ; ce qui s'est passé, c'est le serveur qui le dit.
+ */
+export type ActionApresAchat = 'reserver' | 'liste_attente' | 'rien'
+
+export function actionApresAchat(e: EntreeReservationAuto): ActionApresAchat {
+  if (!e.ecranVisible) return 'rien'
+  if (!e.intent || !porteSurCeCreneau(e.intent, e.slotId)) return 'rien'
+  if (!estValide(e.intent, e.maintenant)) return 'rien'
+  // L'accord du membre (« Payer et réserver », « Payer et rejoindre la liste d'attente »,
+  // « S'abonner et réserver »…) — pour CE paiement.
+  if (!accordPourCePaiement(e.intent)) return 'rien'
   // ⚠️ ET CE PAIEMENT EST PAYÉ, LU EN BASE. Un statut lu pour un autre paiement ne compte pas.
-  if (!e.statutPaiement || e.statutPaiement.paymentId !== e.intent.paymentId) return false
-  if (e.statutPaiement.statut !== 'paid') return false
-  if (!e.droitPresent) return false
-  if (e.dejaTente || e.coursComplet || e.dejaInscrit) return false
-  return true
+  if (!e.statutPaiement || e.statutPaiement.paymentId !== e.intent.paymentId) return 'rien'
+  if (e.statutPaiement.statut !== 'paid') return 'rien'
+  if (!e.droitPresent) return 'rien'
+  // Déjà inscrit — confirmé OU en liste d'attente : jamais de doublon.
+  if (e.dejaTente || e.dejaInscrit) return 'rien'
+  return e.coursComplet ? 'liste_attente' : 'reserver'
 }
 
 // ╔═══════════════════════════════════════════════════════════════════════════════════════╗
@@ -130,6 +172,12 @@ export function reserverUneFois<T>(
  *   · credit_en_route — PAYMENT_REQUIRED : le droit vu par l'app n'est pas encore vu par le
  *                       serveur. L'intention est GARDÉE, la fiche réessaiera quand le droit
  *                       réapparaîtra.
+ *   · liste_indisponible — le serveur refuse la liste d'attente pour ce cours. Aucune
+ *                       inscription, aucun débit ; l'intention est effacée.
+ *                       ⚠️ AUCUN CODE DE CE GENRE N'EST ÉMIS AUJOURD'HUI par `create-booking`
+ *                       (pas de réglage « liste d'attente désactivée » en base au 21/11) :
+ *                       la branche existe pour qu'un tel refus, le jour où il arrive, soit
+ *                       dit honnêtement au lieu de tomber dans « réessaie ».
  *   · reessayable     — tout le reste (hors ligne, suspension, limite atteinte, erreur
  *                       serveur, code inconnu). L'intention est GARDÉE et le bouton manuel
  *                       « Confirmer ma réservation » reste le secours.
@@ -137,14 +185,16 @@ export function reserverUneFois<T>(
  * ⚠️ L'INCONNU EST RÉESSAYABLE, JAMAIS DÉFINITIF : effacer l'intention d'un membre qui a
  * payé sur un code qu'on ne connaît pas, c'est lui faire perdre son cours.
  */
-export type IssueEchecReservation = 'definitif' | 'deja_inscrit' | 'credit_en_route' | 'reessayable'
+export type IssueEchecReservation = 'definitif' | 'deja_inscrit' | 'credit_en_route' | 'liste_indisponible' | 'reessayable'
 
 const DEFINITIFS = new Set(['SLOT_PAST', 'SLOT_CANCELLED', 'SLOT_NOT_FOUND', 'WRONG_GYM'])
 const DEJA_INSCRIT = new Set(['ALREADY_BOOKED', 'ALREADY_WAITLISTED'])
+const LISTE_INDISPONIBLE = new Set(['WAITLIST_DISABLED'])
 
 export function issueEchecReservation(code: string | undefined): IssueEchecReservation {
   if (code === 'PAYMENT_REQUIRED') return 'credit_en_route'
   if (code && DEJA_INSCRIT.has(code)) return 'deja_inscrit'
   if (code && DEFINITIFS.has(code)) return 'definitif'
+  if (code && LISTE_INDISPONIBLE.has(code)) return 'liste_indisponible'
   return 'reessayable'
 }

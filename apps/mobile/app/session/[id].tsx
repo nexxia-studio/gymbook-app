@@ -43,9 +43,10 @@ import {
 // GYM-379 (09/11) — « Payer et réserver » : la décision de réserver d'office, pure et testée.
 import {
   accordPourCePaiement,
-  doitReserverAutomatiquement,
+  actionApresAchat,
   issueEchecReservation,
   reserverUneFois,
+  type ActionApresAchat,
   type StatutLu,
 } from '../../lib/reservationAuto'
 // GYM-374 — au retour, on décide sur le statut RÉEL du paiement, plus sur la présence de
@@ -142,13 +143,17 @@ export default function SessionDetail() {
   const tentativeRef = useRef<string | null>(null)
   const [reservationAutoEnCours, setReservationAutoEnCours] = useState(false)
   const [reserveeAutomatiquement, setReserveeAutomatiquement] = useState(false)
+  // 🔴 GYM-379 (21/11) — ce que l'appel automatique est en train de faire (texte d'attente),
+  // et l'inscription en liste d'attente que le SERVEUR vient de rendre (texte de résultat).
+  const [actionEnCours, setActionEnCours] = useState<ActionApresAchat>('rien')
+  const [inscriteAutomatiquement, setInscriteAutomatiquement] = useState<{ position: number | null; contexte: 'book' | 'waitlist' } | null>(null)
   const [ecranVisible, setEcranVisible] = useState(false)
   // 🔴 GYM-379 (relecture) — le statut LU EN BASE du paiement de l'intention. L'accord ne
   // s'exécute que sur CE paiement `paid` : un droit venu d'ailleurs ne réserve jamais.
   const [statutPaiement, setStatutPaiement] = useState<StatutLu | null>(null)
   // GYM-379 — le paiement précédent, transmis à la feuille quand le membre reprend son
   // achat : tant qu'il vit (`open`), elle propose de le REPRENDRE, jamais d'en créer un autre.
-  const [paiementPrecedent, setPaiementPrecedent] = useState<{ paymentId: string; checkoutUrl?: string; accord: boolean } | null>(null)
+  const [paiementPrecedent, setPaiementPrecedent] = useState<{ paymentId: string; checkoutUrl?: string; accord: boolean; contexte?: 'book' | 'waitlist' } | null>(null)
   const { summary: droitsMembre, refresh: rafraichirDroits } = useSubscriptionSummary()
   const [suspensionModal, setSuspensionModal] = useState<{ visible: boolean; until: string | null }>({ visible: false, until: null })
   const [bookingState, setBookingState] = useState<'available' | 'confirmed' | 'waitlisted'>('available')
@@ -394,7 +399,7 @@ export default function SessionDetail() {
     const avant = await lireBookingIntent()
     const precedent = porteSurCeCreneau(avant, slotId) && avant?.paymentId ? avant : null
     setPaiementPrecedent(precedent?.paymentId
-      ? { paymentId: precedent.paymentId, checkoutUrl: precedent.checkoutUrl, accord: accordPourCePaiement(precedent) }
+      ? { paymentId: precedent.paymentId, checkoutUrl: precedent.checkoutUrl, accord: accordPourCePaiement(precedent), contexte: precedent.accordContexte }
       : null)
     if (precedent) {
       setIntention(precedent)
@@ -482,8 +487,11 @@ export default function SessionDetail() {
           // `paid` — le crédit arrive VRAIMENT. Le message d'origine est vrai : inchangé.
           // L'intention est CONSERVÉE : elle n'a pas été honorée, le membre va réessayer.
           if (issue === 'paye') {
-            // GYM-379 — la réservation automatique n'est annoncée que sous l'accord de CE paiement.
-            Alert.alert(t('session.intent_pending_title'), t(accordPourCePaiement(enCours) ? 'session.intent_pending_message' : 'session.intent_pending_message_manual'))
+            // GYM-379 — la réservation automatique n'est annoncée que sous l'accord de CE
+            // paiement ; sur un cours complet, c'est l'inscription en liste d'attente qui l'est.
+            Alert.alert(t('session.intent_pending_title'), t(!accordPourCePaiement(enCours)
+              ? 'session.intent_pending_message_manual'
+              : isFull ? 'session.intent_pending_message_waitlist' : 'session.intent_pending_message'))
             rafraichirDroits()
             return
           }
@@ -535,6 +543,10 @@ export default function SessionDetail() {
     if (result.status === 'error') return // generic error, logged in store
 
     if (result.status === 'waitlisted') {
+      // GYM-379 (21/11) — le membre est sur la liste : l'intention a rempli son office. La
+      // laisser vivre afficherait encore « tu peux t'inscrire sur la liste d'attente ».
+      void effacerBookingIntent()
+      setIntention(null)
       setWaitlistPosition(result.position ?? 1)
       setBookingState('waitlisted')
       setBookingModalVisible(true)
@@ -550,7 +562,7 @@ export default function SessionDetail() {
     setBookedCount((c) => c + 1)
     setBookingState('confirmed')
     setBookingModalVisible(true)
-  }, [slotId, createBooking, intentionArmee, rafraichirDroits, reprendreAchat, t])
+  }, [slotId, createBooking, intentionArmee, isFull, rafraichirDroits, reprendreAchat, t])
 
   // ╔═══════════════════════════════════════════════════════════════════════════════════╗
   // ║  🔴 GYM-379 (09/11) — « PAYER ET RÉSERVER » : LA FICHE RÉSERVE D'ELLE-MÊME        ║
@@ -564,6 +576,14 @@ export default function SessionDetail() {
   //
   // Le bouton manuel « Confirmer ma réservation » reste : c'est le secours quand l'appel
   // n'a pas pu partir (hors ligne, erreur serveur).
+  //
+  // 🔴 DÉCISION PRODUIT DU 21/11 — ET SUR UN COURS COMPLET, LE MÊME APPEL INSCRIT EN LISTE
+  // D'ATTENTE. L'achat déclenche l'action que le membre avait commencée, sans geste de plus :
+  // place libre → réservation ; complet → liste d'attente (aucun débit : le crédit n'est
+  // débité qu'à la confirmation d'une place libérée). La liste d'attente n'est donc plus un
+  // « second geste » quand l'accord est là. Ce qui est AFFICHÉ vient de la réponse du
+  // serveur, jamais de ce que l'écran croyait : parti pour la liste d'attente, le membre
+  // peut se retrouver RÉSERVÉ si une place s'est libérée entre-temps, et inversement.
 
   // Relit l'intention sur le disque — c'est la feuille qui y écrit l'accord, après la pose —
   // ET le statut de son paiement, lu en base.
@@ -601,21 +621,41 @@ export default function SessionDetail() {
     setIntention(null)
     setBookingState('confirmed')
     // « Cours réservé ✅ » — dit en clair, pas seulement par le changement du bouton.
+    setInscriteAutomatiquement(null)
+    setWaitlistPosition(null)
     setReserveeAutomatiquement(true)
     setBookingModalVisible(true)
   }, [])
 
-  const reserverAutomatiquement = useCallback(async () => {
+  // GYM-379 (21/11) — LE SERVEUR A INSCRIT EN LISTE D'ATTENTE. La position est la sienne ;
+  // absente, on ne l'invente pas (le texte se passe d'elle).
+  const annoncerListeAttente = useCallback((position: number | undefined, contexte: 'book' | 'waitlist') => {
+    void effacerBookingIntent()
+    setIntention(null)
+    setBookingState('waitlisted')
+    setReserveeAutomatiquement(false)
+    setInscriteAutomatiquement({ position: typeof position === 'number' && position > 0 ? position : null, contexte })
+    setBookingModalVisible(true)
+  }, [])
+
+  const annoncerDejaEnListe = useCallback(() => {
+    void effacerBookingIntent()
+    setIntention(null)
+    setBookingState('waitlisted')
+    Alert.alert(t('session.waitlist'), t('session.already_waitlisted'))
+  }, [t])
+
+  const reserverAutomatiquement = useCallback(async (action: ActionApresAchat) => {
+    setActionEnCours(action)
     setReservationAutoEnCours(true)
     setLoading(true)
     // 🔴 GYM-379 (relecture) — UNE SEULE FICHE APPELLE, garde au niveau du MODULE. La
     // seconde instance (sous la pile, ou rouverte par le lien profond) attend la même
     // promesse, puis relit l'état réel SANS RIEN AFFICHER : c'est la première qui parle.
+    // ⚠️ LA MÊME GARDE POUR LA RÉSERVATION ET POUR LA LISTE D'ATTENTE : c'est le même appel.
     const { premier, promesse } = reserverUneFois(slotId, async () => {
       // ⚠️ RELECTURE AVANT L'APPEL : DISQUE, STATUT DU PAIEMENT ET CAPACITÉ. L'état de
-      // l'écran peut dater : le cours a pu se remplir pendant le paiement. Sur un créneau
-      // PLEIN, `create-booking` ne refuse pas, il INSCRIT EN LISTE D'ATTENTE — un geste que
-      // le membre n'a pas fait.
+      // l'écran peut dater : le cours a pu se remplir — ou se libérer — pendant le paiement.
       const intent = await lireBookingIntent()
       const statut = intent?.paymentId ? await lireStatutPaiement(intent.paymentId) : null
       const { data: frais } = await supabase
@@ -625,21 +665,25 @@ export default function SessionDetail() {
         .maybeSingle()
       const complet = !!frais && (frais.bookings_count ?? 0) >= frais.capacity
       const statutLu = intent?.paymentId ? { paymentId: intent.paymentId, statut } : null
-      if (!doitReserverAutomatiquement({
+      const contexte: 'book' | 'waitlist' = intent?.accordContexte === 'waitlist' ? 'waitlist' : 'book'
+      const decision = actionApresAchat({
         intent, slotId, droitPresent: true, statutPaiement: statutLu, dejaTente: false,
         coursComplet: complet, dejaInscrit: false, ecranVisible: true,
-      })) {
-        return { appel: false as const, intent, statutLu, frais }
+      })
+      if (decision === 'rien') {
+        return { appel: false as const, intent, statutLu, frais, contexte }
       }
+      setActionEnCours(decision)
       try {
-        return { appel: true as const, result: await createBooking(slotId), frais }
+        return { appel: true as const, result: await createBooking(slotId), frais, contexte }
       } catch {
-        return { appel: true as const, result: null, frais }
+        return { appel: true as const, result: null, frais, contexte }
       }
     })
     const issueAppel = await promesse
     setLoading(false)
     setReservationAutoEnCours(false)
+    setActionEnCours('rien')
     if (issueAppel.frais) setBookedCount(issueAppel.frais.bookings_count ?? 0)
 
     if (!premier) {
@@ -650,14 +694,16 @@ export default function SessionDetail() {
     }
 
     if (!issueAppel.appel) {
-      // Complet, paiement pas (encore) `paid`, accord absent : aucun appel. Si c'est le
-      // cours plein, la ligne « liste d'attente, ton crédit reste entier » s'affiche, et la
-      // liste reste un SECOND GESTE (GYM-352). La garde d'instance reste posée.
+      // Paiement pas (encore) `paid`, accord absent ou intention disparue : aucun appel.
+      // La garde d'instance reste posée.
       setStatutPaiement(issueAppel.statutLu)
       setIntention(porteSurCeCreneau(issueAppel.intent, slotId) ? issueAppel.intent : null)
       return
     }
 
+    // 🔴 LE RÉSULTAT AFFICHÉ EST CELUI DU SERVEUR. `confirmed` même si l'on partait pour la
+    // liste d'attente (une place s'est libérée) ; `waitlisted` même si l'on partait pour
+    // réserver (la place a été prise pendant le paiement).
     const result = issueAppel.result
     if (result?.status === 'confirmed') {
       setBookedCount((c) => c + 1)
@@ -665,14 +711,8 @@ export default function SessionDetail() {
       return
     }
     if (result?.status === 'waitlisted') {
-      // ⚠️ COURSE RÉSIDUELLE : le cours s'est rempli ENTRE la relecture ci-dessus et
-      // l'appel. Le serveur a inscrit en liste d'attente (aucun débit). On le DIT — la
-      // modale d'attente affiche la position — plutôt que de le laisser découvrir.
-      void effacerBookingIntent()
-      setIntention(null)
-      setWaitlistPosition(result.position ?? 1)
-      setBookingState('waitlisted')
-      setBookingModalVisible(true)
+      // Aucun débit sur ce chemin (`create-booking` : le débit suit la confirmation du siège).
+      annoncerListeAttente(result.position, issueAppel.contexte)
       return
     }
 
@@ -682,18 +722,19 @@ export default function SessionDetail() {
     const existante = await lireReservationExistante()
     if (existante === 'confirmed') { annoncerReservee(); return }
     if (existante === 'waitlisted') {
-      void effacerBookingIntent()
-      setIntention(null)
-      setBookingState('waitlisted')
+      // Déjà sur la liste (appel précédent abouti, ou inscription antérieure) : aucun
+      // doublon n'a été créé — l'unicité (membre, créneau) est tenue par le serveur.
+      annoncerDejaEnListe()
       return
     }
 
     const issue = issueEchecReservation(result?.code)
     if (issue === 'deja_inscrit') {
-      // La relecture n'a rien vu, le serveur dit « déjà inscrit » : on le croit, sans message.
+      // La relecture n'a rien vu, le serveur dit « déjà inscrit » : on le croit.
+      if (result?.code === 'ALREADY_WAITLISTED') { annoncerDejaEnListe(); return }
       void effacerBookingIntent()
       setIntention(null)
-      setBookingState(result?.code === 'ALREADY_WAITLISTED' ? 'waitlisted' : 'confirmed')
+      setBookingState('confirmed')
       return
     }
     if (issue === 'definitif') {
@@ -702,6 +743,14 @@ export default function SessionDetail() {
       void effacerBookingIntent()
       setIntention(null)
       Alert.alert(t('session.auto_booking_failed_title'), t('session.auto_booking_failed_message'))
+      return
+    }
+    if (issue === 'liste_indisponible') {
+      // Le serveur refuse la liste d'attente pour ce cours : refus avant toute écriture,
+      // donc ni inscription ni débit. On le dit tel quel.
+      void effacerBookingIntent()
+      setIntention(null)
+      Alert.alert(t('session.waitlist'), t('session.auto_waitlist_unavailable'))
       return
     }
     if (issue === 'credit_en_route') {
@@ -724,27 +773,43 @@ export default function SessionDetail() {
       Alert.alert(t('common.offline_title'), t('common.offline_message'))
       return
     }
-    // ⚠️ AUCUNE AFFIRMATION SUR LE CRÉDIT : sur une erreur générique ou un délai, l'app ne
-    // sait pas ce que le serveur a fait du solde. Le message dit seulement quoi faire.
-    Alert.alert(t('common.error'), t('session.auto_booking_retry_message'))
-  }, [slotId, createBooking, rafraichirDroits, relireIntention, lireReservationExistante, annoncerReservee, t])
+    // ⚠️ AUCUNE AFFIRMATION SUR LE CRÉDIT NI SUR L'INSCRIPTION : sur une erreur générique ou
+    // un délai, l'app ne sait pas ce que le serveur a fait. Le message dit seulement quoi faire.
+    Alert.alert(t('common.error'), t(issueAppel.frais && (issueAppel.frais.bookings_count ?? 0) >= issueAppel.frais.capacity
+      ? 'session.auto_waitlist_retry_message'
+      : 'session.auto_booking_retry_message'))
+  }, [slotId, createBooking, rafraichirDroits, relireIntention, lireReservationExistante, annoncerReservee, annoncerListeAttente, annoncerDejaEnListe, t])
 
   // LE DÉCLENCHEUR UNIQUE. Il voit passer tous les chemins : le droit qui apparaît (poll de
   // la feuille → `onClose` → relecture), l'intention relue à la reprise de l'écran, etc.
   useEffect(() => {
-    if (!doitReserverAutomatiquement({
+    const action = actionApresAchat({
       intent: intention,
       slotId,
       droitPresent: droitsMembre.isActive,
       statutPaiement,
       dejaTente: tentativeRef.current === slotId,
+      // GYM-379 (21/11) — complet n'empêche plus l'appel : il inscrit en liste d'attente.
       coursComplet: isFull,
       dejaInscrit: bookingState !== 'available',
       ecranVisible,
-    })) return
+    })
+    if (action === 'rien') return
     tentativeRef.current = slotId
-    void reserverAutomatiquement()
+    void reserverAutomatiquement(action)
   }, [intention, slotId, droitsMembre.isActive, statutPaiement, isFull, bookingState, ecranVisible, reserverAutomatiquement])
+
+  // 🔴 GYM-379 (21/11) — DÉJÀ SUR LA LISTE D'ATTENTE DE CE COURS, ET UN ACHAT PAYÉ QUI
+  // PROMETTAIT D'Y INSCRIRE. Aucun appel (`dejaInscrit`), donc aucun doublon — mais on le
+  // DIT, une fois : l'intention est effacée dans le même geste, l'effet ne repasse pas.
+  // ⚠️ Nos propres inscriptions n'arrivent jamais ici : elles effacent l'intention dans le
+  // même rendu que le passage à `waitlisted`.
+  useEffect(() => {
+    if (bookingState !== 'waitlisted' || !ecranVisible || reservationAutoEnCours) return
+    if (!accordPourCePaiement(intention) || !porteSurCeCreneau(intention, slotId)) return
+    if (!statutPaiement || statutPaiement.paymentId !== intention?.paymentId || statutPaiement.statut !== 'paid') return
+    annoncerDejaEnListe()
+  }, [bookingState, ecranVisible, reservationAutoEnCours, intention, statutPaiement, slotId, annoncerDejaEnListe])
 
   // Le droit a disparu (ou n'est pas encore là) : la garde se libère, pour qu'un
   // PAYMENT_REQUIRED d'avant n'empêche pas l'appel quand le crédit arrivera.
@@ -1019,9 +1084,13 @@ export default function SessionDetail() {
             <Text className="font-dmsans text-xs" style={{ color: tokens.onSurface }}>
               {/* 🔴 GYM-352 — LE COURS S'EST REMPLI PENDANT LE PAIEMENT. Le membre vient
                   de payer : le renvoyer au planning lui ferait perdre le cours ET le fil.
-                  On lui propose la liste d'attente comme SECOND GESTE explicite (le bouton
-                  dit déjà « LISTE D'ATTENTE » quand `isFull`), et on lui dit les deux
-                  choses qu'il a besoin de savoir.
+                  On lui propose la liste d'attente (le bouton dit déjà « LISTE D'ATTENTE »
+                  quand `isFull`), et on lui dit les deux choses qu'il a besoin de savoir.
+
+                  🔴 GYM-379 (21/11) — AVEC L'ACCORD D'UN PAIEMENT `paid`, CE N'EST PLUS UNE
+                  PROPOSITION : la fiche l'inscrit d'elle-même (« on t'inscrit… » ci-dessous,
+                  puis le résultat du serveur). Cette phrase-ci reste celle d'un achat SANS
+                  accord, où le geste appartient encore au membre.
 
                   ⚠️ LE DÉLAI VIENT DE LA SALLE, jamais 30 en dur : `notify-waitlist` lit
                   `gym.waitlist_confirmation_minutes ?? 30`, configurable par salle. Si on
@@ -1031,13 +1100,15 @@ export default function SessionDetail() {
                   « le débit du crédit est déplacé APRÈS la confirmation du siège. Aucun
                   débit ici, ni sur le chemin waitlist ». Le membre vient de payer, il doit
                   savoir qu'il ne perd rien en s'inscrivant sur la liste. */}
-              {isFull
-                ? gym?.waitlistConfirmationMinutes
-                  ? t('session.intent_full_waitlist', { minutes: gym.waitlistConfirmationMinutes })
-                  : t('session.intent_full_waitlist_nodelay')
-                : reservationAutoEnCours
-                  // GYM-379 — l'appel automatique est en vol : on dit ce qui se passe.
-                  ? t('session.auto_booking_in_progress', { detail: droitsMembre.detail })
+              {reservationAutoEnCours
+                // GYM-379 — l'appel automatique est en vol : on dit ce qui se passe.
+                ? actionEnCours === 'liste_attente'
+                  ? t('session.auto_waitlist_in_progress')
+                  : t('session.auto_booking_in_progress', { detail: droitsMembre.detail })
+                : isFull
+                  ? gym?.waitlistConfirmationMinutes
+                    ? t('session.intent_full_waitlist', { minutes: gym.waitlistConfirmationMinutes })
+                    : t('session.intent_full_waitlist_nodelay')
                   : t('session.intent_credit_ready', { detail: droitsMembre.detail })}
             </Text>
           </View>
@@ -1146,16 +1217,32 @@ export default function SessionDetail() {
         time={time}
         waitlistPosition={waitlistPosition}
         confirmedTitle={reserveeAutomatiquement ? t('session.auto_booked_title') : undefined}
+        // 🔴 GYM-379 (21/11) — INSCRIPTION AUTOMATIQUE EN LISTE D'ATTENTE : position rendue
+        // par le serveur, délai de la SALLE (jamais 30 en dur), et « ton crédit reste
+        // entier » seulement quand c'est un crédit qui ouvre le droit — un abonné n'en a pas.
+        waitlistDetail={inscriteAutomatiquement
+          ? [
+              inscriteAutomatiquement.position
+                ? t(inscriteAutomatiquement.contexte === 'waitlist' ? 'session.auto_waitlist_full' : 'session.auto_waitlist_filled', { position: inscriteAutomatiquement.position })
+                : t(inscriteAutomatiquement.contexte === 'waitlist' ? 'session.auto_waitlist_full_noposition' : 'session.auto_waitlist_filled_noposition'),
+              gym?.waitlistConfirmationMinutes
+                ? t('session.auto_waitlist_delay', { minutes: gym.waitlistConfirmationMinutes })
+                : t('session.auto_waitlist_delay_unknown'),
+              droitsMembre.hasSubscription ? null : t('session.auto_waitlist_credit'),
+            ].filter(Boolean).join(' ')
+          : undefined}
         onViewBookings={() => {
           setBookingModalVisible(false)
           setWaitlistPosition(null)
           setReserveeAutomatiquement(false)
+          setInscriteAutomatiquement(null)
           router.replace('/(tabs)/bookings')
         }}
         onClose={() => {
           setBookingModalVisible(false)
           setWaitlistPosition(null)
           setReserveeAutomatiquement(false)
+          setInscriteAutomatiquement(null)
         }}
       />
 

@@ -87,6 +87,16 @@ export interface BookingIntent {
    */
   accordReservation?: boolean
   /**
+   * 🔴 GYM-379 (21/11) — CE QUE LE MEMBRE A LU EN DONNANT SON ACCORD : « Payer et réserver »
+   * (`book`) ou « Payer et rejoindre la liste d'attente » (`waitlist`, cours déjà complet).
+   *
+   * ⚠️ NE SERT QU'AUX TEXTES D'ATTENTE (« ton cours sera réservé… » / « tu seras inscrit
+   * sur la liste d'attente… »). La DÉCISION, elle, ne le lit pas : l'accord couvre l'action
+   * que le membre avait commencée, et c'est le serveur qui dit, au moment de l'appel, si
+   * c'est une place ou la liste d'attente. Absent sur un accord = `book` (version antérieure).
+   */
+  accordContexte?: 'book' | 'waitlist'
+  /**
    * GYM-379 (relecture du 09/11) — l'URL du checkout Mollie de `paymentId`. C'est elle que
    * « Reprendre le paiement » rouvre, y compris après que l'app a été tuée : sans elle, la
    * seule reprise possible serait un SECOND paiement.
@@ -165,6 +175,8 @@ export async function attacherPaiementBookingIntent(
   paymentId: string | undefined,
   options: {
     accordReservation?: boolean
+    /** GYM-379 (21/11) — le libellé sous lequel l'accord est donné. Défaut : `book`. */
+    contexte?: 'book' | 'waitlist'
     checkoutUrl?: string
     /**
      * 🔴 GYM-379 (passe finale) — LE COURS QUE L'ÉCRAN ANNONÇAIT AU MOMENT DU TAP. L'accord
@@ -186,6 +198,7 @@ export async function attacherPaiementBookingIntent(
       ...intent,
       paymentId,
       accordReservation: accord || undefined,
+      accordContexte: accord ? (options.contexte ?? 'book') : undefined,
       checkoutUrl: options.checkoutUrl,
     }))
     return accord
