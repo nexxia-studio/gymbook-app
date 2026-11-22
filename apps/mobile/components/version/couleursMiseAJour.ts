@@ -4,7 +4,7 @@
 // le nom et le bouton. Il ne passe donc pas par les jetons dérivés de `resolveTheme`, mais
 // il emploie le même garde-fou (`lib/theme/contrast.ts`) : une paire illisible retombe sur
 // la paire Viniz. Sortie du composant pour être éprouvée sans rendu, comme `wordmarkInk`.
-import { parseHex, toHex, contrastRatio, SEUIL_TEXTE } from '../../lib/theme/contrast'
+import { parseHex, toHex, contrastRatio, SEUIL_TEXTE, SEUIL_SURFACE } from '../../lib/theme/contrast'
 
 /** La paire de repli : lime Viniz sur fond sombre Viniz. */
 export const PAIRE_VINIZ = { fond: '#17102E', accent: '#C8FF3D' } as const
@@ -13,6 +13,8 @@ export const PAIRE_VINIZ = { fond: '#17102E', accent: '#C8FF3D' } as const
 export const ENCRE_TITRE = '#FFFFFF'
 export const ENCRE_TEXTE = '#D6D2CC'
 export const ENCRE_PIED = '#A8A39C'
+/** Le lime porté en dur par le SVG du pulse-V. */
+export const LIME_LOGO_VINIZ = '#C8FF3D'
 
 export interface CouleursMiseAJour {
   /** Fond plein écran, et encre du bouton et de l'initiale. */
@@ -25,7 +27,8 @@ export interface CouleursMiseAJour {
 
 /**
  * Chaque couleur inconnue ou illisible est d'abord remplacée par celle de Viniz, puis la
- * paire obtenue est mesurée. Trois contrôles, tous au seuil du TEXTE (4,5:1) :
+ * paire obtenue est mesurée. Trois contrôles au seuil du TEXTE (4,5:1), un à celui des
+ * SURFACES (3:1, le logo Viniz du pied) :
  *   - accent / fond : c'est à la fois le libellé du bouton et le nom de la salle ;
  *   - titre blanc sur le fond ;
  *   - texte #D6D2CC sur le fond.
@@ -45,7 +48,9 @@ export function couleursMiseAJour(
   const lisible =
     contrastRatio(accent, fond) >= SEUIL_TEXTE &&
     contrastRatio(parseHex(ENCRE_TITRE)!, fond) >= SEUIL_TEXTE &&
-    contrastRatio(parseHex(ENCRE_TEXTE)!, fond) >= SEUIL_TEXTE
+    contrastRatio(parseHex(ENCRE_TEXTE)!, fond) >= SEUIL_TEXTE &&
+    // Le logo Viniz du pied garde son lime d'origine : une forme, donc le seuil des surfaces.
+    contrastRatio(parseHex(LIME_LOGO_VINIZ)!, fond) >= SEUIL_SURFACE
   if (!lisible) return { ...PAIRE_VINIZ, deLaSalle: false }
   return { fond: toHex(fond), accent: toHex(accent), deLaSalle: true }
 }

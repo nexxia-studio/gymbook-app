@@ -10,12 +10,19 @@ import { View, Text, Image, Pressable, ActivityIndicator, type ImageSourcePropTy
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Download } from 'lucide-react-native'
+import { SvgXml } from 'react-native-svg'
+import { VINIZ_PULSE_LINE_SVG } from '../../assets/viniz/brandSvg'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { useGymName } from '../../hooks/useGymName'
 import { GYM_MODE } from '../../lib/gymResolver'
 import {
-  ENCRE_PIED, ENCRE_TEXTE, ENCRE_TITRE, PAIRE_VINIZ, couleursMiseAJour, initialeSalle,
+  ENCRE_PIED, ENCRE_TEXTE, ENCRE_TITRE, couleursMiseAJour, initialeSalle,
 } from './couleursMiseAJour'
+
+/** Le pulse-V recadré sur l'emprise de son art (même cadrage que la barre d'onglets). */
+const PULSE_VIEWBOX = '113 240 1277 1021'
+const PULSE_H = 16
+const PULSE_W = PULSE_H * (1277 / 1021)
 
 interface Props {
   onUpdate: () => void
@@ -30,6 +37,7 @@ export function UpdateRequiredScreen({ onUpdate, opening, openFailed }: Props) {
   // Le nom de la salle s'il est connu, sinon celui de l'app (repli de `useGymName`).
   const nom = useGymName()
   const [logoEnEchec, setLogoEnEchec] = useState(false)
+  const [appuye, setAppuye] = useState(false)
 
   // ⚠️ EN MODE SINGLE, AUCUNE MARQUE N'EST CHARGÉE (`brand` vaut null par construction) :
   // l'app de Dopamine prend ses deux couleurs dans son thème figé et son logo dans le
@@ -110,14 +118,24 @@ export function UpdateRequiredScreen({ onUpdate, opening, openFailed }: Props) {
           accessibilityState={{ busy: opening, disabled: opening }}
           disabled={opening}
           onPress={onUpdate}
-          className="flex-row items-center justify-center"
-          style={({ pressed }) => ({
+          onPressIn={() => setAppuye(true)}
+          onPressOut={() => setAppuye(false)}
+          // 🔴 NI `className` NI `style` EN FONCTION SUR CE PRESSABLE. NativeWind (css-interop)
+          // recopie le `style` par étalement dès qu'un `className` est présent : une fonction
+          // `({ pressed }) => …` s'étale en objet VIDE, et le bouton perdait fond, hauteur et
+          // arrondi — son libellé, de la couleur du fond, devenait invisible. Constaté sur
+          // appareil (build staging du 22/11). Le style est donc un objet, et l'état appuyé
+          // un état React. `tests/ecranMiseAJour.test.ts` refuse le retour de ce motif.
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
             height: 56,
             borderRadius: 28,
             gap: 10,
             backgroundColor: accent,
-            opacity: pressed || opening ? 0.8 : 1,
-          })}
+            opacity: appuye || opening ? 0.8 : 1,
+          }}
         >
           {opening ? (
             <ActivityIndicator color={fond} />
@@ -135,7 +153,15 @@ export function UpdateRequiredScreen({ onUpdate, opening, openFailed }: Props) {
           <Text style={{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: ENCRE_PIED }}>
             {t('update_required.powered_by')}
           </Text>
-          <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: PAIRE_VINIZ.accent }} />
+          {/* Le vrai logo Viniz : le pulse-V, statique, dans ses couleurs d'origine (lime).
+              `couleursMiseAJour` garantit qu'il se détache du fond retenu. */}
+          <SvgXml
+            xml={VINIZ_PULSE_LINE_SVG}
+            viewBox={PULSE_VIEWBOX}
+            width={PULSE_W}
+            height={PULSE_H}
+            accessible={false}
+          />
           <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 13, color: ENCRE_TITRE }}>viniz</Text>
         </View>
       </View>
