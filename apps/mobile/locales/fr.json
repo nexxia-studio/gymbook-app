@@ -719,6 +719,12 @@
     "save_failed": "Impossible d'enregistrer ton numéro pour le moment. Réessaie dans un instant.",
     "sign_out": "Se déconnecter"
   },
+  "update_required": {
+    "title": "Mise à jour requise",
+    "message": "Une nouvelle version de {{name}} est disponible. Mets-la à jour pour continuer.",
+    "button": "Mettre à jour",
+    "open_failed": "Impossible d'ouvrir le store. Ouvre-le toi-même et mets {{name}} à jour."
+  },
   "phone_validation": {
     "vide": "Indique ton numéro de téléphone.",
     "invalide": "Ce numéro n'est pas valide. Exemple : +32 470 12 34 56.",
