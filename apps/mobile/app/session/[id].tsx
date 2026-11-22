@@ -417,6 +417,16 @@ export default function SessionDetail() {
     setPaymentRequiredVisible(true)
   }, [slotId, gymId, slotData.startsAt])
 
+  // GYM-387 (suite) — Open Gym sans téléphone : le serveur a refusé AVANT toute écriture
+  // (ni réservation, ni liste d'attente, ni débit). On affiche SON message et on mène au
+  // champ. L'intention éventuelle est gardée : numéro ajouté, le bouton de la fiche réserve.
+  const annoncerTelephoneRequis = useCallback((message?: string) => {
+    Alert.alert(t('session.phone_required_title'), message || t('session.phone_required_message'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('session.phone_required_action'), onPress: () => router.push('/profile/edit' as never) },
+    ])
+  }, [t, router])
+
   const handleBook = useCallback(async () => {
     console.log('[Booking] handleBook called, slotId:', slotId)
     // GYM-379 — un tap manuel occupe la garde : l'appel automatique ne part pas en même temps.
@@ -540,6 +550,10 @@ export default function SessionDetail() {
       Alert.alert(t('common.offline_title'), t('common.offline_message'))
       return
     }
+    if (issueEchecReservation(result.code) === 'telephone_requis') {
+      annoncerTelephoneRequis(result.message)
+      return
+    }
     if (result.status === 'error') return // generic error, logged in store
 
     if (result.status === 'waitlisted') {
@@ -562,7 +576,7 @@ export default function SessionDetail() {
     setBookedCount((c) => c + 1)
     setBookingState('confirmed')
     setBookingModalVisible(true)
-  }, [slotId, createBooking, intentionArmee, isFull, rafraichirDroits, reprendreAchat, t])
+  }, [slotId, createBooking, intentionArmee, isFull, rafraichirDroits, reprendreAchat, annoncerTelephoneRequis, t])
 
   // ╔═══════════════════════════════════════════════════════════════════════════════════╗
   // ║  🔴 GYM-379 (09/11) — « PAYER ET RÉSERVER » : LA FICHE RÉSERVE D'ELLE-MÊME        ║
@@ -753,6 +767,11 @@ export default function SessionDetail() {
       Alert.alert(t('session.waitlist'), t('session.auto_waitlist_unavailable'))
       return
     }
+    if (issue === 'telephone_requis') {
+      // Pas de boucle : la garde d'instance reste posée, aucun nouvel appel automatique.
+      annoncerTelephoneRequis(result?.message)
+      return
+    }
     if (issue === 'credit_en_route') {
       // Le serveur ne voit pas encore le droit. L'intention reste ; la garde aussi, pour ne
       // pas boucler tant que l'app croit au droit — elle se libère quand il disparaît.
@@ -778,7 +797,7 @@ export default function SessionDetail() {
     Alert.alert(t('common.error'), t(issueAppel.frais && (issueAppel.frais.bookings_count ?? 0) >= issueAppel.frais.capacity
       ? 'session.auto_waitlist_retry_message'
       : 'session.auto_booking_retry_message'))
-  }, [slotId, createBooking, rafraichirDroits, relireIntention, lireReservationExistante, annoncerReservee, annoncerListeAttente, annoncerDejaEnListe, t])
+  }, [slotId, createBooking, rafraichirDroits, relireIntention, lireReservationExistante, annoncerReservee, annoncerListeAttente, annoncerDejaEnListe, annoncerTelephoneRequis, t])
 
   // LE DÉCLENCHEUR UNIQUE. Il voit passer tous les chemins : le droit qui apparaît (poll de
   // la feuille → `onClose` → relecture), l'intention relue à la reprise de l'écran, etc.

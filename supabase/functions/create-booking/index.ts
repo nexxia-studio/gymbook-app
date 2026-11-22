@@ -21,6 +21,7 @@ import {
   getMaxActiveBookings,
   hasAccessRights,
   hasAvailableCredits,
+  telephoneRequisManquant,
 } from '../_shared/booking-guards.ts'
 
 const corsHeaders = {
@@ -75,7 +76,7 @@ Deno.serve(async (req) => {
     // 2. Get member profile
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('id, gym_id, noshow_count, suspended_until, push_token, first_name, email')
+      .select('id, gym_id, noshow_count, suspended_until, push_token, first_name, email, phone')
       .eq('id', user.id)
       .single()
 
@@ -97,7 +98,7 @@ Deno.serve(async (req) => {
     // 4. Get time slot
     const { data: slot } = await supabaseAdmin
       .from('time_slots')
-      .select('id, gym_id, activity_id, coach_id, starts_at, ends_at, capacity, status, activities(name), coaches(name)')
+      .select('id, gym_id, activity_id, coach_id, starts_at, ends_at, capacity, status, activities(name, requires_coach), coaches(name)')
       .eq('id', slotId)
       .single()
 
@@ -105,6 +106,18 @@ Deno.serve(async (req) => {
     if (slot.status === 'cancelled') return errorResponse(400, 'Créneau annulé', 'SLOT_CANCELLED')
     if (new Date(slot.starts_at) < new Date()) return errorResponse(400, 'Créneau déjà passé', 'SLOT_PAST')
     if (slot.gym_id !== profile.gym_id) return errorResponse(403, 'Accès refusé', 'WRONG_GYM')
+
+    // 4a. GYM-387 (suite) — OPEN GYM : TÉLÉPHONE EXIGÉ, POUR TOUTES LES VERSIONS DE L'APP.
+    //     Placé AVANT le plafond et le contrôle de paiement : un membre d'une ancienne
+    //     version est arrêté avant de payer, pas après. Couvre la réservation ET la liste
+    //     d'attente, qui passent toutes deux ici. Aucune écriture, aucun débit avant ce point.
+    if (telephoneRequisManquant(slot.activities, profile.phone)) {
+      return errorResponse(
+        400,
+        "Ajoute ton numéro de téléphone dans Profil → Mes informations pour réserver l'Open Gym : la salle doit pouvoir te joindre pour ton accès.",
+        'PHONE_REQUIRED',
+      )
+    }
 
     // 4b. 🔴 LE QUOTA DE MEMBRES A ÉTÉ RETIRÉ D'ICI (21/09).
     //     Il refusait la réservation de TOUS les membres d'une salle au-delà de sa limite
