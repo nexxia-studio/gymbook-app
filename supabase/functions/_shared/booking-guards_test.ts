@@ -25,7 +25,7 @@
 //   · qu'il ne rend JAMAIS de verdict — aucune valeur de retour ne peut refuser quoi que
 //     ce soit, c'est un entier ou rien.
 import * as guards from './booking-guards.ts'
-import { getMaxActiveBookings } from './booking-guards.ts'
+import { getMaxActiveBookings, telephoneRequisManquant } from './booking-guards.ts'
 
 let failures = 0
 function check(label: string, cond: boolean, detail = ''): void {
@@ -123,6 +123,28 @@ console.log('\nCAS 3 — aucune valeur de retour ne peut refuser une réservatio
   // réservation à venir — c'est son droit, et `?? null` ne doit pas l'écraser en « aucune
   // limite ». C'est exactement le piège que `||` aurait posé.
   check('un plafond de 0 est conservé, pas confondu avec « aucune limite »', zero === 0, String(zero))
+}
+
+console.log('\nCAS 4 — GYM-387 : Open Gym ET téléphone vide')
+{
+  const openGym = { name: 'Open Gym', requires_coach: false }
+  const hiit = { name: 'HIIT', requires_coach: true }
+  check('Open Gym + phone null → requis', telephoneRequisManquant(openGym, null) === true)
+  check('Open Gym + phone vide → requis', telephoneRequisManquant(openGym, '') === true)
+  check('Open Gym + phone en espaces → requis', telephoneRequisManquant(openGym, '   ') === true)
+  check('Open Gym + phone absent (undefined) → requis', telephoneRequisManquant(openGym, undefined) === true)
+  check('Open Gym + téléphone présent → passe', telephoneRequisManquant(openGym, '+32470123456') === false)
+  check('Open Gym + numéro ancien non normalisé → passe', telephoneRequisManquant(openGym, '0470 12 34 56') === false)
+  check('cours avec coach + phone null → passe', telephoneRequisManquant(hiit, null) === false)
+  check('cours avec coach + téléphone → passe', telephoneRequisManquant(hiit, '+32470123456') === false)
+  // L'embed est typé en tableau par le client généré : les deux formes sont lues.
+  check('embed en tableau, Open Gym + phone null → requis', telephoneRequisManquant([openGym], null) === true)
+  check('embed en tableau, cours avec coach → passe', telephoneRequisManquant([hiit], null) === false)
+  // 🔴 Une lecture manquante ne refuse personne.
+  check('embed null → passe', telephoneRequisManquant(null, null) === false)
+  check('embed tableau vide → passe', telephoneRequisManquant([], null) === false)
+  check('requires_coach non lu → passe', telephoneRequisManquant({ name: 'Open Gym' }, null) === false)
+  check('requires_coach null → passe', telephoneRequisManquant({ requires_coach: null }, null) === false)
 }
 
 console.log(failures === 0 ? '\n✅ banc complet — 0 échec\n' : `\n❌ ${failures} échec(s)\n`)

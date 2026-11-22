@@ -36,7 +36,8 @@ interface BookingState {
   justPromoted: boolean
   // GYM-196 — `limit` accompagne MAX_BOOKINGS_REACHED : la limite est configurable par
   // salle et seul le serveur la connaît (l'app ne lit jamais nexxia_gyms).
-  createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null; limit?: number }>
+  // GYM-387 (suite) — `message` accompagne PHONE_REQUIRED : c'est le texte du serveur.
+  createBooking: (slotId: string) => Promise<{ status: string; code?: string; position?: number; suspended_until?: string | null; limit?: number; message?: string }>
   cancelBooking: (slotId: string) => Promise<{ noshow?: { level: string; hours?: number } } | void>
   confirmWaitlist: (bookingId: string) => Promise<{ confirmed: boolean; code?: string }>
   fetchBookings: (userId: string) => Promise<void>
@@ -124,6 +125,9 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         }
         if (code === 'PAYMENT_REQUIRED') {
           return { status: 'error' as const, code: 'PAYMENT_REQUIRED', position: undefined }
+        }
+        if (code === 'PHONE_REQUIRED') {
+          return { status: 'error' as const, code: 'PHONE_REQUIRED', message, position: undefined }
         }
         // Code inconnu : déjà remonté à Sentry par le helper (avec les tags edge_function
         // et edge_code) — inutile de le signaler une seconde fois ici.

@@ -163,6 +163,7 @@ for (const [code, attendu] of [
   ['ALREADY_WAITLISTED', 'deja_inscrit'],
   ['PAYMENT_REQUIRED', 'credit_en_route'],
   ['WAITLIST_DISABLED', 'liste_indisponible'],
+  ['PHONE_REQUIRED', 'telephone_requis'],
   ['NETWORK_OFFLINE', 'reessayable'],
   ['SUSPENDED', 'reessayable'],
   ['MAX_BOOKINGS_REACHED', 'reessayable'],

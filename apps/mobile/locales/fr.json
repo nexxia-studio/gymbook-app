@@ -387,6 +387,9 @@
     "auto_booking_retry_message": "La réservation n'a pas pu aboutir. Appuie sur « Confirmer ma réservation » pour réessayer.",
     "intent_pending_message_manual": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Ta place n'est pas encore réservée : reviens confirmer ta réservation dans un instant.",
     "intent_pending_message_waitlist": "Ton paiement est bien enregistré, mais le crédit n'est pas encore arrivé — cela peut prendre deux à trois minutes. Tu n'es pas encore sur la liste d'attente : tu y seras inscrit automatiquement dès que le crédit arrive, reste sur cette fiche.",
+    "phone_required_title": "Numéro de téléphone requis",
+    "phone_required_message": "Ajoute ton numéro de téléphone dans Profil → Mes informations pour réserver l'Open Gym : la salle doit pouvoir te joindre pour ton accès.",
+    "phone_required_action": "Ajouter mon numéro",
     "already_waitlisted": "Tu es déjà sur la liste d'attente de ce cours.",
     "auto_waitlist_in_progress": "Ce cours est complet — on t'inscrit sur la liste d'attente…",
     "auto_waitlist_filled": "Ce cours s'est rempli : tu es sur la liste d'attente (position {{position}}).",
@@ -718,6 +721,13 @@
     "save_failed_network": "Impossible d'enregistrer ton numéro : vérifie ta connexion et réessaie.",
     "save_failed": "Impossible d'enregistrer ton numéro pour le moment. Réessaie dans un instant.",
     "sign_out": "Se déconnecter"
+  },
+  "update_required": {
+    "title": "Ton app a une nouvelle version",
+    "message": "Mets-la à jour pour continuer à réserver. Tes cours, crédits et abonnement restent intacts.",
+    "button": "Mettre à jour",
+    "powered_by": "Propulsé par",
+    "open_failed": "Impossible d'ouvrir le store. Ouvre-le toi-même et mets {{name}} à jour."
   },
   "phone_validation": {
     "vide": "Indique ton numéro de téléphone.",

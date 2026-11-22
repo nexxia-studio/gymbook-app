@@ -21,6 +21,7 @@ import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import { LegalAcceptanceGate } from '../components/legal/LegalAcceptanceGate'
 import { ProfileCompletionGate, useLectureProfilContact } from '../components/profile/ProfileCompletionGate'
+import { UpdateRequiredGate } from '../components/version/UpdateRequiredGate'
 import { DeepLinkReplay } from '../components/DeepLinkReplay'
 import { memoriserLienEntrant } from '../lib/pendingDeepLink'
 import '../lib/i18n'
@@ -370,6 +371,11 @@ function RootLayout() {
             visé — c'est-à-dire exactement les chemins par lesquels on contourne un écran.
             Placée SOUS BrandThemeProvider : l'écran est brandé par la salle comme le reste. */}
         <BrandThemeProvider slug={brandSlug}>
+          {/* 🔴 GYM-389 — AU-DESSUS DE TOUTES LES PORTES, et avant la connexion : sous la
+              version minimale, ni la porte légale, ni « Complète ton profil », ni `<Slot />`
+              ne sont montés. Sa lecture ne retient pas le démarrage et ne bloque jamais sur
+              un doute (voir le composant). Sous BrandThemeProvider : l'écran est brandé. */}
+          <UpdateRequiredGate>
           <LegalAcceptanceGate>
             {/* 🔴 GYM-371 — FRÈRE de `<Slot />`, et SOUS la porte : il n'existe qu'une fois
                 le consentement résolu. Il rejoue alors le lien mémorisé plus haut — et lui
@@ -381,6 +387,7 @@ function RootLayout() {
               <Slot />
             </ProfileCompletionGate>
           </LegalAcceptanceGate>
+          </UpdateRequiredGate>
         </BrandThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

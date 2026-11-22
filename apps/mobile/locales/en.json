@@ -387,6 +387,9 @@
     "auto_booking_retry_message": "The booking couldn't go through. Tap \"Confirm my booking\" to try again.",
     "intent_pending_message_manual": "Your payment is recorded, but the credit hasn't arrived yet — this can take two to three minutes. Your spot isn't booked yet: come back and confirm your booking in a moment.",
     "intent_pending_message_waitlist": "Your payment is recorded, but the credit hasn't arrived yet — this can take two to three minutes. You're not on the waitlist yet: you'll be added automatically as soon as the credit arrives, stay on this page.",
+    "phone_required_title": "Phone number required",
+    "phone_required_message": "Add your phone number in Profile → My information to book Open Gym: the gym must be able to reach you about your access.",
+    "phone_required_action": "Add my number",
     "already_waitlisted": "You're already on the waitlist for this class.",
     "auto_waitlist_in_progress": "This class is full — adding you to the waitlist…",
     "auto_waitlist_filled": "This class filled up: you're on the waitlist (position {{position}}).",
@@ -718,6 +721,13 @@
     "save_failed_network": "We couldn't save your number: check your connection and try again.",
     "save_failed": "We couldn't save your number right now. Please try again in a moment.",
     "sign_out": "Sign out"
+  },
+  "update_required": {
+    "title": "Your app has a new version",
+    "message": "Update it to keep booking. Your classes, credits and membership stay as they are.",
+    "button": "Update",
+    "powered_by": "Powered by",
+    "open_failed": "Couldn't open the store. Open it yourself and update {{name}}."
   },
   "phone_validation": {
     "vide": "Enter your phone number.",
