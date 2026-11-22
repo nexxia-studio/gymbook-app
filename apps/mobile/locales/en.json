@@ -719,6 +719,12 @@
     "save_failed": "We couldn't save your number right now. Please try again in a moment.",
     "sign_out": "Sign out"
   },
+  "update_required": {
+    "title": "Update required",
+    "message": "A new version of {{name}} is available. Update it to continue.",
+    "button": "Update",
+    "open_failed": "Couldn't open the store. Open it yourself and update {{name}}."
+  },
   "phone_validation": {
     "vide": "Enter your phone number.",
     "invalide": "This number is not valid. Example: +32 470 12 34 56.",
