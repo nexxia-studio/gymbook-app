@@ -723,9 +723,10 @@
     "sign_out": "Sign out"
   },
   "update_required": {
-    "title": "Update required",
-    "message": "A new version of {{name}} is available. Update it to continue.",
+    "title": "Your app has a new version",
+    "message": "Update it to keep booking. Your classes, credits and membership stay as they are.",
     "button": "Update",
+    "powered_by": "Powered by",
     "open_failed": "Couldn't open the store. Open it yourself and update {{name}}."
   },
   "phone_validation": {
