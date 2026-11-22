@@ -723,9 +723,10 @@
     "sign_out": "Se déconnecter"
   },
   "update_required": {
-    "title": "Mise à jour requise",
-    "message": "Une nouvelle version de {{name}} est disponible. Mets-la à jour pour continuer.",
+    "title": "Ton app a une nouvelle version",
+    "message": "Mets-la à jour pour continuer à réserver. Tes cours, crédits et abonnement restent intacts.",
     "button": "Mettre à jour",
+    "powered_by": "Propulsé par",
     "open_failed": "Impossible d'ouvrir le store. Ouvre-le toi-même et mets {{name}} à jour."
   },
   "phone_validation": {
