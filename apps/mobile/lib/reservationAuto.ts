@@ -185,7 +185,7 @@ export function reserverUneFois<T>(
  * ⚠️ L'INCONNU EST RÉESSAYABLE, JAMAIS DÉFINITIF : effacer l'intention d'un membre qui a
  * payé sur un code qu'on ne connaît pas, c'est lui faire perdre son cours.
  */
-export type IssueEchecReservation = 'definitif' | 'deja_inscrit' | 'credit_en_route' | 'liste_indisponible' | 'reessayable'
+export type IssueEchecReservation = 'definitif' | 'deja_inscrit' | 'credit_en_route' | 'liste_indisponible' | 'telephone_requis' | 'reessayable'
 
 const DEFINITIFS = new Set(['SLOT_PAST', 'SLOT_CANCELLED', 'SLOT_NOT_FOUND', 'WRONG_GYM'])
 const DEJA_INSCRIT = new Set(['ALREADY_BOOKED', 'ALREADY_WAITLISTED'])
@@ -196,5 +196,9 @@ export function issueEchecReservation(code: string | undefined): IssueEchecReser
   if (code && DEJA_INSCRIT.has(code)) return 'deja_inscrit'
   if (code && DEFINITIFS.has(code)) return 'definitif'
   if (code && LISTE_INDISPONIBLE.has(code)) return 'liste_indisponible'
+  // GYM-387 (suite) — Open Gym sans téléphone : refus du serveur AVANT toute écriture. Pas
+  // « réessayable » : rappeler sans numéro rendrait le même refus. L'issue est d'ajouter le
+  // numéro (Profil → Mes informations), puis de réserver.
+  if (code === 'PHONE_REQUIRED') return 'telephone_requis'
   return 'reessayable'
 }

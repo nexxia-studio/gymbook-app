@@ -172,3 +172,28 @@ export async function countFutureConfirmedBookings(
 
   return count ?? 0
 }
+
+/**
+ * GYM-387 (suite) — « CE CRÉNEAU EXIGE-T-IL UN TÉLÉPHONE QUE LE MEMBRE N'A PAS ? »
+ *
+ * L'Open Gym se pratique sans coach : la salle doit pouvoir joindre le membre pour son
+ * accès. L'app 1.2.3 demande le numéro à l'ouverture, mais les versions antérieures n'ont
+ * pas cet écran — seul le serveur s'applique à toutes.
+ *
+ * « Open Gym » = `activities.requires_coach = false` (GYM-229).
+ *
+ * ⚠️ `=== false`, STRICTEMENT. Un embed absent ou une colonne non lue (`undefined`, `null`)
+ * ne dit pas « sans coach » : on ne refuse pas une réservation sur une lecture manquante.
+ *
+ * `activite` est l'embed `activities(...)` du créneau : typé en TABLEAU par le client
+ * généré, objet unique à l'exécution — même contournement que `embeddedName`.
+ *
+ * ⚠️ Fonction PURE, appelée par create-booking seulement. admin-book-member ne l'appelle
+ * pas, et c'est voulu : le gérant peut toujours inscrire un membre lui-même.
+ */
+export function telephoneRequisManquant(activite: unknown, phone: unknown): boolean {
+  const valeur = activite as { requires_coach?: boolean | null } | { requires_coach?: boolean | null }[] | null
+  const une = Array.isArray(valeur) ? valeur[0] ?? null : valeur
+  if (une?.requires_coach !== false) return false
+  return typeof phone !== 'string' || phone.trim() === ''
+}
