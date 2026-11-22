@@ -16,11 +16,14 @@ import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { useGymName } from '../../hooks/useGymName'
 import { GYM_MODE } from '../../lib/gymResolver'
+import { usePaysSalle } from '../../hooks/usePaysSalle'
+import { cleErreurTelephone, normaliserTelephone } from '../../lib/telephone'
 
 interface FormErrors {
   firstName?: string
   lastName?: string
   email?: string
+  phone?: string
   password?: string
   passwordConfirm?: string
   terms?: string
@@ -48,6 +51,7 @@ export default function Signup() {
   // Dopamine. Le hook lit désormais la MARQUE (chargée avant la connexion, c'est sa raison
   // d'être) et retombe sur la plateforme, jamais sur un client.
   const nomSalle = useGymName()
+  const pays = usePaysSalle()
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
@@ -65,8 +69,14 @@ export default function Signup() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [toastVisible, setToastVisible] = useState(false)
 
-  function validate(): boolean {
+  // GYM-387 — LE TÉLÉPHONE EST OBLIGATOIRE, ET IL PART NORMALISÉ. `validate` rend le numéro
+  // au format international (ou `null`) : c'est CETTE valeur que `handle_new_user` copie
+  // dans `profiles.phone`, pas la saisie. Un compte créé ici n'aura donc jamais à passer
+  // par l'écran « Complète ton profil ».
+  function validate(): string | null {
     const e: FormErrors = {}
+    const tel = normaliserTelephone(phone, pays)
+    if (!tel.ok) e.phone = t(cleErreurTelephone(tel.raison))
     if (!firstName.trim()) e.firstName = t('auth.validation.first_name_required')
     if (!lastName.trim()) e.lastName = t('auth.validation.last_name_required')
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = t('auth.validation.email_invalid')
@@ -79,16 +89,17 @@ export default function Signup() {
     if (!terms) e.terms = t('auth.terms_required')
     if (!privacy) e.privacy = t('auth.privacy_required')
     setErrors(e)
-    return Object.keys(e).length === 0
+    return Object.keys(e).length === 0 && tel.ok ? tel.e164 : null
   }
 
   const handleSubmit = useCallback(async () => {
     clearError()
-    if (!validate()) return
+    const telephone = validate()
+    if (!telephone) return
     try {
       const { needsConfirmation, email: signupEmail } = await signUp(
         email, password, firstName.trim(), lastName.trim(),
-        phone.trim() || undefined,
+        telephone,
         { terms, privacy, marketing },
       )
       if (needsConfirmation) {
@@ -185,7 +196,7 @@ export default function Signup() {
                 placeholder={t('auth.phone_placeholder')}
                 value={phone}
                 onChangeText={setPhone}
-                helper={t('auth.phone_optional')}
+                error={errors.phone}
                 keyboardType="phone-pad"
                 autoComplete="tel"
               />

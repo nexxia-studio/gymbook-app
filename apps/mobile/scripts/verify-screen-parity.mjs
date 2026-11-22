@@ -148,10 +148,45 @@ function valeurAvant(texte, g) {
   return cls ? TW[cls[0]] ?? null : null
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════
+// 🔴 GYM-379 — UN ÉLÉMENT NOUVEAU N'EST PAS UNE RÉGRESSION, MAIS IL DÉCALE TOUT
+// ═════════════════════════════════════════════════════════════════════════════════════
+// Ce script compare deux suites POSITION PAR POSITION. Ajouter un bloc (une étape de
+// feuille, un bandeau) insère des couleurs au milieu de la suite « après » : toutes celles
+// qui suivent sont décalées, et un écran dont AUCUNE couleur existante n'a bougé sort en
+// 27 écarts. Constaté sur PaymentRequiredSheet (27), PurchaseConsentSheet (10) et
+// profile/subscription (40) — trois ajouts, zéro couleur modifiée.
+//
+// ⚠️ LE BLOC NOUVEAU EST BORNÉ, NOMMÉ, ANNONCÉ — PAS IGNORÉ EN SILENCE. Il est encadré dans
+// le fichier par `parité:nouvel-élément:début` / `:fin` (commentaire JSX ou JS), retiré
+// de la suite, et ses couleurs sont IMPRIMÉES à chaque exécution. Tout ce qui est HORS du
+// bloc doit rester identique, dans le même ordre : c'est exactement « les couleurs
+// existantes sont inchangées ».
+//
+// ⚠️ LU DES DEUX CÔTÉS, pour la raison de GYM-302 (`sansFondSousVoile`) : une fois le lot
+// fusionné, la référence porte les mêmes bornes, et le comptage doit rester symétrique.
+// ⚠️ UNE BORNE ORPHELINE FAIT ÉCHOUER LE SCRIPT : un « début » sans « fin » retirerait tout
+// le reste du fichier de la comparaison.
+const BLOC_NOUVEAU = /(?:\{\/\*|\/\*|\/\/)\s*parité:nouvel-élément:(début|fin)[^\n]*/g
+function sansBlocsNouveaux(brut, cote) {
+  const balise = brut.replace(BLOC_NOUVEAU, (_, b) => (b === 'début' ? '\u0001' : '\u0002'))
+  const ouvertures = (balise.match(/\u0001/g) ?? []).length
+  const fermetures = (balise.match(/\u0002/g) ?? []).length
+  if (ouvertures !== fermetures || /\u0001[^\u0002]*\u0001/.test(balise)) {
+    console.error(`🔴 ${cote} : bornes « parité:nouvel-élément » déséquilibrées (${ouvertures} début, ${fermetures} fin).`)
+    process.exit(1)
+  }
+  const blocs = []
+  const texte = strip(balise.replace(/\u0001([^\u0002]*)\u0002/g, (_, b) => { blocs.push(strip(b)); return '' }))
+  return { texte, blocs }
+}
+
 const rel = relative(ROOT, join(process.cwd(), target)).startsWith('..') ? target : relative(ROOT, join(process.cwd(), target))
 const gitPath = join('apps/mobile', rel)
-const before = strip(execFileSync('git', ['show', `${ref}:${gitPath}`], { cwd: join(ROOT, '../..'), encoding: 'utf8' }))
-const after = strip(read(rel))
+const avantBrut = sansBlocsNouveaux(execFileSync('git', ['show', `${ref}:${gitPath}`], { cwd: join(ROOT, '../..'), encoding: 'utf8' }), 'avant')
+const apresBrut = sansBlocsNouveaux(read(rel), 'après')
+const before = avantBrut.texte
+const after = apresBrut.texte
 
 // ── LES DEUX SUITES, LUES DE LA MÊME FAÇON ───────────────────────────────────────────
 // 🔴 LA SYMÉTRIE EST LA CONDITION DE LA VALIDITÉ. Lire « avant » avec un motif et
@@ -292,6 +327,12 @@ if (ignores.length || ignoresAvant.length) {
   console.log(`\n⚠️  ${total.length} jeton(s) exemptés — « ${MARQUEUR} » : ${total.join(', ')}`)
   console.log('   Un fond posé SOUS un voile opaque : compté par le script, invisible à l’écran.')
   console.log('   L’opacité du voile est vérifiée séparément par verify-theme-parity.mjs.')
+}
+// GYM-379 — les blocs nouveaux, annoncés : leurs couleurs ne sont pas comparées, mais lues.
+for (const [cote, { blocs }] of [['avant', avantBrut], ['après', apresBrut]]) {
+  if (!blocs.length) continue
+  const couleurs = blocs.flatMap((b) => suite(b))
+  console.log(`\nℹ️  ${cote} : ${blocs.length} bloc(s) « parité:nouvel-élément » hors comparaison — ${couleurs.length} couleur(s) : ${couleurs.join(', ') || '(aucune)'}`)
 }
 // Ce qui n'a PAS été migré : toute couleur encore écrite en dur après la passe.
 const restes = [...after.matchAll(MOVE)].map((m) => m[0])

@@ -20,6 +20,7 @@ import { reconcileActiveGym, activeGymNeedsRetry } from '../lib/activeGymSession
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
 import { BrandThemeProvider } from '../lib/theme/ThemeProvider'
 import { LegalAcceptanceGate } from '../components/legal/LegalAcceptanceGate'
+import { ProfileCompletionGate, useLectureProfilContact } from '../components/profile/ProfileCompletionGate'
 import { DeepLinkReplay } from '../components/DeepLinkReplay'
 import { memoriserLienEntrant } from '../lib/pendingDeepLink'
 import '../lib/i18n'
@@ -314,6 +315,12 @@ function RootLayout() {
     loadFavorites()
   }, [userId, loadFavorites])
 
+  // GYM-387 — la lecture « ce membre a-t-il un téléphone ? », lancée ICI pour partir en même
+  // temps que celle de la porte légale. Elle ne bloque rien par elle-même : c'est
+  // `ProfileCompletionGate`, monté sous la porte, qui décide — et seulement sur une lecture
+  // réussie.
+  const lectureProfilContact = useLectureProfilContact(userId)
+
   // Push notifications (mobile only)
   usePushNotifications(userId)
 
@@ -367,8 +374,12 @@ function RootLayout() {
             {/* 🔴 GYM-371 — FRÈRE de `<Slot />`, et SOUS la porte : il n'existe qu'une fois
                 le consentement résolu. Il rejoue alors le lien mémorisé plus haut — et lui
                 seul navigue. La porte reste la seule chose qui décide. */}
-            <DeepLinkReplay pret={authResolue} />
-            <Slot />
+            {/* GYM-387 — SOUS la porte légale (le consentement passe d'abord), et SUPERPOSÉ :
+                `<Slot />` reste monté pendant que l'écran « Complète ton profil » le recouvre. */}
+            <ProfileCompletionGate lecture={lectureProfilContact}>
+              <DeepLinkReplay pret={authResolue} />
+              <Slot />
+            </ProfileCompletionGate>
           </LegalAcceptanceGate>
         </BrandThemeProvider>
       </SafeAreaProvider>

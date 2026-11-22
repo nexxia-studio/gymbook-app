@@ -2127,6 +2127,7 @@ export type Database = {
           address_line: string | null
           avatar_url: string | null
           city: string | null
+          contact_email: string | null
           country: string | null
           created_at: string | null
           data_processing_consent: boolean | null
@@ -2171,6 +2172,7 @@ export type Database = {
           address_line?: string | null
           avatar_url?: string | null
           city?: string | null
+          contact_email?: string | null
           country?: string | null
           created_at?: string | null
           data_processing_consent?: boolean | null
@@ -2215,6 +2217,7 @@ export type Database = {
           address_line?: string | null
           avatar_url?: string | null
           city?: string | null
+          contact_email?: string | null
           country?: string | null
           created_at?: string | null
           data_processing_consent?: boolean | null

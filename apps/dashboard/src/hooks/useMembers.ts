@@ -2,12 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { computeMemberPlan, type MemberPlan } from '@/lib/subscription'
+import { hasPhone } from '@/lib/memberContact'
 
 export interface Member {
   id: string
   firstName: string
   lastName: string
+  /** Email de CONNEXION — peut être une adresse relais Apple. Pour l'affichage : `displayEmail`. */
   email: string
+  /** GYM-387 — email de contact donné par le membre (facultatif). */
+  contactEmail: string | null
   phone: string | null
   role: string
   noshowCount: number
@@ -38,7 +42,7 @@ export interface Member {
  * Le filtre disait donc « non suspendu », pas « en règle ». Les trois filtres qui le
  * remplacent isolent chacun une population sur laquelle le gérant peut AGIR.
  */
-export type MemberStatusFilter = 'all' | 'no_plan' | 'expiring' | 'suspended'
+export type MemberStatusFilter = 'all' | 'no_plan' | 'expiring' | 'suspended' | 'no_phone'
 
 export function useMembers() {
   const [members, setMembers] = useState<Member[]>([])
@@ -61,7 +65,7 @@ export function useMembers() {
       const [profilesRes, subsRes, creditsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, first_name, last_name, email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, avatar_url, preferred_language, created_at, access_badge_code')
+          .select('id, first_name, last_name, email, contact_email, phone, role, noshow_count, suspended_until, member_since, last_seen_at, push_token, avatar_url, preferred_language, created_at, access_badge_code')
           .eq('gym_id', gymId)
           .eq('role', 'member')
           .is('deleted_at', null)
@@ -107,6 +111,7 @@ export function useMembers() {
         firstName: r.first_name ?? '',
         lastName: r.last_name ?? '',
         email: r.email,
+        contactEmail: r.contact_email,
         phone: r.phone,
         accessBadgeCode: r.access_badge_code,
         role: r.role,
@@ -145,7 +150,7 @@ export function useMembers() {
       // « quelqu'un vient de badger, qui est-ce ? » — le gérant tape le numéro lu sur le
       // lecteur et tombe sur la fiche. Le filtre est CLIENT, sur des lignes déjà chargées :
       // l'ajout ne touche pas la requête et ne coûte rien.
-      const haystack = `${m.firstName} ${m.lastName} ${m.email} ${m.accessBadgeCode ?? ''}`
+      const haystack = `${m.firstName} ${m.lastName} ${m.email} ${m.contactEmail ?? ''} ${m.phone ?? ''} ${m.accessBadgeCode ?? ''}`
       if (!haystack.toLowerCase().includes(q)) return false
     }
     // GYM-147 — chaque filtre isole une population SUR LAQUELLE AGIR. C'est tout l'objet du
@@ -161,6 +166,11 @@ export function useMembers() {
       // Encore abonné, mais plus pour longtemps : le seul moment où relancer sert encore.
       return m.plan.expiringSoon
     }
+    // GYM-387 — le téléphone est obligatoire côté app ; ce filtre isole ceux qui ne l'ont
+    // pas encore donné (comptes créés par le gérant, membres qui n'ont pas rouvert l'app).
+    if (statusFilter === 'no_phone') {
+      return !hasPhone(m)
+    }
     return true
   })
 
@@ -171,6 +181,7 @@ export function useMembers() {
   const noPlanCount = members.length - withPlanCount
   const expiringCount = members.filter((m) => m.plan.expiringSoon).length
   const suspendedCount = members.filter(isSuspendedNow).length
+  const noPhoneCount = members.filter((m) => !hasPhone(m)).length
 
   return {
     members: filteredMembers,
@@ -179,6 +190,7 @@ export function useMembers() {
     noPlanCount,
     expiringCount,
     suspendedCount,
+    noPhoneCount,
     isLoading,
     search, setSearch,
     statusFilter, setStatusFilter,

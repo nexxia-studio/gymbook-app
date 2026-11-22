@@ -13,6 +13,10 @@
 //       (le comportement d'avant) ; DOIT échouer.
 //   … --falsifier=ouverture-zelee  → la fiche efface sur TOUT statut, `open` compris ;
 //       DOIT échouer — c'est le garde-fou anti double paiement qui mord.
+//   … --falsifier=autre-membre     → GYM-379 (passe finale) : l'intention ne vérifie plus à
+//       qui elle appartient ; DOIT échouer.
+//   … --falsifier=accord-tout-cours → l'accord est posé quel que soit le cours relu ; DOIT
+//       échouer.
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -65,6 +69,14 @@ try {
     remplacer(intentJs, /if \(!paiementMort\(intent\.paymentId, statut\)\)/, 'if (false)')
     console.log('⚠️  MODE FALSIFICATION — ouverture zélée (efface sur tout statut), le contrôle DOIT échouer\n')
   }
+  if (FALSIFIER === 'autre-membre') {
+    remplacer(intentJs, /export function appartientAuMembre\([^)]*\) \{/, '$&\n    return true;')
+    console.log('⚠️  MODE FALSIFICATION — intention sans propriétaire, le contrôle DOIT échouer\n')
+  }
+  if (FALSIFIER === 'accord-tout-cours') {
+    remplacer(intentJs, /intent\.slotId === options\.pourCreneau/, 'true')
+    console.log('⚠️  MODE FALSIFICATION — accord posé sur n\'importe quel cours, le contrôle DOIT échouer\n')
+  }
   if (FALSIFIER === 'retour') {
     // La règle d'avant GYM-374 : l'intention présente suffisait à conclure « il a payé ».
     const src = readFileSync(statusJs, 'utf8')
@@ -76,6 +88,9 @@ try {
 
   const { issueDuRetour, TERMINAL_FAILURE } = await import(pathToFileURL(statusJs).href)
   const bi = await import(pathToFileURL(intentJs).href)
+  // GYM-379 (passe finale) — l'intention est signée du membre connecté : on en branche un.
+  let membre = 'membre-a'
+  bi.brancherMembreCourant(() => membre)
 
   const demain = new Date(Date.now() + 24 * 3600e3 - 60e3).toISOString()
   const hier = new Date(Date.now() - 3600e3).toISOString()
@@ -184,6 +199,72 @@ try {
   const neuve = await bi.lireBookingIntent()
   verifier('course : une intention neuve posée pendant la lecture n\'est PAS effacée', !!neuve && neuve.paymentId === undefined)
 
+  // ── ⑥ GYM-379, PASSE FINALE — À QUI, POUR QUEL COURS ─────────────────────────────────
+  console.log('\n— GYM-379 passe finale : membre, cours, bandeau —')
+  const AUTRE = 'slot-autre-cours'
+  // Point 5 — l'intention appartient au membre qui l'a posée.
+  await bi.__resetBookingIntent()
+  membre = null
+  await bi.poserBookingIntent({ slotId: SLOT, gymId: 'dopamine', startsAt: demain })
+  membre = 'membre-a'
+  verifier('[5] personne de connecté : aucune intention n\'est posée', (await bi.lireBookingIntent()) === null)
+  await bi.poserBookingIntent({ slotId: SLOT, gymId: 'dopamine', startsAt: demain })
+  verifier('[5] l\'intention porte le membre qui l\'a posée', (await bi.lireBookingIntent())?.memberId === 'membre-a')
+  membre = null
+  verifier('[5] session pas encore restaurée : rien n\'est rendu…', (await bi.lireBookingIntent()) === null)
+  membre = 'membre-a'
+  verifier('[5] … et rien n\'est effacé : le membre la retrouve', (await bi.lireBookingIntent())?.slotId === SLOT)
+  membre = 'membre-b'
+  verifier('[5] un AUTRE membre ne la voit pas', (await bi.lireBookingIntent()) === null)
+  membre = 'membre-a'
+  verifier('[5] … et elle est effacée : jamais bonne pour personne d\'autre', (await bi.lireBookingIntent()) === null)
+  verifier('[5] appartientAuMembre : anonyme ou autre → non ; même membre → oui',
+    !bi.appartientAuMembre({ memberId: '' }, 'membre-a') && !bi.appartientAuMembre({ memberId: 'membre-a' }, 'membre-b')
+    && !bi.appartientAuMembre({ memberId: 'membre-a' }, null) && bi.appartientAuMembre({ memberId: 'membre-a' }, 'membre-a'))
+  // Point 3 — l'accord ne vaut que pour le cours relu au moment du rattachement.
+  await bi.poserBookingIntent({ slotId: AUTRE, gymId: 'dopamine', startsAt: demain })
+  const accordAutre = await bi.attacherPaiementBookingIntent('tr_abo', { accordReservation: true, checkoutUrl: 'https://m/x', pourCreneau: SLOT })
+  const apresAutre = await bi.lireBookingIntent()
+  verifier('[3] bandeau lu pour le cours A, intention relue sur le cours B : AUCUN accord',
+    accordAutre === false && apresAutre?.paymentId === 'tr_abo' && apresAutre?.accordReservation !== true)
+  await bi.poserBookingIntent({ slotId: SLOT, gymId: 'dopamine', startsAt: demain })
+  const accordMeme = await bi.attacherPaiementBookingIntent('tr_abo2', { accordReservation: true, pourCreneau: SLOT })
+  verifier('[3] intention relue sur le cours annoncé : accord posé',
+    accordMeme === true && (await bi.lireBookingIntent())?.accordReservation === true)
+  // Point 2 — après la réservation automatique (intention consommée), le bandeau tombe.
+  await bi.consommerBookingIntent()
+  verifier('[2] intention consommée : le bandeau ne porte plus sur depuis_cours',
+    bi.porteSurCeCreneau(await bi.lireBookingIntent(), SLOT) === false)
+  const abo = readFileSync(join(ROOT, 'app/profile/subscription.tsx'), 'utf8')
+  verifier('[2] l\'écran Abonnement recalcule le bandeau à CHAQUE focus, sur l\'intention relue',
+    /useFocusEffect\(\s*useCallback\(\(\) => \{[\s\S]{0,120}recalculerCoursVise/.test(abo)
+    && /const recalculerCoursVise[\s\S]{0,300}await lireBookingIntent\(\)[\s\S]{0,200}setCoursVise\(null\)/.test(abo))
+  verifier('[3] l\'écran Abonnement passe le cours annoncé (`pourCreneau`) au rattachement',
+    /pourCreneau: coursVise\.slotId/.test(abo))
+  // Point 1 — la garde passe AVANT la feuille de consentement, donc avant tout paiement.
+  const select = abo.slice(abo.indexOf('const handleSelectPlan = useCallback'), abo.indexOf('const handleSelectPlanRef'))
+  verifier('[1] le tap sur une formule lit la garde avant d\'ouvrir la feuille',
+    select.indexOf('gardeAvantAchat(') !== -1 && select.indexOf('gardeAvantAchat(') < select.indexOf('ouvrirConsentement(plan, garde'))
+  verifier('[1] « L\'abandonner et continuer » efface l\'intention PUIS continue',
+    /effacerBookingIntent\(\)[\s\S]{0,40}\n\s*await ouvrirConsentement\(plan, false\)/.test(select))
+  verifier('[1] `conserver` (paiement déjà payé) : l\'achat ne rattache rien',
+    /garderIntentionRef\.current\s*\?\s*false\s*:\s*await attacherPaiementBookingIntent/.test(abo))
+  // Point 4 — « Reprendre » relit le statut avant de rouvrir le checkout.
+  const feuille = readFileSync(join(ROOT, 'components/session/PaymentRequiredSheet.tsx'), 'utf8')
+  const reprise = feuille.slice(feuille.indexOf('const reprendrePaiement = async'), feuille.indexOf('const reserveApresPaiement'))
+  verifier('[4] « Reprendre » relit le statut AVANT d\'ouvrir le checkout',
+    reprise.indexOf('lireStatutPaiement(') !== -1 && reprise.indexOf('lireStatutPaiement(') < reprise.indexOf('openCheckout('))
+  verifier('[4] l\'étape `illisible` existe et ne porte pas « Reprendre »', (() => {
+    const bloc = feuille.slice(feuille.indexOf("step === 'illisible' ? ("), feuille.indexOf("step === 'unfinished' ? ("))
+    return bloc.length > 0 && !/reprendrePaiement|unfinished\.resume/.test(bloc) && /common\.retry/.test(bloc)
+  })())
+  // Point 5 — la lecture d'un paiement filtre le membre ; la déconnexion efface l'intention.
+  const lookup = readFileSync(join(ROOT, 'lib/paymentLookup.ts'), 'utf8')
+  verifier('[5] requetePaiement filtre member_id et ne requête pas sans membre',
+    /if \(!memberId\) return null/.test(lookup) && /\.eq\('member_id', memberId\)/.test(lookup))
+  verifier('[5] signOut efface l\'intention de réservation',
+    /signOut: async \(\) => \{[\s\S]{0,1200}await effacerBookingIntent\(\)/.test(readFileSync(join(ROOT, 'stores/useAuthStore.ts'), 'utf8')))
+
   // ── ④ LE CÂBLAGE : la fiche ne dit plus « crédit en route » hors du cas `paye` ────────
   console.log('\n— Câblage —')
   const fiche = readFileSync(join(ROOT, 'app/session/[id].tsx'), 'utf8')
@@ -192,11 +273,11 @@ try {
   verifier('« Crédit en route » n\'est émis que sous `issue === \'paye\'`',
     pending.length === 1 && /issue === 'paye'/.test(avantPending))
   verifier('les deux chemins d\'achat rattachent le paiement',
-    /attacherPaiementBookingIntent\(result\.paymentId\)/.test(readFileSync(join(ROOT, 'components/session/PaymentRequiredSheet.tsx'), 'utf8'))
-    && /attacherPaiementBookingIntent\(result\.paymentId\)/.test(readFileSync(join(ROOT, 'app/profile/subscription.tsx'), 'utf8')))
+    /attacherPaiementBookingIntent\(result\.paymentId[,)]/.test(readFileSync(join(ROOT, 'components/session/PaymentRequiredSheet.tsx'), 'utf8'))
+    && /attacherPaiementBookingIntent\(result\.paymentId[,)]/.test(readFileSync(join(ROOT, 'app/profile/subscription.tsx'), 'utf8')))
   const focus = fiche.slice(fiche.indexOf('useFocusEffect('), fiche.indexOf('const reprendreAchat'))
   verifier('le useFocusEffect de la fiche appelle effacerSiPaiementMort avec lireStatutPaiement, puis désarme',
-    /effacerSiPaiementMort\(intent, lireStatutPaiement\)/.test(focus) && /setIntentionArmee\(false\)/.test(focus))
+    /effacerSiPaiementMort\(intent, lireStatutPaiement\)/.test(focus) && /setIntentionArmee\(false\)|setIntention\(null\)/.test(focus))
   verifier('… dans le même passage que rafraichirDroits()', focus.indexOf('rafraichirDroits()') !== -1
     && focus.indexOf('rafraichirDroits()') < focus.indexOf('effacerSiPaiementMort('))
   verifier('… et n\'ouvre JAMAIS la feuille d\'achat (aucun geste du membre à l\'ouverture)',

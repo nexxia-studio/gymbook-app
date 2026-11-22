@@ -43,6 +43,8 @@ export interface GymProfile {
    * c'est `DEFAULT_HORIZON_DAYS` qui s'applique (cf. `getBookingHorizonDays`).
    */
   bookingHorizonDays: number
+  /** GYM-387 — code pays ISO de la salle (BE, FR…) : indicatif téléphonique par défaut. */
+  country: string | null
 }
 
 /**
@@ -101,7 +103,7 @@ export async function getGymProfile(): Promise<GymProfile | null> {
       const { data, error } = await supabase
         .from('nexxia_gyms')
         // ⚠️ Aucune colonne legal_* ici — voir l'en-tête du module.
-        .select('name, address, postal_code, city, email, slug, subdomain, booking_horizon_days, waitlist_confirmation_minutes')
+        .select('name, address, postal_code, city, email, slug, subdomain, booking_horizon_days, waitlist_confirmation_minutes, country')
         .eq('id', gymId)
         .maybeSingle()
 
@@ -118,6 +120,7 @@ export async function getGymProfile(): Promise<GymProfile | null> {
         // ⚠️ Suivi jusqu'à l'OBJET RENDU, pas seulement jusqu'au SELECT : c'est au mapping
         // que GYM-228 avait perdu `requires_coach`, pourtant bien demandée dans la requête.
         bookingHorizonDays: sanitizeHorizon(data.booking_horizon_days),
+        country: nullIfBlank(data.country as string | null),
         // 🔴 GYM-352 — LE DÉLAI EST CELUI DE LA SALLE, PAS 30 EN DUR. `notify-waitlist`
         // lit `gym.waitlist_confirmation_minutes ?? 30` : la valeur est CONFIGURABLE par
         // salle. Écrire « 30 minutes » dans l'app mentirait à toute salle qui l'a changée.

@@ -12,15 +12,23 @@ interface BookingModalProps {
   date: string
   time: string
   waitlistPosition?: number | null
+  /** GYM-379 — titre d'une réservation CONFIRMÉE, quand l'appelant en dit plus (« Cours réservé ✅ »). */
+  confirmedTitle?: string
+  /**
+   * GYM-379 (21/11) — inscription AUTOMATIQUE en liste d'attente après un achat : le texte
+   * complet (position, délai de la salle, sort du crédit), composé par l'appelant d'après la
+   * réponse du serveur. Il remplace le message et l'indice génériques.
+   */
+  waitlistDetail?: string
   onViewBookings: () => void
   onClose: () => void
 }
 
-export function BookingModal({ visible, activity, date, time, waitlistPosition, onViewBookings, onClose }: BookingModalProps) {
+export function BookingModal({ visible, activity, date, time, waitlistPosition, confirmedTitle, waitlistDetail, onViewBookings, onClose }: BookingModalProps) {
   const { t } = useTranslation()
   const { tokens } = useTheme()
   const scale = useSharedValue(0)
-  const isWaitlist = waitlistPosition != null && waitlistPosition > 0
+  const isWaitlist = !!waitlistDetail || (waitlistPosition != null && waitlistPosition > 0)
 
   useEffect(() => {
     if (visible) {
@@ -53,16 +61,17 @@ export function BookingModal({ visible, activity, date, time, waitlistPosition, 
             <Text className="mt-4 font-barlow text-2xl uppercase" style={{ color: tokens.onSurface }}>
               {isWaitlist
                 ? t('session.waitlist_joined')
-                : t('session.booking_confirmed')}
+                : confirmedTitle ?? t('session.booking_confirmed')}
             </Text>
 
             <Text className="mt-2 text-center font-dmsans text-sm" style={{ color: tokens.onSurfaceSecondary }}>
-              {isWaitlist
-                ? t('session.waitlist_message', { position: waitlistPosition })
-                : t('session.booking_details', { activity, date, time })}
+              {waitlistDetail
+                ?? (isWaitlist
+                  ? t('session.waitlist_message', { position: waitlistPosition })
+                  : t('session.booking_details', { activity, date, time }))}
             </Text>
 
-            {isWaitlist && (
+            {isWaitlist && !waitlistDetail && (
               <Text className="mt-2 text-center font-dmsans text-xs" style={{ color: tokens.onBackgroundMuted }}>
                 {t('session.waitlist_hint')}
               </Text>

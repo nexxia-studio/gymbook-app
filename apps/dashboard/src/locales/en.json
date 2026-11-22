@@ -506,6 +506,9 @@
     "toast_notified_other": "{{count}} members were notified."
   },
   "members": {
+    "filter_no_phone": "Missing phone",
+    "phone_missing": "Missing phone",
+    "email_hidden_apple": "Email hidden (Apple)",
     "title": "Members",
     "count": "{{total}} members",
     "search_placeholder": "Search a member...",
@@ -607,6 +610,8 @@
     "card_since": "Joined {{date}}"
   },
   "member_drawer": {
+    "contact_email": "Contact email",
+    "login_email": "Sign-in email",
     "title": "Member profile",
     "edit": "Edit",
     "first_name": "First name",

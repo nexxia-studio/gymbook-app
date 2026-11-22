@@ -89,6 +89,13 @@ export async function clearSelectedGymSlug() { trace.push('slug:efface'); setSlu
   // pas pour changer ce qu'il fait.
   writeFileSync(join(L, 'gymUrls.js'), 'export function buildMemberSignupConfirmUrl() { return null }\n')
   writeFileSync(join(L, 'activeGymWrites.js'), 'export function activeGymWriteInFlight() { return false }\n')
+  // GYM-379 (passe finale) — l'intention de réservation vit sur le disque de l'APPAREIL :
+  // la déconnexion doit l'effacer, sans quoi le compte suivant hérite du cours du précédent.
+  writeFileSync(join(L, 'bookingIntent.js'), `
+import { trace } from './trace.js'
+export function brancherMembreCourant() {}
+export async function effacerBookingIntent() { trace.push('intention:effacee') }
+`)
   const imp = (p) => import(pathToFileURL(join(out, p)).href)
   let store
   try { store = (await imp('stores/useAuthStore.js')).useAuthStore } catch (e) {
@@ -101,6 +108,7 @@ export async function clearSelectedGymSlug() { trace.push('slug:efface'); setSlu
     dire(T.trace.includes('session:detruite'), 'la session est bien détruite')
     dire(!T.trace.includes('slug:efface'), `le choix de salle SURVIT — trace : ${T.trace.join(' · ') || '(rien d’autre)'}`)
     dire(T.slug === 'ma-salle', `le slug vaut encore « ${T.slug} » après la déconnexion`)
+    dire(T.trace.includes('intention:effacee'), 'l’intention de réservation part avec la session (GYM-379)')
     dire(store.getState().session === null && store.getState().user === null,
       'ni session ni utilisateur ne restent en mémoire')
   }

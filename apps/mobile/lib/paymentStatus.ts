@@ -55,3 +55,97 @@ export function issueDuRetour(paymentId: string | undefined, statut: string | nu
 export function paiementMort(paymentId: string | undefined, statut: string | null): boolean {
   return !!paymentId && statut !== null && TERMINAL_FAILURE.has(statut)
 }
+
+/**
+ * GYM-379 — Le membre revient du navigateur (AppState → active) pendant l'attente de la
+ * feuille « Payer cette séance ». Que fait la feuille, au vu de `payments.status` ?
+ *
+ *   · abandonner        — failed / canceled / expired : fait serveur terminal. On arrête
+ *                         l'attente et on rend les options, avec un message neutre.
+ *   · proposer_reprise  — `open` / `pending` : « Paiement non finalisé ? ». On propose de
+ *                         ROUVRIR LE MÊME checkout, jamais d'en créer un second.
+ *   · attendre          — `paid` (la boucle verra le droit) ou inconnu (lecture impossible) :
+ *                         on n'affirme rien, « Annuler » reste disponible.
+ *
+ * 🔴 MESURÉ EN STAGING LE 09/11 : « Canceled » chez la banque (KBC via Mollie) n'envoie
+ * AUCUN webhook. Le paiement reste `open` et ne passe `expired` qu'environ 17 min plus tard.
+ * `abandonner` ne couvre donc presque jamais l'annulation réelle : c'est `open` qui la porte.
+ *
+ * ⚠️ `open` RESTE AMBIGU — il vient peut-être de payer et le webhook tarde. D'où la
+ * question, et la REPRISE DU MÊME checkout : sur un paiement déjà payé, Mollie le dit, et
+ * le membre ne peut pas payer deux fois. Rouvrir les OPTIONS ici, au contraire, créerait un
+ * second paiement.
+ */
+export type IssueAuPremierPlan = 'abandonner' | 'proposer_reprise' | 'attendre'
+
+const NON_FINALISE = new Set(['open', 'pending'])
+
+export function issueAuPremierPlan(statut: string | null): IssueAuPremierPlan {
+  if (statut === null) return 'attendre'
+  if (TERMINAL_FAILURE.has(statut)) return 'abandonner'
+  if (NON_FINALISE.has(statut)) return 'proposer_reprise'
+  return 'attendre'
+}
+
+/**
+ * 🔴 GYM-379 (relecture du 09/11) — UN NOUVEAU PAIEMENT PEUT-IL ÊTRE PROPOSÉ ?
+ *
+ * Seulement s'il n'y a pas de paiement précédent, ou si le précédent est MORT (failed /
+ * canceled / expired). `open`, `pending`, `paid` et l'inconnu ferment la porte : le membre
+ * a peut-être payé (webhook en retard), et lui rouvrir « Payer cette séance », c'est l'exposer
+ * au double débit. Sur `open`, on propose de reprendre le MÊME checkout.
+ */
+export function nouveauPaiementAutorise(paymentIdPrecedent: string | null | undefined, statut: string | null): boolean {
+  if (!paymentIdPrecedent) return true
+  return statut !== null && TERMINAL_FAILURE.has(statut)
+}
+
+/**
+ * GYM-379 — LA FEUILLE « PAYER CETTE SÉANCE » ARRIVE AU BOUT DE SES 5 MINUTES, se rouvre
+ * sur un paiement précédent, ou le membre tape « Reprendre le paiement ». Où va-t-elle, au
+ * vu de `payments.status` ?
+ *
+ *   · options        — échec terminal : un nouveau paiement peut être proposé ;
+ *   · non_finalise   — `open` / `pending`, ET EUX SEULS : « Paiement non finalisé ? »
+ *                      (Reprendre / Annuler) ; au tap sur « Reprendre », le checkout rouvre ;
+ *   · paye           — `paid` : le crédit tarde. On ne propose rien à payer, on le dit ;
+ *   · illisible      — `null` (hors ligne, ligne introuvable) ou statut inconnu :
+ *                      « Impossible de vérifier ton paiement » (Réessayer / Annuler).
+ *
+ * 🔴 GYM-379 (passe finale) — L'INCONNU N'EST PLUS « NON FINALISÉ ». Il menait à
+ * « Reprendre », donc à rouvrir un checkout dont on ne savait rien — peut-être déjà payé,
+ * peut-être expiré. On ne propose ni de payer ni de reprendre ce qu'on n'a pas pu lire.
+ */
+export type IssueFinAttente = 'options' | 'non_finalise' | 'paye' | 'illisible'
+
+export function issueFinAttente(statut: string | null): IssueFinAttente {
+  if (statut === 'paid') return 'paye'
+  if (statut !== null && TERMINAL_FAILURE.has(statut)) return 'options'
+  if (statut !== null && NON_FINALISE.has(statut)) return 'non_finalise'
+  return 'illisible'
+}
+
+/**
+ * 🔴 GYM-379 (passe finale) — AVANT DE CRÉER UN PAIEMENT DEPUIS PROFIL → ABONNEMENT, que
+ * faire de l'intention de réservation en cours et de son paiement ?
+ *
+ *   · libre             — pas de paiement rattaché, ou paiement mort : l'achat part, et
+ *                         se rattache à l'intention comme avant (GYM-374) ;
+ *   · paiement_en_cours — `open` / `pending` : « Un paiement est en cours pour ton cours… »,
+ *                         Reprendre ce paiement / L'abandonner et continuer. JAMAIS
+ *                         d'écrasement silencieux : le membre a peut-être payé ;
+ *   · conserver         — `paid` : le cours se réserve d'après CE paiement. L'achat part,
+ *                         mais NE TOUCHE PAS à l'intention — l'écraser retirerait l'accord
+ *                         et le cours payé ne se réserverait plus ;
+ *   · illisible         — statut illisible : on ne décide rien sur une lecture ratée.
+ */
+export type GardeAchat = 'libre' | 'paiement_en_cours' | 'conserver' | 'illisible'
+
+export function gardeAvantAchat(paymentId: string | null | undefined, statut: string | null): GardeAchat {
+  if (!paymentId) return 'libre'
+  if (statut === null) return 'illisible'
+  if (TERMINAL_FAILURE.has(statut)) return 'libre'
+  if (NON_FINALISE.has(statut)) return 'paiement_en_cours'
+  if (statut === 'paid') return 'conserver'
+  return 'illisible'
+}
