@@ -18,16 +18,16 @@ console.log('rappel 2h — heure exacte, aucune durée')
   // Mardi 24 novembre 2026, 18:00 à Bruxelles (heure d'hiver, UTC+1).
   const t = composeReminderTexts('2h', 'Hyrox', '2026-11-24T17:00:00+00:00', BXL)
   check('titre inchangé', t.pushTitle === "C'est bientôt ! 🏃", t.pushTitle)
-  check('corps « Hyrox à 18:00 — à tout à l\'heure ! »', t.pushBody === "Hyrox à 18:00 — à tout à l'heure !", t.pushBody)
+  check('corps « Hyrox à 18:00, à tout à l\'heure ! »', t.pushBody === "Hyrox à 18:00, à tout à l'heure !", t.pushBody)
   check('aucune durée écrite', !/dans\s+\d|2\s?h\b/i.test(t.pushBody), t.pushBody)
   check('pas d\'email pour le 2h', t.emailSubject === null && t.emailTitle === null)
   // Le même cours, quelle que soit l'heure d'envoi : le texte ne dépend que du cours.
   const cours = ['2026-11-24T16:30:00Z', '2026-11-24T17:00:00Z', '2026-11-24T17:30:00Z']
     .map((s) => composeReminderTexts('2h', 'Hyrox', s, BXL).pushBody)
   check('cours rapprochés 17:30 / 18:00 / 18:30 distingués',
-    cours.join(' | ') === "Hyrox à 17:30 — à tout à l'heure ! | Hyrox à 18:00 — à tout à l'heure ! | Hyrox à 18:30 — à tout à l'heure !", cours.join(' | '))
+    cours.join(' | ') === "Hyrox à 17:30, à tout à l'heure ! | Hyrox à 18:00, à tout à l'heure ! | Hyrox à 18:30, à tout à l'heure !", cours.join(' | '))
   check('heure d\'été : 18:00 local = 16:00 UTC',
-    composeReminderTexts('2h', 'Yoga', '2026-07-07T16:00:00Z', BXL).pushBody === "Yoga à 18:00 — à tout à l'heure !")
+    composeReminderTexts('2h', 'Yoga', '2026-07-07T16:00:00Z', BXL).pushBody === "Yoga à 18:00, à tout à l'heure !")
   check('accepte un objet Date', composeReminderTexts('2h', 'Yoga', new Date('2026-07-07T16:00:00Z'), BXL).heure === '18:00')
 }
 
@@ -47,8 +47,8 @@ console.log('passage à l\'heure d\'hiver (dimanche 25/10/2026, 03:00 → 02:00 
 console.log('rappel 24h — le jour réel, jamais « demain »')
 {
   const t = composeReminderTexts('24h', 'Hyrox', '2026-11-24T17:00:00Z', BXL)
-  check('sujet « Rappel — Hyrox mardi 24 novembre à 18:00 »', t.emailSubject === 'Rappel — Hyrox mardi 24 novembre à 18:00', String(t.emailSubject))
-  check('titre « Rappel — votre cours mardi 24 novembre »', t.emailTitle === 'Rappel — votre cours mardi 24 novembre', String(t.emailTitle))
+  check('sujet « Rappel : Hyrox mardi 24 novembre à 18:00 »', t.emailSubject === 'Rappel : Hyrox mardi 24 novembre à 18:00', String(t.emailSubject))
+  check('titre « Rappel : votre cours mardi 24 novembre »', t.emailTitle === 'Rappel : votre cours mardi 24 novembre', String(t.emailTitle))
   check('aucun « demain »', ![t.emailSubject, t.emailTitle, t.quand, t.pushBody].some((s) => /demain/i.test(String(s))))
   check('push 24h : titre inchangé', t.pushTitle === 'Rappel cours 🏋️', t.pushTitle)
   check('push 24h : « Hyrox mardi 24 novembre à 18:00 »', t.pushBody === 'Hyrox mardi 24 novembre à 18:00', t.pushBody)
@@ -71,9 +71,9 @@ console.log('rappel 24h — le jour réel, jamais « demain »')
 console.log('activité sans nom')
 for (const vide of [null, undefined, '', '   ']) {
   const t = composeReminderTexts('2h', vide, '2026-11-24T17:00:00Z', BXL)
-  check(`« ${String(vide)} » → Cours`, t.pushBody === "Cours à 18:00 — à tout à l'heure !", t.pushBody)
+  check(`« ${String(vide)} » → Cours`, t.pushBody === "Cours à 18:00, à tout à l'heure !", t.pushBody)
 }
-check('24h sans nom', composeReminderTexts('24h', null, '2026-11-24T17:00:00Z', BXL).emailSubject === 'Rappel — Cours mardi 24 novembre à 18:00')
+check('24h sans nom', composeReminderTexts('24h', null, '2026-11-24T17:00:00Z', BXL).emailSubject === 'Rappel : Cours mardi 24 novembre à 18:00')
 
 console.log('fuseau de la salle')
 {
@@ -86,6 +86,25 @@ console.log('fuseau de la salle')
       fuseauSalle(mauvais) === FUSEAU_REPLI && composeReminderTexts('2h', 'Yoga', instant, mauvais).heure === '00:30')
   }
   check('fuseau valide conservé', composeReminderTexts('2h', 'Yoga', instant, ' America/New_York ').fuseau === 'America/New_York')
+}
+
+console.log('aucun tiret cadratin ni demi-cadratin dans un texte composé')
+{
+  let fautifs: string[] = []
+  for (const type of ['2h', '24h'] as const) {
+    for (const activite of ['Hyrox', null, 'Open Gym']) {
+      for (const instant of ['2026-11-24T17:00:00Z', '2026-11-23T23:15:00Z', '2026-10-25T00:30:00Z', '2026-07-07T16:00:00Z']) {
+        for (const fuseau of [BXL, 'America/New_York', null]) {
+          const t = composeReminderTexts(type, activite, instant, fuseau)
+          for (const [champ, valeur] of Object.entries(t)) {
+            if (champ !== 'fuseau' && typeof valeur === 'string' && /[\u2014\u2013]/.test(valeur)) fautifs.push(`${type}.${champ} : ${valeur}`)
+          }
+        }
+      }
+    }
+  }
+  fautifs = [...new Set(fautifs)]
+  check('72 compositions, tous les champs texte', fautifs.length === 0, fautifs.join(' ; '))
 }
 
 console.log('date illisible')

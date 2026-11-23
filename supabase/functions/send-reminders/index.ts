@@ -121,7 +121,7 @@ async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingRemi
     body: JSON.stringify({
       from: emailSender(gym),
       to: reminder.member_email,
-      subject: textes.emailSubject ?? `Rappel — ${textes.quand}`,
+      subject: textes.emailSubject ?? `Rappel : ${textes.quand}`,
       html,
     }),
   }).catch((e) => console.error('[send-reminders] email error:', e))
