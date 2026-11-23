@@ -8,6 +8,7 @@ import { useGymStore } from '@/stores/useGymStore'
 import { useToastStore } from '@/hooks/useToast'
 import { supabase } from '@/lib/supabase'
 import { invokeEdge } from '@/lib/edgeInvoke'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
 type Template = 'info' | 'closure' | 'promo' | 'cancellation' | 'custom'
 type Segment = 'all' | 'subscribers' | 'drop_in' | 'present_today'
@@ -48,9 +49,13 @@ export default function Communications() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [segment, setSegment] = useState<Segment>('all')
-  const [sendPush, setSendPush] = useState(true)
-  const [sendEmail, setSendEmail] = useState(false)
+  // GYM-134 (v1) — un seul canal : le push (plus la boîte de réception in-app, écrite par
+  // la fonction). email : hors v1, voir quota Resend. Aucune option email n'est proposée.
+  const [lastResult, setLastResult] = useState<string | null>(null)
   const [recipientCount, setRecipientCount] = useState<number | null>(null)
+  // Membres du segment qui ont un jeton push. `null` tant que le compte n'est pas connu.
+  const [pushCount, setPushCount] = useState<number | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [isSending, setIsSending] = useState(false)
 
   const [history, setHistory] = useState<HistoryRow[]>([])
@@ -71,9 +76,13 @@ export default function Communications() {
       if (cancelled) return
       if (error) {
         setRecipientCount(null)
+        setPushCount(null)
         return
       }
-      setRecipientCount(data?.length ?? 0)
+      const rows = (data ?? []) as { push_token: string | null }[]
+      setRecipientCount(rows.length)
+      // Même règle que la fonction d'envoi : un jeton vide ou blanc n'est pas un jeton.
+      setPushCount(rows.filter((r) => typeof r.push_token === 'string' && r.push_token.trim() !== '').length)
     }
     run()
     return () => { cancelled = true }
@@ -95,12 +104,11 @@ export default function Communications() {
   useEffect(() => { loadHistory() }, [gymId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const canSend = useMemo(() => {
-    return title.trim().length > 0 && body.trim().length > 0 && (sendPush || sendEmail) && !!gymId
-  }, [title, body, sendPush, sendEmail, gymId])
+    return title.trim().length > 0 && body.trim().length > 0 && !!gymId
+  }, [title, body, gymId])
 
   const handleSend = async () => {
     if (!canSend || !gymId || !user) return
-    if (!confirm(t('communications.confirm_send', { count: recipientCount ?? 0 }))) return
 
     setIsSending(true)
     try {
@@ -114,8 +122,9 @@ export default function Communications() {
           body: body.trim(),
           segment,
           template,
-          send_push: sendPush,
-          send_email: sendEmail,
+          send_push: true,
+          // email : hors v1, voir quota Resend.
+          send_email: false,
           status: 'draft',
         })
         .select('id')
@@ -123,7 +132,6 @@ export default function Communications() {
 
       if (draftErr || !draft) {
         addToast(draftErr?.message ?? t('communications.errors.create_failed'), 'error')
-        setIsSending(false)
         return
       }
 
@@ -137,11 +145,16 @@ export default function Communications() {
         // code » au gérant : du jargon serveur, sans indication d'action.
         addToast(await resolveEdgeError(fnErr, t), 'error')
       } else {
-        addToast(t('communications.sent_success', {
-          push: result?.push_sent ?? 0,
-          email: result?.email_sent ?? 0,
+        // X = push acceptés par Expo, Y = membres du segment, Z = membres sans jeton push.
+        const failed = result?.push_failed ?? 0
+        // `count` pilote le pluriel d'i18next (sent_result_one / sent_result_other).
+        const message = t('communications.sent_result', {
+          count: result?.push_sent ?? 0,
           total: result?.recipient_count ?? 0,
-        }), 'success')
+          without: result?.without_token ?? 0,
+        }) + (failed > 0 ? ' ' + t('communications.sent_result_failed', { count: failed }) : '')
+        setLastResult(message)
+        addToast(message, failed > 0 ? 'error' : 'success')
         setTitle(t(`communications.templates.${template}.title`))
         setBody('')
         await loadHistory()
@@ -150,6 +163,7 @@ export default function Communications() {
       addToast((e as Error).message, 'error')
     } finally {
       setIsSending(false)
+      setConfirmOpen(false)
     }
   }
 
@@ -237,30 +251,7 @@ export default function Communications() {
                 ))}
               </select>
 
-              {/* Channel toggles */}
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-                <label className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sendPush}
-                    onChange={(e) => setSendPush(e.target.checked)}
-                    className="h-4 w-4 accent-accent"
-                  />
-                  <Bell className="h-4 w-4 text-muted" />
-                  <span className="font-body text-sm text-dark">{t('communications.channels.push')}</span>
-                </label>
-                <label className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sendEmail}
-                    onChange={(e) => setSendEmail(e.target.checked)}
-                    className="h-4 w-4 accent-accent"
-                  />
-                  <Mail className="h-4 w-4 text-muted" />
-                  <span className="font-body text-sm text-dark">{t('communications.channels.email')}</span>
-                </label>
-              </div>
-
+              {/* email : hors v1, voir quota Resend. Pas de choix de canal : le push part toujours. */}
               {/* TODO GYM-54 : SMS + WhatsApp */}
 
               {/* Recipient count + send */}
@@ -274,7 +265,7 @@ export default function Communications() {
                   </span>
                 </div>
                 <button
-                  onClick={handleSend}
+                  onClick={() => setConfirmOpen(true)}
                   disabled={!canSend || isSending || (recipientCount ?? 0) === 0}
                   className="flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-2.5 font-body font-bold text-[#17102E] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-light disabled:text-primary"
                 >
@@ -282,6 +273,12 @@ export default function Communications() {
                   {isSending ? t('communications.sending') : t('communications.send')}
                 </button>
               </div>
+
+              {lastResult && (
+                <p role="status" className="mt-3 rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark">
+                  {lastResult}
+                </p>
+              )}
             </section>
 
             {/* Section 3 — History */}
@@ -325,7 +322,7 @@ export default function Communications() {
                             </div>
                           </td>
                           <td className="px-2 py-3 text-center font-body text-sm text-dark">
-                            {row.recipient_count ?? '—'}
+                            {row.recipient_count ?? '-'}
                           </td>
                           <td className="px-2 py-3 text-right">
                             <StatusBadge status={row.status} />
@@ -371,6 +368,46 @@ export default function Communications() {
           </aside>
         </div>
       </div>
+
+      {/* GYM-134 — confirmation d'envoi (remplace window.confirm). */}
+      <ConfirmModal
+        open={confirmOpen}
+        title={t('communications.confirm.title')}
+        icon={<Send className="h-7 w-7 text-accent-dim" />}
+        confirmLabel={t('communications.send')}
+        cancelLabel={t('common.cancel')}
+        confirmColor="primary"
+        busy={isSending}
+        busyLabel={t('communications.sending')}
+        closeOnBackdrop
+        focusConfirm
+        onConfirm={() => { void handleSend() }}
+        onCancel={() => setConfirmOpen(false)}
+      >
+        {/* Le message tel que le membre le verra : même carte que la prévisualisation. */}
+        <div className="mt-4 rounded-xl border border-border bg-background px-3 py-3 text-left">
+          <div className="mb-1 flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-[#17102E]">{gymName.charAt(0).toUpperCase()}</div>
+            <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-muted">{gymName}</span>
+          </div>
+          <p className="break-words font-body text-sm font-semibold text-dark">{title.trim()}</p>
+          <p className="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-words font-body text-xs text-muted">{body.trim()}</p>
+        </div>
+
+        <p className="mt-3 text-center font-body text-sm text-secondary">
+          {[
+            t('communications.confirm.scope_total', { count: recipientCount ?? 0 }),
+            // Sans compte des jetons push, on n'affiche que le total.
+            ...(pushCount === null || recipientCount === null ? [] : [
+              t('communications.confirm.scope_push', { count: pushCount }),
+              // GYM-391 : repasser à "le verront dans l'app" quand l'écran Messages sera en prod.
+              // (Le JSON des traductions n'accepte pas de commentaire : la note vit ici, à
+              // l'emploi de la clé `communications.confirm.scope_without`.)
+              t('communications.confirm.scope_without', { count: recipientCount - pushCount }),
+            ]),
+          ].join(' · ')}
+        </p>
+      </ConfirmModal>
     </DashboardLayout>
   )
 }
