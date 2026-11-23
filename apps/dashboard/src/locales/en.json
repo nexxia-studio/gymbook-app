@@ -169,7 +169,15 @@
     "history_empty": "No communications sent yet.",
     "send": "Send",
     "sending": "Sending...",
-    "confirm_send": "Send this message to {{count}} member(s)?",
+    "confirm": {
+      "title": "Send this message?",
+      "scope_total_one": "{{count}} member targeted",
+      "scope_total_other": "{{count}} members targeted",
+      "scope_push_one": "{{count}} will get a notification",
+      "scope_push_other": "{{count}} will get a notification",
+      "scope_inbox_one": "{{count}} will see it in the app",
+      "scope_inbox_other": "{{count}} will see it in the app"
+    },
     "sent_result_one": "Sent to {{count}} member out of {{total}} ({{without}} without notifications enabled)",
     "sent_result_other": "Sent to {{count}} members out of {{total}} ({{without}} without notifications enabled)",
     "sent_result_failed_one": "{{count}} push could not be delivered.",
