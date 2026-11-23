@@ -169,7 +169,15 @@
     "history_empty": "Aucune communication envoyée pour le moment.",
     "send": "Envoyer",
     "sending": "Envoi en cours...",
-    "confirm_send": "Envoyer ce message à {{count}} membre(s) ?",
+    "confirm": {
+      "title": "Envoyer ce message ?",
+      "scope_total_one": "{{count}} membre ciblé",
+      "scope_total_other": "{{count}} membres ciblés",
+      "scope_push_one": "{{count}} recevra une notification",
+      "scope_push_other": "{{count}} recevront une notification",
+      "scope_without_one": "{{count}} sans notifications activées",
+      "scope_without_other": "{{count}} sans notifications activées"
+    },
     "sent_result_one": "Envoyé à {{count}} membre sur {{total}} ({{without}} sans notifications activées)",
     "sent_result_other": "Envoyé à {{count}} membres sur {{total}} ({{without}} sans notifications activées)",
     "sent_result_failed_one": "{{count}} envoi n'a pas abouti.",
