@@ -5,6 +5,9 @@
 // cours rapprochés le membre ne savait plus duquel on parlait. Le rappel « 24h » a la même
 // fenêtre de ±30 min : un cours à 00:15 pouvait être annoncé « demain » le jour même.
 //
+// AUCUN TIRET CADRATIN (« — ») NI DEMI-CADRATIN (« – ») dans un texte composé ici : décision
+// d'Antoine, valable pour tout ce que voit un membre. Le banc le vérifie sur chaque champ.
+//
 // La règle : AUCUNE durée, AUCUN « demain ». Le texte donne l'heure — et, pour le 24h, le
 // jour — du cours, dans le fuseau de la salle. C'est vrai quelle que soit l'heure d'envoi.
 //
@@ -78,7 +81,7 @@ export function composeReminderTexts(
     return {
       activite, heure, jour, fuseau, quand,
       pushTitle: "C'est bientôt ! 🏃",
-      pushBody: `${activite} à ${heure} — à tout à l'heure !`,
+      pushBody: `${activite} à ${heure}, à tout à l'heure !`,
       emailSubject: null,
       emailTitle: null,
     }
@@ -88,7 +91,7 @@ export function composeReminderTexts(
     pushTitle: 'Rappel cours 🏋️',
     // Le jour aussi, comme l'email : « Hyrox à 18:00 » reçu la veille à 18:00 ne dit pas lequel.
     pushBody: quand,
-    emailSubject: `Rappel — ${quand}`,
-    emailTitle: `Rappel — votre cours ${jour}`,
+    emailSubject: `Rappel : ${quand}`,
+    emailTitle: `Rappel : votre cours ${jour}`,
   }
 }
