@@ -13,6 +13,8 @@ import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
+// GYM-386 — textes des rappels : heure exacte, jour réel, fuseau de la salle.
+import { composeReminderTexts, FUSEAU_REPLI, type ReminderTexts } from './reminder-texts.ts'
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const INTERNAL_SECRET = Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? ''
@@ -71,9 +73,30 @@ async function notificationsAllowed(supabase: SupabaseClient, gymId: string): Pr
   return allowed
 }
 
-async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingReminder, dateStr: string, timeStr: string) {
+/**
+ * GYM-386 — fuseau de la salle, mis en cache LE TEMPS D'UNE EXÉCUTION (même raison que les
+ * deux caches ci-dessus). `get_pending_reminders` ne le renvoie pas, et on ne la modifie pas.
+ *
+ * ⚠️ UNE LECTURE EN ÉCHEC NE BLOQUE PAS LE RAPPEL : on retombe sur `FUSEAU_REPLI`, le repli
+ * que la RPC applique elle-même. Le repli n'est PAS mis en cache — il sera relu au rappel
+ * suivant. `null` (colonne vide) est en revanche une vraie réponse, et se met en cache.
+ */
+const timezoneCache = new Map<string, string | null>()
+
+async function timezoneFor(supabase: SupabaseClient, gymId: string): Promise<string | null> {
+  if (timezoneCache.has(gymId)) return timezoneCache.get(gymId) ?? null
+  const { data, error } = await supabase.from('nexxia_gyms').select('timezone').eq('id', gymId).maybeSingle()
+  if (error) {
+    console.error('[send-reminders] timezone read failed, gym', gymId, '— repli', FUSEAU_REPLI, error.message)
+    return null
+  }
+  const tz = (data?.timezone as string | null | undefined) ?? null
+  timezoneCache.set(gymId, tz)
+  return tz
+}
+
+async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingReminder, textes: ReminderTexts) {
   if (!RESEND_KEY || !reminder.member_email) return
-  const activityName = reminder.activity_name ?? 'Cours'
   // GYM-229 — pas de coach, pas de ligne. Une activité en accès libre (Open Gym) n'en a
   // aucun : « Coach : — » n'informe de rien et se lit comme une donnée manquante. Le bloc
   // entier disparaît, libellé compris. (Cet email n'a pas de version texte.)
@@ -84,9 +107,10 @@ async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingRemi
     : ''
   const gym = await brandingFor(supabase, reminder.gym_id)
   const html = emailShell(gym, {
-    title: 'Rappel — votre cours demain',
+    // GYM-386 — plus de « demain » : la fenêtre est de ±30 min, le jour est donc calculé.
+    title: textes.emailTitle ?? 'Rappel',
     width: 480,
-    bodyHtml: `<p style="color:#6B6861;">Vous avez un cours demain : <strong>${activityName}</strong> le ${dateStr} à ${timeStr}.</p>${coachLine}`,
+    bodyHtml: `<p style="color:#6B6861;">Votre cours : <strong>${textes.activite}</strong>, ${textes.jour} à ${textes.heure}.</p>${coachLine}`,
     ctaLabel: 'Voir ma réservation',
     // 🔴 ÉTAIT `dopamine://bookings` : inerte dans tout client mail.
     ctaPath: 'bookings',
@@ -97,18 +121,18 @@ async function sendReminderEmail(supabase: SupabaseClient, reminder: PendingRemi
     body: JSON.stringify({
       from: emailSender(gym),
       to: reminder.member_email,
-      subject: `Rappel — ${activityName} demain à ${timeStr}`,
+      subject: textes.emailSubject ?? `Rappel — ${textes.quand}`,
       html,
     }),
   }).catch((e) => console.error('[send-reminders] email error:', e))
 }
 
-async function sendReminderPush(supabaseUrl: string, serviceKey: string, reminder: PendingReminder, timeStr: string) {
+async function sendReminderPush(supabaseUrl: string, serviceKey: string, reminder: PendingReminder, textes: ReminderTexts) {
   if (!reminder.push_token) return
-  const activityName = reminder.activity_name ?? 'Cours'
-  const is24h = reminder.reminder_type === '24h'
-  const title = is24h ? 'Rappel cours 🏋️' : "C'est bientôt ! 🏃"
-  const body = is24h ? `${activityName} à ${timeStr}` : `Votre cours commence dans 2h — ${activityName}`
+  // GYM-386 — était « Votre cours commence dans 2h » en dur, faux une fois sur deux
+  // (fenêtre +1h30 → +2h30). Le texte donne maintenant l'heure du cours.
+  const title = textes.pushTitle
+  const body = textes.pushBody
   await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
@@ -165,15 +189,16 @@ Deno.serve(async (req) => {
           continue
         }
 
-        const startDate = new Date(r.slot_starts_at)
-        const dateStr = startDate.toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' })
-        const timeStr = startDate.toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })
+        // GYM-386 — jour et heure dans le fuseau de LA SALLE (repli Europe/Brussels).
+        const textes = composeReminderTexts(
+          r.reminder_type, r.activity_name, r.slot_starts_at, await timezoneFor(supabase, r.gym_id),
+        )
 
         if (r.reminder_type === '24h') {
-          await sendReminderEmail(supabase, r, dateStr, timeStr)
-          await sendReminderPush(supabaseUrl, serviceKey, r, timeStr)
+          await sendReminderEmail(supabase, r, textes)
+          await sendReminderPush(supabaseUrl, serviceKey, r, textes)
         } else if (r.reminder_type === '2h') {
-          await sendReminderPush(supabaseUrl, serviceKey, r, timeStr)
+          await sendReminderPush(supabaseUrl, serviceKey, r, textes)
         }
 
         await supabase.rpc('mark_reminder_sent', {
