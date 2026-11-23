@@ -400,7 +400,10 @@ export default function Communications() {
             // Sans compte des jetons push, on n'affiche que le total.
             ...(pushCount === null || recipientCount === null ? [] : [
               t('communications.confirm.scope_push', { count: pushCount }),
-              t('communications.confirm.scope_inbox', { count: recipientCount - pushCount }),
+              // GYM-391 : repasser à "le verront dans l'app" quand l'écran Messages sera en prod.
+              // (Le JSON des traductions n'accepte pas de commentaire : la note vit ici, à
+              // l'emploi de la clé `communications.confirm.scope_without`.)
+              t('communications.confirm.scope_without', { count: recipientCount - pushCount }),
             ]),
           ].join(' · ')}
         </p>

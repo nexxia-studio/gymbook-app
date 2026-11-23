@@ -175,8 +175,8 @@
       "scope_total_other": "{{count}} members targeted",
       "scope_push_one": "{{count}} will get a notification",
       "scope_push_other": "{{count}} will get a notification",
-      "scope_inbox_one": "{{count}} will see it in the app",
-      "scope_inbox_other": "{{count}} will see it in the app"
+      "scope_without_one": "{{count}} without notifications enabled",
+      "scope_without_other": "{{count}} without notifications enabled"
     },
     "sent_result_one": "Sent to {{count}} member out of {{total}} ({{without}} without notifications enabled)",
     "sent_result_other": "Sent to {{count}} members out of {{total}} ({{without}} without notifications enabled)",
