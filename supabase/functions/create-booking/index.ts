@@ -293,17 +293,19 @@ Deno.serve(async (req) => {
       timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
     })
 
-    // GYM-391 — la réservation confirmée laisse une ligne dans la boîte de réception, et
-    // part en push. Chemin 'confirmed' uniquement : une entrée en liste d'attente n'est
-    // pas une réservation confirmée. `notifier` ne lève jamais et ne bloque pas la réponse
-    // sur un échec : la réservation est faite.
+    // GYM-391 — la réservation confirmée laisse une ligne dans la boîte de réception.
+    // ⚠️ SANS PUSH (`push: false`) : le membre vient de réserver lui-même, l'app le lui a
+    // déjà dit. Un push serait du bruit, et l'attendre allongerait cette réponse.
+    // admin-book-member, lui, garde le push : là le membre n'est pas devant son écran.
+    // Chemin 'confirmed' uniquement : une entrée en liste d'attente n'est pas une
+    // réservation confirmée. `notifier` ne lève jamais : la réservation est faite.
     await notifier(supabaseAdmin, {
       gymId: slot.gym_id as string,
       memberId: user.id,
       type: 'booking_confirmed',
       ...textes.reservationConfirmee({ activite: activityName, jour: dateStr, heure: timeStr }),
       data: { booking_id: rpcResult.booking_id, slot_id: slotId },
-      pushToken: (profile.push_token as string | null) ?? null,
+      push: false,
     })
 
     try {

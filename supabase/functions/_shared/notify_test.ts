@@ -142,6 +142,22 @@ console.log('la ligne ne s’écrit pas : le push est parti, l’échec est dit'
   check('écriture qui lève → ne lève pas', !r2.inbox_written && r2.push_sent)
 }
 
+console.log('push: false : la ligne seule (create-booking)')
+{
+  const m = monde({ jetonEnBase: JETON })
+  const r = await notifierAvec({ ...base, pushToken: JETON, push: false }, m.deps)
+  check('aucun appel à send-notification, malgré un jeton fourni', m.pushes.length === 0)
+  check('une ligne, push_sent = false', m.lignes.length === 1 && m.lignes[0].push_sent === false)
+  check('issue : ligne écrite, push ni tenté ni envoyé', r.inbox_written && !r.push_sent && !r.push_attempted, JSON.stringify(r))
+  const sansJeton = monde({ jetonEnBase: JETON })
+  await notifierAvec({ ...base, push: false }, sansJeton.deps)
+  check('jeton non fourni → profiles non lu, aucun push', sansJeton.lectures === 0 && sansJeton.pushes.length === 0 && sansJeton.lignes.length === 1)
+  check('rien au journal', m.journal.length === 0 && sansJeton.journal.length === 0)
+  const defaut = monde()
+  await notifierAvec({ ...base, pushToken: JETON, push: true }, defaut.deps)
+  check('push: true ou absent → le push part', defaut.pushes.length === 1)
+}
+
 console.log('pushType : le type du push peut différer de celui de la ligne')
 {
   const m = monde()
@@ -167,13 +183,17 @@ console.log('textes')
   const c = { activite: 'Yoga', jour: 'lundi 24 novembre', heure: '18:00' }
   check('réservation', textes.reservationConfirmee(c).body === 'Yoga, lundi 24 novembre à 18:00.')
   check('inscription par la salle', textes.inscriptionParLaSalle(c).body === 'Yoga, lundi 24 novembre à 18:00. Inscrit par ta salle.')
-  check('place disponible', textes.placeDisponible({ activite: 'Yoga', minutes: 30 }).body === 'Yoga : vous avez 30 min pour confirmer.')
+  check('place disponible', textes.placeDisponible({ activite: 'Yoga', minutes: 30 }).body === 'Yoga : tu as 30 min pour confirmer.')
   check('cours annulé, crédit rendu', textes.coursAnnule({ ...c, creditRendu: true }).body === "Yoga du lundi 24 novembre à 18:00 est annulé. Ton crédit t'a été rendu.")
   check('cours annulé, sans crédit', textes.coursAnnule({ ...c, creditRendu: false }).body === 'Yoga du lundi 24 novembre à 18:00 est annulé.')
   check('abonnement mensuel', textes.abonnementActive({ plan: 'Illimité', centimesParMois: 5990 }).body === 'Illimité, 59,90 €/mois.')
-  check('abonnement payé en une fois', textes.abonnementActive({ plan: 'Illimité' }).body === 'Illimité : votre abonnement est actif.')
+  check('abonnement payé en une fois', textes.abonnementActive({ plan: 'Illimité' }).body === 'Illimité : ton abonnement est actif.')
   check('crédits : pluriel', textes.creditsAchetes({ plan: 'Carte 10', seances: 10 }).body === 'Carte 10 : 10 séances ajoutées.')
   check('crédits : singulier', textes.creditsAchetes({ plan: 'Séance', seances: 1 }).body === 'Séance : 1 séance ajoutée.')
+  check('cours modifié, une séance', textes.coursModifie({ activite: 'Yoga', quoi: 'nouvel horaire : 18:30', seances: 1 }).body === 'Yoga, nouvel horaire : 18:30.')
+  check('cours modifié, série', textes.coursModifie({ activite: 'Yoga', quoi: 'changement de coach', seances: 8 }).body === 'Yoga, changement de coach (8 séances concernées).')
+  const susp = textes.suspensionNoShow({ activite: 'Yoga', duree: '48 h', jusquAu: 'mercredi 26 novembre à 10:00' })
+  check('suspension no-show', susp.title === 'Compte suspendu 48 h' && susp.body === "Absence enregistrée pour Yoga. Ton compte est suspendu jusqu'au mercredi 26 novembre à 10:00.")
   check('prélèvement refusé', textes.paiementEchoue({ plan: 'Illimité', avant: '26 novembre' }).body.includes("d'ici au 26 novembre"))
 
   const tous = [
@@ -183,9 +203,21 @@ console.log('textes')
     textes.abonnementActive({ plan: 'Illimité', centimesParMois: 5990 }), textes.abonnementActive({ plan: 'Illimité' }),
     textes.paiementEchoue({ plan: 'Illimité', avant: '26 novembre' }),
     textes.creditsAchetes({ plan: 'Carte 10', seances: 10 }), textes.creditsAchetes({ plan: 'Séance', seances: 1 }),
+    textes.coursModifie({ activite: 'Yoga', quoi: 'nouvel horaire : 18:30', seances: 1 }),
+    textes.coursModifie({ activite: 'Yoga', quoi: 'le cours a changé', seances: 8 }),
+    susp,
   ]
+  check('le banc couvre chaque texte de `textes`', new Set(Object.keys(textes)).size === 9, Object.keys(textes).join(','))
   const avecTiret = tous.filter((t) => /[—–]/.test(t.title + t.body))
   check(`aucun tiret long ni demi-cadratin dans les ${tous.length} textes`, avecTiret.length === 0, JSON.stringify(avecTiret))
+  // Tutoiement partout : « vous », « votre » et « vos » sont refusés, en mot entier, quelle
+  // que soit la casse. Les données du banc (Yoga, Illimité…) n'en contiennent pas.
+  const vouvoiement = /(^|[^\p{L}])(vous|votre|vos)(?![\p{L}])/iu
+  const vouvoyes = tous.filter((t) => vouvoiement.test(t.title) || vouvoiement.test(t.body))
+  check(`tutoiement : ni « vous », ni « votre », ni « vos » dans les ${tous.length} textes`, vouvoyes.length === 0, JSON.stringify(vouvoyes))
+  check('le contrôle attrape bien « Vous avez », « votre » et « vos »', ['Vous avez 30 min', 'Yoga : votre place', 'Tous vos cours'].every((x) => vouvoiement.test(x)))
+  check('« rendez-vous » est refusé aussi : mieux vaut un faux positif à relire qu’un « vous » qui passe', vouvoiement.test('rendez-vous'))
+  check('le contrôle ne se déclenche pas dans un mot (« Devos », « vosgien »)', !vouvoiement.test('Devos') && !vouvoiement.test('vosgien'))
   check('aucun titre ni corps vide', tous.every((t) => t.title.trim() !== '' && t.body.trim() !== ''))
 }
 

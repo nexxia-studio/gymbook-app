@@ -5,7 +5,8 @@
 // membre retrouvera dans l'app, qu'il ait autorisé les notifications ou non.
 //
 // `notifier` fait les deux gestes, dans cet ordre :
-//   1. le push, via `send-notification` (gym_id + X-Internal-Secret), si le membre a un jeton ;
+//   1. le push, via `send-notification` (gym_id + X-Internal-Secret), si le membre a un jeton
+//      (sauf `push: false` : la ligne seule, pour un geste que le membre vient de faire) ;
 //   2. UNE ligne dans `public.notifications`, avec `push_sent` = ce qu'Expo a répondu.
 //
 // ⚠️ UNE FONCTION QUI APPELLE `notifier` N'APPELLE PLUS `send-notification` ELLE-MÊME pour
@@ -28,12 +29,14 @@ import { INTERNAL_SECRET_ENV, INTERNAL_SECRET_HEADER } from './internal-auth.ts'
 
 /**
  * Les types que cette aide écrit. Chacun figure dans `notifications_type_check` ;
- * 'credits_purchased' y est ajouté par la migration GYM-391.
+ * 'credits_purchased' et 'session_updated_by_gym' y sont ajoutés par la migration GYM-391.
  */
 export type TypeNotification =
   | 'booking_confirmed'
   | 'waitlist_promoted'
   | 'session_cancelled_by_gym'
+  | 'session_updated_by_gym'
+  | 'no_show_suspension'
   | 'subscription_activated'
   | 'subscription_payment_failed'
   | 'credits_purchased'
@@ -61,6 +64,13 @@ export interface Notification {
    * binaire déjà en circulation. Par défaut, le type de la ligne.
    */
   pushType?: string
+  /**
+   * `false` : la ligne SEULE. Aucun appel à `send-notification`, aucune lecture du jeton,
+   * `push_sent` = false. Pour un geste que le membre vient de faire lui-même dans l'app
+   * (réserver) : le push serait du bruit, et l'attendre allongerait la réponse.
+   * Par défaut, le push part.
+   */
+  push?: boolean
 }
 
 export interface IssueNotification {
@@ -144,9 +154,11 @@ export async function notifierAvec(n: Notification, deps: Dependances): Promise<
   const issue: IssueNotification = { inbox_written: false, push_sent: false, push_attempted: false }
   const repere = { gym_id: n.gymId, member_id: n.memberId, type: n.type }
 
-  // 1. Le push, si le membre a un jeton.
+  // 1. Le push, si l'appelant ne l'a pas écarté et si le membre a un jeton.
   try {
-    const jeton = jetonUtilisable(n.pushToken === undefined ? await deps.lireJeton(n.memberId) : n.pushToken)
+    const jeton = n.push === false
+      ? null
+      : jetonUtilisable(n.pushToken === undefined ? await deps.lireJeton(n.memberId) : n.pushToken)
     if (jeton) {
       issue.push_attempted = true
       const reponse = await deps.envoyer({
@@ -245,7 +257,7 @@ export const textes = {
   },
   /** Une place s'est libérée pour un membre en liste d'attente (notify-waitlist). */
   placeDisponible(p: { activite: string; minutes: number }): Texte {
-    return { title: 'Place disponible !', body: `${p.activite} : vous avez ${p.minutes} min pour confirmer.` }
+    return { title: 'Place disponible !', body: `${p.activite} : tu as ${p.minutes} min pour confirmer.` }
   },
   /** La salle a annulé le cours (cancel-slot). */
   coursAnnule(p: { activite: string; jour: string; heure: string; creditRendu: boolean }): Texte {
@@ -254,13 +266,29 @@ export const textes = {
       body: `${p.activite} du ${p.jour} à ${p.heure} est annulé.${p.creditRendu ? " Ton crédit t'a été rendu." : ''}`,
     }
   },
+  /** La salle a modifié un cours ou une série (slot-series-op). `quoi` : « nouvel horaire : 18:30 ». */
+  coursModifie(p: { activite: string; quoi: string; seances: number }): Texte {
+    return {
+      title: 'Ton cours a été modifié',
+      body: p.seances > 1
+        ? `${p.activite}, ${p.quoi} (${p.seances} séances concernées).`
+        : `${p.activite}, ${p.quoi}.`,
+    }
+  },
+  /** Une absence vient de déclencher une suspension (mark-attendance). */
+  suspensionNoShow(p: { activite: string; duree: string; jusquAu: string }): Texte {
+    return {
+      title: `Compte suspendu ${p.duree}`,
+      body: `Absence enregistrée pour ${p.activite}. Ton compte est suspendu jusqu'au ${p.jusquAu}.`,
+    }
+  },
   /** Abonnement ouvert. `centimesParMois` connu : premier prélèvement d'un abonnement mensuel. */
   abonnementActive(p: { plan: string; centimesParMois?: number | null }): Texte {
     return {
       title: 'Abonnement activé',
       body: typeof p.centimesParMois === 'number'
         ? `${p.plan}, ${euros(p.centimesParMois)}/mois.`
-        : `${p.plan} : votre abonnement est actif.`,
+        : `${p.plan} : ton abonnement est actif.`,
     }
   },
   /** Premier échec de prélèvement d'un cycle. L'accès reste ouvert jusqu'à `avant`. */

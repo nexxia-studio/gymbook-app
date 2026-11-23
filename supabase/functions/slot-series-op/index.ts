@@ -18,6 +18,8 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — en-tête, pied, bouton et expéditeur composés depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 
 // Même clé, même fournisseur que cancel-slot et admin-book-member.
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -517,16 +519,18 @@ async function notifyAffectedMembers(
     // sera notifiée par le chemin habituel si une place se libère.
     const { data: rows } = await admin
       .from('bookings')
-      .select('member_id, profiles(push_token, email, first_name)')
+      // GYM-391 — `slot_id` : la ligne de la boîte de réception pointe un cours du membre.
+      .select('member_id, slot_id, profiles(push_token, email, first_name)')
       .in('slot_id', ctx.slotIds)
       .eq('status', 'confirmed')
 
     // ⚠️ DÉDUPLICATION PAR MEMBRE — la clé du regroupement, et elle vaut pour LES DEUX
     // CANAUX. Quelqu'un inscrit aux huit cours d'une série apparaît huit fois dans cette
     // requête ; sans ce Map il recevrait huit push ET huit emails pour un seul changement.
-    const members = new Map<string, { push: string | null; email: string | null; firstName: string | null }>()
+    const members = new Map<string, { push: string | null; email: string | null; firstName: string | null; slotId: string }>()
     for (const r of (rows ?? []) as Array<{
       member_id: string
+      slot_id: string
       profiles: { push_token: string | null; email: string | null; first_name: string | null } | { push_token: string | null; email: string | null; first_name: string | null }[] | null
     }>) {
       if (members.has(r.member_id)) continue
@@ -535,6 +539,7 @@ async function notifyAffectedMembers(
         push: prof?.push_token ?? null,
         email: prof?.email ?? null,
         firstName: prof?.first_name ?? null,
+        slotId: r.slot_id,
       })
     }
     if (members.size === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_MEMBERS' }
@@ -554,45 +559,42 @@ async function notifyAffectedMembers(
 
     const reachedMembers = new Set<string>()
 
-    // ── Canal 1 : push ────────────────────────────────────────────────────────
-    // send-notification accepte un TABLEAU : un seul appel HTTP pour tous les jetons,
-    // et un message par personne.
+    // ── Canal 1 : boîte de réception + push ───────────────────────────────────
+    //
+    // GYM-391 — le push groupé qui partait d'ici passe par l'aide partagée : UNE ligne
+    // 'session_updated_by_gym' par membre concerné, jeton ou pas, et le push pour ceux qui
+    // en ont un. Toujours un seul message par personne (le Map ci-dessus déduplique).
+    //
+    // ⚠️ `pushType` garde 'slot_series_updated', le `data.type` que ce push a toujours porté.
+    //
+    // `pushNotified` compte désormais les tickets Expo `ok`, plus « autant que de jetons
+    // dès que l'appel a répondu 2xx » : un plan sans notifications répondait 200 et tous
+    // les membres étaient comptés prévenus.
+    //
+    // Par paquets de 10 en parallèle : un cours de 40 inscrits ne doit pas enchaîner 40
+    // allers-retours l'un après l'autre.
     let pushNotified = 0
-    const tokens = [...members.values()].map((m) => m.push).filter((t): t is string => !!t)
-    if (tokens.length > 0) {
-      try {
-        const body = ctx.slotCount > 1
-          ? `${activityName} — ${what} (${ctx.slotCount} séances concernées).`
-          : `${activityName} — ${what}.`
-        const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
-            // GYM-282 — le tuyau exige désormais le secret interne.
-            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
-          body: JSON.stringify({
-            tokens,
-            // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-            gym_id: gymId,
-            title: 'Ton cours a été modifié',
-            body,
-            data: { type: 'slot_series_updated' },
-          }),
-        })
-        if (resp.ok) {
-          pushNotified = tokens.length
-          for (const [id, m] of members) if (m.push) reachedMembers.add(id)
-        } else {
-          // ⚠️ JOURNAL SÉPARÉ push / email : on doit pouvoir savoir LEQUEL des deux a
-          // échoué. Un log commun laisserait croire que personne n'a rien reçu alors que
-          // l'autre canal a peut-être fonctionné.
-          console.error('[slot-series-op] PUSH failed:', JSON.stringify({
-            status: resp.status, recipients: tokens.length, slots: ctx.slotCount,
-          }))
-        }
-      } catch (e) {
-        console.error('[slot-series-op] PUSH threw:', JSON.stringify({
-          recipients: tokens.length, error: (e as Error).message,
-        }))
+    const texte = textes.coursModifie({ activite: activityName, quoi: what, seances: ctx.slotCount })
+    const liste = [...members.entries()]
+    for (let i = 0; i < liste.length; i += 10) {
+      const issues = await Promise.all(liste.slice(i, i + 10).map(([id, m]) =>
+        notifier(admin, {
+          gymId,
+          memberId: id,
+          type: 'session_updated_by_gym',
+          ...texte,
+          data: {
+            slot_id: m.slotId,
+            slot_count: ctx.slotCount,
+            time_changed: ctx.timeChanged,
+            coach_changed: ctx.coachChanged,
+            activity_changed: ctx.activityChanged,
+          },
+          pushToken: m.push,
+          pushType: 'slot_series_updated',
+        }).then((issue) => ({ id, issue }))))
+      for (const { id, issue } of issues) {
+        if (issue.push_sent) { pushNotified += 1; reachedMembers.add(id) }
       }
     }
 
