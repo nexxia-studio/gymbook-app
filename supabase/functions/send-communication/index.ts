@@ -16,7 +16,7 @@
 //   member_id, email, first_name, push_token
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-134 (v1) — lots de push et bilan, purs et testés.
-import { bilan, jetonsAcceptes, lotsDeJetons, paquets } from './push-batches.ts'
+import { bilan, envoyerLot, lotsDeJetons, paquets } from './push-batches.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,9 +104,12 @@ Deno.serve(async (req) => {
 
     // 5. Push, PAR LOTS de 100 jetons (limite d'Expo), plus une requête par membre.
     //    Succès réel = ticket `ok` d'Expo pour CE jeton (plus de faux positif, GYM-134 p1).
+    //    Un lot refusé EN ENTIER par Expo est relancé jeton par jeton (`envoyerLot`), pour
+    //    qu'un seul jeton pourri ne prive pas de push tout le reste de la salle.
     const acceptes: string[] = []
     if (c.send_push) {
-      for (const lot of lotsDeJetons(recipients)) {
+      // Le seul contact avec le réseau. Rend la réponse de send-notification, ou null.
+      const envoyer = async (jetons: string[]): Promise<unknown> => {
         try {
           const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
             method: 'POST',
@@ -114,7 +117,7 @@ Deno.serve(async (req) => {
             // GYM-282 — le tuyau exige désormais le secret interne.
             'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
             body: JSON.stringify({
-              tokens: lot,
+              tokens: jetons,
               // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
               // 🔴 GYM-317 — `c.gym_id` : la salle d'une campagne est celle de la communication.
               gym_id: c.gym_id,
@@ -123,15 +126,23 @@ Deno.serve(async (req) => {
               data: { type: 'gym_communication', communication_id: c.id, template: c.template },
             }),
           })
-          const result = await resp.json().catch(() => null)
-          const ok = jetonsAcceptes(lot, result)
-          acceptes.push(...ok)
-          if (ok.length < lot.length) {
-            console.error('[send-communication] push lot partiel:', c.id, 'acceptés', ok.length, 'sur', lot.length,
-              'http', resp.status, result?.code ?? result?.skipped ?? result?.error ?? '')
-          }
-        } catch (e) {
-          console.error('[send-communication] push lot error:', c.id, lot.length, 'jetons', e)
+          return await resp.json().catch(() => null)
+        } catch {
+          return null
+        }
+      }
+
+      for (const lot of lotsDeJetons(recipients)) {
+        const issue = await envoyerLot(lot, envoyer)
+        acceptes.push(...issue.acceptes)
+        // ⚠️ UN SEUL journal par lot, et JAMAIS la valeur d'un jeton : des nombres uniquement.
+        // (Le texte d'erreur d'Expo n'est pas journalisé non plus, il peut citer un jeton.)
+        if (issue.relance) {
+          console.error('[send-communication] lot refusé en entier, relancé un par un:', c.id,
+            lot.length, 'jetons,', issue.acceptes.length, 'acceptés')
+        } else if (issue.acceptes.length < lot.length) {
+          console.error('[send-communication] push lot partiel:', c.id,
+            issue.acceptes.length, 'acceptés sur', lot.length)
         }
       }
     }

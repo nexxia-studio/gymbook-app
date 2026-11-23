@@ -4,7 +4,9 @@
 //
 // ⚠️ AUCUNE DÉPENDANCE, AUCUN RÉSEAU. Script à corps de module : lire la sortie et le code
 // de sortie, pas « N passed ».
-import { TAILLE_LOT_EXPO, bilan, jetonsAcceptes, lotsDeJetons, paquets, type Destinataire } from './push-batches.ts'
+import {
+  TAILLE_LOT_EXPO, bilan, doitRelancerUnParUn, envoyerLot, jetonsAcceptes, lotsDeJetons, paquets, type Destinataire,
+} from './push-batches.ts'
 
 let failures = 0
 function check(label: string, cond: boolean, detail = ''): void {
@@ -38,6 +40,76 @@ console.log('lecture de la réponse de send-notification')
   check('Expo en panne (ok:false) → aucun', jetonsAcceptes(lot, { ok: false, status: 502 }).length === 0)
   check('réponse illisible → aucun', jetonsAcceptes(lot, null).length === 0 && jetonsAcceptes(lot, 'oops').length === 0)
   check('longueur différente → aucun (on ne devine pas l\'ordre)', jetonsAcceptes(lot, { ok: true, results: [{ status: 'ok' }] }).length === 0)
+}
+
+console.log('lot refusé en entier → relance un par un')
+{
+  const REFUS = { ok: false, error: 'refus du lot', status: 400 }
+  const PLAN = { ok: true, sent: 0, failed: 0, skipped: 'notifications_disabled' }
+  const tickets = (jetons: string[], pourris: string[]) =>
+    ({ ok: true, results: jetons.map((j) => (pourris.includes(j) ? { status: 'error' } : { status: 'ok' })) })
+  /** Faux `send-notification` : refuse tout lot qui contient un jeton pourri, comme Expo. */
+  const faux = (pourris: string[], journal: string[][]) => (jetons: string[]): Promise<unknown> => {
+    journal.push(jetons)
+    if (jetons.length > 1 && jetons.some((j) => pourris.includes(j))) return Promise.resolve(REFUS)
+    if (jetons.length === 1 && pourris.includes(jetons[0])) return Promise.resolve(REFUS)
+    return Promise.resolve(tickets(jetons, []))
+  }
+
+  check('décision : refus d\'un lot de 3 → relance', doitRelancerUnParUn(['A', 'B', 'C'], REFUS) === true)
+  check('décision : réponse illisible ou appel levé (null) → relance', doitRelancerUnParUn(['A', 'B'], null) === true)
+  check('décision : results de mauvaise longueur → relance', doitRelancerUnParUn(['A', 'B'], { ok: true, results: [{ status: 'ok' }] }) === true)
+  check('décision : réponse exploitable, même avec des tickets en erreur → pas de relance',
+    doitRelancerUnParUn(['A', 'B'], tickets(['A', 'B'], ['B'])) === false)
+  check('décision : notifications_disabled → pas de relance', doitRelancerUnParUn(['A', 'B', 'C'], PLAN) === false)
+  check('décision : lot d\'un seul jeton refusé → pas de relance', doitRelancerUnParUn(['A'], REFUS) === false)
+
+  {
+    const appels: string[][] = []
+    const issue = await envoyerLot(['A', 'B', 'C'], faux(['B'], appels))
+    check('1 jeton pourri sur 3 → 2 acceptés', issue.acceptes.join('') === 'AC', issue.acceptes.join(''))
+    check('relance signalée, 4 appels (1 lot + 3 jetons)', issue.relance === true && issue.appels === 4 && appels.length === 4)
+    check('la relance pousse un jeton à la fois', appels.slice(1).every((a) => a.length === 1))
+  }
+  {
+    const appels: string[][] = []
+    const issue = await envoyerLot(['A', 'B', 'C'], faux([], appels))
+    check('lot sain → 1 appel, 3 acceptés, pas de relance', issue.appels === 1 && issue.acceptes.length === 3 && !issue.relance)
+  }
+  {
+    const appels: string[][] = []
+    const issue = await envoyerLot(['A', 'B', 'C'], (j) => { appels.push(j); return Promise.resolve(PLAN) })
+    check('notifications_disabled → aucune relance, aucun accepté', appels.length === 1 && !issue.relance && issue.acceptes.length === 0)
+  }
+  {
+    const appels: string[][] = []
+    const issue = await envoyerLot(['A'], faux(['A'], appels))
+    check('lot d\'un seul jeton refusé → pas de second appel', appels.length === 1 && issue.acceptes.length === 0 && !issue.relance)
+  }
+  {
+    const appels: string[][] = []
+    const issue = await envoyerLot(['A', 'B', 'C'], (j) => { appels.push(j); return Promise.resolve(null) })
+    check('tout échoue (panne) → relance, 0 accepté, 4 appels', issue.relance && issue.acceptes.length === 0 && appels.length === 4)
+  }
+  {
+    // Le plan bascule pendant la relance : on s'arrête au premier « notifications_disabled ».
+    let n = 0
+    const issue = await envoyerLot(['A', 'B', 'C'], (j) => {
+      n++
+      if (n === 1) return Promise.resolve(REFUS)
+      if (n === 2) return Promise.resolve(tickets(j, []))
+      return Promise.resolve(PLAN)
+    })
+    check('plan coupé en cours de relance → arrêt, les acceptés sont gardés', issue.acceptes.join('') === 'A' && issue.appels === 3)
+  }
+  {
+    const lot = Array.from({ length: 87 }, (_, i) => `J${i}`)
+    const appels: string[][] = []
+    const issue = await envoyerLot(lot, faux(['J40'], appels))
+    check('87 jetons dont 1 pourri → 86 acceptés', issue.acceptes.length === 86 && issue.relance && appels.length === 88)
+    const b = bilan(lot.map((j, i) => ({ member_id: `m${i}`, push_token: j })), issue.acceptes)
+    check('bilan : 86 envoyés, 1 échec', b.push_sent === 86 && b.push_failed === 1)
+  }
 }
 
 console.log('bilan : X envoyés sur Y, Z sans notifications activées')

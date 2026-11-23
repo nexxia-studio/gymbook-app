@@ -141,8 +141,9 @@ export default function Communications() {
       } else {
         // X = push acceptés par Expo, Y = membres du segment, Z = membres sans jeton push.
         const failed = result?.push_failed ?? 0
+        // `count` pilote le pluriel d'i18next (sent_result_one / sent_result_other).
         const message = t('communications.sent_result', {
-          sent: result?.push_sent ?? 0,
+          count: result?.push_sent ?? 0,
           total: result?.recipient_count ?? 0,
           without: result?.without_token ?? 0,
         }) + (failed > 0 ? ' ' + t('communications.sent_result_failed', { count: failed }) : '')

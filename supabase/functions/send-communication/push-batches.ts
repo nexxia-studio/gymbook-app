@@ -48,6 +48,71 @@ export function jetonsAcceptes(lot: string[], reponse: unknown): string[] {
   return lot.filter((_, i) => (r.results as { status?: unknown }[])[i]?.status === 'ok')
 }
 
+/** La réponse porte un ticket par jeton du lot : on peut la lire jeton par jeton. */
+export function reponseExploitable(lot: string[], reponse: unknown): boolean {
+  const r = reponse as { ok?: unknown; results?: unknown } | null
+  return !!r && typeof r === 'object' && r.ok === true && Array.isArray(r.results) && r.results.length === lot.length
+}
+
+/** `send-notification` a répondu que le plan de la salle n'inclut pas les notifications. */
+export function notificationsDesactivees(reponse: unknown): boolean {
+  const r = reponse as { skipped?: unknown } | null
+  return !!r && typeof r === 'object' && r.skipped === 'notifications_disabled'
+}
+
+/**
+ * Faut-il relancer ce lot jeton par jeton ?
+ *
+ * Expo peut refuser un lot EN ENTIER (HTTP 400 : un jeton mal formé,
+ * PUSH_TOO_MANY_EXPERIENCE_IDS si des jetons de deux projets Expo se mélangent). Un seul
+ * jeton pourri priverait alors de push tous les autres membres du lot, alors que l'ancienne
+ * boucle, un appel par membre, les isolait.
+ *
+ * Oui si la réponse n'est pas exploitable ET que le lot a plus d'un jeton. Non si le plan
+ * n'inclut pas les notifications : la réponse serait la même pour chaque jeton.
+ */
+export function doitRelancerUnParUn(lot: string[], reponse: unknown): boolean {
+  if (lot.length <= 1) return false
+  if (notificationsDesactivees(reponse)) return false
+  return !reponseExploitable(lot, reponse)
+}
+
+export interface IssueLot {
+  /** Jetons acceptés par Expo, premier essai et relance confondus. */
+  acceptes: string[]
+  /** true si le lot a été relancé jeton par jeton. */
+  relance: boolean
+  /** Nombre d'appels faits à `send-notification` pour ce lot. */
+  appels: number
+}
+
+/**
+ * Envoie un lot, et le relance jeton par jeton s'il est refusé en entier.
+ *
+ * `envoyer` est le seul contact avec le réseau : elle pousse une liste de jetons et rend la
+ * réponse de `send-notification` (ou `null` si l'appel a levé). Tout le reste est décidé
+ * ici, sans réseau, donc éprouvable par le banc.
+ */
+export async function envoyerLot(
+  lot: string[],
+  envoyer: (jetons: string[]) => Promise<unknown>,
+): Promise<IssueLot> {
+  const premiere = await envoyer(lot)
+  if (!doitRelancerUnParUn(lot, premiere)) {
+    return { acceptes: jetonsAcceptes(lot, premiere), relance: false, appels: 1 }
+  }
+  const acceptes: string[] = []
+  let appels = 1
+  for (const jeton of lot) {
+    const reponse = await envoyer([jeton])
+    appels++
+    // Le plan a pu changer entre-temps : inutile d'interroger les jetons restants.
+    if (notificationsDesactivees(reponse)) break
+    acceptes.push(...jetonsAcceptes([jeton], reponse))
+  }
+  return { acceptes, relance: true, appels }
+}
+
 export interface Bilan {
   /** Y : membres du segment. */
   recipient_count: number
