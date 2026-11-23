@@ -10,6 +10,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — en-tête, pied, bouton et expéditeur composés depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -152,30 +154,21 @@ Deno.serve(async (req) => {
     for (const m of affected) {
       let reached = false
 
-      // 5a. Push Expo (via send-notification, même canal que les autres fonctions).
-      if (m.push_token) {
-        try {
-          const pushBody = `${activityName} du ${dateStr} à ${timeStr} est annulé.${m.credit_refunded ? ' Ton crédit t\'a été rendu.' : ''}`
-          const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
-            // GYM-282 — le tuyau exige désormais le secret interne.
-            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
-            body: JSON.stringify({
-              tokens: [m.push_token],
-              // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-              gym_id: slot.gym_id,
-              title: 'Cours annulé',
-              body: pushBody,
-              data: { type: 'slot_cancelled', slot_id: slotId },
-            }),
-          })
-          const pushResult = await resp.json().catch(() => null)
-          if (pushResult?.ok === true && (pushResult?.sent ?? 0) >= 1) reached = true
-        } catch (e) {
-          console.error('[cancel-slot] push error:', m.user_id, e)
-        }
-      }
+      // 5a. GYM-391 — push ET ligne 'session_cancelled_by_gym' de la boîte de réception, par
+      //     l'aide partagée. Le push qui partait d'ici n'existe plus à part : un membre
+      //     sans jeton a maintenant sa ligne, et personne ne reçoit deux push.
+      //     ⚠️ `pushType` garde 'slot_cancelled' : c'est la valeur que les versions
+      //     installées de l'app attendent pour ouvrir le planning au toucher du push.
+      const issue = await notifier(admin, {
+        gymId: slot.gym_id as string,
+        memberId: m.user_id,
+        type: 'session_cancelled_by_gym',
+        ...textes.coursAnnule({ activite: activityName, jour: dateStr, heure: timeStr, creditRendu: m.credit_refunded }),
+        data: { slot_id: slotId, credit_refunded: m.credit_refunded, ...(reason ? { reason } : {}) },
+        pushToken: m.push_token,
+        pushType: 'slot_cancelled',
+      })
+      if (issue.push_sent) reached = true
 
       // 5b. Email Resend brandé Dopamine.
       if (RESEND_KEY && m.email) {

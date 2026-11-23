@@ -3,6 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { loadGymBranding, emailSender, emailShell, memberLink, type GymBranding } from '../_shared/gym-branding.ts'
 // GYM-246 — porte d'entrée unique du gating (GYM-245).
 import { getEffectivePlan, hasFeature } from '../_shared/effective-plan.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -136,30 +138,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    let pushOk = false
-    if (profile.push_token) {
-      try {
-        const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
-            // GYM-282 — le tuyau exige désormais le secret interne.
-            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
-          body: JSON.stringify({
-            tokens: [profile.push_token],
-            // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-            gym_id: booking.gym_id,
-            title: 'Place disponible !',
-            body: `Vous avez ${minutes} min pour confirmer — ${activityName}`,
-            data: { type: 'waitlist_promotion', slot_id: booking.slot_id },
-          }),
-        })
-        const result = await resp.json().catch(() => null)
-        pushOk = result?.ok === true && (result?.sent ?? 0) >= 1
-        if (!pushOk) console.error('[notify-waitlist] push NOT delivered — booking:', bookingId, 'status:', resp.status, result)
-      } catch (e) {
-        console.error('[notify-waitlist] push error — booking:', bookingId, e)
-      }
-    }
+    // GYM-391 — le push qui partait d'ici passe par l'aide partagée : elle l'envoie ET écrit
+    // la ligne 'waitlist_promoted' de la boîte de réception, jeton ou pas.
+    // ⚠️ `pushType` garde 'waitlist_promotion' : c'est la valeur que les versions installées
+    // de l'app attendent pour ouvrir le cours au toucher du push.
+    const issue = await notifier(admin, {
+      gymId: booking.gym_id as string,
+      memberId: booking.member_id as string,
+      type: 'waitlist_promoted',
+      ...textes.placeDisponible({ activite: activityName, minutes }),
+      data: { booking_id: bookingId, slot_id: booking.slot_id },
+      pushToken: (profile.push_token as string | null) ?? null,
+      pushType: 'waitlist_promotion',
+    })
+    const pushOk = issue.push_sent
+    if (issue.push_attempted && !pushOk) console.error('[notify-waitlist] push NOT delivered, booking:', bookingId)
 
     return jsonResponse({ notified: true, booking_id: bookingId, minutes, push_sent: pushOk, email_sent: emailOk })
   } catch (err) {
