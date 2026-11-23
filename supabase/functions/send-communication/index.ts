@@ -1,7 +1,11 @@
 // GYM-35 — Envoi d'une communication gérant → membres
-// Appelée par le dashboard (gym_admin authentifié). Lit gym_communications, envoie
-// push + email aux destinataires retournés par get_communication_recipients,
+// Appelée par le dashboard (gym_admin authentifié). Lit gym_communications, envoie un
+// PUSH (par lots de 100) aux destinataires retournés par get_communication_recipients,
+// écrit une ligne par destinataire dans public.notifications (boîte de réception in-app),
 // puis enregistre dans gym_communication_recipients.
+//
+// GYM-134, décision du 23/11 : la v1 passe par le push et la boîte in-app, PAS par l'email.
+// email : hors v1, voir quota Resend.
 //
 // TODO GYM-54 : SMS et WhatsApp (non implémentés ici).
 //
@@ -11,15 +15,13 @@
 // Shape retourné par get_communication_recipients(p_gym_id, p_segment) :
 //   member_id, email, first_name, push_token
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-// GYM-238 — chrome des emails composée depuis nexxia_gyms.
-import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-134 (v1) — lots de push et bilan, purs et testés.
+import { bilan, envoyerLot, lotsDeJetons, paquets } from './push-batches.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -49,29 +51,6 @@ interface Communication {
   send_push: boolean
   send_email: boolean
   status: string
-}
-
-function templateIcon(template: string): string {
-  switch (template) {
-    case 'info': return '📢'
-    case 'closure': return '🔒'
-    case 'promo': return '🎉'
-    case 'cancellation': return '⚠️'
-    default: return '💬'
-  }
-}
-
-function buildEmailHtml(gym: GymBranding, title: string, body: string, template: string, firstName: string | null): string {
-  const icon = templateIcon(template)
-  const greeting = firstName ? `Bonjour ${firstName},` : 'Bonjour,'
-  const safeBody = body.replace(/\n/g, '<br>')
-  return emailShell(gym, {
-    emoji: icon,
-    title,
-    bodyHtml:
-      `<p style="color:#9A9890;font-size:13px;margin:0 0 20px;">${greeting}</p>` +
-      `<p style="color:#3D3B36;font-size:14px;line-height:1.6;margin:0;">${safeBody}</p>`,
-  })
 }
 
 Deno.serve(async (req) => {
@@ -123,21 +102,14 @@ Deno.serve(async (req) => {
       .rpc('get_communication_recipients', { p_gym_id: profile.gym_id, p_segment: c.segment })
     const recipients = (recipientsRaw ?? []) as Recipient[]
 
-    let pushSent = 0
-    let emailSent = 0
-
-    // GYM-238 — UNE lecture pour toute la campagne, HORS de la boucle : une communication
-    // part à toute la salle, la relire par destinataire ferait N requêtes identiques.
-    const gym = await loadGymBranding(supabaseAdmin, c.gym_id)
-
-    for (const r of recipients) {
-      let pushOk = false
-      let emailOk = false
-
-      // 5a. Push — lit la RÉPONSE de send-notification (plus de faux positif).
-      // Succès réel = Expo 2xx (body.ok) ET au moins un ticket accepté (body.sent >= 1).
-      // Un token DeviceNotRegistered (nettoyé, body.sent=0) n'est donc PAS compté envoyé.
-      if (c.send_push && r.push_token) {
+    // 5. Push, PAR LOTS de 100 jetons (limite d'Expo), plus une requête par membre.
+    //    Succès réel = ticket `ok` d'Expo pour CE jeton (plus de faux positif, GYM-134 p1).
+    //    Un lot refusé EN ENTIER par Expo est relancé jeton par jeton (`envoyerLot`), pour
+    //    qu'un seul jeton pourri ne prive pas de push tout le reste de la salle.
+    const acceptes: string[] = []
+    if (c.send_push) {
+      // Le seul contact avec le réseau. Rend la réponse de send-notification, ou null.
+      const envoyer = async (jetons: string[]): Promise<unknown> => {
         try {
           const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
             method: 'POST',
@@ -145,69 +117,99 @@ Deno.serve(async (req) => {
             // GYM-282 — le tuyau exige désormais le secret interne.
             'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
             body: JSON.stringify({
-              tokens: [r.push_token],
+              tokens: jetons,
               // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-              // 🔴 GYM-317 — `c.gym_id`, PAS `gymId` : cette variable n'existe nulle part
-              // dans ce fichier. La salle d'une campagne est celle de la communication, et
-              // elle est DÉJÀ lue pour le branding (`loadGymBranding(supabaseAdmin,
-              // c.gym_id)`, hors boucle) — on relit la même source, on n'en invente pas une.
+              // 🔴 GYM-317 — `c.gym_id` : la salle d'une campagne est celle de la communication.
               gym_id: c.gym_id,
               title: c.title,
               body: c.body,
               data: { type: 'gym_communication', communication_id: c.id, template: c.template },
             }),
           })
-          const result = await resp.json().catch(() => null)
-          pushOk = result?.ok === true && (result?.sent ?? 0) >= 1
-          if (pushOk) pushSent++
-          else console.error('[send-communication] push not delivered:', r.member_id, resp.status, result)
-        } catch (e) {
-          console.error('[send-communication] push error:', r.member_id, e)
+          return await resp.json().catch(() => null)
+        } catch {
+          return null
         }
       }
 
-      // 5b. Email — lit response.ok de Resend (2xx = accepté).
-      if (c.send_email && r.email && RESEND_KEY) {
-        try {
-          const resp = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
-            body: JSON.stringify({
-              from: emailSender(gym),
-              to: r.email,
-              subject: c.title,
-              html: buildEmailHtml(gym, c.title, c.body, c.template, r.first_name),
-            }),
-          })
-          emailOk = resp.ok
-          if (emailOk) emailSent++
-          else console.error('[send-communication] email failed:', r.member_id, resp.status, await resp.text())
-        } catch (e) {
-          console.error('[send-communication] email error:', r.member_id, e)
+      for (const lot of lotsDeJetons(recipients)) {
+        const issue = await envoyerLot(lot, envoyer)
+        acceptes.push(...issue.acceptes)
+        // ⚠️ UN SEUL journal par lot, et JAMAIS la valeur d'un jeton : des nombres uniquement.
+        // (Le texte d'erreur d'Expo n'est pas journalisé non plus, il peut citer un jeton.)
+        if (issue.relance) {
+          console.error('[send-communication] lot refusé en entier, relancé un par un:', c.id,
+            lot.length, 'jetons,', issue.acceptes.length, 'acceptés')
+        } else if (issue.acceptes.length < lot.length) {
+          console.error('[send-communication] push lot partiel:', c.id,
+            issue.acceptes.length, 'acceptés sur', lot.length)
         }
       }
+    }
+    const b = bilan(recipients, acceptes)
 
-      // 6. Per-recipient record
-      await supabaseAdmin.from('gym_communication_recipients').insert({
-        communication_id: c.id,
-        member_id: r.member_id,
-        push_sent: pushOk,
-        email_sent: emailOk,
-      })
+    // email : hors v1, voir quota Resend. Le plan gratuit donne 100 emails par jour, partagés
+    // avec les factures et les confirmations : un envoi à toute une salle bloquerait les
+    // emails transactionnels de la journée. Aucun appel à Resend ici, `email_sent` reste false.
+
+    const sentAt = new Date().toISOString()
+
+    // 6. Suivi par destinataire, en insertions groupées.
+    for (const paquet of paquets(b.parMembre, 500)) {
+      const { error } = await supabaseAdmin.from('gym_communication_recipients').insert(
+        paquet.map((m) => ({
+          communication_id: c.id, member_id: m.member_id, push_sent: m.push_sent, email_sent: false,
+        })),
+      )
+      if (error) console.error('[send-communication] recipients insert failed:', c.id, error.message)
     }
 
-    // 7. Mark as sent
+    // 7. Boîte de réception in-app : une ligne par destinataire, avec ou sans jeton push.
+    //    ⚠️ UN ÉCHEC ICI NE FAIT PAS ÉCHOUER L'ENVOI : les push sont déjà partis. Il est
+    //    journalisé et visible dans la réponse (`inbox_written`). Cas attendu : la migration
+    //    qui ajoute le type 'communication' n'est pas encore appliquée.
+    let inboxWritten = 0
+    for (const paquet of paquets(b.parMembre, 500)) {
+      const { error } = await supabaseAdmin.from('notifications').insert(
+        paquet.map((m) => ({
+          gym_id: c.gym_id,
+          member_id: m.member_id,
+          type: 'communication',
+          title: c.title,
+          body: c.body,
+          data: { communication_id: c.id },
+          push_sent: m.push_sent,
+          email_sent: false,
+          sent_at: sentAt,
+        })),
+      )
+      if (error) console.error('[send-communication] inbox insert failed:', c.id, error.message)
+      else inboxWritten += paquet.length
+    }
+
+    // 8. Mark as sent. `send_email` est remis à false quoi qu'ait écrit le client.
     await supabaseAdmin
       .from('gym_communications')
       .update({
         status: 'sent',
-        sent_at: new Date().toISOString(),
-        recipient_count: recipients.length,
+        sent_at: sentAt,
+        recipient_count: b.recipient_count,
+        send_email: false,
       })
       .eq('id', communicationId)
 
-    console.log('[send-communication] sent comm', c.id, 'push:', pushSent, 'email:', emailSent, 'total:', recipients.length)
-    return jsonResponse({ success: true, push_sent: pushSent, email_sent: emailSent, recipient_count: recipients.length })
+    console.log('[send-communication] sent comm', c.id, 'push:', b.push_sent, 'failed:', b.push_failed,
+      'no token:', b.without_token, 'total:', b.recipient_count, 'inbox:', inboxWritten)
+    return jsonResponse({
+      success: true,
+      recipient_count: b.recipient_count,
+      push_sent: b.push_sent,
+      push_failed: b.push_failed,
+      with_token: b.with_token,
+      without_token: b.without_token,
+      inbox_written: inboxWritten,
+      email_sent: 0,
+    })
   } catch (err) {
     console.error('[send-communication] uncaught:', err)
     return errorResponse(500, 'SERVER_ERROR', (err as Error).message)
