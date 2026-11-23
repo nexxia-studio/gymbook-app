@@ -48,8 +48,9 @@ export default function Communications() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [segment, setSegment] = useState<Segment>('all')
-  const [sendPush, setSendPush] = useState(true)
-  const [sendEmail, setSendEmail] = useState(false)
+  // GYM-134 (v1) — un seul canal : le push (plus la boîte de réception in-app, écrite par
+  // la fonction). email : hors v1, voir quota Resend. Aucune option email n'est proposée.
+  const [lastResult, setLastResult] = useState<string | null>(null)
   const [recipientCount, setRecipientCount] = useState<number | null>(null)
   const [isSending, setIsSending] = useState(false)
 
@@ -95,8 +96,8 @@ export default function Communications() {
   useEffect(() => { loadHistory() }, [gymId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const canSend = useMemo(() => {
-    return title.trim().length > 0 && body.trim().length > 0 && (sendPush || sendEmail) && !!gymId
-  }, [title, body, sendPush, sendEmail, gymId])
+    return title.trim().length > 0 && body.trim().length > 0 && !!gymId
+  }, [title, body, gymId])
 
   const handleSend = async () => {
     if (!canSend || !gymId || !user) return
@@ -114,8 +115,9 @@ export default function Communications() {
           body: body.trim(),
           segment,
           template,
-          send_push: sendPush,
-          send_email: sendEmail,
+          send_push: true,
+          // email : hors v1, voir quota Resend.
+          send_email: false,
           status: 'draft',
         })
         .select('id')
@@ -137,11 +139,15 @@ export default function Communications() {
         // code » au gérant : du jargon serveur, sans indication d'action.
         addToast(await resolveEdgeError(fnErr, t), 'error')
       } else {
-        addToast(t('communications.sent_success', {
-          push: result?.push_sent ?? 0,
-          email: result?.email_sent ?? 0,
+        // X = push acceptés par Expo, Y = membres du segment, Z = membres sans jeton push.
+        const failed = result?.push_failed ?? 0
+        const message = t('communications.sent_result', {
+          sent: result?.push_sent ?? 0,
           total: result?.recipient_count ?? 0,
-        }), 'success')
+          without: result?.without_token ?? 0,
+        }) + (failed > 0 ? ' ' + t('communications.sent_result_failed', { count: failed }) : '')
+        setLastResult(message)
+        addToast(message, failed > 0 ? 'error' : 'success')
         setTitle(t(`communications.templates.${template}.title`))
         setBody('')
         await loadHistory()
@@ -237,30 +243,7 @@ export default function Communications() {
                 ))}
               </select>
 
-              {/* Channel toggles */}
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-                <label className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sendPush}
-                    onChange={(e) => setSendPush(e.target.checked)}
-                    className="h-4 w-4 accent-accent"
-                  />
-                  <Bell className="h-4 w-4 text-muted" />
-                  <span className="font-body text-sm text-dark">{t('communications.channels.push')}</span>
-                </label>
-                <label className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sendEmail}
-                    onChange={(e) => setSendEmail(e.target.checked)}
-                    className="h-4 w-4 accent-accent"
-                  />
-                  <Mail className="h-4 w-4 text-muted" />
-                  <span className="font-body text-sm text-dark">{t('communications.channels.email')}</span>
-                </label>
-              </div>
-
+              {/* email : hors v1, voir quota Resend. Pas de choix de canal : le push part toujours. */}
               {/* TODO GYM-54 : SMS + WhatsApp */}
 
               {/* Recipient count + send */}
@@ -282,6 +265,12 @@ export default function Communications() {
                   {isSending ? t('communications.sending') : t('communications.send')}
                 </button>
               </div>
+
+              {lastResult && (
+                <p role="status" className="mt-3 rounded-xl border border-border bg-background px-3 py-2 font-body text-sm text-dark">
+                  {lastResult}
+                </p>
+              )}
             </section>
 
             {/* Section 3 — History */}
@@ -325,7 +314,7 @@ export default function Communications() {
                             </div>
                           </td>
                           <td className="px-2 py-3 text-center font-body text-sm text-dark">
-                            {row.recipient_count ?? '—'}
+                            {row.recipient_count ?? '-'}
                           </td>
                           <td className="px-2 py-3 text-right">
                             <StatusBadge status={row.status} />
