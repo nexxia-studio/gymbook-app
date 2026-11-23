@@ -86,7 +86,8 @@ export function composeReminderTexts(
   return {
     activite, heure, jour, fuseau, quand,
     pushTitle: 'Rappel cours 🏋️',
-    pushBody: `${activite} à ${heure}`,
+    // Le jour aussi, comme l'email : « Hyrox à 18:00 » reçu la veille à 18:00 ne dit pas lequel.
+    pushBody: quand,
     emailSubject: `Rappel — ${quand}`,
     emailTitle: `Rappel — votre cours ${jour}`,
   }

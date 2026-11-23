@@ -50,7 +50,13 @@ console.log('rappel 24h — le jour réel, jamais « demain »')
   check('sujet « Rappel — Hyrox mardi 24 novembre à 18:00 »', t.emailSubject === 'Rappel — Hyrox mardi 24 novembre à 18:00', String(t.emailSubject))
   check('titre « Rappel — votre cours mardi 24 novembre »', t.emailTitle === 'Rappel — votre cours mardi 24 novembre', String(t.emailTitle))
   check('aucun « demain »', ![t.emailSubject, t.emailTitle, t.quand, t.pushBody].some((s) => /demain/i.test(String(s))))
-  check('push 24h inchangé', t.pushTitle === 'Rappel cours 🏋️' && t.pushBody === 'Hyrox à 18:00', t.pushBody)
+  check('push 24h : titre inchangé', t.pushTitle === 'Rappel cours 🏋️', t.pushTitle)
+  check('push 24h : « Hyrox mardi 24 novembre à 18:00 »', t.pushBody === 'Hyrox mardi 24 novembre à 18:00', t.pushBody)
+  check('push 24h dans le fuseau de la salle (New York : lundi 23 à 18:15 pour 23:15 UTC)',
+    composeReminderTexts('24h', 'Hyrox', '2026-11-23T23:15:00Z', 'America/New_York').pushBody === 'Hyrox lundi 23 novembre à 18:15')
+  check('push 24h, cours à 00:15 : le bon jour',
+    composeReminderTexts('24h', 'Hyrox', '2026-11-23T23:15:00Z', BXL).pushBody === 'Hyrox mardi 24 novembre à 00:15')
+  check('push 24h sans nom d\'activité', composeReminderTexts('24h', null, '2026-11-24T17:00:00Z', BXL).pushBody === 'Cours mardi 24 novembre à 18:00')
 
   // Cours à 00:15 le mardi 24 : 23:15 UTC le lundi 23.
   const minuit = composeReminderTexts('24h', 'Open Gym', '2026-11-23T23:15:00Z', BXL)
