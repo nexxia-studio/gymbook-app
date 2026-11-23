@@ -5,6 +5,8 @@ import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
 // GYM-273 — télémétrie de paiement, émise là où l'on SAIT que l'euro est encaissé.
 import { captureServerEvent } from '../_shared/posthog.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 
 const FN = 'mollie-webhook'
 
@@ -319,9 +321,6 @@ Deno.serve(async (req) => {
       const deliveredLine = isSubscription
         ? 'Votre abonnement est actif'
         : `Crédits ajoutés : <strong>${payment.credits_granted} séance(s)</strong>`
-      const deliveredPush = isSubscription
-        ? 'Votre abonnement est actif'
-        : `${payment.credits_granted} séance(s) ajoutée(s)`
 
       console.log('[mollie-webhook] applied', apply.delivered ?? 'credits', 'to', payment.member_id,
         isSubscription ? `(subscription ${apply.subscription_id})` : `(${payment.credits_granted} credits)`)
@@ -362,30 +361,29 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (profile?.push_token) {
-        try {
-          // GYM-282 — passé en `fetch` : le tuyau exige un en-tête, et `functions.invoke`
-          // ne permet pas d'en poser un de façon fiable. Même forme que les sept autres
-          // appelants — une seule manière d'appeler le tuyau, donc une seule à relire.
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-              'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '',
-            },
-            body: JSON.stringify({
-              tokens: [profile.push_token],
-              // GYM-282 — `gym_id` OBLIGATOIRE : il arme la garde de plan.
-              gym_id: payment.gym_id,
-              title: '✅ Paiement confirmé !',
-              body: `${payment.plan_name} — ${deliveredPush}`,
-              data: { type: 'payment_confirmed', payment_id: payment.id },
-            }),
-          })
-        } catch (e) {
-          console.error('[mollie-webhook] push error (non-blocking):', e)
-        }
+      // GYM-391 — le push qui partait d'ici passe par l'aide partagée : elle l'envoie ET écrit
+      // la ligne de la boîte de réception, jeton ou pas. Deux types selon la contrepartie
+      // (GYM-189) : 'credits_purchased' pour des séances, 'subscription_activated' pour un
+      // abonnement payé en une fois.
+      // Atteint une seule fois par paiement : un rejeu Mollie sort plus haut, sur
+      // 'already_applied'. `notifier` ne lève jamais : le 200 rendu à Mollie n'en dépend pas.
+      if (payment.member_id && payment.gym_id) {
+        const planName = (payment.plan_name as string | null) ?? 'Achat'
+        await notifier(supabase, {
+          gymId: payment.gym_id as string,
+          memberId: payment.member_id as string,
+          type: isSubscription ? 'subscription_activated' : 'credits_purchased',
+          ...(isSubscription
+            ? textes.abonnementActive({ plan: planName })
+            : textes.creditsAchetes({ plan: planName, seances: (payment.credits_granted as number) ?? 0 })),
+          data: {
+            payment_id: payment.id,
+            ...(isSubscription
+              ? { subscription_id: apply.subscription_id ?? null }
+              : { credits_granted: (payment.credits_granted as number) ?? 0 }),
+          },
+          pushToken: (profile?.push_token as string | null | undefined) ?? null,
+        })
       }
 
       // GYM-206 — facture émise et envoyée au membre. Placé ICI, dans la branche

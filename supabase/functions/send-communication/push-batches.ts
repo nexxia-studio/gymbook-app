@@ -35,18 +35,10 @@ export function lotsDeJetons(destinataires: Destinataire[], taille = TAILLE_LOT_
   return lots
 }
 
-/**
- * Lit la réponse de `send-notification` pour UN lot et rend les jetons acceptés par Expo.
- *
- * `results` est la liste des tickets Expo, dans l'ordre des jetons envoyés. Tout ce qui
- * n'est pas exactement cette forme (réponse en erreur, garde de plan, longueur différente)
- * ne valide AUCUN jeton : dans le doute, on ne déclare pas un envoi.
- */
-export function jetonsAcceptes(lot: string[], reponse: unknown): string[] {
-  const r = reponse as { ok?: unknown; results?: unknown } | null
-  if (!r || r.ok !== true || !Array.isArray(r.results) || r.results.length !== lot.length) return []
-  return lot.filter((_, i) => (r.results as { status?: unknown }[])[i]?.status === 'ok')
-}
+// GYM-391 — la lecture des tickets vit dans `_shared/notify.ts`, partagée avec les messages
+// unitaires (réservation, annulation, paiement) : une seule règle pour `push_sent`.
+import { jetonsAcceptes } from '../_shared/notify.ts'
+export { jetonsAcceptes }
 
 /** La réponse porte un ticket par jeton du lot : on peut la lire jeton par jeton. */
 export function reponseExploitable(lot: string[], reponse: unknown): boolean {

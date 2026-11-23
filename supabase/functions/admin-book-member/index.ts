@@ -30,9 +30,11 @@
 // quand c'est le gérant qui inscrit — « sinon la règle ne veut plus rien dire ». C'est la
 // différence assumée avec le walk-in, qui l'omet volontairement (le membre y est
 // physiquement présent). Le refus est explicite ; il n'existe aucun contournement silencieux.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 import {
   countFutureConfirmedBookings,
   getMaxActiveBookings,
@@ -119,12 +121,13 @@ async function notifyMember(
   // lu sur le PROFIL de l'appelant et déjà validé, la même source que `loadGymBranding`
   // juste au-dessus de l'appel.
   gymId: string,
-  supabaseUrl: string,
-  serviceKey: string,
-  member: { email: string | null; first_name: string | null; push_token: string | null },
+  // GYM-391 — le client service_role, pour écrire la ligne de la boîte de réception.
+  admin: SupabaseClient,
+  member: { id: string; email: string | null; first_name: string | null; push_token: string | null },
   activityName: string,
   coachName: string,
   startsAt: string,
+  ref: { bookingId: string; slotId: string },
 ) {
   const startDate = new Date(startsAt)
   const dateStr = startDate.toLocaleDateString('fr-BE', {
@@ -134,23 +137,16 @@ async function notifyMember(
     timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
   })
 
-  if (member.push_token) {
-    await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
-            // GYM-282 — le tuyau exige désormais le secret interne.
-            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
-      body: JSON.stringify({
-        tokens: [member.push_token],
-        // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-        // GYM-317 — reçu en paramètre (voir la signature) : `slot` n'existait pas ici.
-        gym_id: gymId,
-        title: 'Inscription confirmée',
-        body: `${activityName} — ${dateStr} à ${timeStr}. Inscrit par ta salle.`,
-        data: { type: 'booking_confirmed' },
-      }),
-    }).catch((e) => console.error('[admin-book-member] push error:', e))
-  }
+  // GYM-391 — le push qui partait d'ici passe par l'aide partagée : elle l'envoie ET écrit
+  // la ligne de la boîte de réception. Un membre sans jeton a donc sa ligne lui aussi.
+  await notifier(admin, {
+    gymId,
+    memberId: member.id,
+    type: 'booking_confirmed',
+    ...textes.inscriptionParLaSalle({ activite: activityName, jour: dateStr, heure: timeStr }),
+    data: { booking_id: ref.bookingId, slot_id: ref.slotId, booked_by_gym: true },
+    pushToken: member.push_token,
+  })
 
   if (RESEND_KEY && member.email) {
     const greeting = member.first_name ? `Bonjour ${member.first_name},` : 'Bonjour,'
@@ -547,13 +543,15 @@ Deno.serve(async (req) => {
     // Identité de la salle lue ici : `gymId` vient du PROFIL de l'appelant, déjà validé.
     const gym = await loadGymBranding(admin, gymId)
     await notifyMember(
-      gym, gymId, supabaseUrl, serviceKey,
+      gym, gymId, admin,
       {
+        id: memberId,
         email: member.email as string | null,
         first_name: member.first_name as string | null,
         push_token: member.push_token as string | null,
       },
       activityName, coachName, slot.starts_at as string,
+      { bookingId: rpcResult.booking_id as string, slotId },
     ).catch((e) => console.error('[admin-book-member] notifyMember uncaught:', e))
 
     return jsonResponse({

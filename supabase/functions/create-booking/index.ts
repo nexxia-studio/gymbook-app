@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell } from '../_shared/gym-branding.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 
 // L'embed to-one (activities, coaches) est typé en TABLEAU par le client généré ; à
 // l'exécution PostgREST renvoie un objet unique. Même contournement qu'admin-book-member.
@@ -283,16 +285,30 @@ Deno.serve(async (req) => {
       ? `<p style="color:#9A9890;margin:0 0 4px;">Coach: ${coachName}</p>`
       : ''
 
+    const startDate = new Date(slot.starts_at)
+    const dateStr = startDate.toLocaleDateString('fr-BE', {
+      timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
+    })
+    const timeStr = startDate.toLocaleTimeString('fr-BE', {
+      timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
+    })
+
+    // GYM-391 — la réservation confirmée laisse une ligne dans la boîte de réception, et
+    // part en push. Chemin 'confirmed' uniquement : une entrée en liste d'attente n'est
+    // pas une réservation confirmée. `notifier` ne lève jamais et ne bloque pas la réponse
+    // sur un échec : la réservation est faite.
+    await notifier(supabaseAdmin, {
+      gymId: slot.gym_id as string,
+      memberId: user.id,
+      type: 'booking_confirmed',
+      ...textes.reservationConfirmee({ activite: activityName, jour: dateStr, heure: timeStr }),
+      data: { booking_id: rpcResult.booking_id, slot_id: slotId },
+      pushToken: (profile.push_token as string | null) ?? null,
+    })
+
     try {
       const resendKey = Deno.env.get('RESEND_API_KEY')
       if (resendKey && profile.email) {
-        const startDate = new Date(slot.starts_at)
-        const dateStr = startDate.toLocaleDateString('fr-BE', {
-          timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long',
-        })
-        const timeStr = startDate.toLocaleTimeString('fr-BE', {
-          timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit',
-        })
 
         // GYM-238 — 🔴 C'EST CET EMAIL QU'ANTOINE A REÇU EN QA LE 18/08 : le bouton
         // « Voir ma réservation » pointait `dopamine://bookings`, inerte dans Gmail comme
