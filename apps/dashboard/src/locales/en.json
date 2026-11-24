@@ -322,7 +322,17 @@
     "edit_slot": "Edit",
     "cancel_slot": "Cancel slot",
     "close": "Close",
-    "move_with_bookings_confirm": "This slot has {{count}} enrolled member(s). Confirm the move?",
+    "move": {
+      "title": "Move this class?",
+      "to": "to",
+      "members_one": "{{count}} enrolled member will be notified",
+      "members_other": "{{count}} enrolled members will be notified",
+      "no_members": "No enrolled members",
+      "confirm": "Move",
+      "moving": "Moving...",
+      "toast_moved": "Class moved.",
+      "toast_failed": "The class could not be moved. It is back in its place."
+    },
     "view_day": "Day",
     "view_week": "Week",
     "view_month": "Month",

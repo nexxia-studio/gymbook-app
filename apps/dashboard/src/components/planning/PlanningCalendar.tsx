@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useCallback, useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import { useTranslation } from 'react-i18next'
 import FullCalendar from '@fullcalendar/react'
 import type {
@@ -13,9 +13,8 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
-import { fromZonedTime } from 'date-fns-tz'
-import { supabase } from '@/lib/supabase'
-import { useGymTimezone } from '@/hooks/useGymTimezone'
+import { ArrowRight, CalendarClock } from 'lucide-react'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { getDisplayStatus, needsCoachReassignment, type TimeSlot, type DisplayStatus } from '@/types/planning'
 import { fillPercent, isOverbooked } from '@/lib/capacity'
 
@@ -35,6 +34,37 @@ interface PlanningCalendarProps {
   onSlotClick: (slot: TimeSlot) => void
   onSlotCreate?: (date: string, startTime: string) => void
   onDatesChange?: (start: string, end: string) => void
+  /**
+   * Déplace le créneau (date et heure dans le repère du gym, comme `slot.date`). Rend
+   * `true` si le déplacement est écrit ; `false` remet le cours à sa place. Sans cette
+   * prop, le glisser-déposer est refusé : le calendrier n'écrit jamais lui-même en base.
+   */
+  onSlotMove?: (slot: TimeSlot, to: SlotMoveTarget) => Promise<boolean>
+}
+
+export interface SlotMoveTarget {
+  /** YYYY-MM-DD */
+  date: string
+  /** HH:mm */
+  startTime: string
+  /** Minutes. */
+  duration: number
+}
+
+/** Un dépôt en attente de confirmation. `revert` remet l'événement où il était. */
+interface PendingMove {
+  slot: TimeSlot
+  to: SlotMoveTarget
+  /** Le nouveau début, dans le repère du calendrier (heure du gym lue comme locale). */
+  start: Date
+  revert: () => void
+}
+
+/** « mardi 25 novembre 12:00 » : le jour en toutes lettres, dans la langue de l'interface. */
+function dayAndTime(day: Date, time: string, language: string): string {
+  const parts = new Intl.DateTimeFormat(language, { weekday: 'long', day: 'numeric', month: 'long' }).formatToParts(day)
+  const p = (type: string) => parts.find((x) => x.type === type)?.value ?? ''
+  return `${p('weekday')} ${p('day')} ${p('month')} ${time}`
 }
 
 function pad(n: number): string {
@@ -170,11 +200,12 @@ function minutesToTime(minutesFromStart: number): string {
 }
 
 export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalendarProps>(function PlanningCalendar(
-  { slots, weekStart, onSlotClick, onSlotCreate, onDatesChange },
+  { slots, weekStart, onSlotClick, onSlotCreate, onDatesChange, onSlotMove },
   ref,
 ) {
-  const { t } = useTranslation()
-  const tz = useGymTimezone()
+  const { t, i18n } = useTranslation()
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
+  const [moving, setMoving] = useState(false)
   const calendarRef = useRef<FullCalendar | null>(null)
   // GYM-234 — support de l'écoute `contextmenu` : FullCalendar n'expose pas de rappel
   // pour un clic droit sur une case vide, on écoute donc l'événement DOM.
@@ -337,40 +368,58 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
     return () => root.removeEventListener('contextmenu', handleContextMenu)
   }, [handleContextMenu, onSlotCreate])
 
-  // Drag&drop: update starts_at / ends_at directly via Supabase.
-  // The Realtime subscription in usePlanning picks up the change and refreshes the UI.
-  const handleEventDrop = useCallback(async (info: EventDropArg) => {
+  // Glisser-déposer : le dépôt n'écrit RIEN. Il ouvre la confirmation, qui dit d'où vers où
+  // le cours part et combien d'inscrits seront prévenus ; l'écriture passe ensuite par
+  // `onSlotMove` (slot-series-op), jamais par une requête directe d'ici.
+  const handleEventDrop = useCallback((info: EventDropArg) => {
     const id = (info.event.extendedProps as { slotId?: string }).slotId ?? info.event.id
     const slot = slotsById.get(id)
-    if (!slot) { info.revert(); return }
+    const start = info.event.start
+    const end = info.event.end
+    if (!slot || !start || !end || !onSlotMove) { info.revert(); return }
 
-    if ((slot.booked ?? 0) > 0) {
-      const ok = window.confirm(
-        t('planning.move_with_bookings_confirm', { count: slot.booked }),
-      )
-      if (!ok) { info.revert(); return }
-      // TODO: send notification to enrolled members (separate edge function)
+    // Le calendrier n'a pas de prop `timeZone` : ses dates portent l'heure du gym dans
+    // leurs composantes locales, le même repère que `slot.date` et `slot.startTime`.
+    setPendingMove({
+      slot,
+      start,
+      to: {
+        date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+        startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+        duration: Math.round((end.getTime() - start.getTime()) / 60_000),
+      },
+      revert: info.revert,
+    })
+  }, [slotsById, onSlotMove])
+
+  const cancelMove = useCallback(() => {
+    if (moving || !pendingMove) return
+    pendingMove.revert()
+    setPendingMove(null)
+  }, [moving, pendingMove])
+
+  // UN CLIC, UNE REQUÊTE : la ref ferme la porte dans le même tour d'événement, l'état
+  // porte l'affichage (boutons désactivés, « Déplacement... »).
+  const movingRef = useRef(false)
+  const confirmMove = useCallback(async () => {
+    if (movingRef.current || !pendingMove || !onSlotMove) return
+    movingRef.current = true
+    setMoving(true)
+    let moved = false
+    try {
+      moved = await onSlotMove(pendingMove.slot, pendingMove.to)
+    } catch (err) {
+      console.error('[PlanningCalendar] move failed:', err)
+    } finally {
+      if (!moved) pendingMove.revert()
+      movingRef.current = false
+      setMoving(false)
+      setPendingMove(null)
     }
-
-    const startDate = info.event.start
-    const endDate = info.event.end
-    if (!startDate || !endDate) { info.revert(); return }
-
-    const startIso = fromZonedTime(startDate, tz).toISOString()
-    const endIso = fromZonedTime(endDate, tz).toISOString()
-
-    const { error } = await supabase
-      .from('time_slots')
-      .update({ starts_at: startIso, ends_at: endIso, updated_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (error) {
-      console.error('[PlanningCalendar] update failed:', error)
-      info.revert()
-    }
-  }, [slotsById, tz, t])
+  }, [pendingMove, onSlotMove])
 
   return (
+    <>
     <div ref={rootRef} className="hidden overflow-hidden rounded-2xl border border-border bg-card md:block">
       <FullCalendar
         ref={calendarRef}
@@ -420,5 +469,43 @@ export const PlanningCalendar = forwardRef<PlanningCalendarHandle, PlanningCalen
         }}
       />
     </div>
+
+    {/* Confirmation du glisser-déposer (remplace window.confirm). Annuler, Échap ou un clic
+        sur le fond remettent le cours à sa place. */}
+    <ConfirmModal
+      open={pendingMove !== null}
+      title={t('planning.move.title')}
+      icon={<CalendarClock className="h-7 w-7 text-accent-dim" />}
+      confirmLabel={t('planning.move.confirm')}
+      cancelLabel={t('common.cancel')}
+      confirmColor="primary"
+      busy={moving}
+      busyLabel={t('planning.move.moving')}
+      closeOnBackdrop
+      focusConfirm
+      onConfirm={() => { void confirmMove() }}
+      onCancel={cancelMove}
+    >
+      {pendingMove && (
+        <div className="mt-4 text-center">
+          <p className="font-body text-sm font-semibold text-dark">{pendingMove.slot.activity.name}</p>
+          <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-body text-sm text-dark">
+            <span>
+              {dayAndTime(new Date(`${pendingMove.slot.date}T12:00:00`), pendingMove.slot.startTime, i18n.language)}
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted" aria-label={t('planning.move.to')} />
+            <span className="font-semibold">
+              {dayAndTime(pendingMove.start, pendingMove.to.startTime, i18n.language)}
+            </span>
+          </p>
+          <p className="mt-3 rounded-xl bg-dark/5 px-3 py-2.5 font-body text-xs text-secondary">
+            {pendingMove.slot.booked > 0
+              ? t('planning.move.members', { count: pendingMove.slot.booked })
+              : t('planning.move.no_members')}
+          </p>
+        </div>
+      )}
+    </ConfirmModal>
+    </>
   )
 })

@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, CalendarPlus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { FilterPills } from '@/components/planning/FilterPills'
-import { PlanningCalendar, type PlanningCalendarHandle, type CalendarView } from '@/components/planning/PlanningCalendar'
+import { PlanningCalendar, type PlanningCalendarHandle, type CalendarView, type SlotMoveTarget } from '@/components/planning/PlanningCalendar'
 import { MobileDayList } from '@/components/planning/MobileDayList'
 import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
@@ -243,6 +243,23 @@ export default function Planning() {
     )
   }
 
+  // Glisser-déposer confirmé. `false` remet le cours à sa place dans le calendrier.
+  const handleSlotMove = useCallback(async (slot: TimeSlot, to: SlotMoveTarget): Promise<boolean> => {
+    const res = await planning.moveSlot(slot.id, to)
+    // `slots === 0` : le serveur n'a rien écrit. Le cours n'a donc pas bougé en base.
+    if (!res.ok || res.failed > 0 || res.slots === 0) {
+      addToast(t('planning.move.toast_failed'), 'error')
+      return false
+    }
+    // Le toast DIT combien de membres ont été prévenus, comme pour une modification.
+    addToast(
+      res.notified > 0
+        ? `${t('planning.move.toast_moved')} ${t('series.toast_notified', { count: res.notified })}`
+        : t('planning.move.toast_moved'),
+    )
+    return true
+  }, [planning, addToast, t])
+
   function handleDeleteConfirm() {
     if (!deleteSlot) return
     planning.removeSlot(deleteSlot.id)
@@ -415,6 +432,7 @@ export default function Planning() {
           onSlotClick={planning.setSelectedSlot}
           onDatesChange={handleDatesChange}
           onSlotCreate={handleGridCreate}
+          onSlotMove={handleSlotMove}
         />
       </ErrorBoundary>
 

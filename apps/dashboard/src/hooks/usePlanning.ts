@@ -622,6 +622,42 @@ export function usePlanning() {
   // GYM-143 — l'annulation passe par l'Edge Function cancel-slot (annulation atomique
   // + recrédit exact des membres + purge waitlist + notifications), JAMAIS par un simple
   // UPDATE de statut (qui n'aurait ni recrédité ni notifié). Retourne le résumé pour le toast.
+  /**
+   * Déplacement d'UN créneau au glisser-déposer.
+   *
+   * 🔴 Le glisser-déposer écrivait `starts_at` / `ends_at` en PostgREST DIRECT depuis le
+   * calendrier, avec un TODO à la place de la notification : un cours déplacé du mardi au
+   * jeudi ne prévenait aucun inscrit. C'est le défaut de GYM-236, resté sur ce chemin-là.
+   * Il passe désormais par slot-series-op, comme la modale de modification : les inscrits
+   * reçoivent « nouvelle date » ou « nouvel horaire », et un créneau de série devient une
+   * exception au lieu d'être réécrasé à la prochaine modification de la série.
+   *
+   * Le patch ne porte QUE l'horaire : le serveur n'a rien d'autre à comparer ni à écrire.
+   */
+  async function moveSlot(
+    id: string,
+    to: { date: string; startTime: string; duration: number },
+  ): Promise<SeriesOpResult> {
+    const { data, error } = await invokeEdge('slot-series-op', {
+      body: {
+        op: 'update',
+        slot_id: id,
+        scope: 'single',
+        // ⚠️ Date et heure LOCALES, jamais un instant UTC : le serveur recompose avec le fuseau.
+        patch: { starts_local_date: to.date, starts_local_time: to.startTime, duration_min: to.duration },
+      },
+    })
+    if (error) return { ok: false, slots: 0, failed: 0, skippedExceptions: 0, notified: 0 }
+    await fetchSlots()
+    return {
+      ok: true,
+      slots: (data?.slots_updated as number) ?? 0,
+      notified: (data?.members_notified as number) ?? 0,
+      failed: ((data?.failed_slot_ids as string[]) ?? []).length,
+      skippedExceptions: 0,
+    }
+  }
+
   async function cancelSlot(id: string, reason?: string): Promise<CancelSlotSummary> {
     const { data, error } = await invokeEdge('cancel-slot', {
       body: { slot_id: id, reason: reason?.trim() || undefined },
@@ -903,6 +939,7 @@ export function usePlanning() {
     activities: activitiesList,
     createSlot,
     updateSlot,
+    moveSlot,
     cancelSlot,
     removeSlot,
     checkOverlap,
