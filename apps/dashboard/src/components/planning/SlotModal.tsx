@@ -25,7 +25,11 @@ export interface SlotFormData {
 interface SlotModalProps {
   open: boolean
   onClose: () => void
-  onSubmit: (data: SlotFormData) => void
+  /**
+   * Une promesse rendue = une requête en cours : le bouton reste désactivé jusqu'à ce
+   * qu'elle se règle. `void` : rien à attendre (l'appelant ferme la modale lui-même).
+   */
+  onSubmit: (data: SlotFormData) => void | Promise<void>
   activities: Activity[]
   coaches: Coach[]
   editSlot?: TimeSlot | null
@@ -114,6 +118,13 @@ export function SlotModal({
     recurrence: undefined,
   })
   const [errors, setErrors] = useState<FormErrors>({})
+  // 🔴 GYM-391 (recette staging 24/11) — UN CLIC, UNE REQUÊTE. La modale reste ouverte
+  // pendant l'aller-retour ; sans garde, un double clic sur « Enregistrer » envoyait deux
+  // modifications, donc deux notifications aux inscrits. La ref ferme la porte dans le
+  // même tour d'événement (l'état, lui, n'est lu qu'au rendu suivant) ; l'état porte
+  // l'affichage.
+  const submittingRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
 
   /**
    * GYM-231 — le gérant a-t-il SAISI lui-même la capacité / la durée ?
@@ -296,10 +307,18 @@ export function SlotModal({
     return Object.keys(e).length === 0
   }
 
-  function handleSubmit(ev: FormEvent) {
+  async function handleSubmit(ev: FormEvent) {
     ev.preventDefault()
+    if (submittingRef.current) return
     if (!validate()) return
-    onSubmit(form)
+    submittingRef.current = true
+    setSubmitting(true)
+    try {
+      await onSubmit(form)
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
 
   const selectClass =
@@ -643,11 +662,17 @@ export function SlotModal({
 
         {/* Footer */}
         <div className="flex justify-end gap-3 border-t border-border p-5">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
-          <Button type="button" onClick={(ev) => { ev.preventDefault(); const fakeEv = { preventDefault: () => {} } as FormEvent; handleSubmit(fakeEv); }}>
-            {isEdit
+          <Button
+            type="button"
+            isLoading={submitting}
+            onClick={(ev) => { ev.preventDefault(); const fakeEv = { preventDefault: () => {} } as FormEvent; void handleSubmit(fakeEv); }}
+          >
+            {submitting
+              ? t('slots.saving_button')
+              : isEdit
               ? t('slots.save_button')
               : preview
                 ? t('slots.create_multiple', { count: preview.count })
