@@ -322,7 +322,17 @@
     "edit_slot": "Modifier",
     "cancel_slot": "Annuler le créneau",
     "close": "Fermer",
-    "move_with_bookings_confirm": "Ce créneau a {{count}} membre(s) inscrit(s). Confirmer le déplacement ?",
+    "move": {
+      "title": "Déplacer ce cours ?",
+      "to": "vers",
+      "members_one": "{{count}} membre inscrit sera prévenu",
+      "members_other": "{{count}} membres inscrits seront prévenus",
+      "no_members": "Aucun membre inscrit",
+      "confirm": "Déplacer",
+      "moving": "Déplacement...",
+      "toast_moved": "Cours déplacé.",
+      "toast_failed": "Le cours n'a pas pu être déplacé. Il est revenu à sa place."
+    },
     "view_day": "Jour",
     "view_week": "Semaine",
     "view_month": "Mois",
