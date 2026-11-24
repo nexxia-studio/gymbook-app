@@ -145,6 +145,40 @@ console.log('seul l’horaire change → time_changed seul')
   check('créneau ponctuel : jamais marqué exception', !('is_series_exception' in b.ecritures[0].fields))
 }
 
+console.log('la date change → le texte donne la date')
+{
+  // Mardi 24 novembre 18:00 déplacé au jeudi 26, même heure.
+  const b = base([creneau('s1', '2026-11-24')])
+  const r = await applyToSlots([...b.lignes.values()], seul(formulaire({ starts_local_date: '2026-11-26' })), b.store)
+  const e = await notifierComme(r.applied, [{ member_id: 'm1', slot_id: 's1' }])
+  check('même heure, autre jour : « nouvelle date : jeudi 26 novembre à 18:00 »', e.lignes[0]?.body === 'Yoga, nouvelle date : jeudi 26 novembre à 18:00.', e.lignes[0]?.body)
+  check('le push porte le même corps', e.pushes[0]?.body === e.lignes[0]?.body)
+  check('time_changed seul', e.lignes[0]?.data?.time_changed === true && e.lignes[0]?.data?.coach_changed === false && e.lignes[0]?.data?.activity_changed === false, JSON.stringify(e.lignes[0]?.data))
+
+  const les2 = diffSlot(creneau('s1', '2026-11-24'), seul(formulaire({ starts_local_date: '2026-11-26', starts_local_time: '19:30' })))
+  check('autre jour ET autre heure : la date, avec la nouvelle heure', groupByMember([{ slotId: 's1', change: les2 }], [{ member_id: 'm1', slot_id: 's1' }])[0].what === 'nouvelle date : jeudi 26 novembre à 19:30')
+
+  // Le jour se juge à l'horloge de la salle, pas en UTC : 00:30 à Bruxelles le 26 est
+  // encore le 25 en UTC, et 23:30 le 25 est le même jour UTC que 00:30 le 26.
+  const tard = diffSlot(creneau('s1', '2026-11-25', '23:30'), seul(formulaire({ starts_local_date: '2026-11-26', starts_local_time: '00:30' })))
+  check('23:30 mercredi → 00:30 jeudi : même jour UTC, date locale annoncée, minuit en 00', tard.newLocalDay === 'jeudi 26 novembre' && tard.newLocalTime === '00:30', JSON.stringify(tard))
+  const texte = textes.coursModifie({ activite: 'Yoga', quoi: groupByMember([{ slotId: 's1', change: les2 }], [{ member_id: 'm1', slot_id: 's1' }])[0].what, seances: 1 })
+  check('ni tiret cadratin ni demi-cadratin', !/[—–]/.test(texte.title + texte.body))
+}
+
+console.log('seule l’heure change → le texte reste « nouvel horaire »')
+{
+  const b = base([creneau('s1', '2026-11-24')])
+  const r = await applyToSlots([...b.lignes.values()], seul(formulaire({ starts_local_date: '2026-11-24', starts_local_time: '18:30' })), b.store)
+  const e = await notifierComme(r.applied, [{ member_id: 'm1', slot_id: 's1' }])
+  check('même jour, 18:30 : « nouvel horaire : 18:30 », sans date', e.lignes[0]?.body === 'Yoga, nouvel horaire : 18:30.', e.lignes[0]?.body)
+  check('newLocalDay absent', r.applied[0].change.newLocalDay === null)
+  // Série : chaque occurrence garde son jour, jamais de date dans le texte.
+  const s = base([creneau('a', '2026-12-01'), creneau('c', '2026-12-08')])
+  const rs = await applyToSlots([...s.lignes.values()], serie(formulaire({ starts_local_time: '19:00', starts_local_date: '2026-12-25' })), s.store)
+  check('série décalée d’une heure : aucune date annoncée, la date de la demande est ignorée', rs.applied.every((x) => x.change.newLocalDay === null))
+}
+
 console.log('2 créneaux pour un membre → 1 ligne')
 {
   const b = base([creneau('s1', '2026-12-01'), creneau('s2', '2026-12-08'), creneau('s3', '2026-12-15')])

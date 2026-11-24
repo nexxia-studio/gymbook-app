@@ -56,6 +56,12 @@ export interface SlotChange {
   activity_changed: boolean
   /** Le DÉBUT bouge (et pas seulement la durée) : nouvelle heure locale 'HH:mm'. */
   newLocalTime: string | null
+  /**
+   * Le cours change de JOUR à l'horloge de la salle : « jeudi 26 novembre ». Sans lui, un
+   * cours déplacé du mardi au jeudi à la même heure s'annoncerait « nouvel horaire : 18:00 »
+   * et le membre se présenterait le mardi.
+   */
+  newLocalDay: string | null
   /** La durée bouge : nouvelle durée en minutes. */
   newDurationMin: number | null
   /** L'activité du créneau APRÈS l'écriture. */
@@ -120,6 +126,9 @@ export function diffSlot(slot: SlotRow, req: ChangeRequest): SlotChange {
     coach_changed,
     activity_changed,
     newLocalTime: startChanged ? localTimeOf(start, req.timeZone) : null,
+    newLocalDay: localDateOf(start, req.timeZone) !== localDateOf(currentStart, req.timeZone)
+      ? localDayOf(start, req.timeZone)
+      : null,
     newDurationMin: durationMin !== currentDurationMin ? durationMin : null,
     activityId: activity_changed ? (patch.activity_id as string) : slot.activity_id,
   }
@@ -262,9 +271,13 @@ export function groupByMember(
     const activity_changed = mine.some((a) => a.change.activity_changed)
 
     const parts: string[] = []
+    // La date d'abord : un changement de jour prime sur un changement d'heure, et le texte
+    // donne alors les deux.
+    const moved = mine.find((a) => a.change.newLocalDay)?.change
     const newTime = mine.find((a) => a.change.newLocalTime)?.change.newLocalTime
     const newDuration = mine.find((a) => a.change.newDurationMin !== null)?.change.newDurationMin
-    if (newTime) parts.push(`nouvel horaire : ${newTime}`)
+    if (moved) parts.push(`nouvelle date : ${moved.newLocalDay} à ${moved.newLocalTime}`)
+    else if (newTime) parts.push(`nouvel horaire : ${newTime}`)
     else if (newDuration) parts.push(`nouvelle durée : ${newDuration} min`)
     if (activity_changed) parts.push('le cours a changé')
     if (coach_changed) parts.push('changement de coach')
@@ -290,6 +303,19 @@ export function localDateOf(at: Date, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(at)
+}
+
+/**
+ * Jour local « jeudi 26 novembre », vu depuis le fuseau. Même format que les rappels
+ * (`send-reminders/reminder-texts.ts`) : fr-BE, `formatToParts` pour ne dépendre ni du
+ * séparateur ni de l'ordre d'ICU.
+ */
+export function localDayOf(at: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('fr-BE', {
+    timeZone, hourCycle: 'h23', weekday: 'long', day: 'numeric', month: 'long',
+  }).formatToParts(at)
+  const p = (t: string) => parts.find((x) => x.type === t)?.value ?? ''
+  return `${p('weekday')} ${p('day')} ${p('month')}`
 }
 
 /** Heure locale 'HH:mm' d'un instant, vue depuis le fuseau. */
