@@ -18,6 +18,13 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — en-tête, pied, bouton et expéditeur composés depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
+// GYM-391 — la demande comparée à l'état lu en base : seul ce qui change s'écrit et se dit.
+import {
+  applyToSlots, diffSeries, groupByMember, isVisible,
+  type ChangeRequest, type MemberMessage, type SeriesRow, type SlotChange, type SlotPatch, type SlotRow,
+} from './changes.ts'
 
 // Même clé, même fournisseur que cancel-slot et admin-book-member.
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -54,25 +61,14 @@ interface SeriesOpRequest {
    */
   scope?: 'single' | 'following' 
   /** Champs à écrire sur les créneaux futurs de la série (op 'update'). */
-  patch?: {
-    activity_id?: string
-    coach_id?: string | null
-    capacity?: number
-    level?: string
-    notes?: string | null
-    /** Heure LOCALE 'HH:mm' — jamais un instant UTC (cf. plus bas). */
-    starts_local_time?: string
-    /**
-     * Date LOCALE 'YYYY-MM-DD', portée 'single' UNIQUEMENT : déplacer un cours isolé à une
-     * autre date est un geste légitime. En portée 'following' elle est ignorée — chaque
-     * occurrence a la sienne, et les toutes déplacer à la même date les empilerait.
-     */
-    starts_local_date?: string
-    duration_min?: number
-  }
+  patch?: SlotPatch
   /** Motif d'annulation, transmis tel quel à cancel_slot_atomic (op 'delete'). */
   reason?: string
 }
+
+/** Ce que la comparaison lit d'un créneau (`SlotRow`), plus le compte d'inscrits. */
+const SLOT_COLUMNS =
+  'id, starts_at, ends_at, bookings_count, is_series_exception, activity_id, coach_id, capacity, level, notes, updated_at'
 
 /** Créneaux FUTURS de la série, exceptions exclues. Le socle des trois opérations. */
 async function selectTargets(
@@ -88,7 +84,7 @@ async function selectTargets(
   if (scope === 'single') {
     const { data } = await admin
       .from('time_slots')
-      .select('id, starts_at, ends_at, bookings_count, is_series_exception')
+      .select(SLOT_COLUMNS)
       .eq('id', pivotId)
       .single()
     return { targets: data ? [data] : [], skippedExceptions: 0 }
@@ -96,7 +92,7 @@ async function selectTargets(
 
   const { data } = await admin
     .from('time_slots')
-    .select('id, starts_at, ends_at, bookings_count, is_series_exception')
+    .select(SLOT_COLUMNS)
     .eq('series_id', seriesId)
     .gte('starts_at', pivotStartsAt)   // le passé n'est jamais touché
     .neq('status', 'cancelled')
@@ -167,7 +163,7 @@ Deno.serve(async (req) => {
       ? { data: null }
       : await admin
           .from('slot_series')
-          .select('id, gym_id, timezone, starts_local_time, duration_min, activity_id')
+          .select('id, gym_id, timezone, starts_local_time, duration_min, activity_id, coach_id, capacity, level, notes')
           .eq('id', pivot.series_id)
           .single()
 
@@ -299,97 +295,58 @@ Deno.serve(async (req) => {
         return errorResponse(400, 'NO_FIELDS', 'Aucun champ à modifier')
       }
 
-      // Champs communs, écrits tels quels sur chaque créneau.
-      const common: Record<string, unknown> = {}
-      if (patch.activity_id !== undefined) common.activity_id = patch.activity_id
-      if (patch.coach_id !== undefined) common.coach_id = patch.coach_id || null
-      if (patch.capacity !== undefined) common.capacity = patch.capacity
-      if (patch.level !== undefined) common.level = patch.level
-      if (patch.notes !== undefined) common.notes = patch.notes || null
-      common.updated_at = new Date().toISOString()
-
-      // ⚠️ L'HEURE SE RECALCULE PAR CRÉNEAU, JAMAIS PAR DÉCALAGE UNIFORME.
+      // 🔴 GYM-391 (recette staging 24/11) — LA DEMANDE EST COMPARÉE À L'ÉTAT EN BASE.
       //
-      // Déplacer une série de 9 h à 10 h ne peut PAS se faire en ajoutant une heure à
-      // chaque `starts_at` : de part et d'autre du 25 octobre, le même décalage absolu ne
-      // donne pas la même heure à l'horloge. On recompose donc « date locale du créneau +
-      // nouvelle heure locale », et on reconvertit avec le fuseau DE LA SÉRIE — celui qui a
-      // été capturé à sa création.
-      const newTime = patch.starts_local_time
-      // Repli de durée : celle de la série, ou — pour un créneau ponctuel — la sienne,
-      // relue de ses propres bornes. Le formulaire l'envoie toujours ; ce repli couvre un
-      // appel qui ne la porterait pas.
-      const pivotDuration = Math.round(
-        (new Date(pivot.ends_at as string).getTime() - new Date(pivot.starts_at as string).getTime()) / 60_000,
-      )
-      const newDuration = patch.duration_min ?? (series?.duration_min as number | undefined) ?? pivotDuration
-      const tz = timeZone
+      // Le formulaire envoie tous ses champs à chaque enregistrement. Lire « champ présent »
+      // comme « champ modifié » donnait time_changed, coach_changed et activity_changed à
+      // true pour un simple décalage d'horaire, et une demande rejouée (double clic)
+      // réécrivait et renotifiait tout. Désormais, par créneau : seules les colonnes dont
+      // la valeur diffère s'écrivent, et un créneau sans différence n'est ni écrit ni
+      // notifié. Une demande identique à l'état en base traverse donc la fonction sans
+      // rien toucher, et répond 200.
+      const request: ChangeRequest = { patch, scope, timeZone, inSeries: !!series }
 
-      let updated = 0
-      const failed: string[] = []
-
-      for (const slot of targets) {
-        const fields = { ...common }
-
-        if (newTime) {
-          // Date LOCALE du créneau, telle que la voit la salle. En portée 'single', le
-          // gérant peut aussi l'avoir déplacé : sa date prime alors. En portée 'following'
-          // on garde CELLE DE CHAQUE OCCURRENCE — les aligner sur une seule date les
-          // empilerait toutes au même jour.
-          const localDate = (scope === 'single' && patch.starts_local_date)
-            ? patch.starts_local_date
-            : new Intl.DateTimeFormat('en-CA', {
-                timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-              }).format(new Date(slot.starts_at as string))
-
-          const starts = zonedToUtc(localDate, newTime, tz)
-          const ends = new Date(starts.getTime() + newDuration * 60_000)
-          fields.starts_at = starts.toISOString()
-          fields.ends_at = ends.toISOString()
-        } else if (patch.duration_min !== undefined) {
-          // Durée seule : on garde le début, on décale la fin.
-          const starts = new Date(slot.starts_at as string)
-          fields.ends_at = new Date(starts.getTime() + newDuration * 60_000).toISOString()
-        }
-
-        // Portée 'single' : le créneau diverge désormais de sa série, il devient une
-        // EXCEPTION (décision produit 5). Ce marquage était fait côté client — il vit
-        // désormais dans la même écriture que le reste, donc dans la même transaction
-        // logique. Un marquage qui échouait seul laissait un créneau modifié que la
-        // série réécraserait ensuite.
-        // ⚠️ UNIQUEMENT dans une série. Marquer un créneau ponctuel « exception »
-        // serait un mensonge : il n'a aucune série à laquelle déroger.
-        if (series && scope === 'single') fields.is_series_exception = true
-
-        const { error } = await admin.from('time_slots').update(fields).eq('id', slot.id)
-        if (error) {
-          console.error('[slot-series-op] update failed:', slot.id, error.message)
-          failed.push(slot.id)
-          continue
-        }
-        updated += 1
-      }
+      // L'écriture est CONDITIONNELLE à l'`updated_at` lu (le trigger trg_slots_updated le
+      // renouvelle à chaque UPDATE) : de deux demandes simultanées, une seule écrit et
+      // notifie. La boucle et ses reprises vivent dans `applyToSlots`, éprouvée par le banc.
+      const { applied, unchanged, failed } = await applyToSlots(targets as SlotRow[], request, {
+        async write(slot, fields) {
+          const write = admin
+            .from('time_slots')
+            .update({ ...fields, updated_at: new Date().toISOString() })
+            .eq('id', slot.id)
+          const { data: written, error } = await (
+            slot.updated_at === null ? write.is('updated_at', null) : write.eq('updated_at', slot.updated_at)
+          ).select('id')
+          if (error) {
+            console.error('[slot-series-op] update failed:', slot.id, error.message)
+            return 'error'
+          }
+          return (written ?? []).length > 0 ? 'written' : 'stale'
+        },
+        async reread(id) {
+          const { data } = await admin.from('time_slots').select(SLOT_COLUMNS).eq('id', id).maybeSingle()
+          return data as SlotRow | null
+        },
+      })
+      const updated = applied.length
 
       // Le GABARIT de la série suit : les occurrences générées PLUS TARD (prolongation)
       // doivent naître avec les nouvelles valeurs, sinon la série se remettrait à produire
-      // l'ancien horaire.
-      const seriesPatch: Record<string, unknown> = {}
-      if (patch.activity_id !== undefined) seriesPatch.activity_id = patch.activity_id
-      if (patch.coach_id !== undefined) seriesPatch.coach_id = patch.coach_id || null
-      if (patch.capacity !== undefined) seriesPatch.capacity = patch.capacity
-      if (patch.level !== undefined) seriesPatch.level = patch.level
-      if (patch.notes !== undefined) seriesPatch.notes = patch.notes || null
-      if (newTime) seriesPatch.starts_local_time = newTime
-      if (patch.duration_min !== undefined) seriesPatch.duration_min = patch.duration_min
-
+      // l'ancien horaire. Comparé lui aussi à son état en base : rien à écrire s'il porte
+      // déjà ces valeurs.
+      //
       // ⚠️ UNIQUEMENT en portée 'following'. Une exception ne redéfinit pas la série :
       // propager son horaire au gabarit ferait naître toutes les occurrences futures avec
       // l'horaire d'un cours qu'on avait justement voulu traiter à part.
       // Un créneau ponctuel n'a pas de gabarit à faire suivre : `series` est null.
-      if (series && scope === 'following' && Object.keys(seriesPatch).length > 0) {
-        const { error: seriesErr } = await admin
-          .from('slot_series').update(seriesPatch).eq('id', series.id)
-        if (seriesErr) console.error('[slot-series-op] series template update failed:', seriesErr.message)
+      if (series && scope === 'following') {
+        const seriesPatch = diffSeries(series as unknown as SeriesRow, patch)
+        if (Object.keys(seriesPatch).length > 0) {
+          const { error: seriesErr } = await admin
+            .from('slot_series').update(seriesPatch).eq('id', series.id)
+          if (seriesErr) console.error('[slot-series-op] series template update failed:', seriesErr.message)
+        }
       }
 
       // ── NOTIFIER LES INSCRITS ────────────────────────────────────────────────
@@ -399,21 +356,15 @@ Deno.serve(async (req) => {
       // ne le faisait pas — et c'est le cas le plus dangereux des deux. Une annulation se
       // voit dans l'app, le cours disparaît. Un décalage de 18 h à 18 h 30 NE SE VOIT PAS :
       // le membre croit savoir, et se présente devant une salle vide.
-      const notify = await notifyAffectedMembers(admin, supabaseUrl, serviceKey, gymId, {
-        slotIds: targets.map((s) => s.id),
-        activityId: (patch.activity_id as string | undefined) ?? null,
-        // Sans série, l'activité de référence est celle du créneau lui-même.
-        seriesActivityId: (series?.activity_id as string | undefined) ?? (pivot.activity_id as string),
-        slotCount: updated,
-        newTime: newTime ?? null,
-        timeChanged: !!newTime || patch.duration_min !== undefined,
-        coachChanged: patch.coach_id !== undefined,
-        activityChanged: patch.activity_id !== undefined,
-      })
+      //
+      // GYM-391 — seuls les créneaux que CETTE demande a réellement écrits y entrent.
+      const notify = await notifyAffectedMembers(admin, gymId, applied)
 
       return jsonResponse({
         op: 'update',
         slots_updated: updated,
+        // Créneaux déjà dans l'état demandé : ni écrits, ni notifiés.
+        slots_unchanged: unchanged,
         skipped_exceptions: skippedExceptions,
         failed_slot_ids: failed,
         // `members_notified` = membres atteints par AU MOINS UN canal — c'est ce qui
@@ -482,9 +433,13 @@ function seriesUpdateEmailHtml(
  * Un membre prévenu pour rien apprend à ignorer les notifications — et n'ouvrira pas
  * celle qui comptait.
  *
- * ⚠️ UN SEUL ENVOI PAR MEMBRE, PAS UN PAR CRÉNEAU. Quelqu'un inscrit aux huit cours d'une
- * série recevrait huit notifications pour un seul changement. Les jetons sont dédupliqués
- * et send-notification accepte un TABLEAU : un appel, un message par personne.
+ * 🔴 GYM-391 — « CHANGEMENT » S'ENTEND PAR RAPPORT À LA BASE. `applied` ne porte que les
+ * créneaux réellement écrits, chacun avec ses drapeaux réels (`changes.ts`). Un créneau
+ * déjà dans l'état demandé n'y figure pas, et ses inscrits ne reçoivent rien.
+ *
+ * ⚠️ UN SEUL ENVOI PAR MEMBRE, PAS UN PAR CRÉNEAU. Quelqu'un inscrit à huit cours de la
+ * série reçoit UNE ligne et UN push, qui disent « 8 séances concernées » : le compte est
+ * celui de SES séances, pas celui de la série.
  *
  * ⚠️ BEST-EFFORT, jamais bloquant. Le créneau prime sur le message : la modification est
  * déjà écrite quand on arrive ici, et un échec d'envoi ne la défait pas. L'échec est
@@ -492,107 +447,80 @@ function seriesUpdateEmailHtml(
  */
 async function notifyAffectedMembers(
   admin: SupabaseClient,
-  supabaseUrl: string,
-  serviceKey: string,
   // GYM-238 — la salle dont on emprunte l'identité pour les emails. Passée plutôt que
   // relue ici : l'appelant l'a déjà validée (gym_id du PROFIL, jamais du body).
   gymId: string,
-  ctx: {
-    slotIds: string[]
-    activityId: string | null
-    seriesActivityId: string
-    slotCount: number
-    newTime: string | null
-    timeChanged: boolean
-    coachChanged: boolean
-    activityChanged: boolean
-  },
+  applied: Array<{ slotId: string; change: SlotChange }>,
 ): Promise<{ pushNotified: number; emailNotified: number; reached: number; skippedReason?: string }> {
-  const visible = ctx.timeChanged || ctx.coachChanged || ctx.activityChanged
-  if (!visible) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_VISIBLE_CHANGE' }
-  if (ctx.slotIds.length === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_SLOTS' }
+  if (applied.length === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_CHANGE' }
+  const visible = applied.filter((a) => isVisible(a.change))
+  if (visible.length === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_VISIBLE_CHANGE' }
 
   try {
     // Inscrits CONFIRMÉS uniquement : la liste d'attente n'a pas de place à défendre, et
     // sera notifiée par le chemin habituel si une place se libère.
     const { data: rows } = await admin
       .from('bookings')
-      .select('member_id, profiles(push_token, email, first_name)')
-      .in('slot_id', ctx.slotIds)
+      // GYM-391 — `slot_id` : la ligne de la boîte de réception pointe un cours du membre.
+      .select('member_id, slot_id, profiles(push_token, email, first_name)')
+      .in('slot_id', visible.map((a) => a.slotId))
       .eq('status', 'confirmed')
 
-    // ⚠️ DÉDUPLICATION PAR MEMBRE — la clé du regroupement, et elle vaut pour LES DEUX
-    // CANAUX. Quelqu'un inscrit aux huit cours d'une série apparaît huit fois dans cette
-    // requête ; sans ce Map il recevrait huit push ET huit emails pour un seul changement.
-    const members = new Map<string, { push: string | null; email: string | null; firstName: string | null }>()
-    for (const r of (rows ?? []) as Array<{
-      member_id: string
-      profiles: { push_token: string | null; email: string | null; first_name: string | null } | { push_token: string | null; email: string | null; first_name: string | null }[] | null
-    }>) {
-      if (members.has(r.member_id)) continue
-      const prof = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
-      members.set(r.member_id, {
-        push: prof?.push_token ?? null,
-        email: prof?.email ?? null,
-        firstName: prof?.first_name ?? null,
-      })
+    type Profile = { push_token: string | null; email: string | null; first_name: string | null }
+    const bookings = (rows ?? []) as Array<{ member_id: string; slot_id: string; profiles: Profile | Profile[] | null }>
+    const profiles = new Map<string, Profile | null>()
+    for (const r of bookings) {
+      if (!profiles.has(r.member_id)) profiles.set(r.member_id, Array.isArray(r.profiles) ? (r.profiles[0] ?? null) : r.profiles)
     }
-    if (members.size === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_MEMBERS' }
 
-    const { data: activity } = await admin
+    // ⚠️ REGROUPEMENT PAR MEMBRE — il vaut pour LES DEUX CANAUX. Quelqu'un inscrit à huit
+    // cours apparaît huit fois dans la requête ci-dessus ; il ne reçoit qu'un push et un
+    // email, qui portent le nombre de ses séances concernées.
+    const messages: MemberMessage[] = groupByMember(visible, bookings)
+    if (messages.length === 0) return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NO_MEMBERS' }
+
+    const { data: activities } = await admin
       .from('activities')
-      .select('name')
-      .eq('id', ctx.activityId ?? ctx.seriesActivityId)
-      .single()
-    const activityName = (activity?.name as string) ?? 'Cours'
-
-    const what = ctx.timeChanged && ctx.newTime
-      ? `nouvel horaire : ${ctx.newTime}`
-      : ctx.activityChanged
-        ? 'le cours a changé'
-        : 'changement de coach'
+      .select('id, name')
+      .in('id', [...new Set(messages.map((m) => m.activityId))])
+    const activityNames = new Map((activities ?? []).map((a) => [a.id as string, a.name as string]))
+    const nameOf = (m: MemberMessage): string => activityNames.get(m.activityId) ?? 'Cours'
 
     const reachedMembers = new Set<string>()
 
-    // ── Canal 1 : push ────────────────────────────────────────────────────────
-    // send-notification accepte un TABLEAU : un seul appel HTTP pour tous les jetons,
-    // et un message par personne.
+    // ── Canal 1 : boîte de réception + push ───────────────────────────────────
+    //
+    // GYM-391 — UNE ligne 'session_updated_by_gym' par membre concerné, jeton ou pas, et
+    // le push pour ceux qui en ont un, par l'aide partagée.
+    //
+    // ⚠️ `pushType` garde 'slot_series_updated', le `data.type` que ce push a toujours porté.
+    //
+    // `pushNotified` compte les tickets Expo `ok`, pas « autant que de jetons dès que
+    // l'appel a répondu 2xx » : un plan sans notifications répondait 200 et tous les
+    // membres étaient comptés prévenus.
+    //
+    // Par paquets de 10 en parallèle : un cours de 40 inscrits ne doit pas enchaîner 40
+    // allers-retours l'un après l'autre.
     let pushNotified = 0
-    const tokens = [...members.values()].map((m) => m.push).filter((t): t is string => !!t)
-    if (tokens.length > 0) {
-      try {
-        const body = ctx.slotCount > 1
-          ? `${activityName} — ${what} (${ctx.slotCount} séances concernées).`
-          : `${activityName} — ${what}.`
-        const resp = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
-            // GYM-282 — le tuyau exige désormais le secret interne.
-            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
-          body: JSON.stringify({
-            tokens,
-            // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-            gym_id: gymId,
-            title: 'Ton cours a été modifié',
-            body,
-            data: { type: 'slot_series_updated' },
-          }),
-        })
-        if (resp.ok) {
-          pushNotified = tokens.length
-          for (const [id, m] of members) if (m.push) reachedMembers.add(id)
-        } else {
-          // ⚠️ JOURNAL SÉPARÉ push / email : on doit pouvoir savoir LEQUEL des deux a
-          // échoué. Un log commun laisserait croire que personne n'a rien reçu alors que
-          // l'autre canal a peut-être fonctionné.
-          console.error('[slot-series-op] PUSH failed:', JSON.stringify({
-            status: resp.status, recipients: tokens.length, slots: ctx.slotCount,
-          }))
-        }
-      } catch (e) {
-        console.error('[slot-series-op] PUSH threw:', JSON.stringify({
-          recipients: tokens.length, error: (e as Error).message,
-        }))
+    for (let i = 0; i < messages.length; i += 10) {
+      const issues = await Promise.all(messages.slice(i, i + 10).map((m) =>
+        notifier(admin, {
+          gymId,
+          memberId: m.memberId,
+          type: 'session_updated_by_gym',
+          ...textes.coursModifie({ activite: nameOf(m), quoi: m.what, seances: m.slotCount }),
+          data: {
+            slot_id: m.slotId,
+            slot_count: m.slotCount,
+            time_changed: m.time_changed,
+            coach_changed: m.coach_changed,
+            activity_changed: m.activity_changed,
+          },
+          pushToken: profiles.get(m.memberId)?.push_token ?? null,
+          pushType: 'slot_series_updated',
+        }).then((issue) => ({ id: m.memberId, issue }))))
+      for (const { id, issue } of issues) {
+        if (issue.push_sent) { pushNotified += 1; reachedMembers.add(id) }
       }
     }
 
@@ -612,30 +540,31 @@ async function notifyAffectedMembers(
 
     let emailNotified = 0
     if (RESEND_KEY) {
-      for (const [id, m] of members) {
-        if (!m.email) continue
+      for (const m of messages) {
+        const profile = profiles.get(m.memberId)
+        if (!profile?.email) continue
         try {
           const resp = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
             body: JSON.stringify({
               from: emailSender(gym),
-              to: m.email,
-              subject: `Cours modifié — ${activityName}`,
-              html: seriesUpdateEmailHtml(gym, m.firstName, activityName, what, ctx.slotCount),
+              to: profile.email,
+              subject: `Cours modifié — ${nameOf(m)}`,
+              html: seriesUpdateEmailHtml(gym, profile.first_name, nameOf(m), m.what, m.slotCount),
             }),
           })
           if (resp.ok) {
             emailNotified += 1
-            reachedMembers.add(id)
+            reachedMembers.add(m.memberId)
           } else {
             console.error('[slot-series-op] EMAIL failed:', JSON.stringify({
-              member_id: id, status: resp.status, slots: ctx.slotCount,
+              member_id: m.memberId, status: resp.status, slots: m.slotCount,
             }))
           }
         } catch (e) {
           console.error('[slot-series-op] EMAIL threw:', JSON.stringify({
-            member_id: id, error: (e as Error).message,
+            member_id: m.memberId, error: (e as Error).message,
           }))
         }
       }
@@ -645,40 +574,8 @@ async function notifyAffectedMembers(
   } catch (e) {
     // Journalisé de façon exploitable : on doit pouvoir savoir QUI n'a pas été prévenu.
     console.error('[slot-series-op] notify threw (non-blocking):', JSON.stringify({
-      slots: ctx.slotCount, error: (e as Error).message,
+      slots: applied.length, error: (e as Error).message,
     }))
     return { pushNotified: 0, emailNotified: 0, reached: 0, skippedReason: 'NOTIFY_THREW' }
   }
-}
-
-
-/**
- * « Date locale + heure locale + fuseau » → instant UTC, sans dépendance externe.
- *
- * Deno n'a pas date-fns-tz ici ; on résout le décalage en interrogeant Intl pour l'instant
- * candidat, puis en corrigeant. Deux passes suffisent : la première donne le bon décalage
- * sauf exactement pendant l'heure de bascule, la seconde le stabilise.
- */
-function zonedToUtc(dateStr: string, timeStr: string, timeZone: string): Date {
-  const [y, mo, d] = dateStr.split('-').map(Number)
-  const [h, mi] = timeStr.split(':').map(Number)
-  // Hypothèse de départ : l'heure locale lue comme si elle était UTC.
-  let ts = Date.UTC(y, mo - 1, d, h, mi, 0, 0)
-  for (let i = 0; i < 2; i++) {
-    const offset = tzOffsetMs(new Date(ts), timeZone)
-    ts = Date.UTC(y, mo - 1, d, h, mi, 0, 0) - offset
-  }
-  return new Date(ts)
-}
-
-/** Décalage du fuseau, en millisecondes, à un instant donné. */
-function tzOffsetMs(at: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone, hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(at)
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? '0')
-  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
-  return asUtc - at.getTime()
 }

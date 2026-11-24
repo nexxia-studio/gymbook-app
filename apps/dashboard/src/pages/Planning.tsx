@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Plus, CalendarPlus } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { FilterPills } from '@/components/planning/FilterPills'
-import { PlanningCalendar, type PlanningCalendarHandle, type CalendarView } from '@/components/planning/PlanningCalendar'
+import { PlanningCalendar, type PlanningCalendarHandle, type CalendarView, type SlotMoveTarget } from '@/components/planning/PlanningCalendar'
 import { MobileDayList } from '@/components/planning/MobileDayList'
 import { SlotDrawer } from '@/components/planning/SlotDrawer'
 import { SlotModal, type SlotFormData } from '@/components/planning/SlotModal'
@@ -153,7 +153,9 @@ export default function Planning() {
     )
   }
 
-  function handleEdit(data: SlotFormData) {
+  // Rend la promesse de la requête : la modale garde son bouton désactivé jusqu'à la
+  // réponse (GYM-391, double clic = deux notifications).
+  async function handleEdit(data: SlotFormData): Promise<void> {
     if (!editSlot) return
     // GYM-230 — un créneau de SÉRIE ne se modifie pas en silence : on demande la portée.
     // Un créneau ponctuel (seriesId null, cas des 126 existants) garde le chemin direct.
@@ -165,23 +167,28 @@ export default function Planning() {
     // GYM-236 — créneau PONCTUEL : pas de question de portée à poser (il n'y a rien
     // « après »), mais la modification passe désormais par la même Edge, donc les inscrits
     // sont prévenus comme pour une série.
-    void (async () => {
-      const res = await planning.updateSlot(editSlot.id, data)
-      setEditSlot(null)
-      planning.setSelectedSlot(null)
-      if (!res.ok) {
-        addToast(t('slots.toast_update_failed'), 'error')
-        return
-      }
-      // Le toast DIT combien de membres ont été prévenus. Sans ça, le gérant se demande
-      // s'il doit les appeler lui-même — et un compte figé à 0 masquerait un envoi qui
-      // n'a pas eu lieu, ce qui est exactement le défaut corrigé ce matin (GYM-230).
-      addToast(
-        res.notified > 0
-          ? `${t('slots.toast_updated')} ${t('series.toast_notified', { count: res.notified })}`
-          : t('slots.toast_updated'),
-      )
-    })()
+    const res = await planning.updateSlot(editSlot.id, data)
+    setEditSlot(null)
+    planning.setSelectedSlot(null)
+    // `failed` : l'écriture du créneau n'a pas abouti côté serveur. Ce n'est pas une réussite.
+    if (!res.ok || res.failed > 0) {
+      addToast(t('slots.toast_update_failed'), 'error')
+      return
+    }
+    // GYM-391 — le serveur compare la demande à l'état en base : rien à écrire, rien
+    // d'écrit, personne de prévenu. On le dit plutôt que d'annoncer une modification.
+    if (res.slots === 0) {
+      addToast(t('slots.toast_unchanged'))
+      return
+    }
+    // Le toast DIT combien de membres ont été prévenus. Sans ça, le gérant se demande
+    // s'il doit les appeler lui-même — et un compte figé à 0 masquerait un envoi qui
+    // n'a pas eu lieu, ce qui est exactement le défaut corrigé ce matin (GYM-230).
+    addToast(
+      res.notified > 0
+        ? `${t('slots.toast_updated')} ${t('series.toast_notified', { count: res.notified })}`
+        : t('slots.toast_updated'),
+    )
   }
 
   // Le compte n'est demandé QU'À L'OUVERTURE du dialogue, jamais à chaque frappe : c'est
@@ -220,6 +227,11 @@ export default function Planning() {
       addToast(t('series.toast_partial', { done: res.slots, failed: res.failed }), 'warning')
       return
     }
+    // GYM-391 — série déjà dans l'état demandé : « 0 cours modifiés » ne dirait rien.
+    if (action === 'update' && res.slots === 0) {
+      addToast(t('slots.toast_unchanged'))
+      return
+    }
     // GYM-230 — le toast DIT que les membres ont été prévenus. Sans ça, le gérant se
     // demanderait s'il doit les appeler lui-même — et pourrait doubler le message.
     const base = action === 'update'
@@ -230,6 +242,23 @@ export default function Planning() {
       action === 'delete' ? 'warning' : 'success',
     )
   }
+
+  // Glisser-déposer confirmé. `false` remet le cours à sa place dans le calendrier.
+  const handleSlotMove = useCallback(async (slot: TimeSlot, to: SlotMoveTarget): Promise<boolean> => {
+    const res = await planning.moveSlot(slot.id, to)
+    // `slots === 0` : le serveur n'a rien écrit. Le cours n'a donc pas bougé en base.
+    if (!res.ok || res.failed > 0 || res.slots === 0) {
+      addToast(t('planning.move.toast_failed'), 'error')
+      return false
+    }
+    // Le toast DIT combien de membres ont été prévenus, comme pour une modification.
+    addToast(
+      res.notified > 0
+        ? `${t('planning.move.toast_moved')} ${t('series.toast_notified', { count: res.notified })}`
+        : t('planning.move.toast_moved'),
+    )
+    return true
+  }, [planning, addToast, t])
 
   function handleDeleteConfirm() {
     if (!deleteSlot) return
@@ -403,6 +432,7 @@ export default function Planning() {
           onSlotClick={planning.setSelectedSlot}
           onDatesChange={handleDatesChange}
           onSlotCreate={handleGridCreate}
+          onSlotMove={handleSlotMove}
         />
       </ErrorBoundary>
 

@@ -7,6 +7,8 @@ import { resolvePlan } from '../_shared/plan-resolver.ts'
 import { captureServerEvent } from '../_shared/posthog.ts'
 import { getEffectiveCommission } from '../_shared/commission.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 // GYM-252 — gabarits partagés avec le balayage quotidien (process-failed-renewals).
 import {
   buildMemberFailureEmail,
@@ -241,6 +243,22 @@ async function handleRenewalFailure(
     const planName = (sub.plan_name as string) ?? 'Abonnement'
     const amount = typeof sub.amount === 'number' ? sub.amount : null
     const suspendOn = new Date(new Date(failedAt).getTime() + GRACE_DAYS * 86_400_000)
+
+    // GYM-391 — le premier échec du cycle laisse une ligne 'subscription_payment_failed'
+    // dans la boîte de réception et part en push. Même garde que les courriers
+    // (`isFirstFailure`, et l'idempotence sur `last_failed_payment_id` plus haut) : les
+    // tentatives 2 à 5 de Mollie ne repassent pas ici, le membre reçoit UN message.
+    await notifier(supabase, {
+      gymId,
+      memberId,
+      type: 'subscription_payment_failed',
+      ...textes.paiementEchoue({
+        plan: planName,
+        avant: suspendOn.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' }),
+      }),
+      data: { subscription_id: sub.id, mollie_payment_id: molliePaymentId, suspend_on: suspendOn.toISOString() },
+    })
+
 
     if (profile?.email) {
       const mail = buildMemberFailureEmail({
@@ -821,25 +839,19 @@ Deno.serve(async (req) => {
           } catch (e) { console.error('[sub-webhook] email error:', e) }
         }
 
-        if (profile?.push_token && plan) {
-          try {
-            // GYM-282 — passé en `fetch` pour porter le secret interne.
-            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '',
-              },
-              body: JSON.stringify({
-                tokens: [profile.push_token],
-                gym_id: gymId,
-                title: '✅ Abonnement activé !',
-                body: `${plan.name} — ${(plan.price_cents / 100).toFixed(2)}€/mois`,
-                data: { type: 'subscription_activated' },
-              }),
-            })
-          } catch (e) { console.error('[sub-webhook] push error:', e) }
+        // GYM-391 — le push qui partait d'ici passe par l'aide partagée : elle l'envoie ET
+        // écrit la ligne 'subscription_activated' de la boîte de réception, jeton ou pas.
+        // Atteint une seule fois : un rejeu Mollie sort en tête de branche
+        // (`existingPayment?.status === 'paid'`). `notifier` ne lève jamais.
+        if (plan) {
+          await notifier(supabase, {
+            gymId: gymId as string,
+            memberId: memberId as string,
+            type: 'subscription_activated',
+            ...textes.abonnementActive({ plan: plan.name, centimesParMois: plan.price_cents }),
+            data: { mollie_payment_id: molliePaymentId, plan_id: planId ?? null },
+            pushToken: (profile?.push_token as string | null | undefined) ?? null,
+          })
         }
 
         // GYM-212 — facture du PREMIER paiement d'abonnement.

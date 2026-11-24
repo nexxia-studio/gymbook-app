@@ -12,6 +12,8 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // GYM-238 — chrome des emails composée depuis nexxia_gyms.
 import { loadGymBranding, emailSender, emailShell, type GymBranding } from '../_shared/gym-branding.ts'
+// GYM-391 — la ligne de la boîte de réception et le push, en un seul geste.
+import { notifier, textes } from '../_shared/notify.ts'
 import { ACCESS_SUBSCRIPTION_STATUSES, notExpiredFilter } from '../_shared/active-subscription.ts'
 
 const corsHeaders = {
@@ -125,29 +127,21 @@ async function notifySuspension(
     // Durée réelle, déduite de l'échéance (GYM-175).
     const durationLabel = expiresAt ? formatSuspensionDuration(appliedAt, expiresAt) : '—'
 
-    if (profile.push_token) {
-      await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`,
-            // GYM-282 — le tuyau exige désormais le secret interne.
-            'X-Internal-Secret': Deno.env.get('INTERNAL_FUNCTIONS_SECRET') ?? '' },
-        body: JSON.stringify({
-          tokens: [profile.push_token],
-          // GYM-282 — `gym_id` est OBLIGATOIRE : c'est lui qui arme la garde de plan.
-          // 🔴 GYM-317 — `gymId`, PAS `booking.gym_id` : le `select` de `booking` ne
-          // demande que `member_id, time_slots(...)`, la colonne n'est donc jamais chargée.
-          // Contrairement aux deux autres défauts du lot, celui-ci NE LEVAIT PAS — un accès
-          // à une propriété absente rend `undefined`, `JSON.stringify` retire la clé, et
-          // send-notification répondait 400 GYM_ID_REQUIRED sur un corps silencieusement
-          // amputé. `gymId` vient du profil de l'appelant (déjà validé) et sert huit lignes
-          // plus bas pour le branding : même source pour les deux usages.
-          gym_id: gymId,
-          title: `Compte suspendu ${durationLabel} ⚠️`,
-          body: `Absence enregistrée — ${activityName}. Suspendu jusqu'au ${untilStr}.`,
-          data: { type: 'noshow_penalty', booking_id: bookingId },
-        }),
-      }).catch((e) => console.error('[mark-attendance] push error:', e))
-    }
+    // GYM-391 — le push qui partait d'ici passe par l'aide partagée : elle l'envoie ET écrit
+    // la ligne 'no_show_suspension' de la boîte de réception, jeton ou pas.
+    // ⚠️ `pushType` garde 'noshow_penalty', le `data.type` que ce push a toujours porté.
+    // 🔴 GYM-317 — `gymId`, PAS `booking.gym_id` : le `select` de `booking` ne demande que
+    // `member_id, time_slots(...)`, la colonne n'est jamais chargée. `gymId` vient du profil
+    // de l'appelant (déjà validé) et sert aussi au branding juste en dessous.
+    await notifier(admin, {
+      gymId,
+      memberId: booking.member_id as string,
+      type: 'no_show_suspension',
+      ...textes.suspensionNoShow({ activite: activityName, duree: durationLabel, jusquAu: untilStr }),
+      data: { booking_id: bookingId, suspended_until: expiresAt },
+      pushToken: (profile.push_token as string | null) ?? null,
+      pushType: 'noshow_penalty',
+    })
 
     const gym = await loadGymBranding(admin, gymId)
 
