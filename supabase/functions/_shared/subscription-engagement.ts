@@ -8,12 +8,15 @@ export interface ActiveEngagement {
 }
 
 // Prédicat PUR — LA règle d'engagement (partagée serveur). Un abonnement engage encore le membre
-// si son statut est 'active' ou 'canceling' ET que son terme (ends_at) est dans le futur.
+// si son statut est 'active', 'canceling' ou 'paused' ET que son terme (ends_at) est dans le futur.
 //   - 'canceling' compte comme engagé : une résiliation en cours ne libère pas avant ends_at
 //     (et GYM-113 a montré que 'canceling' peut être un état menteur — Mollie pas réellement annulé).
+//   - 'paused' compte comme engagé (GYM-190) : un gel suspend les prélèvements, pas la durée
+//     souscrite. Sans lui, geler un abonnement suffirait à pouvoir le résilier ou à supprimer
+//     son compte avant le terme.
 //   - ends_at NULL / passé → non engagé.
 export function isEngaged(status: string, endsAt: string | null): boolean {
-  return (status === 'active' || status === 'canceling')
+  return (status === 'active' || status === 'canceling' || status === 'paused')
     && !!endsAt
     && new Date(endsAt).getTime() > Date.now()
 }
@@ -41,3 +44,13 @@ export async function getActiveEngagement(
   const top = engaged[0]
   return top ? { subscriptionId: top.id as string, endsAt: top.ends_at as string } : null
 }
+
+// GYM-190 — FILET SEPA DE delete-account : statuts sous lesquels un abonnement Mollie peut
+// encore PRÉLEVER, et qu'il faut donc annuler chez Mollie avant d'anonymiser le compte.
+//   - 'active', 'canceling' : la liste d'origine (GYM-113), 'canceling' pour les états menteurs.
+//   - 'past_due' : Mollie représente le prélèvement échoué, l'abonnement est bien vivant.
+//   - 'paused'   : gelé, donc destiné à reprendre ses prélèvements.
+// 'suspended' n'y est pas : hors périmètre de GYM-190, à trancher à part.
+// Vit ici et non dans delete-account/index.ts, qui lance Deno.serve() à l'import et n'est
+// donc pas atteignable par un banc. Voir subscription-statuses_test.ts.
+export const SEPA_SAFETY_NET_STATUSES = ['active', 'canceling', 'past_due', 'paused']

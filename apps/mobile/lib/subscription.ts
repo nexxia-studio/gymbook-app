@@ -26,18 +26,26 @@
  * Statuts donnant accès. À n'utiliser que comme PRÉ-FILTRE de requête (`.in('status', …)`) :
  * il ne dit rien du terme. L'autorité côté app est isSubscriptionActive(), à appliquer sur
  * la ligne obtenue — et donc à charger `ends_at` avec.
+ *
+ * GYM-190 — 'past_due' AJOUTÉ. La liste datait d'avant GYM-252 : un membre dont le
+ * prélèvement a échoué garde son accès pendant les 3 jours de grâce (le serveur le laisse
+ * réserver), mais l'app ne chargeait pas sa ligne et lui affichait « aucune formule ».
+ * Même liste, désormais, que ACCESS_SUBSCRIPTION_STATUSES (_shared/active-subscription.ts)
+ * et que apps/dashboard/src/lib/subscription.ts.
+ *
+ * ⚠️ 'paused' ET 'suspended' N'Y ENTRENT PAS : ils n'ouvrent aucun accès.
  */
-export const ACTIVE_SUBSCRIPTION_STATUSES: string[] = ['active', 'canceling']
+export const ACTIVE_SUBSCRIPTION_STATUSES: string[] = ['active', 'canceling', 'past_due']
 
 /**
  * Statuts pertinents à charger pour l'écran abonnement (accès OU affichage « Terminé »).
  * Même réserve que ci-dessus : pré-filtre de requête, pas un verdict.
  */
-export const DISPLAYABLE_SUBSCRIPTION_STATUSES: string[] = ['active', 'canceling', 'completed']
+export const DISPLAYABLE_SUBSCRIPTION_STATUSES: string[] = [...ACTIVE_SUBSCRIPTION_STATUSES, 'completed']
 
 /**
  * True uniquement pour un abonnement donnant RÉELLEMENT accès : statut actif
- * (active/canceling) ET terme non dépassé.
+ * (active/canceling/past_due) ET terme non dépassé.
  *
  * `endsAt` est un paramètre REQUIS à dessein : le rendre optionnel laisserait un appelant
  * retomber silencieusement sur l'ancien comportement (statut seul), qui est le bug que
@@ -48,8 +56,7 @@ export function isSubscriptionActive(
   status: string | null | undefined,
   endsAt: string | null | undefined,
 ): boolean {
-  const statusOk = status === 'active' || status === 'canceling'
-  if (!statusOk) return false
+  if (!status || !ACTIVE_SUBSCRIPTION_STATUSES.includes(status)) return false
   if (!endsAt) return true
   return new Date(endsAt).getTime() > Date.now()
 }

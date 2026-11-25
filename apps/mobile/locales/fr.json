@@ -792,6 +792,7 @@
     "activated_message": "{{plan}}\nProchain paiement : {{date}}",
     "ends_on": "Jusqu'au {{date}}",
     "canceling_badge": "Résilié",
+    "past_due_badge": "Paiement en attente",
     "completed_badge": "Abonnement terminé",
     "completed_ended_on": "Terminé le {{date}}",
     "completed_subtitle": "Ton engagement est allé au bout. Tu peux te réabonner quand tu veux.",

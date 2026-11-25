@@ -647,7 +647,7 @@ export default function SubscriptionScreen() {
   //  - one_time (cumul LIBRE) : toujours achetable, SAUF abonnement actif (accès illimité).
   //  - recurring : achetable SAUF abonnement déjà actif (→ upsell futur). Les crédits ne bloquent RIEN.
   // 'completed' est chargé pour l'affichage mais N'EST PAS actif → n'ouvre aucun droit et
-  // ne bloque aucun achat (GYM-151). Seuls active/canceling comptent comme abonnement actif.
+  // ne bloque aucun achat (GYM-151). Seuls active/canceling/past_due comptent comme abonnement actif.
   // GYM-191 — un abonnement échu n'ouvre plus aucun droit et ne bloque plus aucun achat,
   // même si le cron horaire ne l'a pas encore passé à 'expired'.
   const hasActiveSub = isSubscriptionActive(activeSub?.status, activeSub?.endsAt)
@@ -765,6 +765,13 @@ export default function SubscriptionScreen() {
               {activeSub.status === 'canceling' ? (
                 <View className="rounded-full bg-orange-100 px-3 py-1">
                   <Text className="font-dmsans-bold text-[11px] text-orange-600">{t('subscription.canceling_badge')}</Text>
+                </View>
+              ) : activeSub.status === 'past_due' ? (
+                /* GYM-190 — délai de grâce (GYM-252) : l'accès reste ouvert, mais le dernier
+                   prélèvement a échoué. « ✓ Actif » en vert le cacherait au membre. Même
+                   pastille que « Résilié », aucun style nouveau. */
+                <View className="rounded-full bg-orange-100 px-3 py-1">
+                  <Text className="font-dmsans-bold text-[11px] text-orange-600">{t('subscription.past_due_badge')}</Text>
                 </View>
               ) : (
                 <View className="rounded-full bg-green-100 px-3 py-1">

@@ -792,6 +792,7 @@
     "activated_message": "{{plan}}\nNext charge: {{date}}",
     "ends_on": "Until {{date}}",
     "canceling_badge": "Canceled",
+    "past_due_badge": "Payment pending",
     "completed_badge": "Subscription completed",
     "completed_ended_on": "Ended on {{date}}",
     "completed_subtitle": "Your commitment ran its course. You can resubscribe anytime.",

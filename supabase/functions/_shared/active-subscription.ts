@@ -74,8 +74,13 @@ export const ACCESS_SUBSCRIPTION_STATUSES = ['active', 'canceling', 'past_due']
  * sens sûr. Un membre en résiliation garde son accès jusqu'au terme — lui ouvrir un second
  * abonnement le ferait payer deux fois la même période. Conséquence à connaître : il doit
  * attendre son terme pour se réabonner (`notExpiredFilter` libère la ligne au terme).
+ *
+ * ⚠️ 'paused' Y FIGURE (GYM-190), et N'ENTRE PAS dans `ACCESS_SUBSCRIPTION_STATUSES` : un
+ * abonnement gelé n'ouvre aucun droit, mais il reprendra ses prélèvements. Laisser acheter
+ * un second abonnement pendant le gel, c'est deux prélèvements à la reprise. Même logique
+ * que 'suspended' : pas d'accès, mais l'achat est bloqué.
  */
-export const PURCHASE_BLOCKING_STATUSES = ['active', 'canceling', 'past_due', 'suspended']
+export const PURCHASE_BLOCKING_STATUSES = ['active', 'canceling', 'past_due', 'suspended', 'paused']
 
 /**
  * Argument `.or()` de PostgREST exprimant « terme non dépassé » :
