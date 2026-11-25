@@ -909,5 +909,31 @@
     "account_exists": "Ton compte est bien créé — inutile de recommencer l'inscription.",
     "choose_another": "Choisir une autre salle",
     "sign_out": "Se déconnecter"
+  },
+  "messages": {
+    "title": "Messages",
+    "bell": "Messages",
+    "bell_unread_one": "Messages, {{count}} non lu",
+    "bell_unread_other": "Messages, {{count}} non lus",
+    "detail_title": "Message",
+    "mark_all_read": "Tout marquer comme lu",
+    "mark_all_error": "Impossible de tout marquer comme lu. Réessaie.",
+    "empty": "Tu n'as aucun message pour le moment.",
+    "load_error": "Impossible de charger tes messages.",
+    "detail_error": "Impossible de charger ce message.",
+    "not_found": "Ce message est introuvable.",
+    "back_to_list": "Retour aux messages",
+    "unread": "Non lu",
+    "read": "Lu",
+    "date_now": "à l'instant",
+    "date_minutes_one": "il y a {{count}} min",
+    "date_minutes_other": "il y a {{count}} min",
+    "date_hours_one": "il y a {{count}} h",
+    "date_hours_other": "il y a {{count}} h",
+    "date_yesterday": "hier",
+    "date_days_one": "il y a {{count}} j",
+    "date_days_other": "il y a {{count}} j",
+    "date_day_month": "{{day}} {{month}}",
+    "date_day_month_year": "{{day}} {{month}} {{year}}"
   }
 }

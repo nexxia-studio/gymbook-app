@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { View, Text, ScrollView, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, RefreshControl, Pressable } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -15,6 +15,8 @@ import { useGymNameLines } from '../../hooks/useGymName'
 // GYM-300 — l'avis de réconciliation. Rend `null` en single : rien n'est monté de plus.
 import { useActiveGymNotice, useNotMemberRedirect } from '../../hooks/useActiveGymNotice'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
+import { useMessagesStore } from '../../stores/useMessagesStore'
+import { badgeLabel } from '../../lib/messages/format'
 
 export default function Home() {
   const { marque, descriptif } = useGymNameLines()
@@ -24,6 +26,8 @@ export default function Home() {
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
+  const unreadCount = useMessagesStore((s) => s.unreadCount)
+  const badge = badgeLabel(unreadCount)
   const { days, scheduleByDay, isFavorite, toggleFavorite, isSlotBooked, isSlotWaitlisted, refresh } = useHomeSchedule()
   const [activeDay, setActiveDay] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -107,10 +111,33 @@ export default function Home() {
             </Text>
           ) : null}
         </View>
-        <View className="relative">
+        {/* GYM-391 — la cloche ouvre l'écran Messages. Zone tactile : 22 + 2 × 12 = 46 pt.
+            La pastille n'est rendue que s'il y a des non lus ; son nombre est annoncé par le
+            libellé d'accessibilité du bouton. */}
+        <Pressable
+          onPress={() => router.push('/messages')}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={
+            unreadCount > 0 ? t('messages.bell_unread', { count: unreadCount }) : t('messages.bell')
+          }
+          className="relative"
+        >
           <Bell size={22} color={tokens.onBackground} />
-          <View className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SEMANTIC.danger }} />
-        </View>
+          {badge !== null ? (
+            <View
+              className="absolute items-center justify-center rounded-full"
+              style={{ top: -6, right: -8, minWidth: 16, height: 16, paddingHorizontal: 4, backgroundColor: SEMANTIC.danger }}
+            >
+              <Text
+                allowFontScaling={false}
+                style={{ fontFamily: 'DMSans_700Bold', fontSize: 10, lineHeight: 12, color: SEMANTIC.onSignal }}
+              >
+                {badge}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
       </View>
 
       {/* Day tabs */}

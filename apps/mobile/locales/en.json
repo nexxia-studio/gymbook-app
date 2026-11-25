@@ -909,5 +909,31 @@
     "account_exists": "Your account was created — no need to sign up again.",
     "choose_another": "Choose another gym",
     "sign_out": "Sign out"
+  },
+  "messages": {
+    "title": "Messages",
+    "bell": "Messages",
+    "bell_unread_one": "Messages, {{count}} unread",
+    "bell_unread_other": "Messages, {{count}} unread",
+    "detail_title": "Message",
+    "mark_all_read": "Mark all as read",
+    "mark_all_error": "Could not mark all as read. Try again.",
+    "empty": "You have no messages yet.",
+    "load_error": "Could not load your messages.",
+    "detail_error": "Could not load this message.",
+    "not_found": "This message could not be found.",
+    "back_to_list": "Back to messages",
+    "unread": "Unread",
+    "read": "Read",
+    "date_now": "just now",
+    "date_minutes_one": "{{count}} min ago",
+    "date_minutes_other": "{{count}} min ago",
+    "date_hours_one": "{{count}} h ago",
+    "date_hours_other": "{{count}} h ago",
+    "date_yesterday": "yesterday",
+    "date_days_one": "{{count}} d ago",
+    "date_days_other": "{{count}} d ago",
+    "date_day_month": "{{day}} {{month}}",
+    "date_day_month_year": "{{day}} {{month}} {{year}}"
   }
 }

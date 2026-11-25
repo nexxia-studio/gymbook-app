@@ -15,6 +15,7 @@ import { isExpectedEdgeError } from '../lib/edgeInvoke'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useBookingStore } from '../stores/useBookingStore'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+import { useUnreadMessages } from '../hooks/useUnreadMessages'
 import { GYM_MODE, readSelectedGymSlug, subscribeSelectedGymSlug } from '../lib/gymResolver'
 import { reconcileActiveGym, activeGymNeedsRetry } from '../lib/activeGymSession'
 import { activeGymWriteInFlight } from '../lib/activeGymWrites'
@@ -324,6 +325,10 @@ function RootLayout() {
 
   // Push notifications (mobile only)
   usePushNotifications(userId)
+
+  // GYM-391 — compteur de messages non lus (pastille de la cloche). Best-effort : ne bloque
+  // ni le démarrage, ni les portes, ni la navigation.
+  useUnreadMessages(userId)
 
   // Redirect to login on sign out
   const session = useAuthStore((s) => s.session)
