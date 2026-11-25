@@ -195,6 +195,9 @@ console.log('textes')
   const susp = textes.suspensionNoShow({ activite: 'Yoga', duree: '48 h', jusquAu: 'mercredi 26 novembre à 10:00' })
   check('suspension no-show', susp.title === 'Compte suspendu 48 h' && susp.body === "Absence enregistrée pour Yoga. Ton compte est suspendu jusqu'au mercredi 26 novembre à 10:00.")
   check('prélèvement refusé', textes.paiementEchoue({ plan: 'Illimité', avant: '26 novembre' }).body.includes("d'ici au 26 novembre"))
+  const arret = textes.abonnementArrete({ plan: 'Illimité', date: '15 décembre 2026' })
+  check('abonnement arrêté par la salle', arret.title === 'Abonnement arrêté' && arret.body === "Ton abonnement Illimité s'arrête le 15 décembre 2026. Aucun autre prélèvement ne sera effectué.", JSON.stringify(arret))
+  check('abonnement arrêté, formule sans nom : pas de blanc double', textes.abonnementArrete({ plan: null, date: '15 décembre 2026' }).body === "Ton abonnement s'arrête le 15 décembre 2026. Aucun autre prélèvement ne sera effectué.")
 
   const tous = [
     textes.reservationConfirmee(c), textes.inscriptionParLaSalle(c),
@@ -206,8 +209,9 @@ console.log('textes')
     textes.coursModifie({ activite: 'Yoga', quoi: 'nouvel horaire : 18:30', seances: 1 }),
     textes.coursModifie({ activite: 'Yoga', quoi: 'le cours a changé', seances: 8 }),
     susp,
+    arret, textes.abonnementArrete({ plan: null, date: '15 décembre 2026' }),
   ]
-  check('le banc couvre chaque texte de `textes`', new Set(Object.keys(textes)).size === 9, Object.keys(textes).join(','))
+  check('le banc couvre chaque texte de `textes`', new Set(Object.keys(textes)).size === 10, Object.keys(textes).join(','))
   const avecTiret = tous.filter((t) => /[—–]/.test(t.title + t.body))
   check(`aucun tiret long ni demi-cadratin dans les ${tous.length} textes`, avecTiret.length === 0, JSON.stringify(avecTiret))
   // Tutoiement partout : « vous », « votre » et « vos » sont refusés, en mot entier, quelle

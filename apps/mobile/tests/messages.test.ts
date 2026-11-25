@@ -114,7 +114,7 @@ for (const type of TYPES_COURS) {
   check(`${type} a besoin de l’heure du cours`, messageNeedsSlotTime(type) === true)
   check(`${type} → slot_id extrait`, messageSlotId(type, { slot_id: SLOT }) === SLOT)
 }
-for (const type of ['subscription_activated', 'subscription_payment_failed', 'credits_purchased']) {
+for (const type of ['subscription_activated', 'subscription_payment_failed', 'subscription_stopped_by_gym', 'credits_purchased']) {
   egal(`${type} → Ma formule`, va(type, null), { kind: 'subscription' })
   egal(`${type}, même avec un slot_id → Ma formule`, va(type, { slot_id: SLOT }, FUTUR), { kind: 'subscription' })
   check(`${type} n’a pas besoin de l’heure du cours`, messageNeedsSlotTime(type) === false)
@@ -191,7 +191,8 @@ egal('reminder_2h sans slot_id', push({ type: 'reminder_2h' }), '/session/undefi
 // Les types de la boîte que le push ne connaissait pas restent sans destination.
 for (const type of [
   'waitlist_promoted', 'session_cancelled_by_gym', 'session_updated_by_gym', 'subscription_activated',
-  'subscription_payment_failed', 'credits_purchased', 'no_show_suspension', 'communication', 'inconnu', '',
+  'subscription_payment_failed', 'subscription_stopped_by_gym', 'credits_purchased', 'no_show_suspension',
+  'communication', 'inconnu', '',
 ]) {
   egal(`« ${type} » → aucune navigation`, push({ type }), null)
 }

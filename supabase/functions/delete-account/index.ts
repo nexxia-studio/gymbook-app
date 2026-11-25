@@ -21,7 +21,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
-import { getActiveEngagement } from '../_shared/subscription-engagement.ts'
+import { getActiveEngagement, SEPA_SAFETY_NET_STATUSES } from '../_shared/subscription-engagement.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -118,11 +118,13 @@ Deno.serve(async (req) => {
       //     — dont d'éventuels 'canceling' MENTEURS historiques (status = annulé mais Mollie ne l'a
       //     jamais réellement été). On ne peut PAS anonymiser un compte dont le SEPA prélève encore :
       //     tout échec Mollie (hors 404) → ABORT 502, aucune écriture.
+      //     GYM-190 — la liste couvre aussi 'past_due', 'paused' et 'suspended' (SEPA_SAFETY_NET_STATUSES) :
+      //     un impayé que Mollie représente, un gel ou une suspension laissent un abonnement Mollie vivant.
       const { data: staleSubs } = await admin
         .from('member_subscriptions')
         .select('id, gym_id, mollie_subscription_id, mollie_customer_id')
         .eq('member_id', memberId)
-        .in('status', ['active', 'canceling'])
+        .in('status', SEPA_SAFETY_NET_STATUSES)
 
       for (const sub of staleSubs ?? []) {
         if (sub.mollie_subscription_id && sub.mollie_customer_id) {

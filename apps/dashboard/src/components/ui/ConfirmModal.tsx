@@ -23,6 +23,9 @@ interface ConfirmModalProps {
   busy?: boolean
   /** Libellé du bouton de confirmation pendant l'action. */
   busyLabel?: string
+  /** GYM-190 — confirmation impossible tant qu'une saisie obligatoire manque (motif).
+   *  « Annuler », Échap et le clic extérieur restent actifs, au contraire de `busy`. */
+  confirmDisabled?: boolean
   /** Un clic sur le fond ferme la modale (comme Échap). */
   closeOnBackdrop?: boolean
   /** À l'ouverture, le focus va sur le bouton de confirmation plutôt que sur « Annuler ». */
@@ -38,7 +41,8 @@ const colorClasses = {
 
 export function ConfirmModal({
   open, title, message, onConfirm, onCancel, confirmLabel = 'Confirmer', confirmColor = 'orange',
-  children, cancelLabel = 'Annuler', icon, busy = false, busyLabel, closeOnBackdrop = false, focusConfirm = false,
+  children, cancelLabel = 'Annuler', icon, busy = false, busyLabel, confirmDisabled = false,
+  closeOnBackdrop = false, focusConfirm = false,
 }: ConfirmModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -106,7 +110,7 @@ export function ConfirmModal({
             type="button"
             data-confirm-button
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             className={`flex-1 ${colorClasses[confirmColor]}`}
           >
             {busy && busyLabel ? busyLabel : confirmLabel}

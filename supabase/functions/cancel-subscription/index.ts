@@ -60,7 +60,12 @@ Deno.serve(async (req) => {
     // ── GYM-113 — GUARD ENGAGEMENT FERME (sur LA ligne visée, pas member-level) : un abonnement
     //    'active' dont le terme est futur est dû jusqu'à ends_at → pas de résiliation anticipée.
     //    Aucun appel Mollie ni écriture avant ce return.
-    if (sub.status === 'active' && isEngaged(sub.status, sub.ends_at)) {
+    //    GYM-190 — la garde portait `sub.status === 'active' &&` en tête : un abonnement
+    //    'paused' au terme futur passait donc au travers et était résilié chez Mollie, alors
+    //    qu'un gel ne libère pas de la durée souscrite. `isEngaged` décide seul désormais
+    //    ('active', 'canceling', 'paused') ; 'canceling' est déjà sorti par le return idempotent
+    //    ci-dessus, le résultat pour 'active' est donc inchangé.
+    if (isEngaged(sub.status, sub.ends_at)) {
       console.log('[cancel-subscription] blocked — engaged', JSON.stringify({ id: sub.id, ends_at: sub.ends_at }))
       return json({
         error: true,

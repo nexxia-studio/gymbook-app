@@ -5,7 +5,7 @@ import { MESSAGES_PAGE_SIZE, isUnread, isUuid, type MessageRow } from './data'
 
 /** Le NOM de l'icône ; le composant qui le dessine vit dans components/messages/shared.tsx. */
 export type MessageIconName =
-  | 'calendar-check' | 'trending-up' | 'calendar-x' | 'calendar-clock' | 'badge-check'
+  | 'calendar-check' | 'trending-up' | 'calendar-x' | 'calendar-clock' | 'badge-check' | 'badge-x'
   | 'credit-card' | 'ticket' | 'ban' | 'megaphone' | 'bell'
 
 export const MESSAGE_ICON_BY_TYPE: Readonly<Record<string, MessageIconName>> = {
@@ -15,6 +15,7 @@ export const MESSAGE_ICON_BY_TYPE: Readonly<Record<string, MessageIconName>> = {
   session_updated_by_gym: 'calendar-clock',
   subscription_activated: 'badge-check',
   subscription_payment_failed: 'credit-card',
+  subscription_stopped_by_gym: 'badge-x',
   credits_purchased: 'ticket',
   no_show_suspension: 'ban',
   communication: 'megaphone',

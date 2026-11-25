@@ -21,6 +21,7 @@ const SLOT_TYPES: ReadonlySet<string> = new Set([
 const SUBSCRIPTION_TYPES: ReadonlySet<string> = new Set([
   'subscription_activated',
   'subscription_payment_failed',
+  'subscription_stopped_by_gym',
   'credits_purchased',
 ])
 

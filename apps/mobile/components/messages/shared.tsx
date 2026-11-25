@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { View } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import {
-  BadgeCheck, Ban, Bell, CalendarCheck, CalendarClock, CalendarX, CreditCard, Megaphone, Ticket, TrendingUp,
+  BadgeCheck, BadgeX, Ban, Bell, CalendarCheck, CalendarClock, CalendarX, CreditCard, Megaphone, Ticket, TrendingUp,
   type LucideIcon,
 } from 'lucide-react-native'
 import { useTheme } from '../../lib/theme/ThemeProvider'
@@ -21,6 +21,7 @@ const ICONS: Record<MessageIconName, LucideIcon> = {
   'calendar-x': CalendarX,
   'calendar-clock': CalendarClock,
   'badge-check': BadgeCheck,
+  'badge-x': BadgeX,
   'credit-card': CreditCard,
   ticket: Ticket,
   ban: Ban,

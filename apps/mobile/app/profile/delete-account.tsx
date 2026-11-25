@@ -7,7 +7,7 @@ import { ChevronLeft, AlertTriangle, Check, X } from 'lucide-react-native'
 import { TextInput } from '../../components/ui/TextInput'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { ACTIVE_SUBSCRIPTION_STATUSES } from '../../lib/subscription'
+import { ENGAGING_SUBSCRIPTION_STATUSES } from '../../lib/subscription'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 
@@ -66,7 +66,7 @@ export default function DeleteAccountScreen() {
         .from('member_subscriptions')
         .select('ends_at')
         .eq('member_id', userId)
-        .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
+        .in('status', ENGAGING_SUBSCRIPTION_STATUSES)
         .gt('ends_at', new Date().toISOString())
         .order('ends_at', { ascending: false })
         .limit(1)

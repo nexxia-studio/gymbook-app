@@ -27,16 +27,17 @@ function ligne(id: string, read: boolean | null = false, title = id): MessageRow
 const ids = (rows: MessageRow[]) => rows.map((r) => r.id)
 
 console.log('Icône par type')
-// Les neuf types que la spec route : chacun a son icône, aucun ne tombe sur la générique.
+// Les dix types routés (GYM-391, puis GYM-190 pour l'arrêt par la salle) : chacun a son icône, aucun ne tombe sur la générique.
 for (const type of [
   'booking_confirmed', 'waitlist_promoted', 'session_cancelled_by_gym', 'session_updated_by_gym',
   'subscription_activated', 'subscription_payment_failed', 'credits_purchased', 'no_show_suspension',
-  'communication',
+  'communication', 'subscription_stopped_by_gym',
 ]) {
   check(`${type} → icône propre`, type in MESSAGE_ICON_BY_TYPE && messageIconName(type) !== 'bell')
 }
 egal('booking_confirmed', messageIconName('booking_confirmed'), 'calendar-check')
 egal('communication', messageIconName('communication'), 'megaphone')
+egal('subscription_stopped_by_gym', messageIconName('subscription_stopped_by_gym'), 'badge-x')
 for (const [nom, type] of [
   ['type inconnu', 'nouveau_type'], ['vide', ''], ['null', null], ['undefined', undefined], ['non chaîne', 42],
   // Une clé héritée d'Object.prototype n'est pas un type.

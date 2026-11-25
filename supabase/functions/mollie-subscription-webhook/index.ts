@@ -16,6 +16,7 @@ import {
 } from '../_shared/failed-renewal-emails.ts'
 // GYM-319 — date du premier renouvellement, isolée pour être vérifiable hors ligne.
 import { firstRenewalDate, hasRemainingTerm } from './renewal-date.ts'
+import { renewalDecision } from './payment-after-stop.ts'
 
 const FN = 'mollie-subscription-webhook'
 
@@ -948,10 +949,49 @@ Deno.serve(async (req) => {
           const { data: sub } = await supabase
             // GYM-321 — `ends_at` est ajouté à la sélection : c'est LUI qui décide
             // désormais du passage en `completed`, pas le seul compteur.
-            .from('member_subscriptions').select('id, payments_count, max_payments, ends_at')
+            // GYM-190 — `status` est ajouté à la sélection : un paiement reçu sur un
+            // abonnement arrêté ne doit plus le relever (bloc ci-dessous).
+            .from('member_subscriptions').select('id, status, payments_count, max_payments, ends_at')
             .eq('mollie_subscription_id', mollieSubscriptionId).maybeSingle()
 
-          if (sub) {
+          // ═══════════════════════════════════════════════════════════════════════
+          // 🔴 GYM-190 — PAIEMENT REÇU SUR UN ABONNEMENT ARRÊTÉ : ON COMPTE, ON ALERTE,
+          // ON NE RELÈVE RIEN.
+          // ═══════════════════════════════════════════════════════════════════════
+          // La branche d'en dessous écrit `status: 'active'` sans condition. Sur une
+          // ligne `canceling`, `paused`, `cancelled` ou `expired`, elle rouvrait donc
+          // l'abonnement sans bruit : le membre était débité et la salle croyait
+          // l'avoir arrêté. La décision vit dans `payment-after-stop.ts`, avec son banc.
+          //
+          // ⚠️ SEUL `payments_count` EST ÉCRIT. L'argent est bien entré : la ligne
+          // `payments` est déjà posée plus haut et la facture part plus bas, comme pour
+          // toute échéance. Mais ni `status`, ni `next_payment_at`, ni `ends_at`, ni
+          // les colonnes d'impayé, ni `prenotification_sent_at` ne bougent : c'est à un
+          // humain de décider d'un remboursement, pas à ce webhook de rouvrir des droits.
+          //
+          // ⚠️ L'ALERTE NE PROVOQUE NI 503 NI REJEU. `recordWebhookFailure` ne lève
+          // jamais, et la réponse reste le 200 de fin de fonction. Un 503 ici ferait
+          // rejouer Mollie pour rien : le rejeu sortirait en tête de branche sur
+          // `existingPayment.status === 'paid'` (GYM-213), sans rien corriger.
+          //
+          // ⚠️ `detail` NE PORTE AUCUNE DONNÉE PERSONNELLE : des identifiants techniques
+          // et un statut, rien d'autre.
+          if (sub && renewalDecision(sub.status) === 'payment_after_stop') {
+            const { error: stoppedCountError } = await supabase.from('member_subscriptions')
+              .update({ payments_count: (sub.payments_count ?? 0) + 1 }).eq('id', sub.id)
+            await recordWebhookFailure(supabase, {
+              functionName: FN, mollieId: molliePaymentId, paymentId: existingPayment?.id ?? null,
+              gymId, stage: 'payment_after_stop',
+              detail: {
+                subscription_id: sub.id,
+                status: sub.status,
+                mollie_payment_id: molliePaymentId,
+                mollie_subscription_id: mollieSubscriptionId,
+                // Compteur non écrit : dit dans la MÊME alerte, plutôt que dans une seconde.
+                ...(stoppedCountError ? { counter_error: stoppedCountError.message } : {}),
+              },
+            })
+          } else if (sub) {
             const nextCount = (sub.payments_count ?? 0) + 1
             const isFinal = sub.max_payments != null && nextCount >= sub.max_payments
 
