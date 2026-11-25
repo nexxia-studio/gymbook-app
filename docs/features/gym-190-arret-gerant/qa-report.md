@@ -57,7 +57,8 @@ Décompte : **23 PASS** (12 en réel, 11 en simulé), **2 FAIL**, **11 NON JOUÉ
 
 > **Après la QA** (corrections faites par l'orchestrateur, non rejouées par le qa-tester) :
 > - Échec 1 corrigé : le refus de l'arrêt s'appelle désormais `RENEWAL_NOT_RECORDED` (fonction, dashboard, spec). La clé `PAYMENT_NOT_RECORDED` de la vente au comptoir n'existe de nouveau qu'une fois et a retrouvé son texte. Vérifié par lecture du JSON et par un contrôle de clés en double sur `fr.json` et `en.json`.
-> - Échec 2 traité : au changement de membre, le hook vide aussi les crédits, les ajustements, les paiements et les réservations. Vérifié par le build seulement, pas à l'écran.
+> - Échec 2 corrigé EN PARTIE : au changement de membre, le hook vide aussi les crédits, les ajustements, les paiements et les réservations. Le solde du membre précédent ne s'affiche donc plus. Vérifié par le build et par une relecture, pas à l'écran.
+> - Reste de l'échec 2, NON corrigé : le prénom, le nom, les initiales, le téléphone et le code de badge du membre précédent peuvent encore s'afficher une image à l'ouverture d'une autre fiche. Ils viennent d'un état du drawer (`identity`, recopié depuis la prop dans un effet), pas du hook. À la place du solde précédent, la section Crédits affiche maintenant « 0 » pendant le chargement.
 > - Dans ce rapport, lire `RENEWAL_NOT_RECORDED` là où il est écrit `PAYMENT_NOT_RECORDED` pour l'arrêt d'abonnement.
 
 **Scénario 15 : le texte d'erreur de la vente au comptoir est écrasé (régression de la branche).**

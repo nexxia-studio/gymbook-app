@@ -28,7 +28,7 @@ Branche `nexxiastudio/gym-190-arret-gerant`, PR vers `develop`. Référence : `d
 
 1b. `'paused'` entre dans `PURCHASE_BLOCKING_STATUSES` et dans `isEngaged` (`_shared`), et dans chacune de leurs copies (SQL, dashboard, mobile). `paused` n'entre PAS dans `ACCESS_SUBSCRIPTION_STATUSES`. Le rapport liste chaque copie trouvée, modifiée ou non, avec la raison. Une copie SQL se corrige par une migration qui reprend la dernière définition à l'identique.
 
-1c. `delete-account` : le filet SEPA couvre `active`, `canceling`, `past_due` et `paused`. La liste est une constante exportée, testée.
+1c. `delete-account` : le filet SEPA couvre `active`, `canceling`, `past_due`, `paused` et `suspended` (`suspended` ajouté sur décision d'Antoine, 25/11). La liste est une constante exportée, testée.
 
 1d. `apps/mobile/lib/subscription.ts` : `past_due` ajouté (un membre en délai de grâce voit aujourd'hui « aucune formule »). Test.
 
