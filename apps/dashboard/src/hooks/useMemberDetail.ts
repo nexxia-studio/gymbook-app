@@ -212,7 +212,9 @@ export function useMemberDetail(memberId: string | null) {
       const gifted = creditLines.filter((c) => c.planId === MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0)
       setGiftedRemaining(gifted)
       setPurchasedRemaining(creditLines.filter((c) => c.planId !== MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0))
-      setCreditsFor(memberId)
+      // Une lecture en erreur (Supabase la renvoie sans lever) n'est pas un solde : la fiche
+      // reste en « chargement », Vendre et Ajuster désactivés, plutôt qu'un faux 0.
+      if (!creditsRes.error) setCreditsFor(memberId)
 
       const adjLines: CreditAdjustment[] = ((adjustmentsRes.data ?? []) as Array<Record<string, unknown>>).map((a) => {
         const g = a.granter as { first_name?: string; last_name?: string } | Array<{ first_name?: string; last_name?: string }> | null
