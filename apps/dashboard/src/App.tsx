@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { homePathForRole, MEMBER_PATH } from '@/lib/homePath'
@@ -7,37 +7,38 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ACTIVATION_PATH, shouldInterceptInvite } from '@/lib/inviteLink'
 import { SIGNUP_CONFIRMED_PATH } from '@/lib/signupLink'
 import { ToastContainer } from '@/components/ui/Toast'
+import { lazyWithReload } from '@/lib/lazyWithReload'
 import MollieCallback from '@/pages/MollieCallback'
 import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCancel from '@/pages/PaymentCancel'
 import Cockpit from '@/pages/Cockpit'
 import CockpitGym from '@/pages/CockpitGym'
 
-const Login = lazy(() => import('@/pages/Login'))
+const Login = lazyWithReload(() => import('@/pages/Login'))
 // GYM-248 — inscription gérant self-serve REBRANCHÉE (voir l'en-tête de pages/Signup.tsx :
 // le client ne transmet plus ni rôle ni gym_id, le serveur crée et scelle).
-const Signup = lazy(() => import('@/pages/Signup'))
-const SignupConfirmed = lazy(() => import('@/pages/SignupConfirmed'))
-const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
-const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
-const Dashboard = lazy(() => import('@/pages/Dashboard'))
-const Planning = lazy(() => import('@/pages/Planning'))
-const Settings = lazy(() => import('@/pages/Settings'))
-const Members = lazy(() => import('@/pages/Members'))
-const PendingActivation = lazy(() => import('@/pages/PendingActivation'))
-const AccountActivation = lazy(() => import('@/pages/AccountActivation'))
-const Revenue = lazy(() => import('@/pages/Revenue'))
-const Communications = lazy(() => import('@/pages/Communications'))
-const Plans = lazy(() => import('@/pages/Plans'))
+const Signup = lazyWithReload(() => import('@/pages/Signup'))
+const SignupConfirmed = lazyWithReload(() => import('@/pages/SignupConfirmed'))
+const ForgotPassword = lazyWithReload(() => import('@/pages/ForgotPassword'))
+const ResetPassword = lazyWithReload(() => import('@/pages/ResetPassword'))
+const Dashboard = lazyWithReload(() => import('@/pages/Dashboard'))
+const Planning = lazyWithReload(() => import('@/pages/Planning'))
+const Settings = lazyWithReload(() => import('@/pages/Settings'))
+const Members = lazyWithReload(() => import('@/pages/Members'))
+const PendingActivation = lazyWithReload(() => import('@/pages/PendingActivation'))
+const AccountActivation = lazyWithReload(() => import('@/pages/AccountActivation'))
+const Revenue = lazyWithReload(() => import('@/pages/Revenue'))
+const Communications = lazyWithReload(() => import('@/pages/Communications'))
+const Plans = lazyWithReload(() => import('@/pages/Plans'))
 // Pages légales PUBLIQUES (accessibles hors session — Apple vérifie les URLs déconnecté).
-const PrivacyPolicy = lazy(() => import('@/pages/legal/PrivacyPolicy'))
-const Terms = lazy(() => import('@/pages/legal/Terms'))
+const PrivacyPolicy = lazyWithReload(() => import('@/pages/legal/PrivacyPolicy'))
+const Terms = lazyWithReload(() => import('@/pages/legal/Terms'))
 // GYM-265 — CGU de la PLATEFORME (Nexxia ↔ gérant). Document nouveau : /legal/terms porte
 // les CGV de la SALLE, qui ne lient pas le gérant.
-const Cgu = lazy(() => import('@/pages/legal/Cgu'))
-const Support = lazy(() => import('@/pages/Support'))
+const Cgu = lazyWithReload(() => import('@/pages/legal/Cgu'))
+const Support = lazyWithReload(() => import('@/pages/Support'))
 // 22/09 — la SORTIE d'un membre arrivé sur le dashboard (cf. lib/homePath.ts).
-const MemberSpace = lazy(() => import('@/pages/MemberSpace'))
+const MemberSpace = lazyWithReload(() => import('@/pages/MemberSpace'))
 
 function Loading() {
   return (
