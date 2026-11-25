@@ -4,6 +4,7 @@
 // périmètre (`MessageScope`) ne s'obtient que par `messageScope()` / `currentMessageScope()`,
 // qui rendent null quand le membre ou la salle manque : l'appelant s'abstient alors.
 // ⚠️ Lecture et UPDATE (read, read_at) seulement : aucun insert, aucun delete.
+// Seule exception au périmètre : `fetchSlotStartsAt` lit `time_slots`, filtré sur la salle.
 // Les erreurs Supabase sont LEVÉES : à l'appelant de décider quoi en faire.
 import { supabase } from '../supabase'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -32,6 +33,35 @@ export async function fetchMessagesPage(scope: MessageScope, page: number): Prom
     .range(from, to)
   if (error) throw error
   return (data ?? []) as MessageRow[]
+}
+
+/** Un message par son `id`, dans le périmètre. Null s'il n'existe pas pour ce membre dans cette salle. */
+export async function fetchMessage(scope: MessageScope, id: string): Promise<MessageRow | null> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select(MESSAGE_COLUMNS)
+    .eq('id', id)
+    .eq('member_id', scope.memberId)
+    .eq('gym_id', scope.gymId)
+    .maybeSingle()
+  if (error) throw error
+  return (data ?? null) as MessageRow | null
+}
+
+/**
+ * L'heure de début (`time_slots.starts_at`, un instant UTC) du cours `slotId` DANS la salle
+ * du périmètre, ou null s'il n'y existe pas. Sert à router un message de cours : un cours
+ * d'une autre salle compte comme introuvable.
+ */
+export async function fetchSlotStartsAt(scope: MessageScope, slotId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('time_slots')
+    .select('starts_at')
+    .eq('id', slotId)
+    .eq('gym_id', scope.gymId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.starts_at ?? null
 }
 
 /** Le nombre de messages non lus (`read` n'est pas true : un null compte). */
