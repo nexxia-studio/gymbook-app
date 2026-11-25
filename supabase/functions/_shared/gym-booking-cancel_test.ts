@@ -111,7 +111,9 @@ Deno.test('la suite échoue ou lève : la réservation reste annulée, l’éche
   }
 })
 
-Deno.test('l’écriture reçoit la salle et le membre : l’UPDATE est verrouillé dessus', async () => {
+// Ce banc prouve la TRANSMISSION, pas le verrou : les `.eq('gym_id')` et `.eq('member_id')`
+// de l'UPDATE vivent dans le câblage (`cancelBookingByGym`), hors de portée d'une doublure.
+Deno.test('la salle et le membre de la référence sont transmis tels quels à la dépendance d’écriture', async () => {
   const m = monde()
   await cancelBookingByGymWith(ref({ gym_id: 'salle-A', member_id: 'membre-7' }), m.deps)
   eq(m.verrous, ['salle-A:membre-7'])

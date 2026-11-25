@@ -92,6 +92,37 @@ function startOfZonedDay(y: number, m: number, d: number, timeZone: string): Dat
   return new Date(ts)
 }
 
+type Ymd = readonly [number, number, number]
+
+/**
+ * LA lecture de `next_payment_at`, partagée par la date de fin et par le contrôle du
+ * paiement non enregistré : une date nue (pile 00:00 UTC) est un JOUR du calendrier de la
+ * salle ; toute autre valeur est un instant réel. `null` : valeur illisible.
+ */
+function readNextPayment(raw: string): { day: Ymd; at: null } | { day: null; at: Date } | null {
+  const due = new Date(raw)
+  if (Number.isNaN(due.getTime())) return null
+  if (due.getTime() % 86_400_000 !== 0) return { day: null, at: due }
+  return { day: [due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()], at: null }
+}
+
+/** Le jour du calendrier de la salle où tombe un instant. Mois de 0 à 11, comme `Date`. */
+function zonedDay(at: Date, timeZone: string): Ymd {
+  const local = new Date(at.getTime() + tzOffsetMs(at, timeZone))
+  return [local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()]
+}
+
+/** Fuseau inconnu de l'environnement : le DEFAULT du schéma, pas une date devinée. */
+function inZone<T>(timeZone: string | null | undefined, f: (tz: string) => T): T {
+  try {
+    return f(timeZone || DEFAULT_TIME_ZONE)
+  } catch {
+    return f(DEFAULT_TIME_ZONE)
+  }
+}
+
+const dayNumber = ([y, m, d]: Ymd): number => y * 10_000 + m * 100 + d
+
 /**
  * Fin de la dernière période payée.
  *
@@ -112,20 +143,10 @@ export function computeEndDate(sub: SubscriptionForEndDate, timeZone: string | n
   const currentEndValid = currentEnd !== null && !Number.isNaN(currentEnd.getTime())
 
   if (sub.next_payment_at) {
-    const due = new Date(sub.next_payment_at)
-    if (Number.isNaN(due.getTime())) return { ok: false, code: 'END_DATE_UNKNOWN' }
+    const due = readNextPayment(sub.next_payment_at)
+    if (!due) return { ok: false, code: 'END_DATE_UNKNOWN' }
 
-    let end = due
-    const isBareDate = due.getTime() % 86_400_000 === 0
-    if (isBareDate) {
-      const ymd = [due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()] as const
-      try {
-        end = startOfZonedDay(...ymd, timeZone || DEFAULT_TIME_ZONE)
-      } catch {
-        // Fuseau inconnu de l'environnement : le DEFAULT du schéma, pas une date devinée.
-        end = startOfZonedDay(...ymd, DEFAULT_TIME_ZONE)
-      }
-    }
+    let end = due.at ?? inZone(timeZone, (tz) => startOfZonedDay(...due.day, tz))
     if (end.getTime() < now.getTime()) end = now
     if (currentEndValid && end.getTime() > currentEnd.getTime()) end = currentEnd
     return { ok: true, ends_at: end.toISOString(), rule: 'next_payment' }
@@ -155,29 +176,58 @@ function parseObject(body: string): Record<string, unknown> | null {
   }
 }
 
-export type MolliePaymentsOutcome = 'clear' | 'in_flight' | 'not_found' | 'failed'
+export type MolliePaymentsOutcome = 'clear' | 'in_flight' | 'paid_not_recorded' | 'not_found' | 'failed'
+
+/** L'échéance attendue par NOTRE base, et le fuseau dans lequel son jour se lit. */
+export interface PaymentDue {
+  next_payment_at: string | null
+  timeZone: string | null | undefined
+}
 
 /** Un prélèvement `open` ou `pending` peut encore être encaissé : il est « en cours ». */
 const IN_FLIGHT_PAYMENT_STATUSES = ['open', 'pending']
 
 /**
  * « List subscription payments » : `_embedded.payments[]`, chacun avec son `status`.
- * 404 : l'abonnement n'existe pas (ou plus) chez Mollie, il n'y a donc rien en cours.
+ * 404 ou 410 : l'abonnement n'existe pas (ou plus) chez Mollie, il n'y a donc rien en cours.
  * Une liste absente, ou une entrée sans statut lisible, vaut un échec : on ne déclare pas
  * la voie libre sur une réponse qu'on n'a pas comprise.
+ *
+ * PAIEMENT ENCAISSÉ MAIS PAS ENCORE ENREGISTRÉ. Tant que notre webhook n'a pas traité
+ * l'échéance du jour J, `next_payment_at` vaut encore J : la date de fin serait ramenée à
+ * « maintenant » et l'accès tout juste payé serait coupé. Un `paid` daté (`paidAt`, à
+ * défaut `createdAt`) du jour d'échéance ou d'après, dans le calendrier de la salle, est
+ * donc un refus. Un `paid` sans date lisible est un échec, pas « rien à signaler ». Sans
+ * échéance (`next_payment_at` nul), il n'y a rien à comparer : les dates ne sont pas lues.
  */
-export function classifyMolliePayments(httpStatus: number, body: string): MolliePaymentsOutcome {
-  if (httpStatus === 404) return 'not_found'
+export function classifyMolliePayments(httpStatus: number, body: string, due?: PaymentDue): MolliePaymentsOutcome {
+  if (httpStatus === 404 || httpStatus === 410) return 'not_found'
   if (httpStatus < 200 || httpStatus >= 300) return 'failed'
   const payments = (parseObject(body)?._embedded as { payments?: unknown } | null | undefined)?.payments
   if (!Array.isArray(payments)) return 'failed'
+
+  let dueDay: number | null = null
+  if (due?.next_payment_at) {
+    const read = readNextPayment(due.next_payment_at)
+    if (!read) return 'failed'
+    dueDay = dayNumber(read.day ?? inZone(due.timeZone, (tz) => zonedDay(read.at, tz)))
+  }
+
   let inFlight = false
+  let paidNotRecorded = false
   for (const p of payments) {
-    const status = (p as { status?: unknown } | null)?.status
+    const { status, paidAt, createdAt } = (p ?? {}) as { status?: unknown; paidAt?: unknown; createdAt?: unknown }
     if (typeof status !== 'string') return 'failed'
     if (IN_FLIGHT_PAYMENT_STATUSES.includes(status)) inFlight = true
+    if (status === 'paid' && dueDay !== null) {
+      const raw = paidAt ?? createdAt
+      const at = typeof raw === 'string' && raw ? new Date(raw) : null
+      if (!at || Number.isNaN(at.getTime())) return 'failed'
+      if (dayNumber(inZone(due?.timeZone, (tz) => zonedDay(at, tz))) >= dueDay) paidNotRecorded = true
+    }
   }
-  return inFlight ? 'in_flight' : 'clear'
+  if (inFlight) return 'in_flight'
+  return paidNotRecorded ? 'paid_not_recorded' : 'clear'
 }
 
 export type MollieSubscriptionOutcome = 'live' | 'already_gone' | 'failed'

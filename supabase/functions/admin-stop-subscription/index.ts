@@ -82,11 +82,17 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token)
     if (authError || !user) return errorResponse(401, 'UNAUTHORIZED', 'Non authentifié')
 
-    const { data: adminProfile } = await admin
+    // Une PANNE de lecture n'est pas un refus : 500. Seuls l'absence de profil et un rôle
+    // insuffisant répondent 403 (dans le cœur).
+    const { data: adminProfile, error: profileError } = await admin
       .from('profiles')
       .select('role, gym_id')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
+    if (profileError) {
+      console.error(`[${FN}] lecture du profil de l'appelant impossible:`, JSON.stringify({ code: profileError.code ?? null }))
+      return errorResponse(500, 'SERVER_ERROR', 'Erreur interne')
+    }
 
     const body = await req.json().catch(() => null)
 
@@ -148,21 +154,24 @@ Deno.serve(async (req) => {
       mollieStatut: (ref) => mollieCall('GET', subscriptionUrl(ref), ref.token),
       mollieDelete: (ref) => mollieCall('DELETE', subscriptionUrl(ref), ref.token),
 
-      async updateSub(subscriptionId, patch) {
+      // Client service_role : chaque écriture et relecture porte AUSSI la salle de l'appelant.
+      async updateSub(subscriptionId, gymId, patch) {
         const { data, error } = await admin
           .from('member_subscriptions')
           .update(patch)
           .eq('id', subscriptionId)
+          .eq('gym_id', gymId)
           .eq('status', 'active')
           .select('id')
         return { error: error ? error.message : null, touched: data?.length ?? 0 }
       },
 
-      async relireSub(subscriptionId) {
+      async relireSub(subscriptionId, gymId) {
         const { data } = await admin
           .from('member_subscriptions')
           .select('status, cancellation_reason, ends_at')
           .eq('id', subscriptionId)
+          .eq('gym_id', gymId)
           .maybeSingle<{ status: string; cancellation_reason: string | null; ends_at: string | null }>()
         return data ?? null
       },
@@ -172,8 +181,8 @@ Deno.serve(async (req) => {
         return { error: error ? error.message : null, id: (data?.id as string | undefined) ?? null }
       },
 
-      async completerJournal(id, metadata) {
-        const { error } = await admin.from('gym_admin_actions').update({ metadata }).eq('id', id)
+      async completerJournal(id, gymId, metadata) {
+        const { error } = await admin.from('gym_admin_actions').update({ metadata }).eq('id', id).eq('gym_id', gymId)
         return error ? error.message : null
       },
 

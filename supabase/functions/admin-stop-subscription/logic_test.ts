@@ -213,12 +213,83 @@ Deno.test('paiements : un open ou un pending suffit, où qu’il soit dans la pa
   eq(classifyMolliePayments(200, page('paid', 'paid', 'pending')), 'in_flight')
 })
 
-Deno.test('paiements : 404, abonnement introuvable chez Mollie', () => {
+Deno.test('paiements : 404 ou 410, abonnement introuvable (ou disparu) chez Mollie', () => {
   eq(classifyMolliePayments(404, ''), 'not_found')
+  eq(classifyMolliePayments(410, ''), 'not_found')
+})
+
+// ─── 3 bis. PAIEMENT ENCAISSÉ MAIS PAS ENCORE ENREGISTRÉ ─────────────────────────────
+// L'échéance du jour J est `paid` chez Mollie, notre webhook ne l'a pas encore traitée :
+// `next_payment_at` vaut encore J. Arrêter maintenant couperait l'accès tout juste payé.
+const ECHEANCE = { next_payment_at: '2026-12-05T00:00:00+00:00', timeZone: TZ }
+const payes = (...dates: Record<string, unknown>[]) =>
+  JSON.stringify({ _embedded: { payments: dates.map((d) => ({ status: 'paid', ...d })) } })
+
+Deno.test('paiement paid de la veille de l’échéance (jour de la salle) : voie libre', () => {
+  // 22:30 UTC le 4 = 23:30 à Bruxelles, encore le 4.
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-04T22:30:00+00:00' }), ECHEANCE), 'clear')
+})
+
+Deno.test('paiement paid le jour de l’échéance, lu dans le fuseau de la salle : refus', () => {
+  // 23:30 UTC le 4 = 00:30 à Bruxelles le 5 : c'est déjà le jour d'échéance de la salle.
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-04T23:30:00+00:00' }), ECHEANCE), 'paid_not_recorded')
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-05T09:00:00+00:00' }), ECHEANCE), 'paid_not_recorded')
+  // Salle à l'ouest de UTC : 03:00 UTC le 5 est encore le 4 à New York.
+  const ny = { ...ECHEANCE, timeZone: 'America/New_York' }
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-05T03:00:00+00:00' }), ny), 'clear')
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-05T06:00:00+00:00' }), ny), 'paid_not_recorded')
+})
+
+Deno.test('paiement paid postérieur à l’échéance : refus, où qu’il soit dans la page', () => {
+  eq(
+    classifyMolliePayments(200, payes({ paidAt: '2026-11-05T09:00:00+00:00' }, { paidAt: '2026-12-07T09:00:00+00:00' }), ECHEANCE),
+    'paid_not_recorded',
+  )
+})
+
+Deno.test('échéance future et dernier paid un mois avant : voie libre', () => {
+  eq(
+    classifyMolliePayments(200, payes({ paidAt: '2026-11-05T09:00:00+00:00' }, { paidAt: '2026-10-05T09:00:00+00:00' }), ECHEANCE),
+    'clear',
+  )
+})
+
+Deno.test('next_payment_at nul ou échéance non transmise : les dates des paid ne sont pas lues', () => {
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-07T09:00:00+00:00' }, {}), { next_payment_at: null, timeZone: TZ }), 'clear')
+  eq(classifyMolliePayments(200, payes({}), undefined), 'clear')
+})
+
+Deno.test('paidAt absent : createdAt sert de date du paiement', () => {
+  eq(classifyMolliePayments(200, payes({ createdAt: '2026-12-05T09:00:00+00:00' }), ECHEANCE), 'paid_not_recorded')
+  eq(classifyMolliePayments(200, payes({ paidAt: null, createdAt: '2026-11-05T09:00:00+00:00' }), ECHEANCE), 'clear')
+  // paidAt prime : c'est la date d'encaissement.
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-05T09:00:00+00:00', createdAt: '2026-12-03T09:00:00+00:00' }), ECHEANCE), 'paid_not_recorded')
+})
+
+Deno.test('date illisible sur un paiement paid, ou échéance illisible : échec, pas « rien à signaler »', () => {
+  for (const d of [{}, { paidAt: 'hier' }, { paidAt: 12 }, { paidAt: null, createdAt: null }, { paidAt: '' }]) {
+    eq(classifyMolliePayments(200, payes(d), ECHEANCE), 'failed', JSON.stringify(d))
+  }
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-11-05T09:00:00+00:00' }), { next_payment_at: 'pas une date', timeZone: TZ }), 'failed')
+  // Un paiement qui n'est pas `paid` n'a pas besoin de date.
+  eq(classifyMolliePayments(200, JSON.stringify({ _embedded: { payments: [{ status: 'failed' }, { status: 'expired' }] } }), ECHEANCE), 'clear')
+})
+
+Deno.test('échéance en instant précis (pas une date nue) : son jour dans le fuseau de la salle', () => {
+  // 23:30 UTC le 4 = le 5 à Bruxelles.
+  const instant = { next_payment_at: '2026-12-04T23:30:00+00:00', timeZone: TZ }
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-04T22:00:00+00:00' }), instant), 'clear')
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-05T08:00:00+00:00' }), instant), 'paid_not_recorded')
+})
+
+Deno.test('un prélèvement en cours prime sur un paiement non enregistré ; fuseau illisible : repli sur Bruxelles', () => {
+  const corps = JSON.stringify({ _embedded: { payments: [{ status: 'paid', paidAt: '2026-12-05T09:00:00+00:00' }, { status: 'pending' }] } })
+  eq(classifyMolliePayments(200, corps, ECHEANCE), 'in_flight')
+  eq(classifyMolliePayments(200, payes({ paidAt: '2026-12-04T23:30:00+00:00' }), { ...ECHEANCE, timeZone: 'Pas/UnFuseau' }), 'paid_not_recorded')
 })
 
 Deno.test('paiements : toute autre réponse ou corps illisible, fermé par défaut', () => {
-  for (const s of [301, 400, 401, 403, 410, 422, 429, 500, 503]) eq(classifyMolliePayments(s, page()), 'failed', String(s))
+  for (const s of [301, 400, 401, 403, 422, 429, 500, 503]) eq(classifyMolliePayments(s, page()), 'failed', String(s))
   eq(classifyMolliePayments(200, ''), 'failed')
   eq(classifyMolliePayments(200, '<html>'), 'failed')
   eq(classifyMolliePayments(200, '{}'), 'failed')
