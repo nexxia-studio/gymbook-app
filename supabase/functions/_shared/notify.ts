@@ -29,7 +29,8 @@ import { INTERNAL_SECRET_ENV, INTERNAL_SECRET_HEADER } from './internal-auth.ts'
 
 /**
  * Les types que cette aide écrit. Chacun figure dans `notifications_type_check` ;
- * 'credits_purchased' et 'session_updated_by_gym' y sont ajoutés par la migration GYM-391.
+ * 'credits_purchased' et 'session_updated_by_gym' y sont ajoutés par la migration GYM-391,
+ * 'subscription_stopped_by_gym' par la migration GYM-190.
  */
 export type TypeNotification =
   | 'booking_confirmed'
@@ -39,6 +40,7 @@ export type TypeNotification =
   | 'no_show_suspension'
   | 'subscription_activated'
   | 'subscription_payment_failed'
+  | 'subscription_stopped_by_gym'
   | 'credits_purchased'
 
 export interface Notification {
@@ -296,6 +298,17 @@ export const textes = {
     return {
       title: 'Prélèvement refusé',
       body: `Le prélèvement de ton abonnement ${p.plan} n'a pas abouti. Ton accès reste ouvert. Sans régularisation d'ici au ${p.avant}, il sera suspendu.`,
+    }
+  },
+  /**
+   * La salle a arrêté l'abonnement (admin-stop-subscription). `date` : la date de fin, déjà
+   * formatée DANS LE FUSEAU DE LA SALLE (`formatEndDate`, subscription-stopped-email.ts).
+   */
+  abonnementArrete(p: { plan: string | null; date: string }): Texte {
+    const plan = p.plan?.trim()
+    return {
+      title: 'Abonnement arrêté',
+      body: `Ton abonnement ${plan ? `${plan} ` : ''}s'arrête le ${p.date}. Aucun autre prélèvement ne sera effectué.`,
     }
   },
   /** Achat de crédits encaissé. */

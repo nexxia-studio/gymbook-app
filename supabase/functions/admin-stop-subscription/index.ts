@@ -19,6 +19,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getValidMollieToken } from '../_shared/mollie-token.ts'
 import { cancelBookingByGym } from '../_shared/gym-booking-cancel.ts'
+import { emailSender, loadGymBranding } from '../_shared/gym-branding.ts'
+import { notifier, textes } from '../_shared/notify.ts'
+import { buildSubscriptionStoppedEmail, formatEndDate, langueDe } from '../_shared/subscription-stopped-email.ts'
 import {
   bookingsToCancel, classifyMollieDelete, computeEndDate, evaluateEligibility,
   STOPPED_BY_GYM, validateReason,
@@ -35,6 +38,8 @@ const corsHeaders = {
 const IS_TEST_MODE = Deno.env.get('MOLLIE_TEST_MODE') === 'true'
 const MOLLIE_TEST_API_KEY = Deno.env.get('MOLLIE_TEST_API_KEY') ?? ''
 const MOLLIE_TIMEOUT_MS = 15_000
+const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
+const RESEND_TIMEOUT_MS = 10_000
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -306,21 +311,70 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 12. MEMBRE PRÉVENU — EMPLACEMENT RÉSERVÉ À T3 (GYM-190, critère 3). ─────────────
-    // À brancher ICI, après l'écriture en base et les annulations, sans jamais faire
-    // échouer l'arrêt (try/catch, au mieux) :
-    //   - notification `subscription_stopped_by_gym` par `_shared/notify.ts` ;
-    //   - email de confirmation par Resend, dans `emailShell`.
-    // Disponibles à cet endroit : `sub.member_id`, `gymId`, `sub.plan_name`, `endsAt`
-    // (ISO, UTC : le formater avec le fuseau de la salle, `gymRow?.timezone`) et
-    // `cancelledBookings.length`.
-    // Ce bloc n'est atteint qu'une fois par arrêt : un appel concurrent ou répété sort
-    // plus haut en `already`, donc une seule notification.
-    // ─────────────────────────────────────────────────────────────────────────────────
+    // ── 12. MEMBRE PRÉVENU (GYM-190, critère 3). APRÈS l'écriture en base et les
+    //     annulations, AU MIEUX : rien de ce bloc ne peut faire échouer l'arrêt, chaque
+    //     échec est journalisé (identifiants seulement, jamais l'adresse).
+    //     Ce bloc n'est atteint qu'une fois par arrêt : un appel concurrent ou répété sort
+    //     plus haut en `already`, donc une seule notification et un seul email.
+    //     ⚠️ `endsAt` est en UTC (22:00 ou 23:00 la veille) : la date affichée passe
+    //     TOUJOURS par `formatEndDate` avec le fuseau de la salle.
+    const timeZone = gymRow?.timezone as string | null | undefined
+    let notified = false
+    try {
+      // `notifier` ne lève pas ; le try couvre la composition du texte.
+      const issue = await notifier(admin, {
+        gymId,
+        memberId: sub.member_id,
+        type: 'subscription_stopped_by_gym',
+        ...textes.abonnementArrete({ plan: sub.plan_name, date: formatEndDate(endsAt, timeZone) }),
+        data: { subscription_id: sub.id, ends_at: endsAt },
+      })
+      notified = issue.inbox_written
+    } catch (e) {
+      console.error(`[${FN}] notification non envoyée (non bloquant):`, JSON.stringify({ subscription_id: sub.id, error: (e as Error).name }))
+    }
+
+    let emailed = false
+    try {
+      const { data: member } = await admin
+        .from('profiles')
+        .select('email, first_name, preferred_language')
+        .eq('id', sub.member_id)
+        .maybeSingle()
+      const to = typeof member?.email === 'string' ? member.email.trim() : ''
+      if (!RESEND_KEY || !to) {
+        console.error(`[${FN}] email non envoyé (non bloquant):`, JSON.stringify({ subscription_id: sub.id, motif: RESEND_KEY ? 'no_address' : 'no_resend_key' }))
+      } else {
+        const branding = await loadGymBranding(admin, gymId)
+        const mail = buildSubscriptionStoppedEmail({
+          branding,
+          firstName: (member?.first_name as string | null | undefined) ?? null,
+          planName: sub.plan_name,
+          endsAt,
+          timeZone,
+          cancelledBookings: cancelledBookings.length,
+          langue: langueDe(member?.preferred_language as string | null | undefined),
+        })
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_KEY}` },
+          body: JSON.stringify({ from: emailSender(branding), to, subject: mail.subject, html: mail.html }),
+          signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
+        })
+        emailed = res.ok
+        if (!res.ok) {
+          // Le corps de la réponse peut citer l'adresse : seul le statut est journalisé.
+          await res.body?.cancel().catch(() => {})
+          console.error(`[${FN}] email refusé par Resend (non bloquant):`, JSON.stringify({ subscription_id: sub.id, http: res.status }))
+        }
+      }
+    } catch (e) {
+      console.error(`[${FN}] email en erreur (non bloquant):`, JSON.stringify({ subscription_id: sub.id, error: (e as Error).name }))
+    }
 
     console.log(`[${FN}] arrêt enregistré:`, JSON.stringify({
       subscription_id: sub.id, gym_id: gymId, mollie: mollieOutcome, ends_at: endsAt,
-      cancelled: cancelledBookings.length, failed: failedBookings.length,
+      cancelled: cancelledBookings.length, failed: failedBookings.length, notified, emailed,
     }))
 
     return jsonResponse({
