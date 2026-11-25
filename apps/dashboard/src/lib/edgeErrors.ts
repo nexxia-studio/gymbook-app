@@ -191,6 +191,15 @@ export const KNOWN_EDGE_ERROR_CODES = [
   'INVALID_BADGE_CODE', 'BADGE_CODE_TAKEN',
   // ── admin-lift-suspension (GYM-204, le modèle) ──
   'NOT_SUSPENDED', 'REASON_TOO_LONG',
+  // ── admin-stop-subscription (GYM-190, arrêt d'un abonnement par le gérant) ──
+  //  · NOT_STOPPABLE / NOT_RECURRING / PAYMENT_IN_FLIGHT / END_DATE_UNKNOWN — refus
+  //    LÉGITIMES rendus dès l'aperçu : la fiche les affiche sans ouvrir le formulaire.
+  //  · MOLLIE_NOT_CONNECTED / MOLLIE_STOP_FAILED — Mollie n'a rien arrêté, donc rien n'a
+  //    changé en base : le message doit le dire, le gérant peut réessayer.
+  //  · STOP_NOT_PERSISTED — l'inverse : Mollie A arrêté, la base n'a pas suivi. Réessayer
+  //    est le bon geste (Mollie répond « déjà annulé », la fonction poursuit).
+  'MISSING_SUBSCRIPTION_ID', 'NOT_STOPPABLE', 'NOT_RECURRING', 'END_DATE_UNKNOWN',
+  'PAYMENT_IN_FLIGHT', 'MOLLIE_NOT_CONNECTED', 'MOLLIE_STOP_FAILED', 'STOP_NOT_PERSISTED',
   // ── invite-team-member / team-access ──
   'ALREADY_ACTIVE', 'INVALID_ROLE', 'LINK_FAILED', 'LAST_ADMIN', 'CANNOT_REVOKE_SELF',
   'NOT_TEAM_MEMBER', 'REVOKE_FAILED', 'LIST_FAILED',

@@ -1,14 +1,18 @@
 // GYM-129 — Drawer fiche membre (/members). Identité (édition prénom/nom/téléphone
 // via admin-update-member), crédits, abonnement, 5 dernières réservations. Lectures
 // directes (RLS gym_admin) ; email non modifiable (hors périmètre v1).
-import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle, ShoppingCart, Receipt, ScanLine } from 'lucide-react'
+import { X, Pencil, Mail, Phone, Globe, CalendarDays, CreditCard, RefreshCcw, Gift, History, ShieldAlert, AlertTriangle, ShoppingCart, Receipt, ScanLine, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToastStore } from '@/hooks/useToast'
 import { useGymTimezone } from '@/hooks/useGymTimezone'
-import { extractErrorBody, edgeErrorMessage } from '@/lib/edgeErrors'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { extractErrorBody, edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
+import {
+  STOP_REASON_MAX_LENGTH, canStopSubscription, formatGymDate, isStopReasonValid, showsEndBadge, stopBookingsKey,
+} from '@/lib/stopSubscription'
 import { isSubscriptionActive } from '@/lib/subscription'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
 import { useMemberDiscipline, type PenaltyEntry } from '@/hooks/useMemberDiscipline'
@@ -71,10 +75,13 @@ function nameToColor(name: string): string {
 }
 
 export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const tz = useGymTimezone()
   const addToast = useToastStore((s) => s.addToast)
-  const { credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments, subscription, bookings, loading, adjustCredits, sellPlan } = useMemberDetail(member?.id ?? null)
+  const {
+    credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments, subscription, bookings, loading,
+    reload, adjustCredits, sellPlan, previewStopSubscription, stopSubscription,
+  } = useMemberDetail(member?.id ?? null)
   const { penalties, lifts, summary: discipline, loading: disciplineLoading } = useMemberDiscipline(member?.id ?? null)
 
   const [adjustOpen, setAdjustOpen] = useState(false)
@@ -89,8 +96,41 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // ── GYM-190 — arrêt de l'abonnement par le gérant ──
+  // Chaque état porte l'id de l'abonnement qu'il concerne et n'est RENDU que s'il
+  // correspond à l'abonnement affiché : un aperçu revenu après un changement de membre
+  // n'ouvre jamais la confirmation sur la fiche de quelqu'un d'autre.
+  const [stopChecking, setStopChecking] = useState(false)
+  const [stopPreview, setStopPreview] = useState<{
+    subscriptionId: string; endsAt: string; planName: string | null; bookingsCount: number
+  } | null>(null)
+  const [stopReason, setStopReason] = useState('')
+  const [stopping, setStopping] = useState(false)
+  /** Refus rendu par l'aperçu : affiché sur la fiche, le formulaire de motif ne s'ouvre pas. */
+  const [stopRefusal, setStopRefusal] = useState<{ subscriptionId: string; message: string } | null>(null)
+  /** Refus rendu par l'arrêt réel : affiché DANS la modale, le motif saisi est conservé. */
+  const [stopError, setStopError] = useState<string | null>(null)
+  /** Réservations que le serveur n'a pas pu annuler : reste à l'écran, un toast s'efface. */
+  const [stopFailed, setStopFailed] = useState<{ subscriptionId: string; count: number } | null>(null)
+  // Verrou SYNCHRONE : `stopping` n'est lu à jour qu'au rendu suivant, un double clic
+  // rapide passerait deux fois le test d'état et enverrait deux arrêts.
+  const stopInFlight = useRef(false)
+  // Membre dont la fiche est à l'écran, lisible APRÈS un `await` : une réponse d'aperçu
+  // arrivée une fois la fiche fermée ou changée est jetée.
+  const shownMemberId = useRef<string | null>(null)
+  const stopModalOpen = !!stopPreview && stopPreview.subscriptionId === subscription?.id
+
   // (Re)seed à l'ouverture / changement de membre.
   useEffect(() => {
+    // GYM-190 — autre membre (ou fiche fermée) : l'aperçu, le refus et l'avis d'échec du
+    // précédent ne le concernent pas. Comparé sur l'ID : un simple rafraîchissement de
+    // l'objet `member` ne doit pas refermer une confirmation en cours.
+    if (shownMemberId.current !== (member?.id ?? null)) {
+      shownMemberId.current = member?.id ?? null
+      setStopPreview(null)
+      setStopRefusal(null)
+      setStopFailed(null)
+    }
     if (member) {
       setIdentity({
         firstName: member.firstName, lastName: member.lastName, phone: member.phone,
@@ -102,9 +142,12 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   }, [member])
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    // GYM-190 — modale d'arrêt ouverte : Échap la concerne elle seule (ConfirmModal le
+    // traite, et l'ignore pendant l'envoi). Fermer la fiche derrière une requête d'arrêt
+    // en cours ferait disparaître son résultat.
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !stopModalOpen) onClose() }
     if (member) { document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey) }
-  }, [member, onClose])
+  }, [member, onClose, stopModalOpen])
 
   function startEdit() {
     setForm({
@@ -121,6 +164,77 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
       timeZone: tz, day: '2-digit', month: 'short', year: 'numeric',
       ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
     })
+  }
+
+  /** GYM-190 — date longue dans le fuseau de la salle (« 15 décembre 2026 »). */
+  function fmtLongDate(iso: string | null): string {
+    return formatGymDate(iso, tz, i18n.language)
+  }
+
+  /**
+   * GYM-190 — clic sur « Arrêter l'abonnement » : APERÇU d'abord (dry_run, rien n'est
+   * modifié). La confirmation ne s'ouvre que si le serveur accepte l'arrêt ; un refus
+   * (prélèvement en cours, statut changé entre-temps…) s'affiche tel quel sur la fiche.
+   */
+  async function handleStopPreview() {
+    if (!member || !subscription || stopInFlight.current) return
+    const memberId = member.id
+    const subscriptionId = subscription.id
+    stopInFlight.current = true
+    setStopChecking(true)
+    setStopRefusal(null)
+    setStopFailed(null)
+    try {
+      const preview = await previewStopSubscription(subscriptionId)
+      if (shownMemberId.current !== memberId) return
+      if (preview.kind === 'already') {
+        // La fiche était périmée : l'abonnement est déjà arrêté. On la remet d'aplomb.
+        await reload()
+        addToast(t('member_drawer.stop.toast_already'), 'warning')
+        return
+      }
+      setStopReason('')
+      setStopError(null)
+      setStopPreview({
+        subscriptionId, endsAt: preview.endsAt, planName: preview.planName, bookingsCount: preview.bookingsCount,
+      })
+    } catch (err) {
+      if (shownMemberId.current !== memberId) return
+      setStopRefusal({ subscriptionId, message: edgeErrorMessage(edgeErrorCodeOf(err), t, { name: identity.firstName }) })
+      // Un refus vient souvent d'une fiche périmée (statut changé ailleurs) : la recharger
+      // fait disparaître le bouton quand il n'a plus lieu d'être.
+      void reload()
+    } finally {
+      stopInFlight.current = false
+      setStopChecking(false)
+    }
+  }
+
+  /** GYM-190 — arrêt réel, après confirmation et motif. Un seul envoi, quoi qu'on clique. */
+  async function handleStopConfirm() {
+    if (!stopPreview || stopInFlight.current || !isStopReasonValid(stopReason)) return
+    const { subscriptionId } = stopPreview
+    stopInFlight.current = true
+    setStopping(true)
+    setStopError(null)
+    try {
+      const result = await stopSubscription(subscriptionId, stopReason)
+      setStopPreview(null)
+      if (result.kind === 'already') {
+        addToast(t('member_drawer.stop.toast_already'), 'warning')
+        return
+      }
+      const date = fmtLongDate(result.endsAt)
+      addToast(date ? t('member_drawer.stop.toast_success', { date }) : t('member_drawer.stop.toast_success_undated'), 'success')
+      if (result.failedCount > 0) setStopFailed({ subscriptionId, count: result.failedCount })
+    } catch (err) {
+      // La modale reste ouverte avec le motif saisi : après MOLLIE_STOP_FAILED ou
+      // STOP_NOT_PERSISTED, réessayer est le bon geste.
+      setStopError(edgeErrorMessage(edgeErrorCodeOf(err), t, { name: identity.firstName }))
+    } finally {
+      stopInFlight.current = false
+      setStopping(false)
+    }
   }
 
   async function handleSave(e: FormEvent) {
@@ -486,15 +600,52 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
               <Section Icon={RefreshCcw} title={t('member_drawer.subscription')}>
                 {subscription ? (
                   <div className="rounded-xl border border-border p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-body text-sm font-semibold text-dark">{subscription.planName}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SUB_BADGE[subscription.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {t(`member_drawer.sub_status.${subscription.status}`)}
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate font-body text-sm font-semibold text-dark">{subscription.planName}</span>
+                      {/* GYM-190 — un abonnement en résiliation DATÉ annonce sa date de fin,
+                          qu'il ait été arrêté par la salle ou résilié par le membre : c'est
+                          l'information que le gérant cherche. Sans date, le libellé de statut. */}
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${SUB_BADGE[subscription.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {showsEndBadge(subscription)
+                          ? t('member_drawer.sub_ends_on', { date: fmtLongDate(subscription.endsAt) })
+                          : t(`member_drawer.sub_status.${subscription.status}`)}
                       </span>
                     </div>
                     <p className="mt-2 font-body text-xs text-muted">
                       {fmtDate(subscription.startsAt)} → {subscription.endsAt ? fmtDate(subscription.endsAt) : '∞'}
                     </p>
+
+                    {/* GYM-190 — réservations que l'arrêt n'a pas pu annuler : le gérant doit
+                        le savoir et le garder sous les yeux, pas le lire dans un toast. */}
+                    {stopFailed?.subscriptionId === subscription.id && (
+                      <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 font-body text-xs text-amber-700">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        {t('member_drawer.stop.failed_bookings', { count: stopFailed.count })}
+                      </p>
+                    )}
+
+                    {/* GYM-190 — refus rendu par l'aperçu, en clair. */}
+                    {stopRefusal?.subscriptionId === subscription.id && (
+                      <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 font-body text-xs text-red-600">
+                        {stopRefusal.message}
+                      </p>
+                    )}
+
+                    {/* GYM-190 — action DESTRUCTIVE, donc discrète et rouge, sous la carte :
+                        même traitement que la suppression d'un créneau (SlotDrawer). Visible
+                        seulement pour un abonnement actif ET récurrent ; le serveur refait
+                        le test et reste l'autorité. */}
+                    {canStopSubscription(subscription) && (
+                      <Button
+                        variant="ghost"
+                        className="mt-3 w-full text-red-500 hover:bg-red-50 hover:text-red-600"
+                        onClick={handleStopPreview}
+                        isLoading={stopChecking}
+                      >
+                        {!stopChecking && <Ban className="h-4 w-4" />}
+                        {t('member_drawer.stop.button')}
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <p className="rounded-xl border border-border p-4 font-body text-sm text-muted">{t('member_drawer.no_subscription')}</p>
@@ -619,6 +770,64 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                 )}
               </Section>
             </div>
+
+            {/* GYM-190 — confirmation de l'arrêt. Ouverte seulement après un aperçu accepté
+                par le serveur : la date et le nombre affichés viennent de lui. */}
+            <ConfirmModal
+              open={stopModalOpen}
+              title={t('member_drawer.stop.title')}
+              message={[fullName, stopPreview?.planName ?? subscription?.planName].filter(Boolean).join(' · ')}
+              confirmLabel={t('member_drawer.stop.confirm')}
+              cancelLabel={t('member_drawer.stop.cancel')}
+              confirmColor="red"
+              busy={stopping}
+              busyLabel={t('member_drawer.stop.confirming')}
+              confirmDisabled={!isStopReasonValid(stopReason)}
+              onConfirm={handleStopConfirm}
+              onCancel={() => { if (!stopping) setStopPreview(null) }}
+            >
+              {stopPreview && (
+                <>
+                  <div className="mt-4 rounded-xl border border-border p-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="font-body text-sm text-muted">{t('member_drawer.stop.end_date')}</span>
+                      <span className="font-body text-sm font-bold text-dark">{fmtLongDate(stopPreview.endsAt)}</span>
+                    </div>
+                    <p className="mt-1 font-body text-xs text-muted">{t('member_drawer.stop.end_date_hint')}</p>
+                    <p className="mt-3 border-t border-border pt-3 font-body text-sm text-dark">
+                      {t(stopBookingsKey(stopPreview.bookingsCount), { count: stopPreview.bookingsCount })}
+                    </p>
+                  </div>
+
+                  {stopError && (
+                    <p role="alert" className="mt-4 rounded-xl bg-red-50 px-3 py-2.5 font-body text-sm text-red-600">{stopError}</p>
+                  )}
+
+                  <div className="mt-4">
+                    <div className="flex items-baseline justify-between">
+                      <label htmlFor="stop-subscription-reason" className="font-body text-sm font-medium text-dark">
+                        {t('member_drawer.stop.reason_label')}
+                      </label>
+                      <span className="font-body text-xs text-muted">{stopReason.trim().length}/{STOP_REASON_MAX_LENGTH}</span>
+                    </div>
+                    <textarea
+                      id="stop-subscription-reason"
+                      value={stopReason}
+                      onChange={(e) => setStopReason(e.target.value.slice(0, STOP_REASON_MAX_LENGTH))}
+                      placeholder={t('member_drawer.stop.reason_placeholder')}
+                      rows={3}
+                      required
+                      disabled={stopping}
+                      className="mt-1 w-full resize-none rounded-xl border border-border bg-card px-4 py-3 font-body text-sm text-dark outline-none transition-colors focus:border-dark disabled:opacity-60"
+                    />
+                  </div>
+
+                  <p className="mt-4 rounded-xl bg-orange-50 px-3 py-2.5 text-center font-body text-xs text-orange-700">
+                    {t('member_drawer.stop.warning')}
+                  </p>
+                </>
+              )}
+            </ConfirmModal>
 
             {/* GYM-222 — modale de vente d'une formule au comptoir. */}
             <SellPlanModal

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { extractErrorCode, EdgeError } from '@/lib/edgeErrors'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { invokeEdge } from '@/lib/edgeInvoke'
+import { parseStopPreview, parseStopResult, type StopPreview, type StopResult } from '@/lib/stopSubscription'
 
 export interface CreditLine {
   planId: string
@@ -18,6 +19,10 @@ export interface CreditLine {
 }
 
 export interface MemberSubscription {
+  id: string
+  /** GYM-190 — renseigné pour un abonnement RÉCURRENT (prélèvements Mollie) ; nul pour un
+   *  abonnement payé en une fois. Décide de la présence du bouton d'arrêt. */
+  mollieSubscriptionId: string | null
   planName: string
   status: string
   startsAt: string
@@ -122,7 +127,7 @@ export function useMemberDetail(memberId: string | null) {
         supabase.from('gym_plans').select('id, name').eq('gym_id', gymId),
         supabase
           .from('member_subscriptions')
-          .select('plan_name, status, starts_at, ends_at, amount')
+          .select('id, plan_name, status, starts_at, ends_at, amount, mollie_subscription_id')
           .eq('member_id', memberId)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -204,6 +209,8 @@ export function useMemberDetail(memberId: string | null) {
       const sub = subRes.data as Record<string, unknown> | null
       if (sub && LIVE_SUB_STATUSES.includes(sub.status as string)) {
         setSubscription({
+          id: sub.id as string,
+          mollieSubscriptionId: (sub.mollie_subscription_id as string | null) ?? null,
           planName: (sub.plan_name as string) ?? '—',
           status: sub.status as string,
           startsAt: sub.starts_at as string,
@@ -279,8 +286,41 @@ export function useMemberDetail(memberId: string | null) {
     return data as SellResult
   }, [memberId, load])
 
+  // GYM-190 — aperçu de l'arrêt d'un abonnement (dry_run) : rien n'est modifié, Mollie
+  // n'est pas appelé. Rend la date de fin et le nombre de réservations qui tomberaient.
+  //
+  // Lève une EdgeError porteuse du code : NOT_STOPPABLE, PAYMENT_IN_FLIGHT… sont des refus
+  // LÉGITIMES que la fiche affiche en clair, sans ouvrir le formulaire de motif. Une
+  // réponse 200 hors contrat lève aussi (code absent, donc message générique) : on
+  // n'ouvre pas une confirmation sur une date devinée.
+  const previewStopSubscription = useCallback(async (subscriptionId: string): Promise<Exclude<StopPreview, { kind: 'invalid' }>> => {
+    const { data, error } = await invokeEdge('admin-stop-subscription', {
+      body: { subscription_id: subscriptionId, dry_run: true },
+    })
+    if (error) throw new EdgeError(await extractErrorCode(error))
+    const preview = parseStopPreview(data)
+    if (preview.kind === 'invalid') throw new EdgeError((data as { code?: string } | null)?.code)
+    return preview
+  }, [])
+
+  // GYM-190 — arrêt réel. Le serveur arrête Mollie PUIS écrit en base, annule les
+  // réservations sous abonnement, journalise et prévient le membre : rien de tout cela
+  // n'est rejoué ici. La fiche est rechargée AVANT de rendre la main, pour que le badge
+  // « Se termine le » et la disparition du bouton soient à l'écran quand la modale se ferme.
+  const stopSubscription = useCallback(async (subscriptionId: string, reason: string): Promise<Exclude<StopResult, { kind: 'invalid' }>> => {
+    const { data, error } = await invokeEdge('admin-stop-subscription', {
+      body: { subscription_id: subscriptionId, reason: reason.trim() },
+    })
+    if (error) throw new EdgeError(await extractErrorCode(error))
+    const result = parseStopResult(data)
+    if (result.kind === 'invalid') throw new EdgeError((data as { code?: string } | null)?.code)
+    await load()
+    return result
+  }, [load])
+
   return {
     credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments,
     subscription, bookings, loading, reload: load, adjustCredits, sellPlan,
+    previewStopSubscription, stopSubscription,
   }
 }

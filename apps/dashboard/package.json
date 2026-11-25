@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test:rls": "npx tsx src/tests/rls-isolation.test.ts",
     "test:logo-colors": "npx tsx src/tests/logo-colors.test.ts",
-    "test:chunk-reload": "npx tsx src/tests/chunk-reload.test.ts"
+    "test:chunk-reload": "npx tsx src/tests/chunk-reload.test.ts",
+    "test:stop-subscription": "npx tsx src/tests/stop-subscription.test.ts"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",
