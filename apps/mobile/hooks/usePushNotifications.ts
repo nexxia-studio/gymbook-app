@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import * as Sentry from '@sentry/react-native'
 import { supabase } from '../lib/supabase'
 import i18n from '../lib/i18n'
+import { pushRoute } from '../lib/messages/routing'
 
 // GYM-337 — L'IDENTIFIANT DU CANAL ANDROID, PARTAGÉ AVEC LE SERVEUR.
 // `send-notification` envoie `channelId: 'default'` dans le message Expo : les deux valeurs
@@ -179,26 +180,8 @@ export function usePushNotifications(userId: string | null) {
   }, [])
 
   function handleNotificationTap(data: Record<string, string>) {
-    switch (data.type) {
-      case 'booking_confirmed':
-      case 'booking_cancelled':
-        router.push('/(tabs)/bookings')
-        break
-      case 'waitlist_promotion':
-        router.push(`/session/${data.slot_id}` as never)
-        break
-      case 'noshow_warning':
-      case 'noshow_suspension_48h':
-      case 'noshow_suspension_2w':
-        router.push('/(tabs)/profile')
-        break
-      case 'slot_cancelled':
-        router.push('/(tabs)/schedule')
-        break
-      case 'reminder_24h':
-      case 'reminder_2h':
-        router.push(`/session/${data.slot_id}` as never)
-        break
-    }
+    // La table type → route vit dans lib/messages/routing.ts (figée par tests/messages.test.ts).
+    const route = pushRoute(data)
+    if (route !== null) router.push(route as never)
   }
 }
