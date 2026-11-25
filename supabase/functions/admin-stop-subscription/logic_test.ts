@@ -5,8 +5,8 @@
 // AUCUNE DÉPENDANCE, AUCUN RÉSEAU, AUCUNE BASE : tout ce qui est testé ici est pur.
 // Le handler (`index.ts`) appelle `Deno.serve()` au chargement et n'est pas importable.
 import {
-  bookingsToCancel, classifyMollieDelete, computeEndDate, evaluateEligibility,
-  MAX_REASON, validateReason,
+  bookingsToCancel, classifyMollieDelete, classifyMolliePayments, classifyMollieSubscription,
+  computeEndDate, evaluateEligibility, MAX_REASON, validateReason,
 } from './logic.ts'
 
 function eq(actual: unknown, expected: unknown, message = ''): void {
@@ -58,10 +58,13 @@ Deno.test('actif payé en une fois (source_payment_id) : NOT_RECURRING', () => {
   eq(r.message, 'Abonnement payé en une fois : remboursement à traiter à part')
 })
 
-Deno.test('actif sans identifiant Mollie (abonnement ou client) : NOT_RECURRING', () => {
+Deno.test('actif sans identifiant Mollie et sans paiement source : NOT_RECURRING, message neutre', () => {
   for (const trou of [{ mollie_subscription_id: null }, { mollie_customer_id: null }, { mollie_subscription_id: '' }]) {
     const r = evaluateEligibility({ ...recurrent, ...trou })
-    eq(r.kind === 'refused' ? r.code : r.kind, 'NOT_RECURRING', JSON.stringify(trou))
+    if (r.kind !== 'refused') throw new Error('refus attendu')
+    eq(r.code, 'NOT_RECURRING', JSON.stringify(trou))
+    // Rien ne dit qu'il a été payé en une fois : on ne promet pas un remboursement.
+    eq(r.message, 'Cet abonnement n\'est pas prélevé par Mollie : il ne peut pas être arrêté ici.')
   }
 })
 
@@ -71,7 +74,7 @@ Deno.test('payé en une fois mais expiré : le statut prime (NOT_STOPPABLE)', ()
 })
 
 Deno.test('aucun message de refus ne porte de tiret long', () => {
-  for (const s of [{ ...recurrent, status: 'paused' }, { ...recurrent, source_payment_id: 'p' }]) {
+  for (const s of [{ ...recurrent, status: 'paused' }, { ...recurrent, source_payment_id: 'p' }, { ...recurrent, mollie_subscription_id: null }]) {
     const r = evaluateEligibility(s)
     if (r.kind === 'refused' && TIRETS.test(r.message)) throw new Error(r.message)
   }
@@ -102,6 +105,31 @@ Deno.test('date nue, salle à l’ouest de UTC : le jour local commence APRÈS 0
   eq(
     computeEndDate({ ...base, next_payment_at: '2026-12-05T00:00:00+00:00' }, 'America/New_York', NOW),
     { ok: true, ends_at: '2026-12-05T05:00:00.000Z', rule: 'next_payment' },
+  )
+})
+
+Deno.test('date nue le jour du passage à l’heure d’hiver (2026-10-25) : le jour commence encore en UTC+2', () => {
+  // La bascule a lieu à 03:00 locales : minuit de ce jour-là est encore à l'heure d'été.
+  const avant = new Date('2026-10-01T10:00:00Z')
+  eq(
+    computeEndDate({ ...base, next_payment_at: '2026-10-25T00:00:00+00:00' }, TZ, avant),
+    { ok: true, ends_at: '2026-10-24T22:00:00.000Z', rule: 'next_payment' },
+  )
+  // Le lendemain commence à l'heure d'hiver.
+  eq(
+    computeEndDate({ ...base, next_payment_at: '2026-10-26T00:00:00+00:00' }, TZ, avant),
+    { ok: true, ends_at: '2026-10-25T23:00:00.000Z', rule: 'next_payment' },
+  )
+})
+
+Deno.test('date nue le jour du passage à l’heure d’été (2027-03-28) : le jour commence encore en UTC+1', () => {
+  eq(
+    computeEndDate({ ...base, next_payment_at: '2027-03-28T00:00:00+00:00' }, TZ, NOW),
+    { ok: true, ends_at: '2027-03-27T23:00:00.000Z', rule: 'next_payment' },
+  )
+  eq(
+    computeEndDate({ ...base, next_payment_at: '2027-03-29T00:00:00+00:00' }, TZ, NOW),
+    { ok: true, ends_at: '2027-03-28T22:00:00.000Z', rule: 'next_payment' },
   )
 })
 
@@ -172,42 +200,65 @@ Deno.test('fuseau illisible : repli sur Europe/Brussels', () => {
   )
 })
 
-// ─── 3. RÉPONSE DU DELETE MOLLIE ─────────────────────────────────────────────────────
-Deno.test('2xx : annulé', () => {
-  eq(classifyMollieDelete(200, '{"status":"canceled"}'), 'cancelled')
-  eq(classifyMollieDelete(204, ''), 'cancelled')
+// ─── 3. RÉPONSES DE MOLLIE ───────────────────────────────────────────────────────────
+const page = (...statuts: string[]) => JSON.stringify({ count: statuts.length, _embedded: { payments: statuts.map((status) => ({ status })) } })
+
+Deno.test('paiements : aucun open ni pending, la voie est libre', () => {
+  eq(classifyMolliePayments(200, page()), 'clear')
+  eq(classifyMolliePayments(200, page('paid', 'failed', 'expired', 'canceled', 'authorized')), 'clear')
 })
 
-Deno.test('404 et 410 : déjà parti', () => {
-  eq(classifyMollieDelete(404, ''), 'already_gone')
-  eq(classifyMollieDelete(410, '{"detail":"Gone"}'), 'already_gone')
+Deno.test('paiements : un open ou un pending suffit, où qu’il soit dans la page', () => {
+  eq(classifyMolliePayments(200, page('open')), 'in_flight')
+  eq(classifyMolliePayments(200, page('paid', 'paid', 'pending')), 'in_flight')
 })
 
-Deno.test('422 dont le corps dit déjà annulé : déjà parti', () => {
-  for (const detail of [
-    'The subscription has been canceled already',
-    'The subscription has already been cancelled',
-    'This subscription is already canceled.',
-    'Subscription was cancelled already',
-  ]) {
-    eq(classifyMollieDelete(422, JSON.stringify({ status: 422, title: 'Unprocessable Entity', detail })), 'already_gone', detail)
-  }
+Deno.test('paiements : 404, abonnement introuvable chez Mollie', () => {
+  eq(classifyMolliePayments(404, ''), 'not_found')
 })
 
-Deno.test('422 pour une autre raison, ou corps illisible : échec', () => {
-  eq(classifyMollieDelete(422, JSON.stringify({ detail: 'The subscription cannot be canceled right now' })), 'failed')
-  eq(classifyMollieDelete(422, JSON.stringify({ detail: 'The mandate is invalid' })), 'failed')
-  eq(classifyMollieDelete(422, ''), 'failed')
-  eq(classifyMollieDelete(422, '<html>Bad gateway</html>'), 'failed')
-  eq(classifyMollieDelete(422, JSON.stringify({ detail: 42 })), 'failed')
+Deno.test('paiements : toute autre réponse ou corps illisible, fermé par défaut', () => {
+  for (const s of [301, 400, 401, 403, 410, 422, 429, 500, 503]) eq(classifyMolliePayments(s, page()), 'failed', String(s))
+  eq(classifyMolliePayments(200, ''), 'failed')
+  eq(classifyMolliePayments(200, '<html>'), 'failed')
+  eq(classifyMolliePayments(200, '{}'), 'failed')
+  eq(classifyMolliePayments(200, JSON.stringify({ _embedded: { payments: 'non' } })), 'failed')
+  eq(classifyMolliePayments(200, 'null'), 'failed')
+  // Une entrée sans statut lisible : on ne sait pas, donc on ne passe pas.
+  eq(classifyMolliePayments(200, JSON.stringify({ _embedded: { payments: [{ status: 'paid' }, {}] } })), 'failed')
+  eq(classifyMolliePayments(200, JSON.stringify({ _embedded: { payments: [null] } })), 'failed')
 })
 
-Deno.test('401, 403, 400, 429, 5xx, 3xx : échec', () => {
-  for (const s of [301, 400, 401, 403, 409, 429, 500, 502, 503]) eq(classifyMollieDelete(s, ''), 'failed', String(s))
+Deno.test('statut de l’abonnement : active, pending, suspended sont à arrêter', () => {
+  for (const status of ['active', 'pending', 'suspended']) eq(classifyMollieSubscription(200, JSON.stringify({ status })), 'live', status)
 })
 
-Deno.test('"already canceled" hors d’un 422 ne suffit pas', () => {
-  eq(classifyMollieDelete(500, JSON.stringify({ detail: 'already canceled' })), 'failed')
+Deno.test('statut de l’abonnement : canceled, completed, 404 et 410 sont déjà partis', () => {
+  for (const status of ['canceled', 'completed']) eq(classifyMollieSubscription(200, JSON.stringify({ status })), 'already_gone', status)
+  eq(classifyMollieSubscription(404, ''), 'already_gone')
+  eq(classifyMollieSubscription(410, ''), 'already_gone')
+})
+
+Deno.test('statut de l’abonnement : statut inconnu, corps illisible ou autre réponse, échec', () => {
+  eq(classifyMollieSubscription(200, JSON.stringify({ status: 'cancelled' })), 'failed', 'orthographe non documentée')
+  eq(classifyMollieSubscription(200, JSON.stringify({})), 'failed')
+  eq(classifyMollieSubscription(200, 'pas du json'), 'failed')
+  eq(classifyMollieSubscription(200, 'null'), 'failed')
+  for (const s of [301, 400, 401, 403, 422, 429, 500]) eq(classifyMollieSubscription(s, JSON.stringify({ status: 'canceled' })), 'failed', String(s))
+})
+
+Deno.test('DELETE 2xx : annulé', () => {
+  eq(classifyMollieDelete(200), 'cancelled')
+  eq(classifyMollieDelete(204), 'cancelled')
+})
+
+Deno.test('DELETE 404 et 410 : déjà parti', () => {
+  eq(classifyMollieDelete(404), 'already_gone')
+  eq(classifyMollieDelete(410), 'already_gone')
+})
+
+Deno.test('DELETE : tout le reste est un échec, 422 compris', () => {
+  for (const s of [301, 400, 401, 403, 409, 422, 429, 500, 502, 503]) eq(classifyMollieDelete(s), 'failed', String(s))
 })
 
 // ─── 4. MOTIF ────────────────────────────────────────────────────────────────────────

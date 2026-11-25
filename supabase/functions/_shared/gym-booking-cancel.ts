@@ -24,6 +24,9 @@ export interface BookingRef {
   id: string
   slot_id: string
   status: CancellableStatus
+  /** La salle et le membre au nom desquels on annule : l'UPDATE est verrouillé dessus. */
+  gym_id: string
+  member_id: string
 }
 
 export interface CancelResult {
@@ -37,10 +40,11 @@ export interface CancelResult {
 
 /** Ce que l'annulation touche du monde. Remplacé par des doublures dans le banc. */
 export interface CancelDeps {
-  /** UPDATE gardé par le statut lu ; rend l'erreur et le nombre de lignes touchées. */
-  annuler(
-    bookingId: string, depuis: CancellableStatus, patch: Record<string, unknown>,
-  ): Promise<{ error: string | null; touched: number }>
+  /**
+   * UPDATE gardé par le statut lu ET par la salle et le membre de la référence ; rend
+   * l'erreur et le nombre de lignes touchées.
+   */
+  annuler(b: BookingRef, patch: Record<string, unknown>): Promise<{ error: string | null; touched: number }>
   /** RPC `reorder_waitlist` ; rend le message d'erreur, ou null. */
   reordonner(slotId: string): Promise<string | null>
   /** RPC `notify_waitlist_for_free_seats` ; rend le message d'erreur, ou null. */
@@ -73,12 +77,17 @@ export function cancelPatch(status: CancellableStatus, now: string): Record<stri
  * l'écriture (le membre l'a annulée, ou elle est passée de la file au cours), rien n'est
  * écrit et l'échec `STATUS_CHANGED` remonte : on n'applique pas le chemin d'une file
  * d'attente à une place confirmée.
+ *
+ * Il est aussi gardé par `gym_id` et `member_id` : ce helper tourne en service_role, et un
+ * identifiant de réservation seul ne doit jamais suffire à annuler celle d'une autre salle
+ * ou d'un autre membre. Une référence qui ne colle pas ne touche aucune ligne.
  */
 export async function cancelBookingByGymWith(b: BookingRef, deps: CancelDeps): Promise<CancelResult> {
-  const ctx = { booking_id: b.id, slot_id: b.slot_id, status: b.status }
+  // Le membre n'entre pas dans le journal : la réservation et la salle suffisent au diagnostic.
+  const ctx = { booking_id: b.id, slot_id: b.slot_id, status: b.status, gym_id: b.gym_id }
 
   try {
-    const { error, touched } = await deps.annuler(b.id, b.status, cancelPatch(b.status, deps.maintenant()))
+    const { error, touched } = await deps.annuler(b, cancelPatch(b.status, deps.maintenant()))
     if (error) {
       deps.journal('annulation refusée par la base', { ...ctx, error })
       return { id: b.id, ok: false, error: 'UPDATE_FAILED' }
@@ -107,9 +116,11 @@ export async function cancelBookingByGymWith(b: BookingRef, deps: CancelDeps): P
 /** Version branchée sur la base. `admin` est un client service_role. */
 export function cancelBookingByGym(admin: SupabaseClient, b: BookingRef): Promise<CancelResult> {
   return cancelBookingByGymWith(b, {
-    async annuler(bookingId, depuis, patch) {
+    async annuler(ref, patch) {
       const { data, error } = await admin
-        .from('bookings').update(patch).eq('id', bookingId).eq('status', depuis).select('id')
+        .from('bookings').update(patch)
+        .eq('id', ref.id).eq('gym_id', ref.gym_id).eq('member_id', ref.member_id).eq('status', ref.status)
+        .select('id')
       return { error: error ? error.message : null, touched: data?.length ?? 0 }
     },
     async reordonner(slotId) {

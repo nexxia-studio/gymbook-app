@@ -1,9 +1,8 @@
 // GYM-190, étape C — LES DÉCISIONS DE `admin-stop-subscription`, SANS LE MONDE.
 //
-// `index.ts` appelle `Deno.serve()` au chargement : rien de ce qu'il contient n'est
-// atteignable par un banc. Tout ce qui DÉCIDE (qui peut être arrêté, à quelle date,
-// comment lire la réponse de Mollie, quelles réservations tombent) vit donc ici, pur,
-// et se vérifie hors ligne. Voir `logic_test.ts`.
+// Tout ce qui DÉCIDE (qui peut être arrêté, à quelle date, comment lire les réponses de
+// Mollie, quelles réservations tombent) vit ici, pur, et se vérifie hors ligne. Voir
+// `logic_test.ts`. L'enchaînement, lui, vit dans `handler.ts` (dépendances injectées).
 
 export const STOPPED_BY_GYM = 'stopped_by_gym'
 export const MAX_REASON = 500
@@ -40,10 +39,18 @@ export function evaluateEligibility(sub: SubscriptionForEligibility): Eligibilit
       message: `Cet abonnement ne peut pas être arrêté dans son état actuel (${sub.status})`,
     }
   }
-  if (sub.source_payment_id || !sub.mollie_subscription_id || !sub.mollie_customer_id) {
+  if (sub.source_payment_id) {
     return {
       kind: 'refused', code: 'NOT_RECURRING', status: sub.status,
       message: 'Abonnement payé en une fois : remboursement à traiter à part',
+    }
+  }
+  if (!sub.mollie_subscription_id || !sub.mollie_customer_id) {
+    // Sans paiement source, rien ne prouve un paiement en une fois : on ne parle pas de
+    // remboursement, on dit seulement pourquoi le geste n'est pas possible ici.
+    return {
+      kind: 'refused', code: 'NOT_RECURRING', status: sub.status,
+      message: 'Cet abonnement n\'est pas prélevé par Mollie : il ne peut pas être arrêté ici.',
     }
   }
   return { kind: 'eligible' }
@@ -133,26 +140,71 @@ export function computeEndDate(sub: SubscriptionForEndDate, timeZone: string | n
   return { ok: false, code: 'END_DATE_UNKNOWN' }
 }
 
-// ─── 3. RÉPONSE DU DELETE MOLLIE ─────────────────────────────────────────────────────
+// ─── 3. RÉPONSES DE MOLLIE ───────────────────────────────────────────────────────────
+//
+// Trois lectures, une seule règle : le classement porte sur le STATUT HTTP et sur des
+// champs documentés, jamais sur le texte d'un message d'erreur. Ce qu'on ne sait pas lire
+// est un échec : dans le doute, rien n'est écrit en base.
+
+function parseObject(body: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(body)
+    return v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null
+  } catch {
+    return null
+  }
+}
+
+export type MolliePaymentsOutcome = 'clear' | 'in_flight' | 'not_found' | 'failed'
+
+/** Un prélèvement `open` ou `pending` peut encore être encaissé : il est « en cours ». */
+const IN_FLIGHT_PAYMENT_STATUSES = ['open', 'pending']
+
+/**
+ * « List subscription payments » : `_embedded.payments[]`, chacun avec son `status`.
+ * 404 : l'abonnement n'existe pas (ou plus) chez Mollie, il n'y a donc rien en cours.
+ * Une liste absente, ou une entrée sans statut lisible, vaut un échec : on ne déclare pas
+ * la voie libre sur une réponse qu'on n'a pas comprise.
+ */
+export function classifyMolliePayments(httpStatus: number, body: string): MolliePaymentsOutcome {
+  if (httpStatus === 404) return 'not_found'
+  if (httpStatus < 200 || httpStatus >= 300) return 'failed'
+  const payments = (parseObject(body)?._embedded as { payments?: unknown } | null | undefined)?.payments
+  if (!Array.isArray(payments)) return 'failed'
+  let inFlight = false
+  for (const p of payments) {
+    const status = (p as { status?: unknown } | null)?.status
+    if (typeof status !== 'string') return 'failed'
+    if (IN_FLIGHT_PAYMENT_STATUSES.includes(status)) inFlight = true
+  }
+  return inFlight ? 'in_flight' : 'clear'
+}
+
+export type MollieSubscriptionOutcome = 'live' | 'already_gone' | 'failed'
+
+/**
+ * « Get subscription » : `canceled` ou `completed` ne prélèvent plus (comme un 404 ou un
+ * 410), il n'y a rien à supprimer. `active`, `pending` et `suspended` sont à arrêter.
+ * Tout autre statut est inconnu de ce code : échec.
+ */
+export function classifyMollieSubscription(httpStatus: number, body: string): MollieSubscriptionOutcome {
+  if (httpStatus === 404 || httpStatus === 410) return 'already_gone'
+  if (httpStatus < 200 || httpStatus >= 300) return 'failed'
+  const status = parseObject(body)?.status
+  if (status === 'canceled' || status === 'completed') return 'already_gone'
+  if (status === 'active' || status === 'pending' || status === 'suspended') return 'live'
+  return 'failed'
+}
 
 export type MollieDeleteOutcome = 'cancelled' | 'already_gone' | 'failed'
 
 /**
- * Le classement porte sur le STATUT. Le texte ne sert qu'à départager les 422 : seul un
- * corps JSON dont `detail` dit à la fois « already » et « cancel(l)ed » vaut « déjà parti ».
- * Tout le reste est un échec : dans le doute, on n'écrit rien en base.
+ * Le DELETE : succès, ou abonnement introuvable (404, 410). Un 422 est un échec, quel que
+ * soit son texte : « déjà annulé » se lit sur le statut de l'abonnement, AVANT le DELETE.
  */
-export function classifyMollieDelete(httpStatus: number, body: string): MollieDeleteOutcome {
+export function classifyMollieDelete(httpStatus: number): MollieDeleteOutcome {
   if (httpStatus >= 200 && httpStatus < 300) return 'cancelled'
   if (httpStatus === 404 || httpStatus === 410) return 'already_gone'
-  if (httpStatus === 422) {
-    try {
-      const detail = (JSON.parse(body) as { detail?: unknown } | null)?.detail
-      if (typeof detail === 'string' && /already/i.test(detail) && /cancel?led/i.test(detail)) return 'already_gone'
-    } catch {
-      // Corps non JSON : on ne devine pas.
-    }
-  }
   return 'failed'
 }
 
