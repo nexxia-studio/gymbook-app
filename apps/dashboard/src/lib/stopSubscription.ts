@@ -19,21 +19,37 @@ export const STOP_ERROR_CODES = [
   'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND',
   'MISSING_SUBSCRIPTION_ID', 'REASON_REQUIRED', 'REASON_TOO_LONG',
   'NOT_STOPPABLE', 'NOT_RECURRING', 'END_DATE_UNKNOWN', 'PAYMENT_IN_FLIGHT',
-  'MOLLIE_NOT_CONNECTED', 'MOLLIE_STOP_FAILED',
+  'MOLLIE_NOT_CONNECTED', 'MOLLIE_READ_FAILED', 'MOLLIE_STOP_FAILED',
   'STOP_NOT_PERSISTED', 'SERVER_ERROR',
 ] as const
 
 /**
- * Le bouton « Arrêter l'abonnement » se montre-t-il ?
+ * Le bouton « Arrêter l'abonnement » se montre-t-il, la modale s'ouvre-t-elle, l'arrêt
+ * part-il ? Un seul prédicat pour les trois.
  *
  * Seulement pour un abonnement `active` ET récurrent (identifiant d'abonnement Mollie).
  * Un abonnement payé en une fois n'a rien à arrêter chez Mollie : le serveur le refuse
  * (NOT_RECURRING), inutile de proposer le geste.
+ *
+ * ET seulement si l'abonnement est celui du membre DONT LA FICHE EST À L'ÉCRAN. La fiche
+ * charge ses données de façon asynchrone : sans ce test, l'abonnement du membre précédent
+ * resté en mémoire offrirait son bouton d'arrêt sur la fiche du suivant, et l'arrêt
+ * partirait sur le mauvais membre. Un identifiant absent d'un côté ou de l'autre vaut refus.
  */
 export function canStopSubscription(
-  subscription: { status: string; mollieSubscriptionId: string | null } | null | undefined,
+  subscription: { status: string; mollieSubscriptionId: string | null; memberId: string | null } | null | undefined,
+  shownMemberId: string | null | undefined,
 ): boolean {
-  return subscription?.status === 'active' && !!subscription.mollieSubscriptionId?.trim()
+  if (!subscription?.memberId || subscription.memberId !== shownMemberId) return false
+  return subscription.status === 'active' && !!subscription.mollieSubscriptionId?.trim()
+}
+
+/**
+ * Sous-titre de la modale de confirmation : « Nom · Formule », ou le nom seul quand la
+ * formule est inconnue. Jamais de tiret de remplacement : ce texte est lu par le gérant.
+ */
+export function stopModalSubtitle(memberName: string, planName: string | null | undefined): string {
+  return [memberName, planName?.trim()].filter(Boolean).join(' · ')
 }
 
 /** Motif recevable : non vide une fois rogné (le serveur rogne aussi), 500 caractères au plus. */

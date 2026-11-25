@@ -679,7 +679,6 @@
       "button": "Stop subscription",
       "title": "Stop this subscription?",
       "end_date": "End date",
-      "end_date_hint": "The member keeps their access until this date.",
       "bookings_none": "No bookings will be cancelled.",
       "bookings_one": "{{count}} booking will be cancelled.",
       "bookings_other": "{{count}} bookings will be cancelled.",
@@ -692,8 +691,8 @@
       "toast_success": "Subscription stopped. It ends on {{date}}.",
       "toast_success_undated": "Subscription stopped.",
       "toast_already": "This subscription has already been stopped. The member record has been refreshed.",
-      "failed_bookings_one": "{{count}} booking could not be cancelled and must be cancelled by hand.",
-      "failed_bookings_other": "{{count}} bookings could not be cancelled and must be cancelled by hand."
+      "failed_bookings_one": "{{count}} booking could not be cancelled and must be cancelled manually.",
+      "failed_bookings_other": "{{count}} bookings could not be cancelled and must be cancelled manually."
     },
     "sub_status": {
       "active": "Active",
@@ -1421,10 +1420,11 @@
     "INVALID_BADGE_CODE": "This badge code is not valid.",
     "MISSING_SUBSCRIPTION_ID": "No subscription selected. Refresh the page.",
     "NOT_STOPPABLE": "This subscription cannot be stopped in its current state (failed payment, suspended, paused or already being cancelled). Refresh the page to see its status.",
-    "NOT_RECURRING": "This subscription was paid in one go: any refund has to be handled separately.",
+    "NOT_RECURRING": "This subscription is not charged automatically, so it cannot be stopped here. If it was paid in one go, the refund has to be handled separately.",
     "END_DATE_UNKNOWN": "The end of the period already paid for is unknown, so the subscription was not stopped. Contact support.",
     "PAYMENT_IN_FLIGHT": "A payment is in progress for this subscription. Wait for its outcome before stopping it.",
     "MOLLIE_NOT_CONNECTED": "Mollie is not connected for your gym, so the subscription was not stopped. Reconnect Mollie in the settings, then try again.",
+    "MOLLIE_READ_FAILED": "Mollie could not be reached. Nothing was changed. Try again in a moment.",
     "MOLLIE_STOP_FAILED": "Mollie did not confirm that payments were stopped, so nothing was changed. Try again in a moment.",
     "STOP_NOT_PERSISTED": "Payments have been stopped at Mollie, but the stop could not be saved. Try again; if it keeps failing, contact support.",
     "default_other_member": "another member",

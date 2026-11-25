@@ -22,6 +22,7 @@ import {
   parseStopResult,
   showsEndBadge,
   stopBookingsKey,
+  stopModalSubtitle,
 } from '../lib/stopSubscription'
 
 let failures = 0
@@ -49,17 +50,26 @@ const tEn = await translator('en')
 // c'est du bruit ici.
 console.warn = () => {}
 
-console.log('\nCAS 1 : le bouton ne se montre que pour un abonnement actif et récurrent')
+console.log('\nCAS 1 : le bouton ne se montre que pour un abonnement actif et récurrent, sur la fiche de SON membre')
 {
-  eq('active avec identifiant Mollie', canStopSubscription({ status: 'active', mollieSubscriptionId: 'sub_abc' }), true)
-  eq('active payé en une fois', canStopSubscription({ status: 'active', mollieSubscriptionId: null }), false)
-  eq('identifiant vide', canStopSubscription({ status: 'active', mollieSubscriptionId: '' }), false)
-  eq('identifiant fait d\'espaces', canStopSubscription({ status: 'active', mollieSubscriptionId: '  ' }), false)
+  const A = 'membre-a'
+  const sub = (over: Partial<{ status: string; mollieSubscriptionId: string | null; memberId: string | null }> = {}) =>
+    ({ status: 'active', mollieSubscriptionId: 'sub_abc', memberId: A, ...over })
+  eq('active avec identifiant Mollie', canStopSubscription(sub(), A), true)
+  eq('active payé en une fois', canStopSubscription(sub({ mollieSubscriptionId: null }), A), false)
+  eq('identifiant vide', canStopSubscription(sub({ mollieSubscriptionId: '' }), A), false)
+  eq('identifiant fait d\'espaces', canStopSubscription(sub({ mollieSubscriptionId: '  ' }), A), false)
   for (const status of ['canceling', 'past_due', 'paused', 'suspended', 'completed', 'cancelled', 'expired']) {
-    eq(status, canStopSubscription({ status, mollieSubscriptionId: 'sub_abc' }), false)
+    eq(status, canStopSubscription(sub({ status }), A), false)
   }
-  eq('aucun abonnement', canStopSubscription(null), false)
-  eq('undefined', canStopSubscription(undefined), false)
+  eq('aucun abonnement', canStopSubscription(null, A), false)
+  eq('undefined', canStopSubscription(undefined, A), false)
+  // L'abonnement d'un AUTRE membre resté à l'écran (fiche A puis fiche B) : jamais de bouton.
+  eq('abonnement du membre A sur la fiche du membre B', canStopSubscription(sub(), 'membre-b'), false)
+  eq('aucun membre affiché (null)', canStopSubscription(sub(), null), false)
+  eq('aucun membre affiché (undefined)', canStopSubscription(sub(), undefined), false)
+  eq('abonnement sans membre connu', canStopSubscription(sub({ memberId: null }), A), false)
+  eq('deux identifiants vides ne se valent pas', canStopSubscription(sub({ memberId: '' }), ''), false)
 }
 
 console.log('\nCAS 2 : le motif est obligatoire, les espaces ne comptent pas, 500 caractères au plus')
@@ -168,8 +178,8 @@ console.log('\nCAS 7 : nombre de réservations annoncé dans la modale (0, 1, pl
   eq('en, 3', dire(tEn, 3), '3 bookings will be cancelled.')
   eq('fr, 1 échec', tFr('member_drawer.stop.failed_bookings', { count: 1 }), '1 réservation n\'a pas pu être annulée, à annuler à la main.')
   eq('fr, 2 échecs', tFr('member_drawer.stop.failed_bookings', { count: 2 }), '2 réservations n\'ont pas pu être annulées, à annuler à la main.')
-  eq('en, 1 échec', tEn('member_drawer.stop.failed_bookings', { count: 1 }), '1 booking could not be cancelled and must be cancelled by hand.')
-  eq('en, 2 échecs', tEn('member_drawer.stop.failed_bookings', { count: 2 }), '2 bookings could not be cancelled and must be cancelled by hand.')
+  eq('en, 1 échec', tEn('member_drawer.stop.failed_bookings', { count: 1 }), '1 booking could not be cancelled and must be cancelled manually.')
+  eq('en, 2 échecs', tEn('member_drawer.stop.failed_bookings', { count: 2 }), '2 bookings could not be cancelled and must be cancelled manually.')
   eq('avertissement, mot pour mot', tFr('member_drawer.stop.warning'),
     'Les prélèvements s\'arrêtent. Pour revenir, le membre devra souscrire une nouvelle formule.')
   eq('bouton', tFr('member_drawer.stop.button'), 'Arrêter l\'abonnement')
@@ -186,17 +196,26 @@ console.log('\nCAS 8 : chaque refus connu a son texte, en fr et en en ; un code 
     check(`${code} : en`, texteEn !== replisEn && texteEn !== `edge_errors.${code}` && texteEn.length > 10, texteEn)
     check(`${code} : fr et en diffèrent`, texteFr !== texteEn)
   }
-  eq('refus de la spec, mot pour mot', edgeErrorMessage('NOT_RECURRING', tFr), 'Abonnement payé en une fois : remboursement à traiter à part.')
+  // Le serveur range DEUX cas sous NOT_RECURRING (payé en une fois, ou sans identifiants
+  // Mollie) : le texte doit être vrai dans les deux.
+  eq('NOT_RECURRING, fr', edgeErrorMessage('NOT_RECURRING', tFr),
+    'Cet abonnement n\'est pas prélevé automatiquement : il ne peut pas être arrêté ici. S\'il a été payé en une fois, le remboursement est à traiter à part.')
+  eq('NOT_RECURRING, en', edgeErrorMessage('NOT_RECURRING', tEn),
+    'This subscription is not charged automatically, so it cannot be stopped here. If it was paid in one go, the refund has to be handled separately.')
+  eq('MOLLIE_READ_FAILED, fr', edgeErrorMessage('MOLLIE_READ_FAILED', tFr),
+    'Mollie n\'a pas pu être consulté. Rien n\'a été modifié. Réessaie dans un instant.')
   eq('code inconnu, fr', edgeErrorMessage('CODE_DE_DEMAIN', tFr), replisFr)
   eq('code inconnu, en', edgeErrorMessage('CODE_DE_DEMAIN', tEn), replisEn)
   eq('code absent (panne réseau), fr', edgeErrorMessage(undefined, tFr), replisFr)
   for (const attendu of [
     'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'MISSING_SUBSCRIPTION_ID', 'REASON_REQUIRED', 'REASON_TOO_LONG',
     'NOT_STOPPABLE', 'NOT_RECURRING', 'END_DATE_UNKNOWN', 'PAYMENT_IN_FLIGHT', 'MOLLIE_NOT_CONNECTED',
-    'MOLLIE_STOP_FAILED', 'STOP_NOT_PERSISTED', 'SERVER_ERROR',
+    'MOLLIE_READ_FAILED', 'MOLLIE_STOP_FAILED', 'STOP_NOT_PERSISTED', 'SERVER_ERROR',
   ]) {
     check(`le contrat cite ${attendu}`, (STOP_ERROR_CODES as readonly string[]).includes(attendu))
   }
+  // Une autre salle répond 404 NOT_FOUND, comme un abonnement inexistant.
+  check('le contrat ne cite pas WRONG_GYM', !(STOP_ERROR_CODES as readonly string[]).includes('WRONG_GYM'))
 }
 
 console.log('\nCAS 9 : aucun tiret long ni demi-cadratin dans les textes de l\'arrêt')
@@ -228,6 +247,18 @@ console.log('\nCAS 9 : aucun tiret long ni demi-cadratin dans les textes de l\'a
   feuilles(fr.member_drawer.stop, '', clesFr)
   feuilles(en.member_drawer.stop, '', clesEn)
   eq('mêmes clés en fr et en en', clesFr.map(([k]) => k).sort().join(), clesEn.map(([k]) => k).sort().join())
+  // La date de fin est le DÉBUT du jour affiché : « garde son accès jusqu'à cette date »
+  // se lisait comme inclusif. La phrase est retirée, elle ne doit pas revenir.
+  check('la phrase end_date_hint a disparu', !clesFr.some(([k]) => k === '.end_date_hint'))
+}
+
+console.log('\nCAS 10 : sous-titre de la modale, sans tiret quand la formule est absente')
+{
+  eq('nom et formule', stopModalSubtitle('Julie Martin', 'Illimité'), 'Julie Martin · Illimité')
+  eq('formule absente : le nom seul', stopModalSubtitle('Julie Martin', null), 'Julie Martin')
+  eq('formule vide', stopModalSubtitle('Julie Martin', '  '), 'Julie Martin')
+  eq('formule undefined', stopModalSubtitle('Julie Martin', undefined), 'Julie Martin')
+  check('jamais de tiret long', !/[—–]/.test(stopModalSubtitle('Julie Martin', null)))
 }
 
 console.log(failures === 0 ? '\nTOUT PASSE\n' : `\n${failures} ÉCHEC(S)\n`)

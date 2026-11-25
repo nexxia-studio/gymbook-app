@@ -12,6 +12,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { extractErrorBody, edgeErrorMessage, edgeErrorCodeOf } from '@/lib/edgeErrors'
 import {
   STOP_REASON_MAX_LENGTH, canStopSubscription, formatGymDate, isStopReasonValid, showsEndBadge, stopBookingsKey,
+  stopModalSubtitle,
 } from '@/lib/stopSubscription'
 import { isSubscriptionActive } from '@/lib/subscription'
 import { useMemberDetail, MANUAL_GRANT_PLAN_ID } from '@/hooks/useMemberDetail'
@@ -100,7 +101,8 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   // Chaque état porte l'id de l'abonnement qu'il concerne et n'est RENDU que s'il
   // correspond à l'abonnement affiché : un aperçu revenu après un changement de membre
   // n'ouvre jamais la confirmation sur la fiche de quelqu'un d'autre.
-  const [stopChecking, setStopChecking] = useState(false)
+  /** Abonnement dont l'aperçu est en cours : le bouton ne tourne que sur SA carte. */
+  const [stopCheckingFor, setStopCheckingFor] = useState<string | null>(null)
   const [stopPreview, setStopPreview] = useState<{
     subscriptionId: string; endsAt: string; planName: string | null; bookingsCount: number
   } | null>(null)
@@ -114,11 +116,18 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const [stopFailed, setStopFailed] = useState<{ subscriptionId: string; count: number } | null>(null)
   // Verrou SYNCHRONE : `stopping` n'est lu à jour qu'au rendu suivant, un double clic
   // rapide passerait deux fois le test d'état et enverrait deux arrêts.
-  const stopInFlight = useRef(false)
-  // Membre dont la fiche est à l'écran, lisible APRÈS un `await` : une réponse d'aperçu
-  // arrivée une fois la fiche fermée ou changée est jetée.
+  //
+  // Le verrou est un JETON propre à chaque appel, qui nomme son abonnement. Il est lâché
+  // au changement de membre : le bouton du membre suivant n'est jamais inerte à cause
+  // d'un aperçu encore en vol pour le précédent, et la réponse tardive de cet aperçu, ne
+  // retrouvant plus son jeton, est jetée (même après un aller-retour A, B, A).
+  const stopInFlight = useRef<{ subscriptionId: string } | null>(null)
+  // Membre dont la fiche est à l'écran : sert à détecter le changement de membre.
   const shownMemberId = useRef<string | null>(null)
-  const stopModalOpen = !!stopPreview && stopPreview.subscriptionId === subscription?.id
+  // GYM-190 — LE test de toute la chaîne d'arrêt : abonnement actif, récurrent, ET
+  // appartenant au membre affiché. Bouton, modale et envoi le repassent tous les trois.
+  const canStop = canStopSubscription(subscription, member?.id)
+  const stopModalOpen = canStop && !!stopPreview && stopPreview.subscriptionId === subscription?.id
 
   // (Re)seed à l'ouverture / changement de membre.
   useEffect(() => {
@@ -127,6 +136,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
     // l'objet `member` ne doit pas refermer une confirmation en cours.
     if (shownMemberId.current !== (member?.id ?? null)) {
       shownMemberId.current = member?.id ?? null
+      stopInFlight.current = null
       setStopPreview(null)
       setStopRefusal(null)
       setStopFailed(null)
@@ -177,16 +187,17 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
    * (prélèvement en cours, statut changé entre-temps…) s'affiche tel quel sur la fiche.
    */
   async function handleStopPreview() {
-    if (!member || !subscription || stopInFlight.current) return
-    const memberId = member.id
+    if (!subscription || !canStop || stopInFlight.current) return
     const subscriptionId = subscription.id
-    stopInFlight.current = true
-    setStopChecking(true)
+    const token = { subscriptionId }
+    stopInFlight.current = token
+    setStopCheckingFor(subscriptionId)
     setStopRefusal(null)
     setStopFailed(null)
     try {
       const preview = await previewStopSubscription(subscriptionId)
-      if (shownMemberId.current !== memberId) return
+      // Jeton lâché entre-temps = le membre a changé : cette réponse n'ouvre rien.
+      if (stopInFlight.current !== token) return
       if (preview.kind === 'already') {
         // La fiche était périmée : l'abonnement est déjà arrêté. On la remet d'aplomb.
         await reload()
@@ -199,22 +210,27 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
         subscriptionId, endsAt: preview.endsAt, planName: preview.planName, bookingsCount: preview.bookingsCount,
       })
     } catch (err) {
-      if (shownMemberId.current !== memberId) return
+      if (stopInFlight.current !== token) return
       setStopRefusal({ subscriptionId, message: edgeErrorMessage(edgeErrorCodeOf(err), t, { name: identity.firstName }) })
       // Un refus vient souvent d'une fiche périmée (statut changé ailleurs) : la recharger
       // fait disparaître le bouton quand il n'a plus lieu d'être.
       void reload()
     } finally {
-      stopInFlight.current = false
-      setStopChecking(false)
+      // Ne lâche que SON verrou et n'éteint que SON indicateur : un aperçu dépassé ne
+      // touche pas à celui qu'un autre membre aurait lancé depuis.
+      if (stopInFlight.current === token) stopInFlight.current = null
+      setStopCheckingFor((current) => (current === subscriptionId ? null : current))
     }
   }
 
   /** GYM-190 — arrêt réel, après confirmation et motif. Un seul envoi, quoi qu'on clique. */
   async function handleStopConfirm() {
-    if (!stopPreview || stopInFlight.current || !isStopReasonValid(stopReason)) return
+    // `stopModalOpen` : l'aperçu confirmé est bien celui de l'abonnement affiché, qui est
+    // bien celui du membre affiché. Sinon rien ne part.
+    if (!stopPreview || !stopModalOpen || stopInFlight.current || !isStopReasonValid(stopReason)) return
     const { subscriptionId } = stopPreview
-    stopInFlight.current = true
+    const token = { subscriptionId }
+    stopInFlight.current = token
     setStopping(true)
     setStopError(null)
     try {
@@ -232,7 +248,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
       // STOP_NOT_PERSISTED, réessayer est le bon geste.
       setStopError(edgeErrorMessage(edgeErrorCodeOf(err), t, { name: identity.firstName }))
     } finally {
-      stopInFlight.current = false
+      if (stopInFlight.current === token) stopInFlight.current = null
       setStopping(false)
     }
   }
@@ -598,7 +614,10 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
 
               {/* ── Abonnement ── */}
               <Section Icon={RefreshCcw} title={t('member_drawer.subscription')}>
-                {subscription ? (
+                {!subscription && loading ? (
+                  /* GYM-190 — fiche en cours de chargement : ne pas affirmer « aucun abonnement ». */
+                  <p className="font-body text-sm text-muted">{t('common.loading')}</p>
+                ) : subscription ? (
                   <div className="rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between gap-3">
                       <span className="min-w-0 truncate font-body text-sm font-semibold text-dark">{subscription.planName}</span>
@@ -633,16 +652,17 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
 
                     {/* GYM-190 — action DESTRUCTIVE, donc discrète et rouge, sous la carte :
                         même traitement que la suppression d'un créneau (SlotDrawer). Visible
-                        seulement pour un abonnement actif ET récurrent ; le serveur refait
-                        le test et reste l'autorité. */}
-                    {canStopSubscription(subscription) && (
+                        seulement pour un abonnement actif ET récurrent, sur la fiche du
+                        membre à qui il appartient ; le serveur refait le test et reste
+                        l'autorité. */}
+                    {canStop && (
                       <Button
                         variant="ghost"
                         className="mt-3 w-full text-red-500 hover:bg-red-50 hover:text-red-600"
                         onClick={handleStopPreview}
-                        isLoading={stopChecking}
+                        isLoading={stopCheckingFor === subscription.id}
                       >
-                        {!stopChecking && <Ban className="h-4 w-4" />}
+                        {stopCheckingFor !== subscription.id && <Ban className="h-4 w-4" />}
                         {t('member_drawer.stop.button')}
                       </Button>
                     )}
@@ -776,7 +796,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
             <ConfirmModal
               open={stopModalOpen}
               title={t('member_drawer.stop.title')}
-              message={[fullName, stopPreview?.planName ?? subscription?.planName].filter(Boolean).join(' · ')}
+              message={stopModalSubtitle(fullName, stopPreview?.planName)}
               confirmLabel={t('member_drawer.stop.confirm')}
               cancelLabel={t('member_drawer.stop.cancel')}
               confirmColor="red"
@@ -793,7 +813,6 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                       <span className="font-body text-sm text-muted">{t('member_drawer.stop.end_date')}</span>
                       <span className="font-body text-sm font-bold text-dark">{fmtLongDate(stopPreview.endsAt)}</span>
                     </div>
-                    <p className="mt-1 font-body text-xs text-muted">{t('member_drawer.stop.end_date_hint')}</p>
                     <p className="mt-3 border-t border-border pt-3 font-body text-sm text-dark">
                       {t(stopBookingsKey(stopPreview.bookingsCount), { count: stopPreview.bookingsCount })}
                     </p>
