@@ -180,6 +180,9 @@ verify_jwt = true
 [functions.admin-lift-suspension]
 verify_jwt = true
 
+[functions.admin-stop-subscription]
+verify_jwt = true
+
 [functions.send-communication]
 verify_jwt = true
 
