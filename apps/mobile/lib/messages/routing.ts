@@ -2,6 +2,8 @@
 // Logique pure : ni React, ni routeur, ni Supabase. Les deux tables sont DISTINCTES et le
 // restent : les types écrits dans `public.notifications` ne sont pas ceux des push.
 
+import { isUuid } from './data'
+
 export type MessageDestination =
   | { kind: 'session'; slotId: string } // /session/[id]
   | { kind: 'bookings' } // /(tabs)/bookings
@@ -30,12 +32,13 @@ export function messageNeedsSlotTime(type: string | null | undefined): boolean {
 /**
  * Le `slot_id` dont l'écran doit charger l'heure avant de router, ou null s'il n'y a rien à
  * charger : type sans cours, ou `data` (JSON non fiable) sans `slot_id` exploitable.
+ * ⚠️ Seul un uuid passe : la valeur part dans une requête puis dans une route.
  */
 export function messageSlotId(type: string | null | undefined, data: unknown): string | null {
   if (!messageNeedsSlotTime(type)) return null
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return null
   const slotId = (data as Record<string, unknown>).slot_id
-  return typeof slotId === 'string' && slotId.trim() !== '' ? slotId : null
+  return isUuid(slotId) ? slotId : null
 }
 
 /**

@@ -142,6 +142,13 @@ const mauvais: [string, unknown][] = [
   ['objet vide', {}], ['slot_id nombre', { slot_id: 12 }], ['slot_id null', { slot_id: null }],
   ['slot_id objet', { slot_id: { id: SLOT } }], ['slot_id tableau', { slot_id: [SLOT] }],
   ['slot_id vide', { slot_id: '' }], ['slot_id d’espaces', { slot_id: '   ' }],
+  // 🔴 Seul un uuid part en requête puis dans la route `/session/[id]`.
+  ['slot_id non uuid', { slot_id: 'cours-du-lundi' }], ['slot_id numérique en chaîne', { slot_id: '12' }],
+  ['slot_id uuid tronqué', { slot_id: SLOT.slice(0, 20) }],
+  ['slot_id uuid précédé de ../', { slot_id: `../${SLOT}` }], ['slot_id uuid suivi de /..', { slot_id: `${SLOT}/..` }],
+  ['slot_id uuid précédé de /', { slot_id: `/${SLOT}` }], ['slot_id uuid suivi d’un chemin', { slot_id: `${SLOT}/edit` }],
+  ['slot_id uuid entouré d’espaces', { slot_id: ` ${SLOT} ` }], ['slot_id uuid suivi d’un saut de ligne', { slot_id: `${SLOT}\n` }],
+  ['slot_id uuid suivi d’un filtre', { slot_id: `${SLOT},gym_id.neq.x` }],
 ]
 for (const [nom, data] of mauvais) {
   check(`${nom} → aucun slot_id`, messageSlotId(B, data) === null)

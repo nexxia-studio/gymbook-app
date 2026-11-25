@@ -1,7 +1,7 @@
 // GYM-391 — la liste de l'écran Messages : ce qui se décide SANS React ni Supabase (icône par
 // type, fusion des pages, fin de liste, marquage optimiste, identifiant venu de l'URL).
 // Figé par tests/messagesList.test.ts.
-import { MESSAGES_PAGE_SIZE, isUnread, type MessageRow } from './data'
+import { MESSAGES_PAGE_SIZE, isUnread, isUuid, type MessageRow } from './data'
 
 /** Le NOM de l'icône ; le composant qui le dessine vit dans components/messages/shared.tsx. */
 export type MessageIconName =
@@ -29,10 +29,9 @@ export function messageIconName(type: string | null | undefined): MessageIconNam
 }
 
 /**
- * `first` puis les lignes de `next` qu'elle ne contient pas déjà (par `id`). Sert dans les
- * deux sens : page suivante (`mergePages(chargées, page)`) et page 1 relue au retour sur
- * l'écran (`mergePages(page1, chargées)`). Une ligne peut glisser d'une page à l'autre si un
- * message arrive entre deux lectures : sans ce filtre, elle apparaîtrait deux fois.
+ * `first` puis les lignes de `next` qu'elle ne contient pas déjà (par `id`) : les lignes
+ * chargées, puis la page suivante. Une ligne peut glisser d'une page à l'autre si un message
+ * arrive entre deux lectures : sans ce filtre, elle apparaîtrait deux fois.
  */
 export function mergePages(first: readonly MessageRow[], next: readonly MessageRow[]): MessageRow[] {
   const seen = new Set<string>()
@@ -61,8 +60,6 @@ export function withReadStateOf(rows: readonly MessageRow[], originals: readonly
   })
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 /**
  * L'identifiant d'un message lu dans l'URL (non fiable : lien profond, saisie). Rend null
  * pour tout ce qui n'a pas la forme d'un uuid : l'écran affiche alors « introuvable » sans
@@ -70,5 +67,5 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  */
 export function messageIdFromParam(param: unknown): string | null {
   const value = Array.isArray(param) && param.length === 1 ? param[0] : param
-  return typeof value === 'string' && UUID.test(value) ? value : null
+  return isUuid(value) ? value : null
 }

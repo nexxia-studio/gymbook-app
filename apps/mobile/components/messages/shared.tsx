@@ -1,6 +1,6 @@
 // GYM-391 — ce que la liste des messages et le message en entier ont en commun : l'icône du
-// type et la date relative traduite.
-import { useCallback } from 'react'
+// type, la date relative traduite et le périmètre des requêtes.
+import { useCallback, useMemo } from 'react'
 import { View } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import {
@@ -8,8 +8,11 @@ import {
   type LucideIcon,
 } from 'lucide-react-native'
 import { useTheme } from '../../lib/theme/ThemeProvider'
+import { useActiveGymId } from '../../lib/activeGym'
+import { messageScope, type MessageScope } from '../../lib/messages/data'
 import { relativeDate } from '../../lib/messages/format'
 import { messageIconName, type MessageIconName } from '../../lib/messages/list'
+import { useAuthStore } from '../../stores/useAuthStore'
 
 // `Record` complet : un nom ajouté à `MessageIconName` sans icône ici ne compile pas.
 const ICONS: Record<MessageIconName, LucideIcon> = {
@@ -23,6 +26,24 @@ const ICONS: Record<MessageIconName, LucideIcon> = {
   ban: Ban,
   megaphone: Megaphone,
   bell: Bell,
+}
+
+/**
+ * Le périmètre des requêtes (membre ET salle), ou null s'il en manque un.
+ *
+ * `pending` distingue « pas encore résolu » de « absent » : membre connu, salle inconnue et
+ * profil jamais lu. En mode `multi`, la salle arrive AVEC le profil (`refreshProfile` pose
+ * les deux d'un coup) : tant qu'il n'est pas là, l'écran attend au lieu d'annoncer une boîte
+ * vide. ⚠️ Si la lecture du profil échoue, `pending` reste vrai : l'écran reste en chargement.
+ */
+export function useMessageScope(): { scope: MessageScope | null; pending: boolean } {
+  const userId = useAuthStore((s) => s.user?.id)
+  const profileLoaded = useAuthStore((s) => s.profile !== null)
+  const gymId = useActiveGymId()
+  return useMemo(() => {
+    const scope = messageScope(userId, gymId)
+    return { scope, pending: scope === null && !!userId && !profileLoaded }
+  }, [userId, gymId, profileLoaded])
 }
 
 /** L'icône d'un type de message dans sa pastille. À poser sur `tokens.surface`. */

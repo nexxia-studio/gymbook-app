@@ -1,23 +1,21 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AlertCircle, BellOff, CheckCheck, ChevronLeft } from 'lucide-react-native'
 import { InScreenBanner } from '../../components/ui/InScreenBanner'
-import { MessageIcon, useMessageDateLabel } from '../../components/messages/shared'
-import { useActiveGymId } from '../../lib/activeGym'
+import { MessageIcon, useMessageDateLabel, useMessageScope } from '../../components/messages/shared'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import {
   currentMessageScope, fetchMessagesPage, fetchSlotStartsAt, markAllMessagesRead, markMessageRead,
 } from '../../lib/messages/api'
 import {
-  createLatestGuard, isUnread, messageScope, sameScope, type MessageRow, type MessageScope,
+  createLatestGuard, isUnread, sameScope, type MessageRow, type MessageScope,
 } from '../../lib/messages/data'
 import { hasMorePages, mergePages, withRead, withReadStateOf } from '../../lib/messages/list'
 import { messageDestination, messageSlotId } from '../../lib/messages/routing'
-import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessagesStore } from '../../stores/useMessagesStore'
 
 // GYM-391 — l'écran Messages : la boîte du membre dans la salle active, du plus récent au
@@ -26,6 +24,8 @@ import { useMessagesStore } from '../../stores/useMessagesStore'
 // ⚠️ Aucune requête sans périmètre (membre ET salle) : la RLS ne filtre pas la salle.
 // ⚠️ Une réponse ne s'applique que si elle est la dernière demandée, que l'écran est encore
 // là et que le périmètre n'a pas changé entre-temps (`guard`, `alive`).
+// ⚠️ La racine rend un `<Slot />`, pas une pile : ouvrir un message DÉMONTE cet écran. Il
+// n'y a donc ni « retour sur la liste » à gérer, ni position de défilement à préserver.
 
 type Status = 'loading' | 'error' | 'ready'
 
@@ -33,9 +33,7 @@ export default function MessagesScreen() {
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
-  const userId = useAuthStore((s) => s.user?.id)
-  const gymId = useActiveGymId()
-  const scope = useMemo(() => messageScope(userId, gymId), [userId, gymId])
+  const { scope, pending } = useMessageScope()
   const unreadCount = useMessagesStore((s) => s.unreadCount)
 
   const [rows, setRows] = useState<MessageRow[]>([])
@@ -55,7 +53,6 @@ export default function MessagesScreen() {
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const mounted = useRef(true)
-  const focusCount = useRef(0) // change à chaque entrée ET sortie de l'écran
   const loadedScope = useRef<MessageScope | null>(null) // le périmètre des lignes affichées
   const nextPage = useRef(0)
   const hasMore = useRef(false)
@@ -72,12 +69,8 @@ export default function MessagesScreen() {
     [],
   )
 
-  /**
-   * Charge la page 1. `replace` repart de zéro (premier chargement, tirer pour rafraîchir) ;
-   * `merge` la pose devant les lignes déjà chargées (retour sur l'écran : on ne perd ni les
-   * pages suivantes ni la position de défilement).
-   */
-  const loadFirst = useCallback(async (target: MessageScope, mode: 'replace' | 'merge') => {
+  /** Charge la page 1 et repart de zéro (premier chargement, tirer pour rafraîchir, nouvel essai). */
+  const loadFirst = useCallback(async (target: MessageScope) => {
     const token = guard.begin() // périme aussi une page suivante en cours
     loadingFirst.current = true
     loadingNext.current = false
@@ -85,22 +78,18 @@ export default function MessagesScreen() {
     try {
       const page = await fetchMessagesPage(target, 0)
       if (!guard.isCurrent(token) || !alive(target)) return
-      if (mode === 'merge') {
-        setRows((prev) => mergePages(page, prev))
-      } else {
-        setRows(page)
-        nextPage.current = 1
-        hasMore.current = hasMorePages(page.length)
-        setMoreFailed(false)
-      }
+      setRows(page)
+      nextPage.current = 1
+      hasMore.current = hasMorePages(page.length)
+      setMoreFailed(false)
       loadedScope.current = target
       setStatus('ready')
     } catch (e) {
       console.error('[messages] first page failed:', e)
       if (!guard.isCurrent(token) || !alive(target)) return
       // Une liste déjà affichée reste affichée : seul le premier chargement a un écran d'erreur.
-      if (!sameScope(loadedScope.current, target)) setStatus('error')
-      else if (mode === 'replace') setBanner(t('messages.load_error'))
+      if (sameScope(loadedScope.current, target)) setBanner(t('messages.load_error'))
+      else setStatus('error')
     } finally {
       if (guard.isCurrent(token)) loadingFirst.current = false
     }
@@ -137,27 +126,20 @@ export default function MessagesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      focusCount.current++
+      // Arrivée sur l'écran, ou autre membre / autre salle : rien de l'ancien périmètre ne reste.
       opening.current = false
       setOpeningId(null)
-      if (!scope) {
-        // Membre ou salle inconnu : état vide, aucune requête.
-        loadedScope.current = null
-        hasMore.current = false
-        setRows([])
-        setStatus('ready')
-      } else if (sameScope(loadedScope.current, scope)) {
-        void loadFirst(scope, 'merge')
-      } else {
-        // Autre membre ou autre salle : rien de l'ancien périmètre ne reste à l'écran.
-        loadedScope.current = null
-        hasMore.current = false
-        setRows([])
+      loadedScope.current = null
+      hasMore.current = false
+      setRows([])
+      if (scope) {
         setStatus('loading')
-        void loadFirst(scope, 'replace')
+        void loadFirst(scope)
+      } else {
+        // Pas de périmètre : aucune requête. On attend s'il n'est pas encore résolu, sinon état vide.
+        setStatus(pending ? 'loading' : 'ready')
       }
       return () => {
-        focusCount.current++
         guard.invalidate()
         loadingFirst.current = false
         loadingNext.current = false
@@ -165,7 +147,7 @@ export default function MessagesScreen() {
         // Sortie de l'écran : la pastille de la cloche se remet à jour (critère 6).
         void useMessagesStore.getState().refresh()
       }
-    }, [scope, loadFirst, guard]),
+    }, [scope, pending, loadFirst, guard]),
   )
 
   const onRefresh = useCallback(async () => {
@@ -174,7 +156,7 @@ export default function MessagesScreen() {
     setRefreshing(true)
     try {
       // Ni l'un ni l'autre ne lève.
-      await Promise.all([loadFirst(target, 'replace'), useMessagesStore.getState().refresh()])
+      await Promise.all([loadFirst(target), useMessagesStore.getState().refresh()])
     } finally {
       setRefreshing(false)
     }
@@ -184,7 +166,7 @@ export default function MessagesScreen() {
     const target = scopeRef.current
     if (!target) return
     setStatus('loading')
-    void loadFirst(target, 'replace')
+    void loadFirst(target)
   }, [loadFirst])
 
   const markAll = useCallback(async () => {
@@ -212,7 +194,7 @@ export default function MessagesScreen() {
 
   const openMessage = useCallback(async (row: MessageRow) => {
     const target = scopeRef.current
-    // `opening` protège du double appui ; il se relâche au retour sur l'écran.
+    // `opening` protège du double appui. Il n'est pas relâché : la navigation démonte l'écran.
     if (!target || opening.current) return
     opening.current = true
 
@@ -232,16 +214,15 @@ export default function MessagesScreen() {
     let slotStartsAt: string | null = null
     const slotId = messageSlotId(row.type, row.data)
     if (slotId !== null) {
-      const focus = focusCount.current
       setOpeningId(row.id)
       try {
         slotStartsAt = await fetchSlotStartsAt(target, slotId)
       } catch (e) {
-        // Erreur (ou `slot_id` qui n'est pas un uuid) : heure inconnue, donc Mes réservations.
+        // Heure inconnue, donc Mes réservations.
         console.error('[messages] slot time failed:', e)
       }
       // Écran quitté ou périmètre changé pendant le chargement : on ne navigue plus.
-      if (focus !== focusCount.current || !alive(target)) return
+      if (!alive(target)) return
     }
 
     const destination = messageDestination(row.type, row.data, { now: new Date(), slotStartsAt })
@@ -337,8 +318,8 @@ export default function MessagesScreen() {
               disabled={markingAll}
               accessibilityRole="button"
               accessibilityState={{ disabled: markingAll, busy: markingAll }}
-              className="flex-row items-center gap-2 self-end rounded-xl px-4 py-2.5"
-              style={{ backgroundColor: tokens.actionBg, opacity: markingAll ? 0.5 : 1 }}
+              className="flex-row items-center gap-2 self-end rounded-xl px-4"
+              style={{ minHeight: 44, backgroundColor: tokens.actionBg, opacity: markingAll ? 0.5 : 1 }}
             >
               <CheckCheck size={16} color={tokens.onAction} />
               <Text className="font-dmsans-bold text-xs" style={{ color: tokens.onAction }}>
@@ -366,8 +347,8 @@ export default function MessagesScreen() {
               <Pressable
                 onPress={loadNext}
                 accessibilityRole="button"
-                className="rounded-xl px-5 py-2.5"
-                style={{ backgroundColor: tokens.actionBg }}
+                className="justify-center rounded-xl px-5"
+                style={{ minHeight: 44, backgroundColor: tokens.actionBg }}
               >
                 <Text className="font-dmsans-bold text-xs" style={{ color: tokens.onAction }}>
                   {t('common.retry')}

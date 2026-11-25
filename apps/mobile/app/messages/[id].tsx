@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AlertCircle, BellOff, ChevronLeft } from 'lucide-react-native'
-import { MessageIcon, useMessageDateLabel } from '../../components/messages/shared'
-import { useActiveGymId } from '../../lib/activeGym'
+import { MessageIcon, useMessageDateLabel, useMessageScope } from '../../components/messages/shared'
 import { useTheme } from '../../lib/theme/ThemeProvider'
 import { SEMANTIC } from '../../lib/theme/semantic'
 import { currentMessageScope, fetchMessage } from '../../lib/messages/api'
-import { createLatestGuard, messageScope, sameScope, type MessageRow } from '../../lib/messages/data'
+import { createLatestGuard, sameScope, type MessageRow } from '../../lib/messages/data'
 import { messageIdFromParam } from '../../lib/messages/list'
-import { useAuthStore } from '../../stores/useAuthStore'
 
 // GYM-391 — un message en entier (`communication` et tout type sans écran lié).
 //
@@ -31,9 +29,7 @@ export default function MessageDetailScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{ id: string }>()
   const id = messageIdFromParam(params.id)
-  const userId = useAuthStore((s) => s.user?.id)
-  const gymId = useActiveGymId()
-  const scope = useMemo(() => messageScope(userId, gymId), [userId, gymId])
+  const { scope, pending } = useMessageScope()
   const dateLabel = useMessageDateLabel()
 
   const [state, setState] = useState<State>({ status: 'loading' })
@@ -41,9 +37,10 @@ export default function MessageDetailScreen() {
   const guard = useRef(createLatestGuard()).current
 
   useEffect(() => {
-    // Sans périmètre ou sans identifiant valable : introuvable, aucune requête.
+    // Sans périmètre ou sans identifiant valable : aucune requête. On attend si le périmètre
+    // n'est pas encore résolu (arrivée directe à froid), sinon le message est introuvable.
     if (!scope || !id) {
-      setState({ status: 'missing' })
+      setState({ status: id && pending ? 'loading' : 'missing' })
       return
     }
     const token = guard.begin()
@@ -59,7 +56,7 @@ export default function MessageDetailScreen() {
       })
     // Démontage ou changement de périmètre : la réponse en cours ne s'applique plus.
     return () => guard.invalidate()
-  }, [scope, id, attempt, guard])
+  }, [scope, pending, id, attempt, guard])
 
   const backToList = () => router.replace('/messages')
   const date = state.status === 'ready' ? dateLabel(state.row.created_at) : null

@@ -5,8 +5,8 @@
 //
 // ⚠️ SCRIPT À CORPS DE MODULE, comme les autres tests de ce dossier.
 import {
-  MESSAGE_COLUMNS, MESSAGES_PAGE_SIZE, createLatestGuard, isUnread, messageScope, pageRange, readPayload,
-  sameScope,
+  MESSAGE_COLUMNS, MESSAGES_PAGE_SIZE, createLatestGuard, isUnread, isUuid, messageScope, pageRange,
+  readPayload, sameScope,
 } from '../lib/messages/data'
 
 let failures = 0
@@ -41,6 +41,17 @@ check('périmètre contre null → différent', sameScope(P, null) === false)
 check('null contre périmètre → différent', sameScope(null, P) === false)
 // 🔴 Deux « rien » ne sont pas un même périmètre : une réponse ne s'applique jamais à personne.
 check('null contre null → différent', sameScope(null, null) === false)
+
+console.log('Forme uuid')
+check('uuid → oui', isUuid(MEMBRE) === true)
+check('uuid en majuscules → oui', isUuid(MEMBRE.toUpperCase()) === true)
+for (const [nom, valeur] of [
+  ['vide', ''], ['texte', 'bonjour'], ['tronqué', MEMBRE.slice(0, 20)], ['précédé de ../', `../${MEMBRE}`],
+  ['suivi de /..', `${MEMBRE}/..`], ['entouré d’espaces', ` ${MEMBRE} `], ['suivi d’un saut de ligne', `${MEMBRE}\n`],
+  ['null', null], ['undefined', undefined], ['nombre', 42], ['tableau', [MEMBRE]],
+] as [string, unknown][]) {
+  check(`${nom} → non`, isUuid(valeur) === false)
+}
 
 console.log('Pagination')
 check('30 par page', MESSAGES_PAGE_SIZE === 30)

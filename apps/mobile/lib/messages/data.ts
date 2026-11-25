@@ -26,6 +26,17 @@ function filled(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== ''
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * La valeur a-t-elle la forme d'un uuid, et rien autour ? Tout identifiant venu d'une source
+ * non fiable (URL, `data` d'un message) passe par ici AVANT de partir dans une requête ou
+ * une route.
+ */
+export function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID.test(value)
+}
+
 /**
  * Rend le périmètre, ou null si le membre ou la salle manque : l'appelant s'abstient alors
  * de requêter. La RLS ne filtre pas la salle : une requête sans `gym_id` rendrait les

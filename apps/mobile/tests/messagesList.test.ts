@@ -27,7 +27,7 @@ function ligne(id: string, read: boolean | null = false, title = id): MessageRow
 const ids = (rows: MessageRow[]) => rows.map((r) => r.id)
 
 console.log('Icône par type')
-// Les dix types que la spec route : chacun a son icône, aucun ne tombe sur la générique.
+// Les neuf types que la spec route : chacun a son icône, aucun ne tombe sur la générique.
 for (const type of [
   'booking_confirmed', 'waitlist_promoted', 'session_cancelled_by_gym', 'session_updated_by_gym',
   'subscription_activated', 'subscription_payment_failed', 'credits_purchased', 'no_show_suspension',
@@ -54,8 +54,7 @@ egal('doublon dans la page reçue → un seul', ids(mergePages([ligne('a')], [li
 egal('la première liste l’emporte sur un même id', mergePages([ligne('a', true, 'frais')], [ligne('a', false, 'ancien')])[0]?.title, 'frais')
 egal('liste vide + page', ids(mergePages([], [ligne('a')])), ['a'])
 egal('liste + page vide', ids(mergePages([ligne('a')], [])), ['a'])
-// Retour sur l'écran : la page 1 relue passe DEVANT ce qui était chargé.
-egal('page 1 relue devant les lignes déjà chargées',
+egal('l’ordre de la première liste est gardé, les nouvelles suivent',
   ids(mergePages([ligne('n'), ligne('a'), ligne('b')], [ligne('a'), ligne('b'), ligne('c')])), ['n', 'a', 'b', 'c'])
 const depart = [ligne('a')]
 mergePages(depart, [ligne('b')])
