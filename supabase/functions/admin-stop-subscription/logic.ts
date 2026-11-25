@@ -95,8 +95,7 @@ function startOfZonedDay(y: number, m: number, d: number, timeZone: string): Dat
 type Ymd = readonly [number, number, number]
 
 /**
- * LA lecture de `next_payment_at`, partagée par la date de fin et par le contrôle du
- * paiement non enregistré : une date nue (pile 00:00 UTC) est un JOUR du calendrier de la
+ * LA lecture de `next_payment_at` pour la date de fin : une date nue (pile 00:00 UTC) est un JOUR du calendrier de la
  * salle ; toute autre valeur est un instant réel. `null` : valeur illisible.
  */
 function readNextPayment(raw: string): { day: Ymd; at: null } | { day: null; at: Date } | null {
@@ -104,12 +103,6 @@ function readNextPayment(raw: string): { day: Ymd; at: null } | { day: null; at:
   if (Number.isNaN(due.getTime())) return null
   if (due.getTime() % 86_400_000 !== 0) return { day: null, at: due }
   return { day: [due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()], at: null }
-}
-
-/** Le jour du calendrier de la salle où tombe un instant. Mois de 0 à 11, comme `Date`. */
-function zonedDay(at: Date, timeZone: string): Ymd {
-  const local = new Date(at.getTime() + tzOffsetMs(at, timeZone))
-  return [local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()]
 }
 
 /** Fuseau inconnu de l'environnement : le DEFAULT du schéma, pas une date devinée. */
@@ -120,8 +113,6 @@ function inZone<T>(timeZone: string | null | undefined, f: (tz: string) => T): T
     return f(DEFAULT_TIME_ZONE)
   }
 }
-
-const dayNumber = ([y, m, d]: Ymd): number => y * 10_000 + m * 100 + d
 
 /**
  * Fin de la dernière période payée.
@@ -176,58 +167,81 @@ function parseObject(body: string): Record<string, unknown> | null {
   }
 }
 
-export type MolliePaymentsOutcome = 'clear' | 'in_flight' | 'paid_not_recorded' | 'not_found' | 'failed'
-
-/** L'échéance attendue par NOTRE base, et le fuseau dans lequel son jour se lit. */
-export interface PaymentDue {
-  next_payment_at: string | null
-  timeZone: string | null | undefined
-}
+/**
+ * Lecture des paiements de l'abonnement chez Mollie.
+ *  - `in_flight` : un paiement `open` ou `pending` peut encore être encaissé ;
+ *  - `not_found` : 404 ou 410, l'abonnement n'existe pas (ou plus) chez Mollie ;
+ *  - `failed`    : réponse non comprise, donc fermé par défaut ;
+ *  - `clear`     : rien en cours. `paidIds` porte les identifiants Mollie des
+ *                  RECENT_PAID_WINDOW derniers paiements `paid`, du plus récent au plus ancien.
+ */
+export type MolliePaymentsRead =
+  | { kind: 'clear'; paidIds: string[] }
+  | { kind: 'in_flight' }
+  | { kind: 'not_found' }
+  | { kind: 'failed' }
 
 /** Un prélèvement `open` ou `pending` peut encore être encaissé : il est « en cours ». */
 const IN_FLIGHT_PAYMENT_STATUSES = ['open', 'pending']
 
 /**
- * « List subscription payments » : `_embedded.payments[]`, chacun avec son `status`.
- * 404 ou 410 : l'abonnement n'existe pas (ou plus) chez Mollie, il n'y a donc rien en cours.
- * Une liste absente, ou une entrée sans statut lisible, vaut un échec : on ne déclare pas
- * la voie libre sur une réponse qu'on n'a pas comprise.
- *
- * PAIEMENT ENCAISSÉ MAIS PAS ENCORE ENREGISTRÉ. Tant que notre webhook n'a pas traité
- * l'échéance du jour J, `next_payment_at` vaut encore J : la date de fin serait ramenée à
- * « maintenant » et l'accès tout juste payé serait coupé. Un `paid` daté (`paidAt`, à
- * défaut `createdAt`) du jour d'échéance ou d'après, dans le calendrier de la salle, est
- * donc un refus. Un `paid` sans date lisible est un échec, pas « rien à signaler ». Sans
- * échéance (`next_payment_at` nul), il n'y a rien à comparer : les dates ne sont pas lues.
+ * Nombre de paiements `paid` récents dont on vérifie l'enregistrement. Un paiement encaissé
+ * que notre webhook n'a pas traité est forcément l'un des derniers : trois couvre l'échéance
+ * en cours et deux échéances en retard, sans relire tout l'historique.
  */
-export function classifyMolliePayments(httpStatus: number, body: string, due?: PaymentDue): MolliePaymentsOutcome {
-  if (httpStatus === 404 || httpStatus === 410) return 'not_found'
-  if (httpStatus < 200 || httpStatus >= 300) return 'failed'
-  const payments = (parseObject(body)?._embedded as { payments?: unknown } | null | undefined)?.payments
-  if (!Array.isArray(payments)) return 'failed'
+export const RECENT_PAID_WINDOW = 3
 
-  let dueDay: number | null = null
-  if (due?.next_payment_at) {
-    const read = readNextPayment(due.next_payment_at)
-    if (!read) return 'failed'
-    dueDay = dayNumber(read.day ?? inZone(due.timeZone, (tz) => zonedDay(read.at, tz)))
-  }
+/** Forme d'un identifiant de paiement Mollie (`tr_…`). */
+const MOLLIE_PAYMENT_ID = /^tr_[A-Za-z0-9]+$/
+
+/**
+ * Statuts d'une ligne `payments` qui prouvent que notre webhook a traité le paiement comme
+ * encaissé : il l'écrit `paid` (upsert sur `mollie_payment_id`), et seuls un remboursement
+ * ou une contestation le font changer ensuite. `pending`, `failed`, `expired`, `canceled`
+ * ne prouvent rien.
+ */
+export const RECORDED_PAYMENT_STATUSES = ['paid', 'refunded', 'partially_refunded', 'charged_back']
+
+/**
+ * « List subscription payments » : `_embedded.payments[]`, chacun avec `id`, `status`,
+ * `createdAt`. Une liste absente, une entrée sans statut lisible, ou un `paid` sans
+ * identifiant ni date de création lisibles valent un échec : on ne déclare pas la voie
+ * libre sur une réponse qu'on n'a pas comprise. Le tri se fait sur `createdAt`, sans
+ * dépendre de l'ordre de la page.
+ */
+export function classifyMolliePayments(httpStatus: number, body: string): MolliePaymentsRead {
+  if (httpStatus === 404 || httpStatus === 410) return { kind: 'not_found' }
+  if (httpStatus < 200 || httpStatus >= 300) return { kind: 'failed' }
+  const payments = (parseObject(body)?._embedded as { payments?: unknown } | null | undefined)?.payments
+  if (!Array.isArray(payments)) return { kind: 'failed' }
 
   let inFlight = false
-  let paidNotRecorded = false
+  const paid: { id: string; at: number }[] = []
   for (const p of payments) {
-    const { status, paidAt, createdAt } = (p ?? {}) as { status?: unknown; paidAt?: unknown; createdAt?: unknown }
-    if (typeof status !== 'string') return 'failed'
+    const { id, status, createdAt } = (p ?? {}) as { id?: unknown; status?: unknown; createdAt?: unknown }
+    if (typeof status !== 'string') return { kind: 'failed' }
     if (IN_FLIGHT_PAYMENT_STATUSES.includes(status)) inFlight = true
-    if (status === 'paid' && dueDay !== null) {
-      const raw = paidAt ?? createdAt
-      const at = typeof raw === 'string' && raw ? new Date(raw) : null
-      if (!at || Number.isNaN(at.getTime())) return 'failed'
-      if (dayNumber(inZone(due?.timeZone, (tz) => zonedDay(at, tz))) >= dueDay) paidNotRecorded = true
+    if (status === 'paid') {
+      const at = typeof createdAt === 'string' ? new Date(createdAt).getTime() : NaN
+      if (typeof id !== 'string' || !MOLLIE_PAYMENT_ID.test(id) || Number.isNaN(at)) return { kind: 'failed' }
+      paid.push({ id, at })
     }
   }
-  if (inFlight) return 'in_flight'
-  return paidNotRecorded ? 'paid_not_recorded' : 'clear'
+  if (inFlight) return { kind: 'in_flight' }
+  paid.sort((a, b) => b.at - a.at)
+  return { kind: 'clear', paidIds: paid.slice(0, RECENT_PAID_WINDOW).map((p) => p.id) }
+}
+
+/**
+ * PAIEMENT ENCAISSÉ MAIS PAS ENCORE ENREGISTRÉ. Les identifiants `paid` récents chez Mollie
+ * qui n'ont pas de ligne enregistrée chez nous. Non vide = refus : notre webhook n'a pas
+ * encore traité un encaissement, et la date de fin couperait l'accès tout juste payé.
+ * La comparaison porte sur les identifiants, jamais sur les dates : un prélèvement encaissé
+ * plus vite que le précédent échappait à une comparaison de jours.
+ */
+export function unrecordedPaidIds(paidIds: string[], recordedIds: string[]): string[] {
+  const recorded = new Set(recordedIds)
+  return paidIds.filter((id) => !recorded.has(id))
 }
 
 export type MollieSubscriptionOutcome = 'live' | 'already_gone' | 'failed'

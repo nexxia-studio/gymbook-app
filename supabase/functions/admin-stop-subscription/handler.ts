@@ -22,7 +22,7 @@
 import type { BookingRef, CancelResult } from '../_shared/gym-booking-cancel.ts'
 import {
   bookingsToCancel, classifyMollieDelete, classifyMolliePayments, classifyMollieSubscription,
-  computeEndDate, evaluateEligibility, STOPPED_BY_GYM, validateReason,
+  computeEndDate, evaluateEligibility, STOPPED_BY_GYM, unrecordedPaidIds, validateReason,
   type BookingCandidate, type BookingToCancel,
 } from './logic.ts'
 
@@ -70,6 +70,11 @@ export interface StopDeps {
   jetonMollie(gymId: string): Promise<string | null>
   /** GET .../subscriptions/{id}/payments. Lecture seule. */
   molliePaiements(ref: MollieRef): Promise<MollieHttp>
+  /**
+   * Parmi ces identifiants Mollie, ceux qui ont une ligne `payments` ENREGISTRÉE (statut de
+   * RECORDED_PAYMENT_STATUSES), dans la salle. Lecture seule.
+   */
+  paiementsEnregistres(gymId: string, mollieIds: string[]): Promise<{ error: string | null; ids: string[] }>
   /** GET .../subscriptions/{id}. Lecture seule. */
   mollieStatut(ref: MollieRef): Promise<MollieHttp>
   /** DELETE .../subscriptions/{id}. */
@@ -270,25 +275,45 @@ export async function stopSubscriptionWith(
   const lectureImpossible = () => refus(502, 'MOLLIE_READ_FAILED',
     'Le prestataire de paiement n\'a pas pu être consulté : l\'abonnement est toujours actif, réessayez')
 
+  let paidIds: string[] = []
   try {
     const res = await deps.molliePaiements(ref)
-    const outcome = classifyMolliePayments(res.http, res.body, { next_payment_at: sub.next_payment_at, timeZone })
-    deps.log('info', 'Mollie paiements', { subscription_id: sub.id, http: res.http, outcome })
-    if (outcome === 'failed') return lectureImpossible()
-    if (outcome === 'in_flight') {
+    const read = classifyMolliePayments(res.http, res.body)
+    deps.log('info', 'Mollie paiements', { subscription_id: sub.id, http: res.http, outcome: read.kind })
+    if (read.kind === 'failed') return lectureImpossible()
+    if (read.kind === 'in_flight') {
       return refus(409, 'PAYMENT_IN_FLIGHT',
         'Un prélèvement est en cours pour cet abonnement. Réessayez quand il sera encaissé ou rejeté.')
     }
-    if (outcome === 'paid_not_recorded') {
-      // L'échéance est payée chez Mollie et notre webhook ne l'a pas encore traitée : la
-      // date de fin calculée plus haut couperait l'accès tout juste payé.
-      return refus(409, 'RENEWAL_NOT_RECORDED',
-        'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.')
-    }
-    // `clear`, ou `not_found` : l'abonnement n'existe plus chez Mollie, rien n'est en cours.
+    // `not_found` : l'abonnement n'existe plus chez Mollie, rien n'est en cours ni à vérifier.
+    if (read.kind === 'clear') paidIds = read.paidIds
   } catch (e) {
     deps.log('error', 'Mollie injoignable (paiements), rien n\'est écrit', { subscription_id: sub.id, gym_id: gymId, error: nomErreur(e) })
     return lectureImpossible()
+  }
+
+  // Les derniers `paid` de Mollie sont-ils tous enregistrés chez nous ? Comparaison par
+  // IDENTIFIANT : notre webhook écrit chaque encaissement dans `payments`, clé
+  // `mollie_payment_id`, avant toute autre écriture. Un identifiant absent = un
+  // encaissement pas encore traité, et la date de fin calculée plus haut couperait
+  // l'accès tout juste payé. Une lecture en échec ne laisse pas passer.
+  if (paidIds.length > 0) {
+    let recorded: { error: string | null; ids: string[] }
+    try {
+      recorded = await deps.paiementsEnregistres(gymId, paidIds)
+    } catch (e) {
+      recorded = { error: nomErreur(e), ids: [] }
+    }
+    if (recorded.error) {
+      deps.log('error', 'lecture des paiements enregistrés impossible, rien n\'est écrit', { subscription_id: sub.id, gym_id: gymId, error: recorded.error })
+      return refus(500, 'SERVER_ERROR', 'Lecture des paiements impossible : l\'abonnement est toujours actif, réessayez')
+    }
+    const missing = unrecordedPaidIds(paidIds, recorded.ids)
+    if (missing.length > 0) {
+      deps.log('info', 'paiement encaissé pas encore enregistré', { subscription_id: sub.id, mollie_payment_ids: missing })
+      return refus(409, 'RENEWAL_NOT_RECORDED',
+        'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.')
+    }
   }
 
   // ── 8. Aperçu : aucune écriture nulle part.

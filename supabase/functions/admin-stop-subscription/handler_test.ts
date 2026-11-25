@@ -32,11 +32,15 @@ const resa = (id: string, status = 'confirmed') => ({
   starts_at: '2026-12-10T18:00:00+00:00', activity_name: 'Yoga',
 })
 
-// Les `paid` portent une date : un mois avant l'échéance de SUB, donc déjà enregistrés.
+// Page Mollie : chaque entrée porte un identifiant `tr_p<rang>` et une date de création.
+// Par défaut, la doublure `paiementsEnregistres` dit enregistrés tous les identifiants demandés.
 const paiements = (...statuts: string[]) =>
-  ({ http: 200, body: JSON.stringify({ count: statuts.length, _embedded: { payments: statuts.map((status) => ({ status, paidAt: status === 'paid' ? '2026-11-05T09:00:00+00:00' : null })) } }) })
-const paiementPaye = (paidAt: string | null) =>
-  ({ http: 200, body: JSON.stringify({ _embedded: { payments: [{ status: 'paid', paidAt }] } }) })
+  ({ http: 200, body: JSON.stringify({ count: statuts.length, _embedded: { payments: statuts.map((status, i) => ({
+    id: `tr_p${i + 1}`, status, createdAt: `2026-${String(11 - i).padStart(2, '0')}-05T09:00:00+00:00`,
+  })) } }) })
+/** Page de paiements `paid` explicites : [identifiant, date de création]. */
+const payes = (...entrees: [string, string][]) =>
+  ({ http: 200, body: JSON.stringify({ _embedded: { payments: entrees.map(([id, createdAt]) => ({ id, status: 'paid', createdAt, paidAt: createdAt })) } }) })
 const abonnementMollie = (status: string) => ({ http: 200, body: JSON.stringify({ id: 'sub_mollie', status }) })
 
 type Reponse = { http: number; body: string } | Error
@@ -48,6 +52,9 @@ interface Options {
   reservations?: ReturnType<typeof resa>[]
   jeton?: string | null
   paiements?: Reponse
+  /** Identifiants Mollie enregistrés chez nous ; absent = tous ceux demandés. */
+  enregistres?: string[]
+  erreurEnregistres?: string | Error
   statut?: Reponse
   suppression?: Reponse
   ecriture?: { error: string | null; touched: number } | Error
@@ -96,6 +103,13 @@ function monde(o: Options = {}): Monde {
     },
     jetonMollie() { m.appels.push('jetonMollie'); return Promise.resolve(o.jeton === undefined ? 'jeton' : o.jeton) },
     molliePaiements() { m.appels.push('molliePaiements'); return rendre(o.paiements ?? paiements('paid', 'paid')) },
+    paiementsEnregistres(gymId, ids) {
+      m.appels.push(`paiementsEnregistres:${gymId}:${ids.join(',')}`)
+      if (o.erreurEnregistres instanceof Error) return Promise.reject(o.erreurEnregistres)
+      if (o.erreurEnregistres) return Promise.resolve({ error: o.erreurEnregistres, ids: [] })
+      const connus = o.enregistres ?? ids
+      return Promise.resolve({ error: null, ids: ids.filter((id) => connus.includes(id)) })
+    },
     mollieStatut() { m.appels.push('mollieStatut'); return rendre(o.statut ?? abonnementMollie('active')) },
     mollieDelete() { m.appels.push('mollieDelete'); return rendre(o.suppression ?? { http: 200, body: '{"status":"canceled"}' }) },
     updateSub(_id, gymId, patch) {
@@ -221,7 +235,7 @@ Deno.test('subscription_id ou member_id qui n’a pas la forme d’un UUID : 404
 
 // ─── DÉJÀ ARRÊTÉ PAR LA SALLE, ET REPRISE D'UN ARRÊT INTERROMPU ──────────────────────
 const DEJA = { ...SUB, status: 'canceling', cancellation_reason: 'stopped_by_gym', ends_at: ENDS_AT, next_payment_at: null }
-const HORS_REPRISE = ['jetonMollie', 'molliePaiements', 'mollieStatut', 'mollieDelete', 'updateSub', 'relireSub', 'completerJournal', 'notification', 'email']
+const HORS_REPRISE = ['jetonMollie', 'molliePaiements', 'paiementsEnregistres', 'mollieStatut', 'mollieDelete', 'updateSub', 'relireSub', 'completerJournal', 'notification', 'email']
 
 Deno.test('déjà arrêté, rien à reprendre : already avec des tableaux vides, zéro écriture, zéro Mollie', async () => {
   const m = monde({ sub: DEJA, reservations: [] })
@@ -356,31 +370,81 @@ Deno.test('dry_run avec un prélèvement en cours : 409 PAYMENT_IN_FLIGHT avant 
   aucuneEcriture(m)
 })
 
-// ─── PAIEMENT ENCAISSÉ, PAS ENCORE ENREGISTRÉ ────────────────────────────────────────
-Deno.test('échéance du jour déjà paid chez Mollie mais pas encore enregistrée : 409 RENEWAL_NOT_RECORDED, rien n’est modifié, aperçu compris', async () => {
-  // SUB.next_payment_at = 5 décembre ; payé le 5 à Bruxelles, le webhook n'est pas passé.
-  for (const paidAt of ['2026-12-04T23:30:00+00:00', '2026-12-05T08:00:00+00:00', '2026-12-06T08:00:00+00:00']) {
+// ─── PAIEMENT ENCAISSÉ, PAS ENCORE ENREGISTRÉ : PAR IDENTIFIANT ──────────────────────
+const MSG_NON_ENREGISTRE = 'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.'
+
+Deno.test('a) prélèvement payé et enregistré : l’arrêt passe', async () => {
+  const m = monde({ paiements: payes(['tr_nov', '2026-11-05T09:00:00+00:00'], ['tr_oct', '2026-10-05T09:00:00+00:00']), enregistres: ['tr_nov', 'tr_oct'] })
+  const r = await arret(m)
+  eq([r.status, r.body.ok, r.body.mollie], [200, true, 'cancelled'])
+  eq(m.appels.includes(`paiementsEnregistres:${GYM}:tr_nov,tr_oct`), true, 'la lecture porte sur les identifiants Mollie, dans la salle')
+})
+
+Deno.test('b) prélèvement payé, non enregistré, daté AVANT le précédent : refus RENEWAL_NOT_RECORDED, aperçu compris, rien n’est modifié', async () => {
+  // Le cas qui échappait à la comparaison de dates : `tr_dec` a été créé avant le 5 déc.
+  // (échéance enregistrée de SUB) et plus tôt dans le mois que le précédent. Par identifiant,
+  // il est vu : il manque chez nous.
+  for (const dry_run of [false, true]) {
+    const m = monde({
+      paiements: payes(['tr_dec', '2026-12-02T06:00:00+00:00'], ['tr_nov', '2026-11-05T09:00:00+00:00']),
+      enregistres: ['tr_nov'],
+    })
+    const r = await arret(m, { subscription_id: SUB_ID, reason: 'x', dry_run })
+    eq([r.status, r.body.code, r.body.message], [409, 'RENEWAL_NOT_RECORDED', MSG_NON_ENREGISTRE], String(dry_run))
+    eq(m.compte('mollieStatut'), 0)
+    aucuneEcriture(m, `dry_run=${dry_run}`)
+  }
+})
+
+Deno.test('b bis) seuls les trois derniers paid sont vérifiés ; un manque parmi eux suffit', async () => {
+  const page = payes(
+    ['tr_4', '2026-11-05T09:00:00+00:00'], ['tr_3', '2026-10-05T09:00:00+00:00'],
+    ['tr_2', '2026-09-05T09:00:00+00:00'], ['tr_1', '2026-08-05T09:00:00+00:00'],
+  )
+  const ok = monde({ paiements: page, enregistres: ['tr_4', 'tr_3', 'tr_2'] })
+  eq((await arret(ok)).status, 200)
+  eq(ok.appels.includes(`paiementsEnregistres:${GYM}:tr_4,tr_3,tr_2`), true)
+  const manque = monde({ paiements: page, enregistres: ['tr_4', 'tr_2'] })
+  eq((await arret(manque)).body.code, 'RENEWAL_NOT_RECORDED')
+})
+
+Deno.test('c) aucun paiement payé : l’arrêt passe, sans lecture des paiements enregistrés', async () => {
+  for (const p of [paiements(), paiements('failed', 'expired')]) {
+    const m = monde({ paiements: p })
+    eq((await arret(m)).status, 200)
+    eq(m.appels.some((a) => a.startsWith('paiementsEnregistres')), false)
+  }
+  // Abonnement disparu chez Mollie (404) : rien à vérifier non plus.
+  const parti = monde({ paiements: { http: 404, body: '' } })
+  eq((await arret(parti)).status, 200)
+  eq(parti.appels.some((a) => a.startsWith('paiementsEnregistres')), false)
+})
+
+Deno.test('d) panne de lecture Mollie : MOLLIE_READ_FAILED, jamais de passage', async () => {
+  for (const p of [{ http: 500, body: '' }, { http: 200, body: '<html>' }, new Error('réseau'),
+    { http: 200, body: JSON.stringify({ _embedded: { payments: [{ status: 'paid', createdAt: '2026-11-05T09:00:00+00:00' }] } }) }]) {
     for (const dry_run of [false, true]) {
-      const m = monde({ paiements: paiementPaye(paidAt) })
+      const m = monde({ paiements: p })
       const r = await arret(m, { subscription_id: SUB_ID, reason: 'x', dry_run })
-      eq([r.status, r.body.code, r.body.message], [409, 'RENEWAL_NOT_RECORDED',
-        'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.'], paidAt)
-      eq(m.compte('mollieStatut'), 0)
-      aucuneEcriture(m, paidAt)
+      eq([r.status, r.body.code], [502, 'MOLLIE_READ_FAILED'], String(dry_run))
+      eq(m.appels.some((a) => a.startsWith('paiementsEnregistres')), false)
+      aucuneEcriture(m)
     }
   }
 })
 
-Deno.test('dernier paid la veille de l’échéance : l’arrêt se fait ; date de paiement illisible : 502', async () => {
-  eq((await arret(monde({ paiements: paiementPaye('2026-12-04T22:30:00+00:00') }))).status, 200)
-  const m = monde({ paiements: paiementPaye(null) })
-  const r = await arret(m)
-  eq([r.status, r.body.code], [502, 'MOLLIE_READ_FAILED'])
-  aucuneEcriture(m)
+Deno.test('lecture de NOS paiements en panne (erreur ou exception) : 500, rien n’est modifié, jamais de passage', async () => {
+  for (const erreurEnregistres of ['timeout', new Error('base')]) {
+    const m = monde({ erreurEnregistres })
+    const r = await arret(m)
+    eq([r.status, r.body.code], [500, 'SERVER_ERROR'])
+    eq(m.compte('mollieStatut'), 0)
+    aucuneEcriture(m)
+  }
 })
 
-Deno.test('abonnement entièrement payé (next_payment_at nul) : un paid récent ne bloque pas', async () => {
-  const m = monde({ sub: { ...SUB, next_payment_at: null, payments_count: 12 }, paiements: paiementPaye('2026-11-25T08:00:00+00:00'), reservations: [] })
+Deno.test('abonnement entièrement payé (next_payment_at nul) : un paid récent enregistré ne bloque pas', async () => {
+  const m = monde({ sub: { ...SUB, next_payment_at: null, payments_count: 12 }, paiements: payes(['tr_der', '2026-11-25T08:00:00+00:00']), reservations: [] })
   const r = await arret(m)
   eq([r.status, r.body.ends_at], [200, SUB.ends_at])
 })
@@ -520,7 +584,7 @@ Deno.test('arrêt nominal : paiements, statut, DELETE, base, journal, réservati
   })
   eq(m.appels, [
     'lireAbonnement', 'lireFuseau', `lireReservations:${MEMBER_ID}:${GYM}:${ENDS_AT}`, 'jetonMollie',
-    'molliePaiements', 'mollieStatut', 'mollieDelete', 'updateSub', 'journal',
+    'molliePaiements', `paiementsEnregistres:${GYM}:tr_p1,tr_p2`, 'mollieStatut', 'mollieDelete', 'updateSub', 'journal',
     'cancelBooking:b1', 'cancelBooking:b2', 'completerJournal', 'notification', 'email',
   ])
   eq(m.patches[0], {

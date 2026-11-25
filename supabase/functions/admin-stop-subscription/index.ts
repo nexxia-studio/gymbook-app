@@ -18,7 +18,7 @@ import { notifier, textes } from '../_shared/notify.ts'
 import { buildSubscriptionStoppedEmail, formatEndDate, langueDe } from '../_shared/subscription-stopped-email.ts'
 import { recordWebhookFailure } from '../_shared/webhook-failures.ts'
 import { stopSubscriptionWith, type MollieHttp, type MollieRef, type StopSubscriptionRow } from './handler.ts'
-import type { BookingCandidate } from './logic.ts'
+import { RECORDED_PAYMENT_STATUSES, type BookingCandidate } from './logic.ts'
 
 const FN = 'admin-stop-subscription'
 
@@ -152,6 +152,19 @@ Deno.serve(async (req) => {
       // `_links.next` le jour où un abonnement dépasse 250 échéances (20 ans de mensualités).
       molliePaiements: (ref) => mollieCall('GET', `${subscriptionUrl(ref)}/payments?limit=250`, ref.token),
       mollieStatut: (ref) => mollieCall('GET', subscriptionUrl(ref), ref.token),
+
+      // Lecture seule. `mollie_payment_id` est UNIQUE dans `payments` ; le webhook y écrit
+      // chaque encaissement d'abonnement (upsert `paid`) avant toute autre écriture.
+      async paiementsEnregistres(gymId, mollieIds) {
+        const { data, error } = await admin
+          .from('payments')
+          .select('mollie_payment_id')
+          .eq('gym_id', gymId)
+          .in('mollie_payment_id', mollieIds)
+          .in('status', RECORDED_PAYMENT_STATUSES)
+        if (error) return { error: error.message, ids: [] }
+        return { error: null, ids: (data ?? []).map((r) => r.mollie_payment_id as string) }
+      },
       mollieDelete: (ref) => mollieCall('DELETE', subscriptionUrl(ref), ref.token),
 
       // Client service_role : chaque écriture et relecture porte AUSSI la salle de l'appelant.
