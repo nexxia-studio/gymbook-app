@@ -14,10 +14,16 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
+/** Numéro du jour de calendrier LOCAL (un entier par jour, insensible aux changements d'heure). */
+function localDayNumber(date: Date): number {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY
+}
+
 /**
- * Décrit l'ancienneté d'un message. Les seuils sont des DURÉES écoulées, pas des jours de
- * calendrier : « hier » couvre de 24 h à 48 h. Le jour, le mois et l'année sont ceux de
- * l'heure locale de l'appareil. Rend null si l'une des deux dates est illisible.
+ * Décrit l'ancienneté d'un message. Sous 24 h écoulées : minutes puis heures. Au-delà, on
+ * compte en JOURS DE CALENDRIER de l'heure locale de l'appareil (veille = « hier », 2 à 7
+ * jours, puis la date) : lundi 13 h lu mercredi 12 h vaut 2 jours, pas « hier ».
+ * Rend null si l'une des deux dates est illisible.
  */
 export function relativeDate(createdAt: string | null | undefined, now: Date): RelativeDate | null {
   if (typeof createdAt !== 'string' || createdAt.trim() === '') return null
@@ -29,8 +35,14 @@ export function relativeDate(createdAt: string | null | undefined, now: Date): R
   if (elapsed < MINUTE) return { kind: 'now' }
   if (elapsed < HOUR) return { kind: 'minutes', count: Math.floor(elapsed / MINUTE) }
   if (elapsed < DAY) return { kind: 'hours', count: Math.floor(elapsed / HOUR) }
-  if (elapsed < 2 * DAY) return { kind: 'yesterday' }
-  if (elapsed <= 7 * DAY) return { kind: 'days', count: Math.floor(elapsed / DAY) }
+
+  // ⚠️ Jamais `elapsed / DAY` ici : une journée de 23 ou 25 h décalerait le compte.
+  // Le jour de recul d'heure, 24 h écoulées peuvent tomber le même jour de calendrier
+  // (00 h 30 → 23 h 30) : on reste alors en heures.
+  const days = localDayNumber(now) - localDayNumber(created)
+  if (days < 1) return { kind: 'hours', count: Math.floor(elapsed / HOUR) }
+  if (days === 1) return { kind: 'yesterday' }
+  if (days <= 7) return { kind: 'days', count: days }
 
   const year = created.getFullYear()
   return {

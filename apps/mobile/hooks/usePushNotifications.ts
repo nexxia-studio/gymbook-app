@@ -182,6 +182,13 @@ export function usePushNotifications(userId: string | null) {
   function handleNotificationTap(data: Record<string, string>) {
     // La table type → route vit dans lib/messages/routing.ts (figée par tests/messages.test.ts).
     const route = pushRoute(data)
-    if (route !== null) router.push(route as never)
+    if (route === null) return
+    // Les routes statiques restent vérifiées par `typedRoutes` ; seule la fiche du cours est
+    // castée, comme avant l'extraction.
+    if (route === '/(tabs)/bookings' || route === '/(tabs)/profile' || route === '/(tabs)/schedule') {
+      router.push(route)
+    } else {
+      router.push(route as never)
+    }
   }
 }

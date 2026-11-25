@@ -66,7 +66,9 @@ export function messageDestination(
  * tests/messages.test.ts : `slot_id` n'est pas validé (absent, la route porte « undefined »)
  * et aucun type n'est ajouté. Corriger ces écarts est hors périmètre de GYM-391.
  */
-export function pushRoute(data: Record<string, string>): string | null {
+export type PushRoute = '/(tabs)/bookings' | '/(tabs)/profile' | '/(tabs)/schedule' | `/session/${string}`
+
+export function pushRoute(data: Record<string, string>): PushRoute | null {
   switch (data.type) {
     case 'booking_confirmed':
     case 'booking_cancelled':

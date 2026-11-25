@@ -36,12 +36,51 @@ egal('59 min 59 s → 59 min', ilYA(59 * MIN + 59 * S), { kind: 'minutes', count
 egal('60 min → 1 h', ilYA(60 * MIN), { kind: 'hours', count: 1 })
 egal('23 h → 23 h', ilYA(23 * H), { kind: 'hours', count: 23 })
 egal('23 h 59 → 23 h', ilYA(23 * H + 59 * MIN), { kind: 'hours', count: 23 })
+// Au-delà de 24 h écoulées : jours de CALENDRIER locaux (NOW = lundi 15 juin 2026, 12 h).
 egal('24 h → hier', ilYA(24 * H), { kind: 'yesterday' })
-egal('47 h 59 → hier', ilYA(47 * H + 59 * MIN), { kind: 'yesterday' })
+egal('veille à 00 h 00 (36 h) → hier', relativeDate(new Date(2026, 5, 14, 0, 0, 0).toISOString(), NOW), { kind: 'yesterday' })
+egal('avant-veille à 23 h 59 (36 h 01) → 2 j', relativeDate(new Date(2026, 5, 13, 23, 59, 0).toISOString(), NOW), { kind: 'days', count: 2 })
+egal('47 h 59 → 2 j (avant-veille), pas hier', ilYA(47 * H + 59 * MIN), { kind: 'days', count: 2 })
 egal('48 h → 2 j', ilYA(48 * H), { kind: 'days', count: 2 })
-egal('6 j 23 h → 6 j', ilYA(6 * J + 23 * H), { kind: 'days', count: 6 })
+egal('6 j 23 h → 7 j (7 jours de calendrier)', ilYA(6 * J + 23 * H), { kind: 'days', count: 7 })
 egal('7 jours pile → 7 j', ilYA(7 * J), { kind: 'days', count: 7 })
-egal('7 jours + 1 min → date, sans année', ilYA(7 * J + MIN), { kind: 'date', day: 8, month: 6, year: null })
+egal('7 jours + 1 min → encore 7 j de calendrier', ilYA(7 * J + MIN), { kind: 'days', count: 7 })
+egal('7 j de calendrier, à 00 h 00 → 7 j', relativeDate(new Date(2026, 5, 8, 0, 0, 0).toISOString(), NOW), { kind: 'days', count: 7 })
+egal('8 j de calendrier, à 23 h 59 → date, sans année',
+  relativeDate(new Date(2026, 5, 7, 23, 59, 0).toISOString(), NOW), { kind: 'date', day: 7, month: 6, year: null })
+// Exemples de la spec.
+egal('lundi 13 h lu mercredi 12 h (47 h) → 2 j',
+  relativeDate(new Date(2026, 5, 15, 13, 0, 0).toISOString(), new Date(2026, 5, 17, 12, 0, 0)), { kind: 'days', count: 2 })
+egal('lundi 08 h lu mardi 09 h (25 h) → hier',
+  relativeDate(new Date(2026, 5, 15, 8, 0, 0).toISOString(), new Date(2026, 5, 16, 9, 0, 0)), { kind: 'yesterday' })
+egal('lundi 13 h lu mardi 12 h (23 h) → 23 h, pas hier',
+  relativeDate(new Date(2026, 5, 15, 13, 0, 0).toISOString(), new Date(2026, 5, 16, 12, 0, 0)), { kind: 'hours', count: 23 })
+// 🔴 00 h 30 locale : un getUTCDate mis par erreur rendrait un autre jour dans tout fuseau
+// décalé d'au moins 30 min vers l'est de UTC (et 23 h 30 couvre ceux de l'ouest).
+egal('date à 00 h 30 locale → jour local',
+  relativeDate(new Date(2026, 2, 10, 0, 30, 0).toISOString(), NOW), { kind: 'date', day: 10, month: 3, year: null })
+egal('date à 23 h 30 locale → jour local',
+  relativeDate(new Date(2026, 2, 10, 23, 30, 0).toISOString(), NOW), { kind: 'date', day: 10, month: 3, year: null })
+egal('veille à 00 h 30, lu à 00 h 45 le lendemain → hier',
+  relativeDate(new Date(2026, 5, 14, 0, 30, 0).toISOString(), new Date(2026, 5, 15, 0, 45, 0)), { kind: 'yesterday' })
+// Changements d'heure (Europe : 29 mars et 25 octobre 2026 ; sans effet dans un fuseau fixe,
+// où les mêmes attendus restent vrais). Le compte est celui du calendrier, pas des durées.
+egal('passage à l’heure d’été : samedi 10 h lu lundi 09 h → 2 j',
+  relativeDate(new Date(2026, 2, 28, 10, 0, 0).toISOString(), new Date(2026, 2, 30, 9, 0, 0)), { kind: 'days', count: 2 })
+egal('passage à l’heure d’été : samedi 20 h lu dimanche 21 h → hier',
+  relativeDate(new Date(2026, 2, 28, 20, 0, 0).toISOString(), new Date(2026, 2, 29, 21, 0, 0)), { kind: 'yesterday' })
+egal('passage à l’heure d’hiver : samedi 23 h lu lundi 22 h 30 → 2 j',
+  relativeDate(new Date(2026, 9, 24, 23, 0, 0).toISOString(), new Date(2026, 9, 26, 22, 30, 0)), { kind: 'days', count: 2 })
+egal('passage à l’heure d’hiver : 7 j de calendrier → 7 j',
+  relativeDate(new Date(2026, 9, 20, 23, 0, 0).toISOString(), new Date(2026, 9, 27, 1, 0, 0)), { kind: 'days', count: 7 })
+egal('passage à l’heure d’hiver : 8 j de calendrier → date',
+  relativeDate(new Date(2026, 9, 19, 23, 0, 0).toISOString(), new Date(2026, 9, 27, 1, 0, 0)), { kind: 'date', day: 19, month: 10, year: null })
+// Format rendu par Postgres/PostgREST : microsecondes et décalage explicite.
+const PG = '2026-11-25T10:00:00.123456+00:00'
+egal('format Postgres, 5 min après → 5 min', relativeDate(PG, new Date('2026-11-25T10:05:00.200Z')), { kind: 'minutes', count: 5 })
+egal('format Postgres, 3 h après → 3 h', relativeDate(PG, new Date('2026-11-25T13:00:01Z')), { kind: 'hours', count: 3 })
+egal('format Postgres, décalage +02:00 → même instant',
+  relativeDate('2026-11-25T12:00:00.123456+02:00', new Date('2026-11-25T10:05:00.200Z')), { kind: 'minutes', count: 5 })
 egal('même année, plus ancien → date, sans année',
   relativeDate(new Date(2026, 0, 3, 9, 0, 0).toISOString(), NOW), { kind: 'date', day: 3, month: 1, year: null })
 egal('année différente → date, avec année',
