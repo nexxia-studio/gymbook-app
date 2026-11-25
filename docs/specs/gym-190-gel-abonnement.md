@@ -9,7 +9,7 @@
 - **Mollie ne propose aucune pause.** L'API ne connaît que deux leviers documentés : modifier l'abonnement (dont `startDate`) ou l'annuler puis en créer un autre sur le même mandat.
 - **La piste du ticket (repousser `startDate`) n'est pas documentée** pour un abonnement déjà prélevé. Mollie donne le format du champ, rien sur son effet. C'est une hypothèse à tester en mode test, pas un fait.
 - **Recommandation : option B**, annuler l'abonnement Mollie au gel et en recréer un à la reprise, sur le mandat existant. Elle ne repose que sur des comportements documentés. L'option A (décaler `startDate`) est plus légère et reste une simplification possible si un test en mode test la valide.
-- **Le statut `paused` existe en base mais n'est traité nulle part.** Le poser sans rien d'autre casserait six endroits, listés au chapitre 2, dont deux touchent à l'argent.
+- **Le statut `paused` existe en base mais aucun code ne l'écrit.** Le poser sans rien d'autre casserait six endroits, listés au chapitre 2, dont deux touchent à l'argent.
 - **Taille** : environ 7 à 9 jours pour B, 5 à 7 pour A, 2 à 3 pour C (arrêt par le gérant, sans gel). Ces chiffres sont des ordres de grandeur.
 
 ## 1. Ce que l'API Mollie permet réellement
@@ -18,7 +18,7 @@ Toutes les pages ont été lues le 25/11/2026. Les citations sont textuelles. «
 
 ### 1.1 Aucune pause native
 
-- L'API des abonnements liste sept opérations : créer, lister par client, lire, modifier, annuler, lister tout, lister les paiements. Aucune ne suspend ni ne reprend. Source : https://docs.mollie.com/reference/subscriptions-api
+- L'index de la référence liste sept opérations pour les abonnements : créer, lister par client, lire, modifier, annuler, lister tout, lister les paiements. Aucune ne suspend ni ne reprend. Source : https://docs.mollie.com/llms.txt (index officiel du site), page d'introduction : https://docs.mollie.com/reference/subscriptions-api
 - Statuts possibles : `pending`, `active`, `canceled`, `suspended`, `completed`. Source : https://docs.mollie.com/reference/get-subscription
 - `suspended` n'est pas une pause à la main du marchand : « Suspended : The subscription mandate is invalid and the subscription is suspended. » Source : https://help.mollie.com/hc/en-us/articles/115004489945-What-do-the-statuses-from-the-Subscriptions-API-mean
 - Le champ `status` est en lecture seule dans le schéma de l'API. Provoquer ou lever `suspended` par API : **non documenté**. Source : https://docs.mollie.com/reference/create-subscription
@@ -30,7 +30,7 @@ Source pour tout ce paragraphe : https://docs.mollie.com/reference/update-subscr
 - Champs acceptés : `amount`, `description`, `interval`, `startDate`, `times`, `metadata`, `webhookUrl`, `mandateId`, `testmode`. Aucun n'est obligatoire.
 - `applicationFee`, `method` et `profileId` ne figurent pas dans le corps du PATCH (constat sur le schéma, pas de phrase explicite).
 - « Canceled subscriptions cannot be updated. »
-- `startDate` : la page dit seulement « The start date of the subscription in `YYYY-MM-DD` format. »
+- `startDate` : la page dit seulement « The start date of the subscription in `YYYY-MM-DD` format. » Elle renvoie à la page de création « for an in-depth explanation of each parameter », mais celle-ci décrit `startDate` par la même phrase (https://docs.mollie.com/reference/create-subscription). Les « non documenté » ci-dessous valent donc pour les deux pages.
   - Modifiable sur un abonnement `active` déjà prélevé : **non documenté**.
   - Effet sur `nextPaymentDate` et sur `timesRemaining` : **non documenté**.
   - Obligation d'une date future : **non documentée**.
@@ -45,7 +45,7 @@ Source pour tout ce paragraphe : https://docs.mollie.com/reference/update-subscr
 - Annuler ne touche pas au mandat : « Canceling a subscription has no effect on the mandates of the customer. » Source : https://docs.mollie.com/reference/cancel-subscription
 - Un abonnement annulé ne se réactive pas : aucune opération ne le permet, et il n'est plus modifiable (1.2). L'irréversibilité n'est pas écrite en toutes lettres.
 - Recréer un abonnement demande un mandat `pending` ou `valid` : « Continue if there's a mandate with its `status` being either `pending` or `valid`, otherwise set up a *first* payment for the customer first. » Source : https://docs.mollie.com/docs/recurring-payments
-- Sans `mandateId`, « any of the customer's valid mandates may be used ». Source : https://docs.mollie.com/reference/create-subscription
+- Le champ `mandateId` est décrit par « The mandate used for this subscription, if any. » Ce qui se passe quand il est omis : **non documenté** pour ce champ. La seule phrase voisine porte sur le champ `method` : « If omitted, any of the customer's valid mandates may be used. » Source : https://docs.mollie.com/reference/create-subscription. L'app ne passe pas `mandateId` à la création aujourd'hui (`mollie-subscription-webhook/index.ts:567-584`).
 - Un abonnement peut être créé avec une date de départ future. Il est alors `pending` : « Subscription created but not active yet because start date is in the future. » Source : https://help.mollie.com/hc/en-us/articles/115004489945-What-do-the-statuses-from-the-Subscriptions-API-mean
 - `startDate` fixe le jour de prélèvement des échéances suivantes (exemple de la page : `interval="1 month"`, `startDate="2018-04-30"`, prélèvement le dernier jour de chaque mois). Source : https://docs.mollie.com/reference/create-subscription
 - Description : « the description needs to be unique for the Customer in case it has multiple active subscriptions. » Le cas d'un abonnement annulé qui porte la même description : **non documenté**. Source : https://docs.mollie.com/reference/create-subscription
@@ -59,20 +59,23 @@ Source pour tout ce paragraphe : https://docs.mollie.com/reference/update-subscr
   - Sous le code de rejet MD01 : « The mandate expired after 36 months. » Source : https://help.mollie.com/hc/en-us/articles/115000309865-Why-did-my-SEPA-direct-debit-payment-fail
 - Révoquer un mandat annule les abonnements qui en dépendent : « all connected subscriptions will be canceled. » Source : https://docs.mollie.com/reference/revoke-mandate
 - Piège : quand Mollie annule lui-même un abonnement après des échecs, il révoque aussi le mandat si l'abonnement a un `mandateId` fixe. Source : https://docs.mollie.com/docs/recurring-payments
+- Le nombre d'échecs avant cette annulation : **deux pages officielles se contredisent**. Le guide donne un tableau par motif de rejet (« Immediately » ou « After 3 times ») : https://docs.mollie.com/docs/recurring-payments. Le centre d'aide écrit « the subscription will be canceled after 2 failures (not applicable to insufficient funds) » : https://help.mollie.com/hc/en-us/articles/115004339309-What-happens-to-a-subscription-mandate-after-a-reversal
 
 ### 1.5 Un prélèvement déjà parti
 
 - Annuler un paiement dépend de `isCancelable` : « The `isCancelable` property on the Payment object will indicate if the payment can be canceled. » Source : https://docs.mollie.com/reference/cancel-payment
 - Pour le SEPA : « It's only possible to cancel a SEPA Direct Debit payment if it has not been sent to the bank yet. » Source : https://help.mollie.com/hc/en-us/articles/115001007289-How-can-I-cancel-a-SEPA-Direct-Debit-payment
-- Délai entre la date d'échéance, la création du paiement et l'envoi à la banque : **non documenté**.
+- Fenêtre d'annulation, en termes généraux : « you may be able to cancel a payment for a certain amount of time — usually until the next business day or as long as the payment status is open. » Annuler un paiement demande la portée `payments.write`, que la connexion des salles demande déjà. Source : https://docs.mollie.com/reference/cancel-payment
+- Délai entre la date d'échéance et la création du paiement par Mollie : **non documenté**.
 - Un prélèvement peut être rejeté jusqu'à 5 jours ouvrés après le débit, et contesté par le client pendant 8 semaines. Sources : https://help.mollie.com/hc/en-us/articles/115000309865-Why-did-my-SEPA-direct-debit-payment-fail et https://docs.mollie.com/docs/sepa-direct-debit
+- Une contestation coûte au marchand : « There is a fee of €10,- for each chargeback. » Source : https://help.mollie.com/hc/en-us/articles/115000796469-What-is-a-SEPA-Direct-Debit-chargeback
 
 ### 1.6 Webhooks, pré-notification, droits
 
 - Aucun webhook sur l'abonnement lui-même : « We do not provide webhooks specifically for status changes of a Subscription itself. » Source : https://docs.mollie.com/docs/recurring-payments
 - Le `webhookUrl` de l'abonnement reçoit les événements de chaque paiement qu'il génère, échecs compris. Source : https://docs.mollie.com/reference/create-subscription
 - Pré-notification SEPA : Mollie ne documente aucune obligation, aucun délai, aucun responsable. Il recommande seulement : « We suggest notifying the customer a couple of days in advance of the next payment ». Source : https://docs.mollie.com/docs/recurring-payments. La fenêtre de 14 à 16 jours appliquée par l'app est une règle du projet (GYM-334), pas une exigence lue chez Mollie.
-- Droits OAuth : créer, modifier et annuler un abonnement demandent `subscriptions.write` ; lire un mandat, `mandates.read`. Sources : https://docs.mollie.com/reference/update-subscription et https://docs.mollie.com/reference/get-mandate. La connexion Mollie des salles demande déjà ces deux portées (`supabase/functions/mollie-connect-oauth/index.ts`) : aucune reconnexion du gérant n'est nécessaire.
+- Droits OAuth : créer, modifier et annuler un abonnement demandent `subscriptions.write` ; lire un mandat, `mandates.read`. Sources : https://docs.mollie.com/reference/create-subscription, https://docs.mollie.com/reference/update-subscription, https://docs.mollie.com/reference/cancel-subscription et https://docs.mollie.com/reference/get-mandate. La connexion Mollie des salles demande déjà ces deux portées (`supabase/functions/mollie-connect-oauth/index.ts`) : aucune reconnexion du gérant n'est nécessaire.
 - Mode test : « Test mode subscriptions will get canceled automatically after 10 payments. » Source : https://docs.mollie.com/reference/create-subscription
 
 ### 1.7 À tester en mode test avant de coder
@@ -92,7 +95,7 @@ Le support de Mollie décrit des limites du mode test pour le SEPA récurrent (h
 
 - Table `member_subscriptions` (`supabase/migrations/00000000000000_baseline_prod.sql:1461`).
 - Statuts autorisés : `active`, `suspended`, `expired`, `cancelled`, `paused`, `completed`, `canceling`, `past_due` (dernier CHECK : `20260824160000_gym252_failed_renewals.sql:85`).
-- **`paused`, `paused_at` et `pause_resumes_at` existent, sans aucun code qui les écrive ni les lise.**
+- **`paused`, `paused_at` et `pause_resumes_at` existent, sans aucun code qui les écrive.** Les deux colonnes de date ne sont lues nulle part. Le statut `paused`, lui, est déjà lu par le dashboard : il compte parmi les abonnements « vivants » de la fiche membre (`apps/dashboard/src/hooks/useMemberDetail.ts:99`) et a son style de badge (`MemberDrawer.tsx:48`).
 - Pas de colonne « engagement » : il se déduit de `ends_at`.
 - Colonnes de prélèvement : `mollie_subscription_id` (unique), `mollie_customer_id`, `next_payment_at`, `payments_count`, `max_payments`, `prenotification_sent_at`, et les quatre colonnes d'impayé de GYM-252.
 - Écritures : toutes par `service_role`. Le membre ne peut que lire sa ligne.
@@ -113,7 +116,7 @@ Le support de Mollie décrit des limites du mode test pour le SEPA récurrent (h
 - La règle est dans `_shared/active-subscription.ts`.
   - `ACCESS_SUBSCRIPTION_STATUSES` = `active`, `canceling`, `past_due` : ces statuts ouvrent l'accès, si le terme n'est pas dépassé.
   - `PURCHASE_BLOCKING_STATUSES` = les mêmes plus `suspended` : ces statuts interdisent d'acheter un second abonnement.
-- Elle est recopiée, et les copies se citent : `promote_waitlist_atomic` (SQL), `get_communication_recipients` (SQL), `apps/dashboard/src/lib/subscription.ts`, `apps/mobile/lib/subscription.ts`.
+- Elle est recopiée, et les copies se citent : `promote_waitlist_atomic` (SQL), `get_communication_recipients` (SQL), `apps/dashboard/src/lib/subscription.ts`, `apps/mobile/lib/subscription.ts`. La copie mobile diverge déjà : elle ne contient que `active` et `canceling`, sans `past_due` (`apps/mobile/lib/subscription.ts:30`).
 - `create-booking` vérifie l'accès, puis `create_booking_atomic` débite un crédit seulement si le membre n'a pas d'abonnement ouvrant.
 - Un abonnement illimité n'alloue aucun crédit. Les crédits des packs n'expirent pas.
 - Aucun code n'annule les réservations futures quand un abonnement cesse d'ouvrir des droits.
@@ -135,14 +138,14 @@ Le support de Mollie décrit des limites du mode test pour le SEPA récurrent (h
 1. **Un prélèvement qui arrive lèverait le gel sans bruit.** Le traitement d'un renouvellement réécrit `status: 'active'` sans regarder le statut courant. Si Mollie prélève pendant un gel (décalage raté, paiement déjà créé), la membre est débitée et son abonnement redevient actif, sans alerte.
 2. **Un second abonnement deviendrait achetable.** `paused` n'est pas dans `PURCHASE_BLOCKING_STATUSES` : la membre gelée pourrait souscrire de nouveau, puis être prélevée deux fois à la reprise.
 3. **L'engagement sauterait.** `isEngaged` ne connaît que `active` et `canceling`. Un abonnement gelé ne serait plus « engagé » pour `cancel-subscription` ni pour `delete-account`. Le filet SEPA de `delete-account` (`:125`) ne filtre aussi que `active` et `canceling` : un compte supprimé pendant un gel laisserait l'abonnement Mollie vivant.
-4. **La reprise serait prélevée sans pré-notification.** `get_pending_sepa_prenotifications` ne lit que les lignes `active`. Si l'abonnement repasse `active` le jour de la reprise, la fenêtre de 14 jours est déjà fermée.
-5. **Un gel plus long que le terme resterait gelé à vie.** `expire_subscriptions` ignore `paused`. À l'inverse, si `ends_at` n'est pas repoussé, une reprise après le terme rendrait un abonnement `active` aussitôt expiré.
+4. **La reprise serait prélevée sans pré-notification dans les délais.** `get_pending_sepa_prenotifications` ne lit que les lignes `active`. Si l'abonnement repasse `active` le jour de la reprise, la fenêtre de 14 à 16 jours est déjà fermée. La fonction envoie bien un rattrapage de 1 à 13 jours avant l'échéance, à 9 h locale : la membre recevrait donc un avis hors délai, ou aucun si l'échéance tombe le jour même.
+5. **`expire_subscriptions` ignore `paused`, et c'est voulu.** Les migrations le disent : « paused → gelé (GYM-190 à venir) : le temps ne court PAS, ne doit pas expirer » (`20260727170000_gym191_expire_subscriptions.sql:21`). Cet invariant appuie la règle de calendrier du chapitre 3. Il a deux conséquences à traiter : un gel jamais repris reste gelé à vie, et si `ends_at` n'est pas repoussé à la reprise, l'abonnement redevenu `active` expire aussitôt.
 6. **Les prédicats recopiés divergeraient.** Dashboard, mobile et SQL ont chacun leur liste. L'app membre actuelle afficherait « aucune formule » pendant un gel.
 
 À surveiller aussi :
 - `cancel-booking` (`:143-149`) teste `status = 'active'` seul pour décider d'une restitution de crédit.
 - `renewal_alerts_pending` : le motif `no_debit` ne se déclenche pas pour `paused`, mais il se déclencherait le jour de la reprise si `next_payment_at` n'était pas repoussé.
-- Les rejets tardifs : un prélèvement payé juste avant le gel peut être rejeté jusqu'à 5 jours ouvrés après, donc pendant le gel. Le chemin d'échec passerait la ligne `paused` en `past_due`.
+- Les rejets tardifs : un prélèvement payé juste avant le gel peut être rejeté jusqu'à 5 jours ouvrés après, donc pendant le gel. Le chemin d'échec du webhook ne traite que les lignes `active`, `canceling` et `past_due` (`FAILURE_RELEVANT_STATUSES`, `mollie-subscription-webhook/index.ts:101` et `:200`) : sur une ligne `paused`, le rejet serait ignoré avec un simple log, et **une mensualité rejetée resterait comptée comme payée**. En option B, le rejet porte l'ancien identifiant Mollie, ne retrouve plus la ligne et finit dans la file des échecs du webhook.
 
 ### 2.6 À vérifier en base avant de coder
 
@@ -193,7 +196,9 @@ Au gel, l'app annule l'abonnement Mollie. Elle en crée un nouveau sur le mandat
 - **Gel puis reprise** : B1, automatique. B2, une action du gérant, avec un rappel s'il oublie.
 - **Reprise anticipée** : B1, PATCH `startDate` du nouvel abonnement tant qu'il est `pending` (à tester, point 4 de 1.7), sinon DELETE et nouvelle création. B2, création immédiate.
 - **Annulation pendant un gel** : B1, DELETE du nouvel abonnement. B2, rien chez Mollie.
-- **Pour** : chaque étape est documentée par Mollie (1.3). Entre l'annulation et la reprise, aucun abonnement actif n'existe chez Mollie : un prélèvement pendant le gel est impossible par construction, sauf paiement déjà créé avant le gel.
+- **Pour** : les étapes principales sont documentées par Mollie (1.3) : annuler sans toucher au mandat, créer un abonnement à date future. Entre l'annulation et la reprise, aucun abonnement actif n'existe chez Mollie : un prélèvement pendant le gel ne peut venir que d'un paiement déjà créé avant le gel. Cette garantie repose sur l'effet de l'annulation, que Mollie décrit en une phrase.
+- **Trois points restent à tester** (1.7, tests 3 à 5) : la même description après une annulation, le PATCH `startDate` d'un abonnement `pending`, et le sort d'un paiement déjà créé.
+- **Une décision à prendre : passer ou non `mandateId`.** Avec un `mandateId` fixe, le mandat est révoqué si Mollie annule l'abonnement après des échecs (1.4). Sans lui, le choix du mandat par Mollie n'est pas documenté (1.3). L'app ne le passe pas aujourd'hui.
 - **Contre** :
   - Les frais de plateforme et le `webhookUrl` sont à reposer à l'identique à la recréation. Le taux à appliquer (celui d'origine ou le taux en vigueur) est une décision.
   - Si la création échoue (mandat devenu invalide, connexion Mollie perdue), la membre garde son accès sans être prélevée. Il faut un état d'échec visible et une alerte au gérant.
@@ -217,7 +222,7 @@ On outille ce qui a été fait à la main le 17/11. Une Edge Function réservée
 
 | | A, décaler | B, annuler et recréer | C, arrêt |
 |---|---|---|---|
-| Repose sur du documenté | Non | Oui | Oui |
+| Repose sur du documenté | Non | Oui, sauf trois points à tester | Oui |
 | Prélèvement possible pendant le gel | Oui si Mollie ignore le décalage | Non, hors paiement déjà créé | Non |
 | Engagement conservé | Oui | Oui | Non |
 | Action le jour de la reprise | Aucune | Aucune (B1) ou un clic (B2) | Nouvelle vente |
@@ -230,7 +235,7 @@ On outille ce qui a été fait à la main le 17/11. Une Edge Function réservée
 **Option B, variante B1 par défaut** (date de reprise obligatoire, modifiable ensuite), pour trois raisons :
 
 1. **Elle ne parie pas.** Le gel sert d'abord à ne pas prélever quelqu'un qui est en arrêt. A fait reposer cette garantie sur un champ dont Mollie ne décrit pas l'effet.
-2. **Sa panne est du bon côté.** Si B échoue, la membre n'est pas prélevée et le gérant est alerté. Si A échoue, la membre est prélevée à tort, et un prélèvement SEPA se conteste pendant 8 semaines, aux frais de la salle.
+2. **Sa panne est du bon côté.** Si B échoue, la membre n'est pas prélevée et le gérant est alerté. Si A échoue, la membre est prélevée à tort, et un prélèvement SEPA se conteste pendant 8 semaines, avec des frais par contestation pour la salle (1.5).
 3. **Elle contient C.** L'annulation Mollie par le gérant est la première moitié de B. La livrer d'abord règle déjà le cas « arrêter un abonnement engagé ».
 
 **Avant de coder**, jouer les tests 1 à 5 du paragraphe 1.7. Si le test 1 montre que PATCH `startDate` décale proprement l'échéance d'un abonnement actif, A devient défendable : il faudra alors décider si l'économie de deux jours vaut la dépendance à un comportement non écrit. Mon avis resterait B.
@@ -281,7 +286,7 @@ Ordres de grandeur en jours de travail, recette staging comprise, hors attente d
 | Garde-fous communs (2.5) : renouvellement, engagement, blocage d'achat, expiration, prédicats SQL, dashboard, mobile | 1,5 | 1,5 | 0,5 |
 | Migration : table des gels, RLS, cron de reprise | 0,5 | 0,5 | 0 |
 | Edge Functions gérant (geler, reprendre, annuler le gel) | 1 | 2 | 0,5 |
-| Webhook : ancien identifiant Mollie, rejets tardifs pendant un gel | 0,5 | 1 | 0 |
+| Webhook : rejet tardif pendant un gel (aujourd'hui ignoré), et pour B l'ancien identifiant Mollie | 0,5 | 1 | 0 |
 | Pré-notification de reprise, email de confirmation | 0,5 | 0,5 | 0 |
 | Annulation des réservations de la période, message au membre | 0,5 | 0,5 | 0,5 |
 | Dashboard : boutons, modale, état sur la fiche membre | 0,5 | 0,5 | 0,5 |
