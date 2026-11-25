@@ -909,5 +909,11 @@
     "account_exists": "Your account was created — no need to sign up again.",
     "choose_another": "Choose another gym",
     "sign_out": "Sign out"
+  },
+  "messages": {
+    "title": "Messages",
+    "bell": "Messages",
+    "bell_unread_one": "Messages, {{count}} unread",
+    "bell_unread_other": "Messages, {{count}} unread"
   }
 }

@@ -909,5 +909,11 @@
     "account_exists": "Ton compte est bien créé — inutile de recommencer l'inscription.",
     "choose_another": "Choisir une autre salle",
     "sign_out": "Se déconnecter"
+  },
+  "messages": {
+    "title": "Messages",
+    "bell": "Messages",
+    "bell_unread_one": "Messages, {{count}} non lu",
+    "bell_unread_other": "Messages, {{count}} non lus"
   }
 }
