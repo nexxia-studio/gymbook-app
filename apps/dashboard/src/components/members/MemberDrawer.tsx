@@ -81,7 +81,7 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
   const addToast = useToastStore((s) => s.addToast)
   const {
     credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments, subscription, bookings, loading,
-    reload, adjustCredits, sellPlan, previewStopSubscription, stopSubscription,
+    reload, adjustCredits, sellPlan, previewStopSubscription, stopSubscription, creditsReady,
   } = useMemberDetail(member?.id ?? null)
   const { penalties, lifts, summary: discipline, loading: disciplineLoading } = useMemberDiscipline(member?.id ?? null)
 
@@ -495,15 +495,20 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                 <div className="rounded-xl border border-border p-4">
                   <div className="flex items-baseline justify-between">
                     <span className="font-body text-sm text-muted">{t('member_drawer.credits_remaining')}</span>
-                    <span className="font-display text-2xl font-black tracking-tight text-dark">{creditsRemaining}</span>
+                    {creditsReady ? (
+                      <span className="font-display text-2xl font-black tracking-tight text-dark">{creditsRemaining}</span>
+                    ) : (
+                      // GYM-190 — tant que le solde du membre affiché n'est pas chargé, pas de « 0 ».
+                      <span className="font-body text-sm text-muted">{t('common.loading')}</span>
+                    )}
                   </div>
                   {/* GYM-182 — décomposition acheté / offert quand il y a des crédits offerts. */}
-                  {giftedRemaining > 0 && (
+                  {creditsReady && giftedRemaining > 0 && (
                     <p className="mt-1 text-right font-body text-xs text-muted">
                       {t('member_drawer.credits_breakdown', { purchased: purchasedRemaining, gifted: giftedRemaining })}
                     </p>
                   )}
-                  {credits.filter((c) => c.total > 0).length > 0 && (
+                  {creditsReady && credits.filter((c) => c.total > 0).length > 0 && (
                     <div className="mt-3 flex flex-col gap-1.5 border-t border-border pt-3">
                       {credits.filter((c) => c.total > 0).map((c) => (
                         <div key={c.planId} className="flex justify-between font-body text-xs">
@@ -524,14 +529,16 @@ export function MemberDrawer({ member, onClose, onUpdated }: MemberDrawerProps) 
                       (GYM-182) ne produit qu'un crédit. Mettre le second en avant, ou les
                       rendre équivalents, mènerait un gérant pressé à encaisser de l'argent
                       par le chemin qui ne le trace pas. */}
-                  <Button className="mt-3 w-full" onClick={() => setSellOpen(true)}>
+                  {/* GYM-190 — désactivés tant que le solde du membre affiché n'est pas chargé :
+                      les deux modales l'affichent comme « solde actuel ». */}
+                  <Button className="mt-3 w-full" disabled={!creditsReady} onClick={() => setSellOpen(true)}>
                     <ShoppingCart className="h-4 w-4" />
                     {t('member_drawer.sell.button')}
                   </Button>
 
                   {/* GYM-182 — bouton d'ajustement manuel (geste GRATUIT : parrainage,
                       compensation). Volontairement secondaire. */}
-                  <Button variant="secondary" className="mt-2 w-full" onClick={() => setAdjustOpen(true)}>
+                  <Button variant="secondary" className="mt-2 w-full" disabled={!creditsReady} onClick={() => setAdjustOpen(true)}>
                     <Gift className="h-4 w-4" />
                     {t('member_drawer.adjust.button')}
                   </Button>

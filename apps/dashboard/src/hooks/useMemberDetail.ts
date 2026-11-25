@@ -117,6 +117,11 @@ export function useMemberDetail(memberId: string | null) {
   const [subscription, setSubscription] = useState<MemberSubscription | null>(null)
   const [bookings, setBookings] = useState<RecentBooking[]>([])
   const [loading, setLoading] = useState(false)
+  // GYM-190 — le membre dont le solde affiché a RÉELLEMENT été chargé. Tant qu'il n'est pas
+  // le membre affiché, le solde n'est pas connu : la fiche affiche « chargement » et ne
+  // propose ni vente ni ajustement, plutôt qu'un « 0 » qui n'est le solde de personne.
+  // Un rechargement de la MÊME fiche (après une vente) garde le solde en place.
+  const [creditsFor, setCreditsFor] = useState<string | null>(null)
 
   // GYM-190 — l'abonnement du membre PRÉCÉDENT ne survit pas au changement de membre.
   // Remis à zéro PENDANT le rendu (et non dans un effet) : aucun rendu de la fiche B ne
@@ -132,6 +137,7 @@ export function useMemberDetail(memberId: string | null) {
     setCreditsRemaining(0)
     setGiftedRemaining(0)
     setPurchasedRemaining(0)
+    setCreditsFor(null)
     setAdjustments([])
     setPayments([])
     setBookings([])
@@ -206,6 +212,7 @@ export function useMemberDetail(memberId: string | null) {
       const gifted = creditLines.filter((c) => c.planId === MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0)
       setGiftedRemaining(gifted)
       setPurchasedRemaining(creditLines.filter((c) => c.planId !== MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0))
+      setCreditsFor(memberId)
 
       const adjLines: CreditAdjustment[] = ((adjustmentsRes.data ?? []) as Array<Record<string, unknown>>).map((a) => {
         const g = a.granter as { first_name?: string; last_name?: string } | Array<{ first_name?: string; last_name?: string }> | null
@@ -362,6 +369,7 @@ export function useMemberDetail(memberId: string | null) {
   return {
     credits, creditsRemaining, giftedRemaining, purchasedRemaining, adjustments, payments,
     subscription, bookings, loading, reload: load, adjustCredits, sellPlan,
+    creditsReady: memberId !== null && creditsFor === memberId,
     previewStopSubscription, stopSubscription,
   }
 }
