@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import * as Sentry from '@sentry/react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useGymStore } from '@/stores/useGymStore'
@@ -65,6 +66,17 @@ async function loadGymContext(gymId: string | null): Promise<void> {
     slug: data.slug,
     timezone: data.timezone ?? DEFAULT_TIMEZONE,
   })
+}
+
+// GYM-315 — rattache les erreurs Sentry à un compte. L'ID SEULEMENT : ni email, ni nom, ni
+// salle. Best-effort : ne doit jamais faire échouer une connexion ni une déconnexion.
+// Sans DSN (développement), Sentry n'est pas initialisé et l'appel est sans effet.
+function setSentryUser(userId: string | null): void {
+  try {
+    Sentry.setUser(userId ? { id: userId } : null)
+  } catch {
+    // Volontairement muet.
+  }
 }
 
 function mapSupabaseError(message: string): string {
@@ -220,6 +232,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     set({ isLoading: true })
     await supabase.auth.signOut()
+    // Le listener le fait sur SIGNED_OUT, mais l'état est vidé ici même si la révocation
+    // échoue (pas d'événement) : Sentry suit l'état local.
+    setSentryUser(null)
     useGymStore.getState().setGym(null)
     set({
       user: null,
@@ -234,6 +249,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session) {
+      // Session restaurée au démarrage.
+      setSentryUser(data.session.user.id)
       const { data: profile } = await supabase
         .from('profiles')
         .select('gym_id, role')
@@ -289,6 +306,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     // null et renvoie vers /login. Une session morte ne laisse aucune coquille à l'écran.
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
+        setSentryUser(null)
         useGymStore.getState().setGym(null)
         set({ user: null, session: null, gym_id: null, role: null })
         return
@@ -297,6 +315,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // TOKEN_REFRESHED / SIGNED_IN / USER_UPDATED — le jeton change, l'identité non.
       // On ne refait PAS la requête profil : elle est déjà faite par initialize() et
       // signIn(), et un renouvellement horaire n'a aucune raison de la rejouer.
+      setSentryUser(session.user.id)
       set({ user: session.user, session })
     })
   },
