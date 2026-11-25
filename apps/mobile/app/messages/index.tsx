@@ -33,7 +33,7 @@ export default function MessagesScreen() {
   const { tokens } = useTheme()
   const { t } = useTranslation()
   const router = useRouter()
-  const { scope, pending } = useMessageScope()
+  const scope = useMessageScope()
   const unreadCount = useMessagesStore((s) => s.unreadCount)
 
   const [rows, setRows] = useState<MessageRow[]>([])
@@ -61,7 +61,10 @@ export default function MessagesScreen() {
   const marking = useRef(false)
   const opening = useRef(false)
 
-  useEffect(() => () => { mounted.current = false }, [])
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   /** L'écran est-il encore là, pour le périmètre de la demande ? */
   const alive = useCallback(
@@ -136,8 +139,8 @@ export default function MessagesScreen() {
         setStatus('loading')
         void loadFirst(scope)
       } else {
-        // Pas de périmètre : aucune requête. On attend s'il n'est pas encore résolu, sinon état vide.
-        setStatus(pending ? 'loading' : 'ready')
+        // Membre ou salle inconnu : état vide, aucune requête.
+        setStatus('ready')
       }
       return () => {
         guard.invalidate()
@@ -147,7 +150,7 @@ export default function MessagesScreen() {
         // Sortie de l'écran : la pastille de la cloche se remet à jour (critère 6).
         void useMessagesStore.getState().refresh()
       }
-    }, [scope, pending, loadFirst, guard]),
+    }, [scope, loadFirst, guard]),
   )
 
   const onRefresh = useCallback(async () => {

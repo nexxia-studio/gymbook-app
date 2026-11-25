@@ -28,22 +28,11 @@ const ICONS: Record<MessageIconName, LucideIcon> = {
   bell: Bell,
 }
 
-/**
- * Le périmètre des requêtes (membre ET salle), ou null s'il en manque un.
- *
- * `pending` distingue « pas encore résolu » de « absent » : membre connu, salle inconnue et
- * profil jamais lu. En mode `multi`, la salle arrive AVEC le profil (`refreshProfile` pose
- * les deux d'un coup) : tant qu'il n'est pas là, l'écran attend au lieu d'annoncer une boîte
- * vide. ⚠️ Si la lecture du profil échoue, `pending` reste vrai : l'écran reste en chargement.
- */
-export function useMessageScope(): { scope: MessageScope | null; pending: boolean } {
+/** Le périmètre des requêtes (membre ET salle), ou null s'il en manque un : aucune requête alors. */
+export function useMessageScope(): MessageScope | null {
   const userId = useAuthStore((s) => s.user?.id)
-  const profileLoaded = useAuthStore((s) => s.profile !== null)
   const gymId = useActiveGymId()
-  return useMemo(() => {
-    const scope = messageScope(userId, gymId)
-    return { scope, pending: scope === null && !!userId && !profileLoaded }
-  }, [userId, gymId, profileLoaded])
+  return useMemo(() => messageScope(userId, gymId), [userId, gymId])
 }
 
 /** L'icône d'un type de message dans sa pastille. À poser sur `tokens.surface`. */

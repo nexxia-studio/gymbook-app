@@ -29,7 +29,7 @@ export default function MessageDetailScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{ id: string }>()
   const id = messageIdFromParam(params.id)
-  const { scope, pending } = useMessageScope()
+  const scope = useMessageScope()
   const dateLabel = useMessageDateLabel()
 
   const [state, setState] = useState<State>({ status: 'loading' })
@@ -37,10 +37,9 @@ export default function MessageDetailScreen() {
   const guard = useRef(createLatestGuard()).current
 
   useEffect(() => {
-    // Sans périmètre ou sans identifiant valable : aucune requête. On attend si le périmètre
-    // n'est pas encore résolu (arrivée directe à froid), sinon le message est introuvable.
+    // Sans périmètre ou sans identifiant valable : introuvable, aucune requête.
     if (!scope || !id) {
-      setState({ status: id && pending ? 'loading' : 'missing' })
+      setState({ status: 'missing' })
       return
     }
     const token = guard.begin()
@@ -56,7 +55,7 @@ export default function MessageDetailScreen() {
       })
     // Démontage ou changement de périmètre : la réponse en cours ne s'applique plus.
     return () => guard.invalidate()
-  }, [scope, pending, id, attempt, guard])
+  }, [scope, id, attempt, guard])
 
   const backToList = () => router.replace('/messages')
   const date = state.status === 'ready' ? dateLabel(state.row.created_at) : null
