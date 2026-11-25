@@ -49,7 +49,7 @@ function errorResponse(status: number, code: string, message: string) {
 const embedOne = <T,>(v: unknown): T | null =>
   Array.isArray(v) ? ((v[0] as T | undefined) ?? null) : ((v as T | null) ?? null)
 
-const SUBSCRIPTION_COLUMNS = 'id, gym_id, member_id, status, plan_name, cancellation_reason, ends_at, next_payment_at, '
+const SUBSCRIPTION_COLUMNS = 'id, gym_id, member_id, status, plan_name, cancellation_reason, cancelled_at, ends_at, next_payment_at, '
   + 'payments_count, max_payments, source_payment_id, mollie_subscription_id, mollie_customer_id'
 
 const subscriptionUrl = (ref: MollieRef) =>

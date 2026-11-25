@@ -232,6 +232,19 @@ Deno.test('déjà arrêté, rien à reprendre : already avec des tableaux vides,
   eq(m.compte('alerte'), 0)
 })
 
+Deno.test('déjà arrêté il y a moins de deux minutes : pas de reprise, le premier appel est encore à l’œuvre', async () => {
+  const m = monde({ sub: { ...DEJA, cancelled_at: new Date(NOW.getTime() - 30_000).toISOString() } })
+  const r = await arret(m, { subscription_id: SUB_ID, reason: 'déménagement' })
+  eq(r, { status: 200, body: { ok: true, already: true, ends_at: ENDS_AT, cancelled_bookings: [], failed_bookings: [] } })
+  eq(m.appels, ['lireAbonnement'])
+})
+
+Deno.test('déjà arrêté depuis plus de deux minutes : la reprise a lieu', async () => {
+  const m = monde({ sub: { ...DEJA, cancelled_at: new Date(NOW.getTime() - 10 * 60_000).toISOString() } })
+  const r = await arret(m, { subscription_id: SUB_ID, reason: 'déménagement' })
+  eq((r.body as { cancelled_bookings: string[] }).cancelled_bookings, ['b1', 'b2'])
+})
+
 Deno.test('déjà arrêté avec un reliquat : annulations et journal de reprise seulement, zéro Mollie, zéro updateSub, zéro notification', async () => {
   const m = monde({ sub: DEJA })
   const r = await arret(m, { subscription_id: SUB_ID, reason: 'déménagement' })

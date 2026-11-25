@@ -31,7 +31,13 @@ export interface StopSubscriptionRow {
   cancellation_reason: string | null; ends_at: string | null; next_payment_at: string | null
   payments_count: number | null; max_payments: number | null; source_payment_id: string | null
   mollie_subscription_id: string | null; mollie_customer_id: string | null
+  cancelled_at?: string | null
 }
+
+/** Délai avant qu'un second appel reprenne les annulations d'un arrêt : en deçà, le premier
+ *  appel est sans doute encore en train de les faire (double clic), et les reprendre en
+ *  parallèle remonterait de faux échecs STATUS_CHANGED et une fausse alerte. */
+export const RESUME_GRACE_MS = 2 * 60 * 1000
 
 /** Le profil de l'appelant, lu en base par le câblage. `null` : profil introuvable. */
 export interface Caller { id: string; role: string | null; gym_id: string | null }
@@ -188,6 +194,10 @@ export async function stopSubscriptionWith(
     if (!finLue) {
       deps.log('error', 'reprise impossible : abonnement arrêté sans date de fin', { subscription_id: sub.id, gym_id: gymId })
       return refus(500, 'SERVER_ERROR', 'Abonnement arrêté sans date de fin : contactez le support')
+    }
+    const arreteDepuis = sub.cancelled_at ? deps.maintenant().getTime() - new Date(sub.cancelled_at).getTime() : Infinity
+    if (arreteDepuis < RESUME_GRACE_MS) {
+      return ok({ ok: true, already: true, ends_at: finLue, cancelled_bookings: [], failed_bookings: [] })
     }
     const restantes = await deps.lireReservations({ member_id: sub.member_id, gym_id: gymId, ends_at: finLue })
     if (restantes.error) {
