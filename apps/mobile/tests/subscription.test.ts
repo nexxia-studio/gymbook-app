@@ -4,7 +4,8 @@
 //
 // ⚠️ SCRIPT À CORPS DE MODULE, comme les autres tests de ce dossier.
 import {
-  ACTIVE_SUBSCRIPTION_STATUSES, DISPLAYABLE_SUBSCRIPTION_STATUSES, isSubscriptionActive,
+  ACTIVE_SUBSCRIPTION_STATUSES, DISPLAYABLE_SUBSCRIPTION_STATUSES, ENGAGING_SUBSCRIPTION_STATUSES,
+  isSubscriptionActive, isSubscriptionEngaged,
 } from '../lib/subscription'
 
 let failures = 0
@@ -37,6 +38,24 @@ for (const status of ['active', 'canceling', 'past_due']) {
 }
 for (const status of ['paused', 'suspended', 'expired', 'cancelled', 'completed', null, undefined]) {
   check(`${String(status)}, terme futur → inactif`, isSubscriptionActive(status, FUTUR) === false)
+}
+
+console.log('ENGAGING_SUBSCRIPTION_STATUSES')
+// Miroir de isEngaged côté serveur (_shared/subscription-engagement.ts) : ce n'est PAS la
+// liste d'accès. past_due ouvre l'accès sans engager, paused engage sans ouvrir l'accès.
+check('active, canceling, paused', liste(ENGAGING_SUBSCRIPTION_STATUSES) === 'active,canceling,paused',
+  liste(ENGAGING_SUBSCRIPTION_STATUSES))
+check('past_due n\'engage pas', !ENGAGING_SUBSCRIPTION_STATUSES.includes('past_due'))
+check('paused engage', ENGAGING_SUBSCRIPTION_STATUSES.includes('paused'))
+
+console.log('isSubscriptionEngaged')
+for (const status of ['active', 'canceling', 'paused']) {
+  check(`${status}, terme futur → engagé`, isSubscriptionEngaged(status, FUTUR) === true)
+  check(`${status}, sans terme → non engagé`, isSubscriptionEngaged(status, null) === false)
+  check(`${status}, terme passé → non engagé`, isSubscriptionEngaged(status, PASSE) === false)
+}
+for (const status of ['past_due', 'suspended', 'expired', 'cancelled', 'completed', null, undefined]) {
+  check(`${String(status)}, terme futur → non engagé`, isSubscriptionEngaged(status, FUTUR) === false)
 }
 
 if (failures > 0) {

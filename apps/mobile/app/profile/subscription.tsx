@@ -21,6 +21,7 @@ import {
   DISPLAYABLE_SUBSCRIPTION_STATUSES,
   isSubscriptionActive,
   isSubscriptionCompleted,
+  isSubscriptionEngaged,
 } from '../../lib/subscription'
 import { PurchaseConsentSheet } from '../../components/payments/PurchaseConsentSheet'
 import {
@@ -60,12 +61,6 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-// GYM-113 — engagement ferme (miroir client du prédicat serveur _shared/subscription-engagement).
-// Le `!!endsAt` reste indispensable : un abonnement SANS terme est actif (isSubscriptionActive
-// le dit) mais n'engage à rien — il n'y a pas de date jusqu'à laquelle le membre serait tenu.
-function isEngaged(status: string, endsAt: string | null): boolean {
-  return isSubscriptionActive(status, endsAt) && !!endsAt
-}
 // Terme d'engagement en heure locale gym (Europe/Brussels), format long fr-BE.
 function formatEngagedDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-BE', {
@@ -757,7 +752,7 @@ export default function SubscriptionScreen() {
         {loading ? null : activeSub && isSubscriptionActive(activeSub.status, activeSub.endsAt) ? (
           // GYM-286 — A-2, EN ATTENTE : `border-orange-400` #FB923C ne vaut aucun jeton,
           // et partage son ternaire avec `border-move-accent`.
-          <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' ? 'border-orange-400' : 'border-move-accent'} p-5`} style={{ backgroundColor: tokens.surface }}>
+          <View className={`rounded-2xl border-2 ${activeSub.status === 'canceling' || activeSub.status === 'past_due' ? 'border-orange-400' : 'border-move-accent'} p-5`} style={{ backgroundColor: tokens.surface }}>
             <View className="mb-3 flex-row items-center justify-between">
               <Text style={{ fontFamily: 'BarlowCondensed_900Black', fontSize: 22, color: tokens.onSurface }}>
                 {activeSub.planName.toUpperCase()}
@@ -812,7 +807,7 @@ export default function SubscriptionScreen() {
             )}
 
             {activeSub.status === 'active' && (
-              isEngaged(activeSub.status, activeSub.endsAt) ? (
+              isSubscriptionEngaged(activeSub.status, activeSub.endsAt) ? (
                 /* GYM-113 — engagement ferme : bouton Résilier MASQUÉ, on affiche le terme. */
                 <View className="mt-4 items-center rounded-lg border border-amber-300 bg-amber-50 py-2.5">
                   <Text className="font-dmsans-medium text-[13px] text-amber-800">

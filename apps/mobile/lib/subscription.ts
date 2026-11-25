@@ -5,10 +5,12 @@
 // + 'canceling' : valeur portée en base par le flux Mollie de résiliation programmée
 //   (abonnement encore en cours jusqu'au terme) — l'app l'a TOUJOURS traitée comme active.
 //
-// COMPORTEMENT EXISTANT CONSTATÉ (repris tel quel, rien inventé) : l'app ne considère
-// « actif / donnant accès » QUE 'active' et 'canceling'. Les autres statuts
-// (suspended / expired / cancelled / paused / completed) ne sont pas traités comme actifs
-// (ils n'étaient d'ailleurs jamais chargés : requêtes filtrées sur ['active','canceling']).
+// DEUX QUESTIONS, DEUX LISTES (GYM-190) : ne pas répondre à l'une avec l'autre.
+//   - « donne accès » : 'active', 'canceling', 'past_due' (ACTIVE_SUBSCRIPTION_STATUSES).
+//   - « engage encore le membre » : 'active', 'canceling', 'paused'
+//     (ENGAGING_SUBSCRIPTION_STATUSES).
+// Les autres statuts (suspended / expired / cancelled / completed) ne donnent pas accès et
+// n'engagent pas.
 //
 // 'completed' (GYM-151) = engagement arrivé à son terme : INACTIF partout — n'ouvre aucun
 // droit de réservation et ne bloque AUCUN achat (un membre au terme doit pouvoir se
@@ -59,6 +61,26 @@ export function isSubscriptionActive(
   if (!status || !ACTIVE_SUBSCRIPTION_STATUSES.includes(status)) return false
   if (!endsAt) return true
   return new Date(endsAt).getTime() > Date.now()
+}
+
+/**
+ * Statuts sous lesquels un abonnement ENGAGE encore le membre (GYM-113) : miroir de
+ * isEngaged côté serveur (supabase/functions/_shared/subscription-engagement.ts).
+ * Ce n'est PAS la liste d'accès : 'past_due' ouvre l'accès sans engager, 'paused' engage
+ * sans ouvrir l'accès. Le serveur reste l'autorité ; cette liste ne sert qu'aux pré-contrôles.
+ */
+export const ENGAGING_SUBSCRIPTION_STATUSES: string[] = ['active', 'canceling', 'paused']
+
+/**
+ * True si l'abonnement engage encore le membre : statut engageant ET terme connu, à venir.
+ * Un abonnement sans terme n'engage à rien : il n'y a pas de date jusqu'à laquelle tenir.
+ */
+export function isSubscriptionEngaged(
+  status: string | null | undefined,
+  endsAt: string | null | undefined,
+): boolean {
+  if (!status || !ENGAGING_SUBSCRIPTION_STATUSES.includes(status)) return false
+  return !!endsAt && new Date(endsAt).getTime() > Date.now()
 }
 
 /** Engagement arrivé à son terme (état neutre/positif, distinct de cancelled/expired). */
