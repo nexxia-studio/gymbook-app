@@ -118,8 +118,8 @@ Deno.serve(async (req) => {
       //     — dont d'éventuels 'canceling' MENTEURS historiques (status = annulé mais Mollie ne l'a
       //     jamais réellement été). On ne peut PAS anonymiser un compte dont le SEPA prélève encore :
       //     tout échec Mollie (hors 404) → ABORT 502, aucune écriture.
-      //     GYM-190 — la liste couvre aussi 'past_due' et 'paused' (SEPA_SAFETY_NET_STATUSES) :
-      //     un impayé que Mollie représente, ou un gel, laissent un abonnement Mollie vivant.
+      //     GYM-190 — la liste couvre aussi 'past_due', 'paused' et 'suspended' (SEPA_SAFETY_NET_STATUSES) :
+      //     un impayé que Mollie représente, un gel ou une suspension laissent un abonnement Mollie vivant.
       const { data: staleSubs } = await admin
         .from('member_subscriptions')
         .select('id, gym_id, mollie_subscription_id, mollie_customer_id')

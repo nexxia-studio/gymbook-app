@@ -55,6 +55,10 @@ for (const status of ['past_due', 'suspended', 'expired', 'cancelled', 'complete
 // ─────────────────────────────────────────────────────────────────────────────────────
 // 1c. FILET SEPA DE delete-account
 // ─────────────────────────────────────────────────────────────────────────────────────
-Deno.test('SEPA_SAFETY_NET_STATUSES : active, canceling, past_due, paused', () => {
-  assertEquals(liste(SEPA_SAFETY_NET_STATUSES), 'active,canceling,past_due,paused', 'liste')
+Deno.test('SEPA_SAFETY_NET_STATUSES : active, canceling, past_due, paused, suspended', () => {
+  assertEquals(liste(SEPA_SAFETY_NET_STATUSES), 'active,canceling,past_due,paused,suspended', 'liste')
+})
+
+Deno.test('filet SEPA : un abonnement suspended est annulé chez Mollie avant la suppression du compte', () => {
+  assertEquals(SEPA_SAFETY_NET_STATUSES.includes('suspended'), true, 'suspended')
 })

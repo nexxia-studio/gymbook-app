@@ -50,7 +50,9 @@ export async function getActiveEngagement(
 //   - 'active', 'canceling' : la liste d'origine (GYM-113), 'canceling' pour les états menteurs.
 //   - 'past_due' : Mollie représente le prélèvement échoué, l'abonnement est bien vivant.
 //   - 'paused'   : gelé, donc destiné à reprendre ses prélèvements.
-// 'suspended' n'y est pas : hors périmètre de GYM-190, à trancher à part.
+//   - 'suspended' : coupé pour impayé, mais l'abonnement reste vivant chez Mollie et peut
+//     encore prélever (décision d'Antoine, 25/11) : sans lui, un compte supprimé pendant
+//     une suspension laissait un abonnement Mollie actif sur un profil anonymisé.
 // Vit ici et non dans delete-account/index.ts, qui lance Deno.serve() à l'import et n'est
 // donc pas atteignable par un banc. Voir subscription-statuses_test.ts.
-export const SEPA_SAFETY_NET_STATUSES = ['active', 'canceling', 'past_due', 'paused']
+export const SEPA_SAFETY_NET_STATUSES = ['active', 'canceling', 'past_due', 'paused', 'suspended']
