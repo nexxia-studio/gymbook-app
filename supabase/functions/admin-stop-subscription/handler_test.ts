@@ -65,6 +65,8 @@ interface Options {
   notification?: boolean | Error
   email?: boolean | Error
   alerteLeve?: boolean
+  /** Réponse de `alerteRecente` : vrai = une alerte existe déjà dans l'heure. */
+  alerteRecente?: boolean | Error
 }
 
 interface Monde {
@@ -141,6 +143,11 @@ function monde(o: Options = {}): Monde {
       m.appels.push(`alerte:${a.stage}`)
       m.alertes.push(a)
       return o.alerteLeve ? Promise.reject(new Error('slack en panne')) : Promise.resolve()
+    },
+    alerteRecente(stage, mollieId, gymId, depuis) {
+      m.appels.push(`alerteRecente:${stage}:${mollieId}:${gymId}:${depuis.toISOString()}`)
+      if (o.alerteRecente instanceof Error) return Promise.reject(o.alerteRecente)
+      return Promise.resolve(o.alerteRecente ?? false)
     },
     maintenant: () => NOW,
     log(niveau, message, detail) { m.logs.push({ niveau, message, detail }) },
@@ -371,7 +378,48 @@ Deno.test('dry_run avec un prélèvement en cours : 409 PAYMENT_IN_FLIGHT avant 
 })
 
 // ─── PAIEMENT ENCAISSÉ, PAS ENCORE ENREGISTRÉ : PAR IDENTIFIANT ──────────────────────
-const MSG_NON_ENREGISTRE = 'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.'
+const MSG_NON_ENREGISTRE = 'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes. '
+  + 'Si le problème persiste après quelques minutes, contactez le support.'
+const NON_ENREGISTRE = {
+  paiements: payes(['tr_dec', '2026-12-02T06:00:00+00:00'], ['tr_nov', '2026-11-05T09:00:00+00:00']),
+  enregistres: ['tr_nov'],
+}
+
+Deno.test('refus RENEWAL_NOT_RECORDED : une alerte avec les identifiants manquants, le membre et la salle, aperçu compris', async () => {
+  for (const dry_run of [false, true]) {
+    const m = monde(NON_ENREGISTRE)
+    const r = await arret(m, { subscription_id: SUB_ID, reason: 'x', dry_run })
+    eq(r.body.code, 'RENEWAL_NOT_RECORDED')
+    const depuis = new Date(NOW.getTime() - 60 * 60 * 1000).toISOString()
+    eq(m.appels.includes(`alerteRecente:renewal_not_recorded:${SUB.mollie_subscription_id}:${GYM}:${depuis}`), true, 'fenêtre d’une heure')
+    eq(m.alertes, [{
+      stage: 'renewal_not_recorded', mollieId: SUB.mollie_subscription_id, gymId: GYM,
+      detail: { subscription_id: SUB_ID, member_id: MEMBER_ID, gym_id: GYM, missing_mollie_payment_ids: ['tr_dec'] },
+    }], String(dry_run))
+    aucuneEcriture(m)
+  }
+})
+
+Deno.test('refus RENEWAL_NOT_RECORDED : pas de seconde alerte dans l’heure pour le même abonnement', async () => {
+  const m = monde({ ...NON_ENREGISTRE, alerteRecente: true })
+  const r = await arret(m)
+  eq([r.status, r.body.code], [409, 'RENEWAL_NOT_RECORDED'])
+  eq(m.compte('alerte'), 0)
+})
+
+Deno.test('refus RENEWAL_NOT_RECORDED : alertes récentes illisibles, on alerte quand même ; alerte en panne, le refus reste', async () => {
+  const lecture = monde({ ...NON_ENREGISTRE, alerteRecente: new Error('base') })
+  eq((await arret(lecture)).body.code, 'RENEWAL_NOT_RECORDED')
+  eq(lecture.compte('alerte'), 1)
+  const envoi = monde({ ...NON_ENREGISTRE, alerteLeve: true })
+  eq((await arret(envoi)).body.code, 'RENEWAL_NOT_RECORDED')
+})
+
+Deno.test('aucun refus, aucune alerte de ce type', async () => {
+  const m = monde()
+  eq((await arret(m)).status, 200)
+  eq(m.compte('alerteRecente'), 0)
+})
 
 Deno.test('a) prélèvement payé et enregistré : l’arrêt passe', async () => {
   const m = monde({ paiements: payes(['tr_nov', '2026-11-05T09:00:00+00:00'], ['tr_oct', '2026-10-05T09:00:00+00:00']), enregistres: ['tr_nov', 'tr_oct'] })

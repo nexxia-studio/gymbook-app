@@ -1423,7 +1423,7 @@
     "NOT_RECURRING": "This subscription is not charged automatically, so it cannot be stopped here. If it was paid in one go, the refund has to be handled separately.",
     "END_DATE_UNKNOWN": "The end of the period already paid for is unknown, so the subscription was not stopped. Contact support.",
     "PAYMENT_IN_FLIGHT": "A payment is in progress for this subscription. Wait for its outcome before stopping it.",
-    "RENEWAL_NOT_RECORDED": "A payment has just been collected and is not recorded yet. Try again in a few minutes.",
+    "RENEWAL_NOT_RECORDED": "A payment has just been collected and is not recorded yet. Try again in a few minutes. If the problem persists after a few minutes, contact support.",
     "MOLLIE_NOT_CONNECTED": "Mollie is not connected for your gym, so the subscription was not stopped. Reconnect Mollie in the settings, then try again.",
     "MOLLIE_READ_FAILED": "Mollie could not be reached. Nothing was changed. Try again in a moment.",
     "MOLLIE_STOP_FAILED": "Mollie did not confirm that payments were stopped, so nothing was changed. Try again in a moment.",

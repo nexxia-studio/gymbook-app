@@ -56,7 +56,7 @@ export interface MemberNotice {
 }
 
 export interface StopAlert {
-  stage: 'stop_not_persisted' | 'bookings_not_cancelled'
+  stage: 'stop_not_persisted' | 'bookings_not_cancelled' | 'renewal_not_recorded'
   mollieId: string | null
   gymId: string
   detail: Record<string, unknown>
@@ -93,11 +93,18 @@ export interface StopDeps {
   email(n: MemberNotice): Promise<boolean>
   /** `recordWebhookFailure`. Jamais bloquant : le cœur avale aussi ce qu'elle lèverait. */
   alerte(a: StopAlert): Promise<void>
+  /** Une alerte de ce stage existe-t-elle déjà pour cet abonnement Mollie depuis `depuis` ? Lecture seule. */
+  alerteRecente(stage: string, mollieId: string, gymId: string, depuis: Date): Promise<boolean>
   maintenant(): Date
   log(niveau: 'info' | 'error', message: string, detail: Record<string, unknown>): void
 }
 
 export interface StopResult { status: number; body: Record<string, unknown> }
+
+/** Une alerte RENEWAL_NOT_RECORDED au plus par abonnement et par heure : le gérant peut
+ *  réessayer souvent, l'équipe n'a besoin d'être prévenue qu'une fois. */
+export const RENEWAL_ALERT_THROTTLE_MS = 60 * 60 * 1000
+export const RENEWAL_ALERT_STAGE = 'renewal_not_recorded' as const
 
 const ok = (body: Record<string, unknown>): StopResult => ({ status: 200, body })
 const refus = (status: number, code: string, message: string, extra: Record<string, unknown> = {}): StopResult =>
@@ -311,8 +318,25 @@ export async function stopSubscriptionWith(
     const missing = unrecordedPaidIds(paidIds, recorded.ids)
     if (missing.length > 0) {
       deps.log('info', 'paiement encaissé pas encore enregistré', { subscription_id: sub.id, mollie_payment_ids: missing })
+      // Si le refus dure, c'est que notre webhook n'enregistrera pas seul ce paiement : l'équipe
+      // doit le savoir. Une alerte par abonnement et par heure ; si on ne sait pas lire les
+      // alertes récentes, on alerte quand même (mieux vaut deux alertes qu'aucune).
+      const mollieSubId = sub.mollie_subscription_id as string
+      let dejaAlerte = false
+      try {
+        dejaAlerte = await deps.alerteRecente(RENEWAL_ALERT_STAGE, mollieSubId, gymId, new Date(now.getTime() - RENEWAL_ALERT_THROTTLE_MS))
+      } catch (e) {
+        deps.log('error', 'lecture des alertes récentes impossible, alerte envoyée quand même', { subscription_id: sub.id, error: nomErreur(e) })
+      }
+      if (!dejaAlerte) {
+        await alerter({
+          stage: RENEWAL_ALERT_STAGE, mollieId: mollieSubId, gymId,
+          detail: { subscription_id: sub.id, member_id: sub.member_id, gym_id: gymId, missing_mollie_payment_ids: missing },
+        })
+      }
       return refus(409, 'RENEWAL_NOT_RECORDED',
-        'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.')
+        'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes. '
+        + 'Si le problème persiste après quelques minutes, contactez le support.')
     }
   }
 

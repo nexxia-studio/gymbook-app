@@ -1423,7 +1423,7 @@
     "NOT_RECURRING": "Cet abonnement n'est pas prélevé automatiquement : il ne peut pas être arrêté ici. S'il a été payé en une fois, le remboursement est à traiter à part.",
     "END_DATE_UNKNOWN": "La fin de la période déjà payée est inconnue : l'abonnement n'a pas été arrêté. Contacte le support.",
     "PAYMENT_IN_FLIGHT": "Un prélèvement est en cours pour cet abonnement. Attends son résultat avant de l'arrêter.",
-    "RENEWAL_NOT_RECORDED": "Un prélèvement vient d'être encaissé et n'est pas encore enregistré. Réessaie dans quelques minutes.",
+    "RENEWAL_NOT_RECORDED": "Un prélèvement vient d'être encaissé et n'est pas encore enregistré. Réessaie dans quelques minutes. Si le problème persiste après quelques minutes, contacte le support.",
     "MOLLIE_NOT_CONNECTED": "Mollie n'est pas connecté pour ta salle : l'abonnement n'a pas été arrêté. Reconnecte Mollie dans les réglages, puis réessaie.",
     "MOLLIE_READ_FAILED": "Mollie n'a pas pu être consulté. Rien n'a été modifié. Réessaie dans un instant.",
     "MOLLIE_STOP_FAILED": "Mollie n'a pas confirmé l'arrêt des prélèvements : rien n'a été modifié. Réessaie dans quelques instants.",

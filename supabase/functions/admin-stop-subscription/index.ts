@@ -253,6 +253,21 @@ Deno.serve(async (req) => {
       alerte: ({ stage, mollieId, gymId, detail }) =>
         recordWebhookFailure(admin, { functionName: FN, mollieId, paymentId: null, gymId, stage, detail }),
 
+      // Lecture seule de la file des alertes : sert à n'envoyer qu'une alerte par heure.
+      // Une erreur de lecture rend `false` : on alerte plutôt que de se taire.
+      async alerteRecente(stage, mollieId, gymId, depuis) {
+        const { data, error } = await admin
+          .from('webhook_failures')
+          .select('id')
+          .eq('stage', stage)
+          .eq('mollie_id', mollieId)
+          .eq('gym_id', gymId)
+          .gte('created_at', depuis.toISOString())
+          .limit(1)
+        if (error) return false
+        return (data ?? []).length > 0
+      },
+
       maintenant: () => new Date(),
 
       log(niveau, message, detail) {
