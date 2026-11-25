@@ -201,7 +201,7 @@ export const KNOWN_EDGE_ERROR_CODES = [
   //  · STOP_NOT_PERSISTED — l'inverse : Mollie A arrêté, la base n'a pas suivi. Réessayer
   //    est le bon geste (Mollie répond « déjà annulé », la fonction poursuit).
   'MISSING_SUBSCRIPTION_ID', 'NOT_STOPPABLE', 'NOT_RECURRING', 'END_DATE_UNKNOWN',
-  'PAYMENT_IN_FLIGHT', 'MOLLIE_NOT_CONNECTED', 'MOLLIE_READ_FAILED', 'MOLLIE_STOP_FAILED',
+  'PAYMENT_IN_FLIGHT', 'PAYMENT_NOT_RECORDED', 'MOLLIE_NOT_CONNECTED', 'MOLLIE_READ_FAILED', 'MOLLIE_STOP_FAILED',
   'STOP_NOT_PERSISTED',
   // ── invite-team-member / team-access ──
   'ALREADY_ACTIVE', 'INVALID_ROLE', 'LINK_FAILED', 'LAST_ADMIN', 'CANNOT_REVOKE_SELF',
