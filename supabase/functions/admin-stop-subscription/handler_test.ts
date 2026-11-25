@@ -357,13 +357,13 @@ Deno.test('dry_run avec un prélèvement en cours : 409 PAYMENT_IN_FLIGHT avant 
 })
 
 // ─── PAIEMENT ENCAISSÉ, PAS ENCORE ENREGISTRÉ ────────────────────────────────────────
-Deno.test('échéance du jour déjà paid chez Mollie mais pas encore enregistrée : 409 PAYMENT_NOT_RECORDED, rien n’est modifié, aperçu compris', async () => {
+Deno.test('échéance du jour déjà paid chez Mollie mais pas encore enregistrée : 409 RENEWAL_NOT_RECORDED, rien n’est modifié, aperçu compris', async () => {
   // SUB.next_payment_at = 5 décembre ; payé le 5 à Bruxelles, le webhook n'est pas passé.
   for (const paidAt of ['2026-12-04T23:30:00+00:00', '2026-12-05T08:00:00+00:00', '2026-12-06T08:00:00+00:00']) {
     for (const dry_run of [false, true]) {
       const m = monde({ paiements: paiementPaye(paidAt) })
       const r = await arret(m, { subscription_id: SUB_ID, reason: 'x', dry_run })
-      eq([r.status, r.body.code, r.body.message], [409, 'PAYMENT_NOT_RECORDED',
+      eq([r.status, r.body.code, r.body.message], [409, 'RENEWAL_NOT_RECORDED',
         'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.'], paidAt)
       eq(m.compte('mollieStatut'), 0)
       aucuneEcriture(m, paidAt)

@@ -209,7 +209,7 @@ console.log('\nCAS 8 : chaque refus connu a son texte, en fr et en en ; un code 
   eq('code absent (panne réseau), fr', edgeErrorMessage(undefined, tFr), replisFr)
   for (const attendu of [
     'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'MISSING_SUBSCRIPTION_ID', 'REASON_REQUIRED', 'REASON_TOO_LONG',
-    'NOT_STOPPABLE', 'NOT_RECURRING', 'END_DATE_UNKNOWN', 'PAYMENT_IN_FLIGHT', 'PAYMENT_NOT_RECORDED', 'MOLLIE_NOT_CONNECTED',
+    'NOT_STOPPABLE', 'NOT_RECURRING', 'END_DATE_UNKNOWN', 'PAYMENT_IN_FLIGHT', 'RENEWAL_NOT_RECORDED', 'MOLLIE_NOT_CONNECTED',
     'MOLLIE_READ_FAILED', 'MOLLIE_STOP_FAILED', 'STOP_NOT_PERSISTED', 'SERVER_ERROR',
   ]) {
     check(`le contrat cite ${attendu}`, (STOP_ERROR_CODES as readonly string[]).includes(attendu))

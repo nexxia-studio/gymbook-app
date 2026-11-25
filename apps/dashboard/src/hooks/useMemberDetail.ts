@@ -126,6 +126,15 @@ export function useMemberDetail(memberId: string | null) {
   if (shownFor !== memberId) {
     setShownFor(memberId)
     setSubscription(null)
+    // Même règle pour le reste de la fiche (constat de QA) : le solde, les paiements et les
+    // réservations du membre précédent ne s'affichent plus sous le nom du suivant.
+    setCredits([])
+    setCreditsRemaining(0)
+    setGiftedRemaining(0)
+    setPurchasedRemaining(0)
+    setAdjustments([])
+    setPayments([])
+    setBookings([])
     setLoading(!!memberId && !!gymId)
   }
 

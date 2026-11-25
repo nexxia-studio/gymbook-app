@@ -282,7 +282,7 @@ export async function stopSubscriptionWith(
     if (outcome === 'paid_not_recorded') {
       // L'échéance est payée chez Mollie et notre webhook ne l'a pas encore traitée : la
       // date de fin calculée plus haut couperait l'accès tout juste payé.
-      return refus(409, 'PAYMENT_NOT_RECORDED',
+      return refus(409, 'RENEWAL_NOT_RECORDED',
         'Un prélèvement vient d\'être encaissé et n\'est pas encore enregistré. Réessayez dans quelques minutes.')
     }
     // `clear`, ou `not_found` : l'abonnement n'existe plus chez Mollie, rien n'est en cours.
