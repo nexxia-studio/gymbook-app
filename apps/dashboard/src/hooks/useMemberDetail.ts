@@ -199,22 +199,28 @@ export function useMemberDetail(memberId: string | null) {
         planNames.set(p.id, p.name)
       }
 
-      const creditLines: CreditLine[] = ((creditsRes.data ?? []) as Array<Record<string, unknown>>).map((c) => ({
-        planId: c.plan_id as string,
-        planName: planNames.get(c.plan_id as string) ?? '—',
-        total: (c.credits_total as number) ?? 0,
-        used: (c.credits_used as number) ?? 0,
-        remaining: (c.credits_remaining as number) ?? 0,
-      }))
-      setCredits(creditLines)
-      setCreditsRemaining(creditLines.reduce((s, c) => s + c.remaining, 0))
-      // Décomposition offert (manual_grant) vs acheté (tout le reste).
-      const gifted = creditLines.filter((c) => c.planId === MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0)
-      setGiftedRemaining(gifted)
-      setPurchasedRemaining(creditLines.filter((c) => c.planId !== MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0))
-      // Une lecture en erreur (Supabase la renvoie sans lever) n'est pas un solde : la fiche
-      // reste en « chargement », Vendre et Ajuster désactivés, plutôt qu'un faux 0.
-      if (!creditsRes.error) setCreditsFor(memberId)
+      // Une lecture en erreur (Supabase la renvoie sans lever) n'est pas un solde : ni au
+      // premier chargement, ni au rechargement de la même fiche (après une vente). La fiche
+      // repasse en « chargement », Vendre et Ajuster désactivés, plutôt qu'un faux 0 ou
+      // qu'un ancien solde d'avant la vente.
+      if (creditsRes.error) {
+        setCreditsFor(null)
+      } else {
+        const creditLines: CreditLine[] = ((creditsRes.data ?? []) as Array<Record<string, unknown>>).map((c) => ({
+          planId: c.plan_id as string,
+          planName: planNames.get(c.plan_id as string) ?? '—',
+          total: (c.credits_total as number) ?? 0,
+          used: (c.credits_used as number) ?? 0,
+          remaining: (c.credits_remaining as number) ?? 0,
+        }))
+        setCredits(creditLines)
+        setCreditsRemaining(creditLines.reduce((s, c) => s + c.remaining, 0))
+        // Décomposition offert (manual_grant) vs acheté (tout le reste).
+        const gifted = creditLines.filter((c) => c.planId === MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0)
+        setGiftedRemaining(gifted)
+        setPurchasedRemaining(creditLines.filter((c) => c.planId !== MANUAL_GRANT_PLAN_ID).reduce((s, c) => s + c.remaining, 0))
+        setCreditsFor(memberId)
+      }
 
       const adjLines: CreditAdjustment[] = ((adjustmentsRes.data ?? []) as Array<Record<string, unknown>>).map((a) => {
         const g = a.granter as { first_name?: string; last_name?: string } | Array<{ first_name?: string; last_name?: string }> | null
