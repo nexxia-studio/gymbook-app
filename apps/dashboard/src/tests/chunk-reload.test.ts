@@ -12,6 +12,7 @@ import {
   RELOAD_WINDOW_MS,
   createReloader,
   isChunkLoadError,
+  loadOrReload,
   readMarker,
   shouldReload,
   writeMarker,
@@ -46,6 +47,7 @@ console.log('\nCAS 1 — les messages réels d\'un fichier de page disparu sont 
   for (const message of reels) {
     check(message.slice(0, 50), isChunkLoadError(new TypeError(message)))
   }
+  check('préchargement CSS de Vite', isChunkLoadError(new Error('Unable to preload CSS for /assets/Planning-BqZ3kT1x.css')))
   check('insensible à la casse', isChunkLoadError(new Error('FAILED TO FETCH DYNAMICALLY IMPORTED MODULE')))
   check('une simple chaîne', isChunkLoadError('Importing a module script failed.'))
   check('un objet { message }', isChunkLoadError({ message: reels[0] }))
@@ -104,9 +106,10 @@ console.log('\nCAS 4 — lecture et écriture du marqueur')
 
 console.log('\nCAS 5 — tenter la recharge : une fois, et jamais sans marqueur')
 {
-  const monter = (storage: MarkerStorage | (() => MarkerStorage), now = T0) => {
+  const monter = (storage: MarkerStorage | (() => MarkerStorage), now = T0, isOnline: () => boolean = () => true) => {
     let reloads = 0
     const reloader = createReloader({
+      isOnline,
       getStorage: typeof storage === 'function' ? storage : () => storage,
       now: () => now,
       getPath: () => '/revenue',
@@ -156,6 +159,88 @@ console.log('\nCAS 5 — tenter la recharge : une fois, et jamais sans marqueur'
   {
     const { reloader, count } = monter(() => { throw new Error('sessionStorage interdit') })
     check('accès au stockage qui lève → pas de recharge', reloader.attempt('lazy') === false && count() === 0)
+  }
+  {
+    const storage = memoryStorage()
+    let enLigne = false
+    const { reloader, count } = monter(storage, T0, () => enLigne)
+    check('hors ligne → pas de recharge', reloader.attempt('lazy') === false && count() === 0)
+    check('hors ligne → marqueur non écrit', readMarker(storage) === null)
+    check('hors ligne → drapeau baissé', !reloader.hasTriggered())
+    enLigne = true
+    check('de nouveau en ligne → la recharge est accordée', reloader.attempt('lazy') === true && count() === 1 && readMarker(storage)?.at === T0)
+  }
+  {
+    let lectures = 0
+    const espion: MarkerStorage = { getItem: () => { lectures++; return null }, setItem: () => {} }
+    const { reloader } = monter(espion, T0, () => false)
+    reloader.attempt('preload')
+    check('hors ligne → le stockage n\'est même pas lu', lectures === 0)
+  }
+}
+
+console.log('\nCAS 6 — le chargement d\'une page : relancer, attendre, ou rendre le module')
+{
+  type Etat = 'en attente' | 'résolue' | 'rejetée'
+  // « En attente » = ni résolue ni rejetée après plusieurs tours de microtâches.
+  const observer = async <T>(promise: Promise<T>): Promise<{ etat: Etat; valeur?: T; erreur?: unknown }> => {
+    const vu: { etat: Etat; valeur?: T; erreur?: unknown } = { etat: 'en attente' }
+    promise.then(
+      (valeur) => { vu.etat = 'résolue'; vu.valeur = valeur },
+      (erreur) => { vu.etat = 'rejetée'; vu.erreur = erreur },
+    )
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    return vu
+  }
+  const monter = (marqueur?: number) => {
+    const storage = memoryStorage()
+    if (marqueur !== undefined) writeMarker(storage, { at: marqueur, path: '/revenue', reason: 'lazy' })
+    let reloads = 0
+    const reloader = createReloader({
+      isOnline: () => true,
+      getStorage: () => storage,
+      now: () => T0,
+      getPath: () => '/revenue',
+      reload: () => { reloads++ },
+    })
+    return { reloader, count: () => reloads }
+  }
+  const disparu = new TypeError('Failed to fetch dynamically imported module: https://app.viniz.app/assets/Revenue-DZ6IBpv1.js')
+
+  {
+    const { reloader, count } = monter()
+    const module = { default: 'Page' }
+    const vu = await observer(loadOrReload(() => Promise.resolve(module), reloader))
+    check('import réussi → le module, tel quel', vu.etat === 'résolue' && vu.valeur === module && count() === 0)
+  }
+  {
+    const { reloader, count } = monter()
+    const bug = new TypeError("Cannot read properties of undefined (reading 'map')")
+    const vu = await observer(loadOrReload(() => Promise.reject(bug), reloader))
+    check('erreur non reconnue → relancée telle quelle, sans recharge', vu.etat === 'rejetée' && vu.erreur === bug && count() === 0 && !reloader.hasTriggered())
+  }
+  {
+    const { reloader, count } = monter()
+    const vu = await observer(loadOrReload(() => Promise.reject(disparu), reloader))
+    check('fichier disparu, recharge accordée → promesse en attente', vu.etat === 'en attente' && count() === 1)
+  }
+  {
+    const { reloader, count } = monter(T0 - 5_000)
+    const vu = await observer(loadOrReload(() => Promise.reject(disparu), reloader))
+    check('fichier disparu, recharge refusée → l\'erreur d\'origine est relancée', vu.etat === 'rejetée' && vu.erreur === disparu && count() === 0)
+  }
+  {
+    // L'écouteur vite:preloadError a rechargé et annulé l'événement : Vite résout à undefined.
+    const { reloader, count } = monter()
+    reloader.attempt('preload')
+    const vu = await observer(loadOrReload(() => Promise.resolve(undefined), reloader))
+    check('undefined après preventDefault → promesse en attente, une seule recharge', vu.etat === 'en attente' && count() === 1)
+  }
+  {
+    const { reloader, count } = monter()
+    const vu = await observer(loadOrReload(() => Promise.resolve(undefined), reloader))
+    check('undefined sans recharge en route → rendu tel quel (rien d\'avalé)', vu.etat === 'résolue' && vu.valeur === undefined && count() === 0)
   }
 }
 

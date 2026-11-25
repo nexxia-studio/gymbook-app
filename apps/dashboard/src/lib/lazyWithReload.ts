@@ -9,11 +9,14 @@ import {
   RELOAD_WINDOW_MS,
   createReloader,
   isChunkLoadError,
+  loadOrReload,
   readMarker,
   type ReloadMarker,
 } from '@/lib/chunkReload'
 
 const reloader = createReloader({
+  // `undefined` (navigateur qui ne sait pas) ou true : on recharge.
+  isOnline: () => navigator.onLine !== false,
   getStorage: () => window.sessionStorage,
   now: () => Date.now(),
   getPath: () => window.location.pathname,
@@ -21,18 +24,17 @@ const reloader = createReloader({
   reload: () => window.location.reload(),
 })
 
-/** Reste en attente jusqu'au rechargement : le fallback du Suspense tient l'écran. */
-function untilReload(): Promise<never> {
-  return new Promise<never>(() => {})
-}
-
 /**
  * À poser AVANT le rendu. Recharge permise → `preventDefault()` (Vite ne relance alors
  * pas l'erreur) ; refusée → on n'empêche rien, l'erreur va à l'ErrorBoundary.
+ *
+ * ⚠️ Le message décide, jamais l'événement seul : Vite l'émet pour TOUT rejet de
+ * l'import, y compris un module de page qui lève à son évaluation. Ce bug-là ne doit
+ * être ni rechargé ni avalé.
  */
 export function installPreloadErrorReload(): void {
   window.addEventListener('vite:preloadError', (event) => {
-    if (reloader.attempt('preload')) event.preventDefault()
+    if (isChunkLoadError(event.payload) && reloader.attempt('preload')) event.preventDefault()
   })
 }
 
@@ -46,18 +48,7 @@ export function installPreloadErrorReload(): void {
 export function lazyWithReload<T extends ComponentType<any>>(
   load: () => Promise<{ default: T }>,
 ): LazyExoticComponent<T> {
-  return lazy(async () => {
-    try {
-      const loaded: { default: T } | undefined = await load()
-      // Quand `vite:preloadError` a été annulé, Vite avale l'erreur et l'import se résout
-      // à `undefined` : sans cette garde, React lèverait sur `undefined.default`.
-      if (loaded === undefined && reloader.hasTriggered()) return untilReload()
-      return loaded
-    } catch (error) {
-      if (isChunkLoadError(error) && reloader.attempt('lazy')) return untilReload()
-      throw error
-    }
-  })
+  return lazy(() => loadOrReload(load, reloader))
 }
 
 /**

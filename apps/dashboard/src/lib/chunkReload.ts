@@ -10,13 +10,14 @@
 export const RELOAD_WINDOW_MS = 30_000
 const MARKER_KEY = 'viniz.chunkReload'
 
-// Chrome, Safari (deux formes), Firefox. Volontairement PAS « Failed to fetch » seul :
+// Chrome, Safari (deux formes), Firefox, puis le préchargement CSS de Vite. Volontairement PAS « Failed to fetch » seul :
 // c'est l'erreur réseau de n'importe quel fetch, elle doit suivre son chemin actuel.
 const CHUNK_ERROR_PATTERNS = [
   'failed to fetch dynamically imported module',
   'is not a valid javascript mime type',
   'importing a module script failed',
   'error loading dynamically imported module',
+  'unable to preload css for',
 ]
 
 function readStringField(value: unknown, field: string): string {
@@ -82,6 +83,8 @@ export function writeMarker(storage: MarkerStorage, marker: ReloadMarker): boole
 }
 
 export interface ReloaderDeps {
+  /** false = hors ligne : recharger enverrait sur la page hors-ligne du navigateur. */
+  isOnline: () => boolean
   /** Appelé sous try/catch : le simple accès à `window.sessionStorage` peut lever. */
   getStorage: () => MarkerStorage
   now: () => number
@@ -106,6 +109,9 @@ export function createReloader(deps: ReloaderDeps): Reloader {
     hasTriggered: () => triggered,
     attempt: (reason) => {
       if (triggered) return true
+      // Avant tout accès au marqueur : il ne doit pas être consommé par une recharge
+      // qui n'a pas lieu.
+      if (!deps.isOnline()) return false
       let storage: MarkerStorage
       try {
         storage = deps.getStorage()
@@ -122,4 +128,28 @@ export function createReloader(deps: ReloaderDeps): Reloader {
       return true
     },
   }
+}
+
+/**
+ * Le corps de `lazyWithReload`, sans React : charge un module de page, et décide.
+ * - module chargé → rendu tel quel ;
+ * - fichier disparu et recharge accordée → promesse qui reste en attente (le fallback du
+ *   Suspense tient l'écran jusqu'au rechargement, pas d'éclair d'écran d'erreur) ;
+ * - toute autre erreur, ou recharge refusée → l'erreur d'origine est relancée telle quelle.
+ */
+export async function loadOrReload<M>(load: () => Promise<M>, reloader: Reloader): Promise<M> {
+  try {
+    const loaded = await load()
+    // Quand `vite:preloadError` a été annulé, Vite avale l'erreur et l'import se résout
+    // à `undefined` : sans cette garde, React lèverait sur `undefined.default`.
+    if (loaded === undefined && reloader.hasTriggered()) return untilReload()
+    return loaded
+  } catch (error) {
+    if (isChunkLoadError(error) && reloader.attempt('lazy')) return untilReload()
+    throw error
+  }
+}
+
+function untilReload(): Promise<never> {
+  return new Promise<never>(() => {})
 }
